@@ -19,8 +19,9 @@ from qtpy.QtWidgets import QHBoxLayout, QVBoxLayout, QWidget
 
 from ims2micro.enums import TRANSFORMATION_TRANSLATIONS
 from ims2micro.models import RegistrationModel, Transformation
+from ims2micro._select import IMSWidget, MicroscopyWidget
+from qtextra._napari.mixins import ImageViewMixin
 
-# from ims2micro.qt_registration_list import QtRegistrationList
 from ims2micro.utilities import add, select
 
 if ty.TYPE_CHECKING:
@@ -29,7 +30,7 @@ if ty.TYPE_CHECKING:
 from loguru import logger
 
 
-class ImageRegistrationDialog(QtDialog, ConfigMixin, IndicatorMixin):
+class ImageRegistrationDialog(QtDialog, ConfigMixin, IndicatorMixin, ImageViewMixin):
     """Image registration dialog."""
 
     fixed_image_layer: ty.Optional["Image"] = None
@@ -47,7 +48,6 @@ class ImageRegistrationDialog(QtDialog, ConfigMixin, IndicatorMixin):
         self.setMinimumSize(1200, 800)
 
         self.setup_events()
-        self.on_load_dataset()
 
     def _on_teardown(self):
         """Teardown."""
@@ -62,7 +62,6 @@ class ImageRegistrationDialog(QtDialog, ConfigMixin, IndicatorMixin):
 
     @transform_model.setter
     def transform_model(self, registration: RegistrationModel):
-        # ENV.registration_map[registration.name] = registration
         self._transform = registration
 
     @property
@@ -73,31 +72,23 @@ class ImageRegistrationDialog(QtDialog, ConfigMixin, IndicatorMixin):
             return transform.transform
         return None
 
-    def on_load_dataset(self):
-        """Load dataset."""
-        # for model in ENV.registration_map.values():
-        #     self.registration_list.append_item(model)
-        # force update of ion image
-        self.image_manager._set_used_last("im_ion")
-
     def setup_events(self, state: bool = True):
         """Additional setup."""
-        connect(self.load_moving_btn.clicked, self.on_open_moving, state=state)
-        connect(self.image_manager.evt_update, self.on_plot_fixed_image, state=state)
+        # connect(self.load_moving_btn.clicked, self.on_open_moving, state=state)
 
         # add fixed points layer
-        if state:
-            self.on_add("fixed")
-        connect(self.fixed_points_layer.events.data, self.on_run, state=state)
-        connect(self.fixed_points_layer.events.add_point, partial(self.on_predict, "fixed"), state=state)
-        connect(self.fixed_points_layer.events.mode, partial(self.on_mode, "fixed"), state=state)
+        # if state:
+        #     self.on_add("fixed")
+        # connect(self.fixed_points_layer.events.data, self.on_run, state=state)
+        # connect(self.fixed_points_layer.events.add_point, partial(self.on_predict, "fixed"), state=state)
+        # connect(self.fixed_points_layer.events.mode, partial(self.on_mode, "fixed"), state=state)
 
         # add moving points layer
-        if state:
-            self.on_add("moving")
-        connect(self.moving_points_layer.events.data, self.on_run, state=state)
-        connect(self.moving_points_layer.events.add_point, partial(self.on_predict, "moving"), state=state)
-        connect(self.moving_points_layer.events.mode, partial(self.on_mode, "moving"), state=state)
+        # if state:
+        #     self.on_add("moving")
+        # connect(self.moving_points_layer.events.data, self.on_run, state=state)
+        # connect(self.moving_points_layer.events.add_point, partial(self.on_predict, "moving"), state=state)
+        # connect(self.moving_points_layer.events.mode, partial(self.on_mode, "moving"), state=state)
 
     def _on_open_fixed(self, filename: str):
         self.fixed_image_layer = self.view_fixed.widget.viewer.open(filename, name="Fixed")[0]
@@ -446,35 +437,108 @@ class ImageRegistrationDialog(QtDialog, ConfigMixin, IndicatorMixin):
     # noinspection PyAttributeOutsideInit
     def make_panel(self) -> QHBoxLayout:
         """Create panel."""
+        view_layout = self._make_image_layout()
+
+        self._ims_widget = IMSWidget(self)
+        self._micro_widget = MicroscopyWidget(self)
+
+        self.run_btn = hp.make_btn(
+            self,
+            "Compute transformation",
+            tooltip="Compute transformation between the fixed and moving image.",
+        )
+        self.run_btn.clicked.connect(self.on_run)
+
+        self.transform_choice = hp.make_combobox(self)
+        hp.set_combobox_data(self.transform_choice, TRANSFORMATION_TRANSLATIONS, "Affine")
+        self.transform_choice.currentTextChanged.connect(self.on_run)
+
+        layout = hp.make_form_layout()
+        layout.addRow(self._ims_widget)
+        layout.addRow(self._micro_widget)
+        layout.addRow(hp.make_h_line(self))
+        layout.addRow(hp.make_label(self, "Type of transformation"), self.transform_choice)
+        layout.addRow(self.run_btn)
+        layout.addRow(hp.make_h_line(self))
+        layout.addRow(self._make_settings_layout())
+
+        widget = QWidget()
+        widget.setMinimumWidth(400)
+        settings_layout = QVBoxLayout(widget)
+        settings_layout.setContentsMargins(0, 0, 0, 0)
+        settings_layout.addLayout(layout)
+        settings_layout.addWidget(hp.make_v_line())
+
+        main_layout = QHBoxLayout()
+        main_layout.addLayout(view_layout, stretch=True)
+        main_layout.addWidget(widget)
+        return main_layout
+
+    def _make_settings_layout(self):
+        # functionality
+        self.fixed_point_size = hp.make_int_spin_box(
+            self, value=3, tooltip="Size of the points shown in the fixed image."
+        )
+        self.fixed_point_size.valueChanged.connect(partial(self.on_update_layer, "fixed"))
+
+        self.moving_point_size = hp.make_int_spin_box(
+            self, value=3, tooltip="Size of the points shown in the moving image."
+        )
+        self.moving_point_size.valueChanged.connect(partial(self.on_update_layer, "moving"))
+
+        self.fixed_opacity = hp.make_int_spin_box(self, value=75, step_size=10, tooltip="Opacity of the fixed image")
+        self.fixed_opacity.valueChanged.connect(partial(self.on_update_layer, "fixed"))
+
+        self.moving_opacity = hp.make_int_spin_box(
+            self,
+            value=100,
+            step_size=10,
+            tooltip="Opacity of the fixed image",
+        )
+        self.moving_opacity.valueChanged.connect(partial(self.on_update_layer, "moving"))
+
+        self.text_size = hp.make_int_spin_box(
+            self, value=12, minimum=4, maximum=60, tooltip="Size of the text associated with each label."
+        )
+        self.text_size.valueChanged.connect(self.on_update_text)
+
+        self.text_color = hp.make_swatch(
+            self, default="#00ff00", tooltip="Color of the text associated with each label."
+        )
+        self.text_color.evt_color_changed.connect(self.on_update_text)
+
+        layout = hp.make_form_layout()
+        layout.addRow(hp.make_label(self, "Size (fixed)"), self.fixed_point_size)
+        layout.addRow(hp.make_label(self, "Size (moving)"), self.moving_point_size)
+        layout.addRow(hp.make_label(self, "Opacity (fixed)"), self.fixed_opacity)
+        layout.addRow(hp.make_label(self, "Opacity (moving)"), self.moving_opacity)
+        layout.addRow(hp.make_label(self, "Label size"), self.text_size)
+        layout.addRow(hp.make_label(self, "Label color"), self.text_color)
+        return layout
+
+    def _make_image_layout(self):
         self.info = hp.make_label(
             self,
             "Please select at least <b>3 points</b> in either image to compute transformation.",
             tooltip="Information regarding registration.",
         )
 
+        view_layout = QVBoxLayout()
+        view_layout.addWidget(self.info, alignment=Qt.AlignCenter)
+        view_layout.addLayout(self._make_fixed_view())
+        view_layout.addWidget(hp.make_v_line())
+        view_layout.addLayout(self._make_moving_view())
+        return view_layout
+
+    def _make_fixed_view(self):
         self.view_fixed = self._make_image_view(self, add_toolbars=False)
         self.view_fixed.viewer.text_overlay.text = "Fixed"
         self.view_fixed.viewer.text_overlay.visible = True
 
-        # fixed section
-        # self.image_manager = ImageSelectionManager(
-        #     self,
-        #     viewer=self.view_fixed,
-        #     allow_multiple=True,
-        #     allow_action=False,
-        #     allow_controls=True,
-        #     title_bold=True,
-        #     allow_about=False,
-        #     allow_supervised=False,
-        #     show_range=True,
-        #     reshape=True,
-        # )
-        # self.image_manager.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.MinimumExpanding)
-
         toolbar = QtMiniToolbar(self, Qt.Vertical, add_spacer=False)
         self.fixed_layers_btn = toolbar.insert_qta_tool(
             "layers",
-            func=self.view_fixed.widget.on_open_controls_dialog,
+            # func=self.view_fixed.widget.on_open_controls_dialog,
             tooltip="Open layers control panel.",
         )
         toolbar.insert_spacer()
@@ -507,13 +571,9 @@ class ImageRegistrationDialog(QtDialog, ConfigMixin, IndicatorMixin):
         fixed_layout = QHBoxLayout()
         fixed_layout.addWidget(toolbar)
         fixed_layout.addWidget(self.view_fixed.widget, stretch=True)
+        return fixed_layout
 
-        # moving section
-        self.load_moving_btn = hp.make_btn(
-            self,
-            "Load moving image...",
-            tooltip="This image will be registered onto the static image. It could be microscopy or optical image.",
-        )
+    def _make_moving_view(self):
         self.view_moving = self._make_image_view(self, add_toolbars=False)
         self.view_moving.viewer.text_overlay.text = "Moving"
         self.view_moving.viewer.text_overlay.visible = True
@@ -521,7 +581,7 @@ class ImageRegistrationDialog(QtDialog, ConfigMixin, IndicatorMixin):
         toolbar = QtMiniToolbar(self, Qt.Vertical, add_spacer=False)
         self.moving_layers_btn = toolbar.insert_qta_tool(
             "layers",
-            func=self.view_moving.widget.on_open_controls_dialog,
+            # func=self.view_moving.widget.on_open_controls_dialog,
             tooltip="Open layers control panel.",
         )
         toolbar.insert_spacer()
@@ -559,82 +619,17 @@ class ImageRegistrationDialog(QtDialog, ConfigMixin, IndicatorMixin):
         moving_layout = QHBoxLayout()
         moving_layout.addWidget(toolbar)
         moving_layout.addWidget(self.view_moving.widget, stretch=True)
+        return moving_layout
 
-        # functionality
-        self.fixed_point_size = hp.make_int_spin_box(
-            self, value=3, tooltip="Size of the points shown in the fixed image."
-        )
-        self.fixed_point_size.valueChanged.connect(partial(self.on_update_layer, "fixed"))
 
-        self.moving_point_size = hp.make_int_spin_box(
-            self, value=3, tooltip="Size of the points shown in the moving image."
-        )
-        self.moving_point_size.valueChanged.connect(partial(self.on_update_layer, "moving"))
+if __name__ == "__main__":  # pragma: no cover
+    import sys
 
-        self.fixed_opacity = hp.make_int_spin_box(self, value=75, step_size=10, tooltip="Opacity of the fixed image")
-        self.fixed_opacity.valueChanged.connect(partial(self.on_update_layer, "fixed"))
+    from qtextra.utils.dev import qapplication
 
-        self.moving_opacity = hp.make_int_spin_box(
-            self,
-            value=100,
-            step_size=10,
-            tooltip="Opacity of the fixed image",
-        )
-        self.moving_opacity.valueChanged.connect(partial(self.on_update_layer, "moving"))
+    app = qapplication(1)
+    dlg = ImageRegistrationDialog(None)
+    dlg.setMinimumSize(1200, 500)
 
-        self.text_size = hp.make_int_spin_box(
-            self, value=12, minimum=4, maximum=60, tooltip="Size of the text associated with each label."
-        )
-        self.text_size.valueChanged.connect(self.on_update_text)
-
-        self.text_color = hp.make_swatch(self, value="#00ff00", tooltip="Color of the text associated with each label.")
-        self.text_color.evt_color_changed.connect(self.on_update_text)
-
-        self.run_btn = hp.make_btn(
-            self,
-            "Compute transformation",
-            tooltip="Compute transformation between the fixed and moving image.",
-        )
-        self.run_btn.clicked.connect(self.on_run)
-
-        self.transform_choice = hp.make_combobox(self)
-        hp.set_combobox_data(self.transform_choice, TRANSFORMATION_TRANSLATIONS, "Affine")
-        self.transform_choice.currentTextChanged.connect(self.on_run)
-
-        # self.registration_list = QtRegistrationList(self)
-        # self.registration_list.evt_lock.connect(self.on_lock_registration)
-        # self.registration_list.evt_checked.connect(self.on_load_registration)
-        # self.registration_list.evt_remove.connect(self.on_remove_registration)
-
-        layout = hp.make_form_layout()
-        layout.addRow(self.load_moving_btn)
-        # layout.addRow(self.image_manager)
-        layout.addRow(hp.make_h_line(self))
-        layout.addRow(hp.make_label(self, "Size (fixed)"), self.fixed_point_size)
-        layout.addRow(hp.make_label(self, "Size (moving)"), self.moving_point_size)
-        layout.addRow(hp.make_label(self, "Opacity (fixed)"), self.fixed_opacity)
-        layout.addRow(hp.make_label(self, "Opacity (moving)"), self.moving_opacity)
-        layout.addRow(hp.make_label(self, "Label size"), self.text_size)
-        layout.addRow(hp.make_label(self, "Label color"), self.text_color)
-        layout.addRow(hp.make_h_line(self))
-        layout.addRow(hp.make_label(self, "Type of transformation"), self.transform_choice)
-        layout.addRow(self.run_btn)
-
-        widget = QWidget()
-        widget.setMinimumWidth(400)
-        settings_layout = QVBoxLayout(widget)
-        settings_layout.setContentsMargins(0, 0, 0, 0)
-        settings_layout.addLayout(layout)
-        settings_layout.addWidget(hp.make_v_line())
-        # settings_layout.addWidget(self.registration_list, stretch=True)
-
-        view_layout = QVBoxLayout()
-        view_layout.addWidget(self.info, alignment=Qt.AlignCenter)
-        view_layout.addLayout(fixed_layout)
-        view_layout.addWidget(hp.make_v_line())
-        view_layout.addLayout(moving_layout)
-
-        main_layout = QHBoxLayout()
-        main_layout.addLayout(view_layout, stretch=True)
-        main_layout.addWidget(widget)
-        return main_layout
+    dlg.show()
+    sys.exit(app.exec_())
