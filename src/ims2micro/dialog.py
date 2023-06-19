@@ -6,24 +6,22 @@ from datetime import datetime
 from functools import partial
 from pathlib import Path
 
-import ionglow.gui_elements.helpers as hp
 import numpy as np
-from ionglow._qt.mixins import ConfigMixin, IndicatorMixin
-from ionglow._qt.qt_dialog import QtDialog
-from ionglow._qt.qt_mini_toolbar import QtMiniToolbar
-from ionglow.config import ENV, get_settings
-from ionglow.gui_elements.mixins import ImageViewMixin
-from ionglow.gui_elements.qt_image_manager import ImageSelectionManager, ImageSelectionMixin
-from ionglow.models.registration import RegistrationModel, Transformation
-from ionglow.plugins.registration.qt_registration_list import QtRegistrationList
-from ionglow.plugins.registration.utilities import add, select
-from ionglow.utils.enums import TRANSFORMATION_TRANSLATIONS
-from ionglow.utils.misc import SchemaWrapper
-from ionglow.utils.utilities import connect
+import qtextra.helpers as hp
 from napari.layers.points.points import Mode, Points
 from napari.utils.events import Event
+from qtextra.mixins import ConfigMixin, IndicatorMixin
+from qtextra.utils.utilities import connect
+from qtextra.widgets.qt_dialog import QtDialog
+from qtextra.widgets.qt_mini_toolbar import QtMiniToolbar
 from qtpy.QtCore import Qt
-from qtpy.QtWidgets import QHBoxLayout, QSizePolicy, QVBoxLayout, QWidget
+from qtpy.QtWidgets import QHBoxLayout, QVBoxLayout, QWidget
+
+from ims2micro.enums import TRANSFORMATION_TRANSLATIONS
+from ims2micro.models import RegistrationModel, Transformation
+
+# from ims2micro.qt_registration_list import QtRegistrationList
+from ims2micro.utilities import add, select
 
 if ty.TYPE_CHECKING:
     from napari.layers import Image
@@ -31,7 +29,7 @@ if ty.TYPE_CHECKING:
 from loguru import logger
 
 
-class ImageRegistrationDialog(QtDialog, ConfigMixin, IndicatorMixin, ImageViewMixin, ImageSelectionMixin):
+class ImageRegistrationDialog(QtDialog, ConfigMixin, IndicatorMixin):
     """Image registration dialog."""
 
     fixed_image_layer: ty.Optional["Image"] = None
@@ -64,7 +62,7 @@ class ImageRegistrationDialog(QtDialog, ConfigMixin, IndicatorMixin, ImageViewMi
 
     @transform_model.setter
     def transform_model(self, registration: RegistrationModel):
-        ENV.registration_map[registration.name] = registration
+        # ENV.registration_map[registration.name] = registration
         self._transform = registration
 
     @property
@@ -77,11 +75,8 @@ class ImageRegistrationDialog(QtDialog, ConfigMixin, IndicatorMixin, ImageViewMi
 
     def on_load_dataset(self):
         """Load dataset."""
-        if not ENV.is_loaded:
-            return
-
-        for model in ENV.registration_map.values():
-            self.registration_list.append_item(model)
+        # for model in ENV.registration_map.values():
+        #     self.registration_list.append_item(model)
         # force update of ion image
         self.image_manager._set_used_last("im_ion")
 
@@ -277,13 +272,11 @@ class ImageRegistrationDialog(QtDialog, ConfigMixin, IndicatorMixin, ImageViewMi
 
     def on_run(self, _evt=None):
         """Compute transformation."""
-        from ionglow.plugins.registration.utilities import compute_transform
+        from ims2micro.utilities import compute_transform
 
         if not self.fixed_points_layer or not self.moving_points_layer:
             self.on_notify_warning("There must be at least three points before we can compute the transformation.")
             return
-
-        get_settings().registration.transformation = self.transform_choice.currentData()
 
         # execute transform calculation
         n_fixed = len(self.fixed_points_layer.data)
@@ -352,44 +345,40 @@ class ImageRegistrationDialog(QtDialog, ConfigMixin, IndicatorMixin, ImageViewMi
     @staticmethod
     def _update_layer_points(layer: Points, data: np.ndarray):
         """Update points layer."""
-        label = np.asarray([str(v + 1) for v in range(data.shape[0])])
-        layer.text.values = label
+        layer.text.values = np.asarray([str(v + 1) for v in range(data.shape[0])])
         with layer.events.data.blocker():
             layer.data = data
 
     def on_update_layer(self, which: str, _value=None):
         """Update points layer."""
-        settings = get_settings()
-        settings.registration.fixed_size = self.fixed_point_size.value()
-        settings.registration.moving_size = self.moving_point_size.value()
-        settings.registration.fixed_opacity = self.fixed_opacity.value()
-        settings.registration.moving_opacity = self.moving_opacity.value()
+        fixed_size = self.fixed_point_size.value()
+        moving_size = self.moving_point_size.value()
+        fixed_opacity = self.fixed_opacity.value()
+        moving_opacity = self.moving_opacity.value()
 
         # update point size
         if self.fixed_points_layer and which == "fixed":
-            self.fixed_points_layer.size = settings.registration.fixed_size
-            self.fixed_point_size.current_size = settings.registration.fixed_size
+            self.fixed_points_layer.size = fixed_size
+            self.fixed_point_size.current_size = fixed_size
         if self.moving_points_layer and which == "moving":
-            self.moving_points_layer.size = settings.registration.moving_size
-            self.moving_points_layer.current_size = settings.registration.moving_size
+            self.moving_points_layer.size = moving_size
+            self.moving_points_layer.current_size = moving_size
 
         if self.fixed_image_layer and which == "fixed":
-            self.fixed_image_layer.opacity = settings.registration.fixed_opacity / 100
+            self.fixed_image_layer.opacity = fixed_opacity / 100
         if self.transformed_moving_image_layer and which == "moving":
-            self.transformed_moving_image_layer.opacity = settings.registration.moving_opacity / 100
+            self.transformed_moving_image_layer.opacity = moving_opacity / 100
 
     def on_update_text(self, _=None):
         """Update text data in each layer."""
-        settings = get_settings()
-        color = self.text_color.color
-        settings.registration.text_color = color
-        settings.registration.text_size = self.text_size.value()
+        text_color = self.text_color.color
+        text_size = self.text_size.value()
 
         # update text information
         for layer in [self.fixed_points_layer, self.moving_points_layer]:
             # with layer.text.events.blocker():
-            layer.text.color = color
-            layer.text.size = settings.registration.text_size
+            layer.text.color = text_color
+            layer.text.size = text_size
 
     def on_remove_registration(self, item: RegistrationModel):
         """Remove registration."""
@@ -457,9 +446,6 @@ class ImageRegistrationDialog(QtDialog, ConfigMixin, IndicatorMixin, ImageViewMi
     # noinspection PyAttributeOutsideInit
     def make_panel(self) -> QHBoxLayout:
         """Create panel."""
-        settings = get_settings().registration
-        schema = SchemaWrapper(settings)
-
         self.info = hp.make_label(
             self,
             "Please select at least <b>3 points</b> in either image to compute transformation.",
@@ -471,19 +457,19 @@ class ImageRegistrationDialog(QtDialog, ConfigMixin, IndicatorMixin, ImageViewMi
         self.view_fixed.viewer.text_overlay.visible = True
 
         # fixed section
-        self.image_manager = ImageSelectionManager(
-            self,
-            viewer=self.view_fixed,
-            allow_multiple=True,
-            allow_action=False,
-            allow_controls=True,
-            title_bold=True,
-            allow_about=False,
-            allow_supervised=False,
-            show_range=True,
-            reshape=True,
-        )
-        self.image_manager.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.MinimumExpanding)
+        # self.image_manager = ImageSelectionManager(
+        #     self,
+        #     viewer=self.view_fixed,
+        #     allow_multiple=True,
+        #     allow_action=False,
+        #     allow_controls=True,
+        #     title_bold=True,
+        #     allow_about=False,
+        #     allow_supervised=False,
+        #     show_range=True,
+        #     reshape=True,
+        # )
+        # self.image_manager.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.MinimumExpanding)
 
         toolbar = QtMiniToolbar(self, Qt.Vertical, add_spacer=False)
         self.fixed_layers_btn = toolbar.insert_qta_tool(
@@ -575,22 +561,33 @@ class ImageRegistrationDialog(QtDialog, ConfigMixin, IndicatorMixin, ImageViewMi
         moving_layout.addWidget(self.view_moving.widget, stretch=True)
 
         # functionality
-        self.fixed_point_size = hp.make_int_spin_box(self, value=settings.fixed_size, **schema.fixed_size)
+        self.fixed_point_size = hp.make_int_spin_box(
+            self, value=3, tooltip="Size of the points shown in the fixed image."
+        )
         self.fixed_point_size.valueChanged.connect(partial(self.on_update_layer, "fixed"))
 
-        self.moving_point_size = hp.make_int_spin_box(self, value=settings.moving_size, **schema.moving_size)
+        self.moving_point_size = hp.make_int_spin_box(
+            self, value=3, tooltip="Size of the points shown in the moving image."
+        )
         self.moving_point_size.valueChanged.connect(partial(self.on_update_layer, "moving"))
 
-        self.fixed_opacity = hp.make_int_spin_box(self, value=settings.fixed_opacity, **schema.fixed_opacity)
+        self.fixed_opacity = hp.make_int_spin_box(self, value=75, step_size=10, tooltip="Opacity of the fixed image")
         self.fixed_opacity.valueChanged.connect(partial(self.on_update_layer, "fixed"))
 
-        self.moving_opacity = hp.make_int_spin_box(self, value=settings.moving_opacity, **schema.moving_opacity)
+        self.moving_opacity = hp.make_int_spin_box(
+            self,
+            value=100,
+            step_size=10,
+            tooltip="Opacity of the fixed image",
+        )
         self.moving_opacity.valueChanged.connect(partial(self.on_update_layer, "moving"))
 
-        self.text_size = hp.make_int_spin_box(self, value=settings.text_size, **schema.text_size)
+        self.text_size = hp.make_int_spin_box(
+            self, value=12, minimum=4, maximum=60, tooltip="Size of the text associated with each label."
+        )
         self.text_size.valueChanged.connect(self.on_update_text)
 
-        self.text_color = hp.make_swatch(self, value=settings.text_color, **schema.text_color)
+        self.text_color = hp.make_swatch(self, value="#00ff00", tooltip="Color of the text associated with each label.")
         self.text_color.evt_color_changed.connect(self.on_update_text)
 
         self.run_btn = hp.make_btn(
@@ -601,19 +598,17 @@ class ImageRegistrationDialog(QtDialog, ConfigMixin, IndicatorMixin, ImageViewMi
         self.run_btn.clicked.connect(self.on_run)
 
         self.transform_choice = hp.make_combobox(self)
-        hp.set_combobox_data(
-            self.transform_choice, TRANSFORMATION_TRANSLATIONS, get_settings().registration.transformation
-        )
+        hp.set_combobox_data(self.transform_choice, TRANSFORMATION_TRANSLATIONS, "Affine")
         self.transform_choice.currentTextChanged.connect(self.on_run)
 
-        self.registration_list = QtRegistrationList(self)
-        self.registration_list.evt_lock.connect(self.on_lock_registration)
-        self.registration_list.evt_checked.connect(self.on_load_registration)
-        self.registration_list.evt_remove.connect(self.on_remove_registration)
+        # self.registration_list = QtRegistrationList(self)
+        # self.registration_list.evt_lock.connect(self.on_lock_registration)
+        # self.registration_list.evt_checked.connect(self.on_load_registration)
+        # self.registration_list.evt_remove.connect(self.on_remove_registration)
 
         layout = hp.make_form_layout()
         layout.addRow(self.load_moving_btn)
-        layout.addRow(self.image_manager)
+        # layout.addRow(self.image_manager)
         layout.addRow(hp.make_h_line(self))
         layout.addRow(hp.make_label(self, "Size (fixed)"), self.fixed_point_size)
         layout.addRow(hp.make_label(self, "Size (moving)"), self.moving_point_size)
@@ -631,7 +626,7 @@ class ImageRegistrationDialog(QtDialog, ConfigMixin, IndicatorMixin, ImageViewMi
         settings_layout.setContentsMargins(0, 0, 0, 0)
         settings_layout.addLayout(layout)
         settings_layout.addWidget(hp.make_v_line())
-        settings_layout.addWidget(self.registration_list, stretch=True)
+        # settings_layout.addWidget(self.registration_list, stretch=True)
 
         view_layout = QVBoxLayout()
         view_layout.addWidget(self.info, alignment=Qt.AlignCenter)
