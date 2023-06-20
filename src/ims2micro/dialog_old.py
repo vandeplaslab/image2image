@@ -1,8 +1,10 @@
 """Registration dialog."""
 
 import typing as ty
+from contextlib import suppress
 from datetime import datetime
 from functools import partial
+from pathlib import Path
 
 import numpy as np
 import qtextra.helpers as hp
@@ -16,13 +18,11 @@ from qtpy.QtCore import Qt
 from qtpy.QtWidgets import QHBoxLayout, QVBoxLayout, QWidget
 
 from ims2micro.enums import TRANSFORMATION_TRANSLATIONS
-from ims2micro.models import RegistrationModel, Transformation, DataModel
+from ims2micro.models import RegistrationModel, Transformation
 from ims2micro._select import IMSWidget, MicroscopyWidget
 from qtextra._napari.mixins import ImageViewMixin
-from superqt import ensure_main_thread
 
 from ims2micro.utilities import add, select
-import ims2micro.assets  # noqa: F401
 
 if ty.TYPE_CHECKING:
     from napari.layers import Image
@@ -49,6 +49,12 @@ class ImageRegistrationDialog(QtDialog, ConfigMixin, IndicatorMixin, ImageViewMi
 
         self.setup_events()
 
+    def _on_teardown(self):
+        """Teardown."""
+        self.setup_events(False)
+        self.image_manager.teardown()
+        super()._on_teardown()
+
     @property
     def transform_model(self) -> ty.Optional[RegistrationModel]:
         """Current transform model."""
@@ -68,111 +74,96 @@ class ImageRegistrationDialog(QtDialog, ConfigMixin, IndicatorMixin, ImageViewMi
 
     def setup_events(self, state: bool = True):
         """Additional setup."""
-        connect(self._micro_widget.evt_loaded, self.on_load_fixed, state=state)
-        connect(self._micro_widget.evt_toggle_channel, self.on_toggle_fixed_channel, state=state)
-        connect(self._ims_widget.evt_loaded, self.on_load_moving, state=state)
+        # connect(self.load_moving_btn.clicked, self.on_open_moving, state=state)
 
         # add fixed points layer
-        if state:
-            self.on_add("fixed")
-        connect(self.fixed_points_layer.events.data, self.on_run, state=state)
-        connect(self.fixed_points_layer.events.add_point, partial(self.on_predict, "fixed"), state=state)
-        connect(self.fixed_points_layer.events.mode, partial(self.on_mode, "fixed"), state=state)
+        # if state:
+        #     self.on_add("fixed")
+        # connect(self.fixed_points_layer.events.data, self.on_run, state=state)
+        # connect(self.fixed_points_layer.events.add_point, partial(self.on_predict, "fixed"), state=state)
+        # connect(self.fixed_points_layer.events.mode, partial(self.on_mode, "fixed"), state=state)
 
         # add moving points layer
-        if state:
-            self.on_add("moving")
-        connect(self.moving_points_layer.events.data, self.on_run, state=state)
-        connect(self.moving_points_layer.events.add_point, partial(self.on_predict, "moving"), state=state)
-        connect(self.moving_points_layer.events.mode, partial(self.on_mode, "moving"), state=state)
+        # if state:
+        #     self.on_add("moving")
+        # connect(self.moving_points_layer.events.data, self.on_run, state=state)
+        # connect(self.moving_points_layer.events.add_point, partial(self.on_predict, "moving"), state=state)
+        # connect(self.moving_points_layer.events.mode, partial(self.on_mode, "moving"), state=state)
 
-    @ensure_main_thread
-    def on_load_fixed(self, model: DataModel):
-        """Load fixed image."""
-        self._on_load_fixed(model)
-
-    def _on_load_fixed(self, model: DataModel):
-        wrapper = model.get_reader()
-        fixed_image_layer = self.view_fixed.viewer.add_image(**wrapper.image())
-        print(fixed_image_layer)
-        # self.fixed_image_layer = self.view_fixed.widget.viewer.open(filename, name="Fixed")[0]
-        # self.view_fixed.layers.move(self.view_fixed.layers.index(self.fixed_image_layer), 0)
-        # self.view_fixed.layers.selection.select_only(self.fixed_points_layer)
+    def _on_open_fixed(self, filename: str):
+        self.fixed_image_layer = self.view_fixed.widget.viewer.open(filename, name="Fixed")[0]
+        self.view_fixed.layers.move(self.view_fixed.layers.index(self.fixed_image_layer), 0)
+        self.view_fixed.layers.selection.select_only(self.fixed_points_layer)
 
     def on_plot_fixed_image(self, array: np.ndarray):
         """Update fixed image."""
-        # reset = self.fixed_image_layer is None
-        #
-        # def _check_existing(n: int):
-        #     nonlocal reset
-        #     if reset:
-        #         return
-        #     if len(self.fixed_image_layer.data.shape) != n:
-        #         self.view_fixed.remove_layer("Fixed", True)
-        #         self.fixed_image_layer = None
-        #         reset = True
-        #
-        # if len(array.shape) == 3:
-        #     _check_existing(3)
-        #     self.fixed_image_layer = self.view_fixed.plot_rgb(array, "Fixed")
-        # else:
-        #     _check_existing(2)
-        #     self.fixed_image_layer = self.view_fixed.add_image(array, "Fixed")
-        # self.view_fixed.layers.move(self.view_fixed.layers.index(self.fixed_image_layer), 0)
-        # self.view_fixed.layers.selection.select_only(self.fixed_points_layer)
-        # if reset:
-        #     self.view_fixed.viewer.reset_view()
+        reset = self.fixed_image_layer is None
 
-    def on_toggle_fixed_channel(self, state: bool, name: str):
-        """Toggle fixed channel."""
-        self.view_fixed.layers[name].visible = state
+        def _check_existing(n: int):
+            nonlocal reset
+            if reset:
+                return
+            if len(self.fixed_image_layer.data.shape) != n:
+                self.view_fixed.remove_layer("Fixed", True)
+                self.fixed_image_layer = None
+                reset = True
 
-    @ensure_main_thread
-    def on_load_moving(self, model: DataModel):
+        if len(array.shape) == 3:
+            _check_existing(3)
+            self.fixed_image_layer = self.view_fixed.plot_rgb(array, "Fixed")
+        else:
+            _check_existing(2)
+            self.fixed_image_layer = self.view_fixed.add_image(array, "Fixed")
+        self.view_fixed.layers.move(self.view_fixed.layers.index(self.fixed_image_layer), 0)
+        self.view_fixed.layers.selection.select_only(self.fixed_points_layer)
+        if reset:
+            self.view_fixed.viewer.reset_view()
+
+    def on_open_moving(self):
         """Open modality."""
-        self._on_load_moving(model)
+        filename = hp.open_filename(self, file_filter="*")
+        if filename:
+            self._on_open_moving(filename, force=True)
+            self.on_clear("fixed", True)
+            self.on_clear("moving", True)
 
-    def _on_load_moving(self, model: DataModel):
-        wrapper = model.get_reader()
-        self.view_moving.viewer.add_image(**wrapper.image())
-        self.on_clear("fixed", True)
-        self.on_clear("moving", True)
+    def _on_open_moving(self, filename: str, reset: bool = True, force: bool = False):
+        self.filename = filename
+        if self.moving_image_layer is not None:
+            if force or hp.confirm(
+                self, "An image is already present in the canvas (moving). Would you like to replace it with new image?"
+            ):
+                self.view_moving.layers.remove(self.moving_image_layer)
+                self.moving_image_layer = None
+            else:
+                return
 
-    # def _on_open_moving(self, filename: str, reset: bool = True, force: bool = False):
-    #     self.filename = filename
-    #     if self.moving_image_layer is not None:
-    #         if force or hp.confirm(
-    #             self, "An image is already present in the canvas (moving). Would you like to replace it with new
-    #             image?"
-    #         ):
-    #             self.view_moving.layers.remove(self.moving_image_layer)
-    #             self.moving_image_layer = None
-    #         else:
-    #             return
-    #
-    #     self.moving_image_layer = self.view_moving.widget.viewer.open(filename, name="Moving")[0]
-    #     self.view_moving.layers.move(self.view_moving.layers.index(self.moving_image_layer), 0)
-    #     self.view_moving.layers.selection.select_only(self.moving_points_layer)
-    #
-    #     if reset:
-    #         path = Path(filename)
-    #
-    #         with hp.qt_signals_blocked(self.registration_list):
-    #             self.transform_model = RegistrationModel(
-    #                 name=path.stem, image_path=filename, time_created=datetime.now(), is_exported=False
-    #             )
-    #         widget = self.registration_list.get_widget_for_item_model(self.transform_model)
-    #         if widget:
-    #             widget.on_select()
+        self.moving_image_layer = self.view_moving.widget.viewer.open(filename, name="Moving")[0]
+        self.view_moving.layers.move(self.view_moving.layers.index(self.moving_image_layer), 0)
+        self.view_moving.layers.selection.select_only(self.moving_points_layer)
+
+        if reset:
+            path = Path(filename)
+
+            with hp.qt_signals_blocked(self.registration_list):
+                self.transform_model = RegistrationModel(
+                    name=path.stem, image_path=filename, time_created=datetime.now(), is_exported=False
+                )
+            widget = self.registration_list.get_widget_for_item_model(self.transform_model)
+            if widget:
+                widget.on_select()
+
+    def _on_open_mis(self, filename: str):
+        """Open Bruker .mis file."""
 
     def on_plot_moving_image(self, array: np.ndarray):
         """Update moving image."""
-        # reset = self.moving_image_layer is None
-        # self.moving_image_layer = self.view_moving.add_image(array, "Moving")
-        # self.view_moving.layers.move(self.view_moving.layers.index(self.moving_image_layer), 0)
-        # self.view_moving.layers.selection.select_only(self.moving_points_layer)
-        # if reset:
-        #     self.view_moving.viewer.reset_view()
+        reset = self.moving_image_layer is None
+        self.moving_image_layer = self.view_moving.add_image(array, "Moving")
+        self.view_moving.layers.move(self.view_moving.layers.index(self.moving_image_layer), 0)
+        self.view_moving.layers.selection.select_only(self.moving_points_layer)
+        if reset:
+            self.view_moving.viewer.reset_view()
 
     def _select_layer(self, which: str):
         """Select layer."""
@@ -202,20 +193,20 @@ class ImageRegistrationDialog(QtDialog, ConfigMixin, IndicatorMixin, ImageViewMi
         if widget is not None:
             widget.setChecked(True)
 
-    def on_move(self, which: str, evt=None):
+    def on_move(self, which: str):
         """Move points."""
         widget = self.fixed_move_btn if which == "fixed" else self.moving_move_btn
         layer = self.fixed_points_layer if which == "fixed" else self.moving_points_layer
         layer.mode = "select" if widget.isChecked() else "pan_zoom"
         self._select_layer(which)
 
-    def on_panzoom(self, which: str, evt=None):
+    def on_panzoom(self, which: str):
         """Switch to `panzoom` tool."""
         layer = self.fixed_points_layer if which == "fixed" else self.moving_points_layer
         layer.mode = "pan_zoom"
         self._select_layer(which)
 
-    def on_add(self, which: str, evt=None):
+    def on_add(self, which: str):
         """Add point to the image."""
 
         def _init(layer):
@@ -242,7 +233,7 @@ class ImageRegistrationDialog(QtDialog, ConfigMixin, IndicatorMixin, ImageViewMi
         # make sure the add mode is active
         layer.mode = "add" if widget.isChecked() else "pan_zoom"
 
-    def on_remove(self, which: str, evt=None):
+    def on_remove(self, which: str):
         """Remove point to the image."""
         layer = self.fixed_points_layer if which == "fixed" else self.moving_points_layer
 
@@ -259,7 +250,7 @@ class ImageRegistrationDialog(QtDialog, ConfigMixin, IndicatorMixin, ImageViewMi
         if force or hp.confirm(self, "Are you sure you want to remove all data points from the image?"):
             layer = self.fixed_points_layer if which == "fixed" else self.moving_points_layer
             layer.data = np.zeros((0, 2))
-            # layer.text.values = np.empty(0)
+            layer.text.values = np.empty(0)
             self.on_clear_transformation()
 
     def on_clear_transformation(self):
@@ -279,18 +270,17 @@ class ImageRegistrationDialog(QtDialog, ConfigMixin, IndicatorMixin, ImageViewMi
             return
 
         # execute transform calculation
-        method = self.transform_choice.currentText().lower()
         n_fixed = len(self.fixed_points_layer.data)
         n_moving = len(self.moving_points_layer.data)
         if 3 <= n_fixed == n_moving >= 3:
             transform = compute_transform(
                 self.moving_points_layer.data,  # source
                 self.fixed_points_layer.data,  # destination
-                method,
+                self.transform_choice.currentText().lower(),
             )
             temporary_transform = Transformation(
                 transform,
-                method,
+                self.transform_choice.currentText().lower(),
                 self.filename,
                 datetime.now(),
                 self.fixed_points_layer.data,
@@ -346,7 +336,7 @@ class ImageRegistrationDialog(QtDialog, ConfigMixin, IndicatorMixin, ImageViewMi
     @staticmethod
     def _update_layer_points(layer: Points, data: np.ndarray):
         """Update points layer."""
-        # layer.text.values = np.asarray([str(v + 1) for v in range(data.shape[0])])
+        layer.text.values = np.asarray([str(v + 1) for v in range(data.shape[0])])
         with layer.events.data.blocker():
             layer.data = data
 
@@ -381,13 +371,76 @@ class ImageRegistrationDialog(QtDialog, ConfigMixin, IndicatorMixin, ImageViewMi
             layer.text.color = text_color
             layer.text.size = text_size
 
+    def on_remove_registration(self, item: RegistrationModel):
+        """Remove registration."""
+        self._on_unload_registration(item)
+
+    def on_lock_registration(self, item: RegistrationModel, _state: bool = False):
+        """Lock/unload registration."""
+        if item is not None:
+            hp.disable_with_opacity(
+                self,
+                [
+                    self.fixed_add_btn,
+                    self.fixed_move_btn,
+                    self.fixed_zoom_btn,
+                    self.fixed_remove_btn,
+                    self.fixed_clear_btn,
+                    self.moving_add_btn,
+                    self.moving_move_btn,
+                    self.moving_zoom_btn,
+                    self.moving_remove_btn,
+                    self.moving_clear_btn,
+                    self.run_btn,
+                    self.transform_choice,
+                ],
+                item.locked,
+            )
+            self.on_panzoom("fixed")
+            self.on_panzoom("moving")
+
+    def on_load_registration(self, item: RegistrationModel, state: bool):
+        """Load/unload registration."""
+        if state:
+            self._on_load_registration(item)
+        else:
+            self._on_unload_registration(item)
+
+    def _on_load_registration(self, item: RegistrationModel):
+        with self.measure_time("Loaded registration in"):
+            self._transform = item
+            if item is not None and item.image_path_exists:
+                item.from_hdf5()
+                # load data
+                self._on_open_moving(item.image_path, False, force=True)
+
+                # This is bloody annoying but I can't figure it out
+                for _ in range(2):
+                    with suppress(Exception):
+                        self._update_layer_points(self.fixed_points_layer, item.fixed_points)
+                    with suppress(Exception):
+                        self._update_layer_points(self.moving_points_layer, item.moving_points)
+                self.on_apply()
+                self.on_lock_registration(item)
+
+    def _on_unload_registration(self, item: RegistrationModel):
+        """Unload registration."""
+        with self.measure_time("Unloaded registration in"):
+            if self._transform == item:
+                self.on_clear("fixed", True)
+                self.on_clear("moving", True)
+                if self.moving_image_layer:
+                    self.view_moving.layers.remove(self.moving_image_layer)
+                    self.moving_image_layer = None
+                self._transform = None
+
     # noinspection PyAttributeOutsideInit
     def make_panel(self) -> QHBoxLayout:
         """Create panel."""
         view_layout = self._make_image_layout()
 
-        self._micro_widget = MicroscopyWidget(self)
         self._ims_widget = IMSWidget(self)
+        self._micro_widget = MicroscopyWidget(self)
 
         self.run_btn = hp.make_btn(
             self,
@@ -401,8 +454,8 @@ class ImageRegistrationDialog(QtDialog, ConfigMixin, IndicatorMixin, ImageViewMi
         self.transform_choice.currentTextChanged.connect(self.on_run)
 
         layout = hp.make_form_layout()
-        layout.addRow(self._micro_widget)
         layout.addRow(self._ims_widget)
+        layout.addRow(self._micro_widget)
         layout.addRow(hp.make_h_line(self))
         layout.addRow(hp.make_label(self, "Type of transformation"), self.transform_choice)
         layout.addRow(self.run_btn)
@@ -482,46 +535,38 @@ class ImageRegistrationDialog(QtDialog, ConfigMixin, IndicatorMixin, ImageViewMi
         self.view_fixed.viewer.text_overlay.text = "Fixed"
         self.view_fixed.viewer.text_overlay.visible = True
 
-        toolbar = QtMiniToolbar(self, Qt.Vertical, add_spacer=True)
+        toolbar = QtMiniToolbar(self, Qt.Vertical, add_spacer=False)
+        self.fixed_layers_btn = toolbar.insert_qta_tool(
+            "layers",
+            # func=self.view_fixed.widget.on_open_controls_dialog,
+            tooltip="Open layers control panel.",
+        )
+        toolbar.insert_spacer()
         self.fixed_clear_btn = toolbar.insert_qta_tool(
-            "cross_full",
-            # func=partial(self.on_clear, "fixed")
-            func=lambda *args: self.on_clear("fixed"),
-            tooltip="Remove last point from the fixed image.",
+            "cross_full", func=partial(self.on_clear, "fixed"), tooltip="Remove last point from the fixed image."
         )
         self.fixed_remove_btn = toolbar.insert_qta_tool(
             "remove",
-            # func=partial(self.on_remove, "fixed"),
-            func=lambda *args: self.on_remove("fixed"),
+            func=partial(self.on_remove, "fixed"),
             tooltip="Remove last point from the fixed image.",
         )
         self.fixed_move_btn = toolbar.insert_qta_tool(
             "move",
-            # func=partial(self.on_move, "fixed"),
-            func=lambda *args: self.on_move("fixed"),
+            func=partial(self.on_move, "fixed"),
             tooltip="Move points in the fixed image...",
             checkable=True,
         )
         self.fixed_add_btn = toolbar.insert_qta_tool(
             "add",
-            # func=partial(self.on_add, "fixed"),
-            func=lambda *args: self.on_add("fixed"),
+            func=partial(self.on_add, "fixed"),
             tooltip="Add new point to the fixed image...",
             checkable=True,
         )
         self.fixed_zoom_btn = toolbar.insert_qta_tool(
-            "zoom",
-            # func=partial(self.on_panzoom, "fixed"),
-            func=lambda *args: self.on_panzoom("fixed"),
-            tooltip="Switch to zoom-only mode...",
-            checkable=True,
+            "zoom", func=partial(self.on_panzoom, "fixed"), tooltip="Switch to zoom-only mode...", checkable=True
         )
+
         hp.make_radio_btn_group(self, [self.fixed_zoom_btn, self.fixed_add_btn, self.fixed_move_btn])
-        self.fixed_layers_btn = toolbar.insert_qta_tool(
-            "layers",
-            func=self.view_fixed.widget.on_open_controls_dialog,
-            tooltip="Open layers control panel.",
-        )
 
         fixed_layout = QHBoxLayout()
         fixed_layout.addWidget(toolbar)
@@ -533,46 +578,43 @@ class ImageRegistrationDialog(QtDialog, ConfigMixin, IndicatorMixin, ImageViewMi
         self.view_moving.viewer.text_overlay.text = "Moving"
         self.view_moving.viewer.text_overlay.visible = True
 
-        toolbar = QtMiniToolbar(self, Qt.Vertical, add_spacer=True)
+        toolbar = QtMiniToolbar(self, Qt.Vertical, add_spacer=False)
+        self.moving_layers_btn = toolbar.insert_qta_tool(
+            "layers",
+            # func=self.view_moving.widget.on_open_controls_dialog,
+            tooltip="Open layers control panel.",
+        )
+        toolbar.insert_spacer()
         self.moving_clear_btn = toolbar.insert_qta_tool(
             "cross_full",
-            # func=partial(self.on_clear, "moving"),
-            func=lambda *args: self.on_clear("moving"),
+            func=partial(self.on_clear, "moving"),
             tooltip="Remove last point from the moving image.",
         )
         self.moving_remove_btn = toolbar.insert_qta_tool(
             "remove",
-            # func=partial(self.on_remove, "moving"),
-            func=lambda *args: self.on_remove("moving"),
+            func=partial(self.on_remove, "moving"),
             tooltip="Remove last point from the moving image.",
         )
         self.moving_move_btn = toolbar.insert_qta_tool(
             "move",
-            # func=partial(self.on_move, "moving"),
-            func=lambda *args: self.on_move("moving"),
+            func=partial(self.on_move, "moving"),
             tooltip="Move points in the fixed image...",
             checkable=True,
         )
         self.moving_add_btn = toolbar.insert_qta_tool(
             "add",
-            # func=partial(self.on_add, "moving"),
-            func=lambda *args: self.on_add("moving"),
+            func=partial(self.on_add, "moving"),
             tooltip="Add new point to the moving image...",
             checkable=True,
         )
         self.moving_zoom_btn = toolbar.insert_qta_tool(
             "zoom",
-            # func=partial(self.on_panzoom, "moving"),
-            func=lambda *args: self.on_panzoom("moving"),
+            func=partial(self.on_panzoom, "moving"),
             tooltip="Switch to zoom-only mode...",
             checkable=True,
         )
+
         hp.make_radio_btn_group(self, [self.moving_zoom_btn, self.moving_add_btn, self.moving_move_btn])
-        self.moving_layers_btn = toolbar.insert_qta_tool(
-            "layers",
-            func=self.view_moving.widget.on_open_controls_dialog,
-            tooltip="Open layers control panel.",
-        )
 
         moving_layout = QHBoxLayout()
         moving_layout.addWidget(toolbar)

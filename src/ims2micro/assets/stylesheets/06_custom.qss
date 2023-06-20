@@ -1,0 +1,11 @@
+/* ------------- QtVertLine / QtHorzLine --------- */
+
+QtVertLine{
+    border: 1px solid {{ primary }};
+    background-color: {{ primary }};
+}
+
+QtHorzLine{
+    border: 1px solid {{ primary }};
+    background-color: {{ primary }};
+}

@@ -3,13 +3,16 @@ import os
 import typing as ty
 from dataclasses import dataclass
 from datetime import datetime
+from pathlib import Path
 
 import numpy as np
 from koyo.typing import PathLike
-from napari.utils.events import EventedDict
+from pydantic import BaseModel, PrivateAttr, validator
 
 if ty.TYPE_CHECKING:
-    from skimage.transform._geometric import ProjectiveTransform
+    from skimage.transform._geometric import GeometricTransform
+    from ims2micro._ims_reader import IMSWrapper
+    from ims2micro._micro_reader import MicroWrapper
 
 
 @dataclass
@@ -17,7 +20,7 @@ class Transformation:
     """Temporary object that holds transformation information."""
 
     # Transformation object
-    transform: "ProjectiveTransform" = None
+    transform: "GeometricTransform" = None
     # Type of transformation
     transformation_type: str = ""
     # Path to the image
@@ -42,7 +45,7 @@ class Transformation:
         return self.transform.params
 
 
-class RegistrationModel:
+class RegistrationModel(BaseModel):
     """Metadata associate with registration item."""
 
     # Initial name based on the filename
@@ -58,24 +61,23 @@ class RegistrationModel:
     # Flag to indicate whether this registration is saved to file
     is_exported: bool = False
     locked: bool = False
+
     # Temporary data
     temporary_transform: ty.Optional[Transformation] = None
-    _transform: ty.Optional["ProjectiveTransform"] = None
-    # Arrays of fixed and moving points
-    _fixed_points: ty.Optional[np.ndarray] = None
-    _moving_points: ty.Optional[np.ndarray] = None
-    _transformation_type: ty.Optional[str] = ""
+    _transform: ty.Optional["GeometricTransform"] = PrivateAttr(None)
 
-    def __init__(
-        self, name="", display_name="", path="", image_path="", time_created=None, is_exported=False, locked=False
-    ):
-        self.name = name
-        self.display_name = display_name
-        self.path = path
-        self.image_path = image_path
-        self.time_created = time_created
-        self.is_exported = is_exported
-        self.locked = locked
+    # Arrays of fixed and moving points
+    _fixed_points: ty.Optional[np.ndarray] = PrivateAttr(None)
+    _moving_points: ty.Optional[np.ndarray] = PrivateAttr(None)
+    _transformation_type: ty.Optional[str] = PrivateAttr("")
+
+    class Config:
+        """Config."""
+
+        arbitrary_types_allowed = True
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
 
     def to_temporary(self) -> Transformation:
         """Create temporary registration item."""
@@ -118,7 +120,7 @@ class RegistrationModel:
         return {}
 
     @property
-    def transform(self) -> ty.Optional["ProjectiveTransform"]:
+    def transform(self) -> ty.Optional["GeometricTransform"]:
         """Return transformation."""
         if self.temporary_transform:
             return self.temporary_transform.transform
@@ -275,8 +277,50 @@ class RegistrationModel:
             os.remove(self.path)
 
 
-class RegistrationMap(EventedDict):
-    """Container object for registered images."""
+class DataModel(BaseModel):
+    """Base model."""
 
-    def __init__(self):
-        super().__init__(basetype=RegistrationModel)
+    path: Path
+    resolution: float = 1.0
+    reader: ty.Optional[ty.Any] = None
+
+    @validator("path", pre=True)
+    def _validate_path(value: PathLike) -> Path:
+        """Validate path."""
+        path = Path(value)
+        assert path.exists(), f"Path {path} does not exist."
+        return path
+
+    def load(self):
+        """Load data into memory."""
+        print("Started loading data...")
+        self.get_reader()
+        return self
+
+    def get_reader(self):
+        """Read data from file."""
+        raise NotImplementedError("Must implement method")
+
+
+class ImagingModel(DataModel):
+    """IMS model."""
+
+    def get_reader(self) -> "IMSWrapper":
+        """Read data from file."""
+        from ims2micro._ims_reader import read_imaging
+
+        if self.reader is None:
+            self.reader = read_imaging(self.path)
+        return self.reader
+
+
+class MicroscopyModel(DataModel):
+    """IMS model."""
+
+    def get_reader(self) -> "MicroWrapper":
+        """Read data from file."""
+        from ims2micro._micro_reader import read_microscopy
+
+        if self.reader is None:
+            self.reader = read_microscopy(self.path)
+        return self.reader

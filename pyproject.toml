@@ -30,8 +30,17 @@ classifiers = [
 dynamic = ["version"]
 dependencies = [
     "qtpy",
-    "qtextra",
     "napari",
+    "imzy",
+    "zarr",
+    "SimpleITK",
+    "opencv-python",
+    "czifile",
+    "tifffile",
+    "imagecodecs",
+    "aicsimageio[bioformats]",
+    "ome_types",
+    # "qtextra",
 ]
 
 # extras

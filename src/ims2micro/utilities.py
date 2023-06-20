@@ -1,14 +1,35 @@
 """Utilities."""
 import typing as ty
+from pathlib import Path
 
 import numpy as np
+from koyo.typing import PathLike
 from napari.layers.points._points_mouse_bindings import select as _select
 
 if ty.TYPE_CHECKING:
-    from skimage.transform._geometric import ProjectiveTransform
+    from skimage.transform._geometric import GeometricTransform
 
 
 DRAG_DIST_THRESHOLD = 5
+
+np.seterr(divide="ignore", invalid="ignore")
+
+
+def sanitize_path(path: PathLike) -> ty.Optional[Path]:
+    """Sanitize path."""
+    if path is None:
+        return None
+    path = Path(path)
+    if path.is_dir():
+        return path
+    suffix = path.suffix.lower()
+    if suffix == ".h5":
+        path = path.parent
+        assert path.suffix == ".data", "Expected .data file"
+    elif suffix in [".tsf", ".tdf"]:
+        path = path.parent
+        assert path.suffix == ".d", "Expected .d file"
+    return path
 
 
 def round_to_half(*values):
@@ -41,7 +62,7 @@ def add(layer, event):
         layer.events.add_point()
 
 
-def compute_transform(src: np.ndarray, dst: np.ndarray, transform_type: str = "affine") -> "ProjectiveTransform":
+def compute_transform(src: np.ndarray, dst: np.ndarray, transform_type: str = "affine") -> "GeometricTransform":
     """Compute transform."""
     from skimage.transform import estimate_transform
 
