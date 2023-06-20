@@ -1,10 +1,13 @@
 """Registration dialog."""
 
 import typing as ty
+from contextlib import suppress
 from datetime import datetime
 from functools import partial
 
 import numpy as np
+from napari.layers.utils._link_layers import link_layers
+
 import qtextra.helpers as hp
 from napari.layers.points.points import Mode, Points
 from napari.utils.events import Event
@@ -16,12 +19,12 @@ from qtpy.QtCore import Qt
 from qtpy.QtWidgets import QHBoxLayout, QVBoxLayout, QWidget
 
 from ims2micro.enums import TRANSFORMATION_TRANSLATIONS
-from ims2micro.models import RegistrationModel, Transformation, DataModel
+from ims2micro.models import Transformation, DataModel
 from ims2micro._select import IMSWidget, MicroscopyWidget
 from qtextra._napari.mixins import ImageViewMixin
 from superqt import ensure_main_thread
 
-from ims2micro.utilities import add, select
+from ims2micro.utilities import add, select, _get_text_data
 import ims2micro.assets  # noqa: F401
 
 if ty.TYPE_CHECKING:
@@ -33,35 +36,24 @@ from loguru import logger
 class ImageRegistrationDialog(QtDialog, ConfigMixin, IndicatorMixin, ImageViewMixin):
     """Image registration dialog."""
 
-    fixed_image_layer: ty.Optional["Image"] = None
+    fixed_image_layer: ty.Optional[ty.List["Image"]] = None
     fixed_points_layer: ty.Optional[Points] = None
     moving_image_layer: ty.Optional["Image"] = None
     moving_points_layer: ty.Optional[Points] = None
     transformed_moving_image_layer: ty.Optional["Image"] = None
-    filename: ty.Optional[str] = None
-    _transform: ty.Optional[RegistrationModel] = None
+    temporary_transform = None
 
     def __init__(self, parent):
         QtDialog.__init__(self, parent, title="Image registration")
         self.setMouseTracking(True)
         self.setWindowFlags(Qt.Window)
         self.setMinimumSize(1200, 800)
-
         self.setup_events()
-
-    @property
-    def transform_model(self) -> ty.Optional[RegistrationModel]:
-        """Current transform model."""
-        return self._transform
-
-    @transform_model.setter
-    def transform_model(self, registration: RegistrationModel):
-        self._transform = registration
 
     @property
     def transform(self):
         """Retrieve transform."""
-        transform = self.transform_model
+        transform = self.temporary_transform
         if transform:
             return transform.transform
         return None
@@ -77,14 +69,14 @@ class ImageRegistrationDialog(QtDialog, ConfigMixin, IndicatorMixin, ImageViewMi
             self.on_add("fixed")
         connect(self.fixed_points_layer.events.data, self.on_run, state=state)
         connect(self.fixed_points_layer.events.add_point, partial(self.on_predict, "fixed"), state=state)
-        connect(self.fixed_points_layer.events.mode, partial(self.on_mode, "fixed"), state=state)
+        # connect(self.fixed_points_layer.events.mode, partial(self.on_sync_mode, "fixed"), state=state)
 
         # add moving points layer
         if state:
             self.on_add("moving")
         connect(self.moving_points_layer.events.data, self.on_run, state=state)
         connect(self.moving_points_layer.events.add_point, partial(self.on_predict, "moving"), state=state)
-        connect(self.moving_points_layer.events.mode, partial(self.on_mode, "moving"), state=state)
+        # connect(self.moving_points_layer.events.mode, partial(self.on_sync_mode, "moving"), state=state)
 
     @ensure_main_thread
     def on_load_fixed(self, model: DataModel):
@@ -93,37 +85,18 @@ class ImageRegistrationDialog(QtDialog, ConfigMixin, IndicatorMixin, ImageViewMi
 
     def _on_load_fixed(self, model: DataModel):
         wrapper = model.get_reader()
+        fixed_data = wrapper.image()
+        channel_names = wrapper.channel_names()
+        for name in channel_names:
+            if name in self.view_fixed.layers:
+                del self.view_moving.layers[name]
         fixed_image_layer = self.view_fixed.viewer.add_image(**wrapper.image())
-        print(fixed_image_layer)
-        # self.fixed_image_layer = self.view_fixed.widget.viewer.open(filename, name="Fixed")[0]
-        # self.view_fixed.layers.move(self.view_fixed.layers.index(self.fixed_image_layer), 0)
-        # self.view_fixed.layers.selection.select_only(self.fixed_points_layer)
+        self.fixed_image_layer = fixed_image_layer if isinstance(fixed_image_layer, list) else [fixed_image_layer]
+        if isinstance(self.fixed_image_layer, list) and len(self.fixed_image_layer) > 1:
+            link_layers(self.fixed_image_layer, attributes=("opacity",))
+        self.view_fixed.viewer.reset_view()
 
-    def on_plot_fixed_image(self, array: np.ndarray):
-        """Update fixed image."""
-        # reset = self.fixed_image_layer is None
-        #
-        # def _check_existing(n: int):
-        #     nonlocal reset
-        #     if reset:
-        #         return
-        #     if len(self.fixed_image_layer.data.shape) != n:
-        #         self.view_fixed.remove_layer("Fixed", True)
-        #         self.fixed_image_layer = None
-        #         reset = True
-        #
-        # if len(array.shape) == 3:
-        #     _check_existing(3)
-        #     self.fixed_image_layer = self.view_fixed.plot_rgb(array, "Fixed")
-        # else:
-        #     _check_existing(2)
-        #     self.fixed_image_layer = self.view_fixed.add_image(array, "Fixed")
-        # self.view_fixed.layers.move(self.view_fixed.layers.index(self.fixed_image_layer), 0)
-        # self.view_fixed.layers.selection.select_only(self.fixed_points_layer)
-        # if reset:
-        #     self.view_fixed.viewer.reset_view()
-
-    def on_toggle_fixed_channel(self, state: bool, name: str):
+    def on_toggle_fixed_channel(self, name: str, state: bool):
         """Toggle fixed channel."""
         self.view_fixed.layers[name].visible = state
 
@@ -134,45 +107,13 @@ class ImageRegistrationDialog(QtDialog, ConfigMixin, IndicatorMixin, ImageViewMi
 
     def _on_load_moving(self, model: DataModel):
         wrapper = model.get_reader()
-        self.view_moving.viewer.add_image(**wrapper.image())
+        moving_data = wrapper.image()
+        if moving_data["name"] in self.view_moving.layers:
+            del self.view_moving.layers[moving_data["name"]]
+        self.moving_image_layer = self.view_moving.viewer.add_image(**moving_data)
         self.on_clear("fixed", True)
         self.on_clear("moving", True)
-
-    # def _on_open_moving(self, filename: str, reset: bool = True, force: bool = False):
-    #     self.filename = filename
-    #     if self.moving_image_layer is not None:
-    #         if force or hp.confirm(
-    #             self, "An image is already present in the canvas (moving). Would you like to replace it with new
-    #             image?"
-    #         ):
-    #             self.view_moving.layers.remove(self.moving_image_layer)
-    #             self.moving_image_layer = None
-    #         else:
-    #             return
-    #
-    #     self.moving_image_layer = self.view_moving.widget.viewer.open(filename, name="Moving")[0]
-    #     self.view_moving.layers.move(self.view_moving.layers.index(self.moving_image_layer), 0)
-    #     self.view_moving.layers.selection.select_only(self.moving_points_layer)
-    #
-    #     if reset:
-    #         path = Path(filename)
-    #
-    #         with hp.qt_signals_blocked(self.registration_list):
-    #             self.transform_model = RegistrationModel(
-    #                 name=path.stem, image_path=filename, time_created=datetime.now(), is_exported=False
-    #             )
-    #         widget = self.registration_list.get_widget_for_item_model(self.transform_model)
-    #         if widget:
-    #             widget.on_select()
-
-    def on_plot_moving_image(self, array: np.ndarray):
-        """Update moving image."""
-        # reset = self.moving_image_layer is None
-        # self.moving_image_layer = self.view_moving.add_image(array, "Moving")
-        # self.view_moving.layers.move(self.view_moving.layers.index(self.moving_image_layer), 0)
-        # self.view_moving.layers.selection.select_only(self.moving_points_layer)
-        # if reset:
-        #     self.view_moving.viewer.reset_view()
+        self.view_moving.viewer.reset_view()
 
     def _select_layer(self, which: str):
         """Select layer."""
@@ -183,9 +124,7 @@ class ImageRegistrationDialog(QtDialog, ConfigMixin, IndicatorMixin, ImageViewMi
             self.view_moving.layers.move(self.view_moving.layers.index(self.moving_points_layer), -1)
             self.view_moving.layers.selection.select_only(self.moving_points_layer)
 
-    def on_mode(self, which: str, evt=None):
-        """Update mode."""
-        mode = evt.mode
+    def _get_mode_button(self, which: str, mode):
         if which == "fixed":
             widgets = {
                 Mode.ADD: self.fixed_add_btn,
@@ -198,10 +137,22 @@ class ImageRegistrationDialog(QtDialog, ConfigMixin, IndicatorMixin, ImageViewMi
                 Mode.SELECT: self.moving_move_btn,
                 Mode.PAN_ZOOM: self.moving_zoom_btn,
             }
-        widget = widgets.get(mode, None)
+        return widgets.get(mode, None)
+
+    def on_sync_mode(self, which: str, evt=None):
+        """Update mode."""
+        widget = self._get_mode_button(which, evt.mode)
+        if widget is not None:
+            with hp.qt_signals_blocked(widget):
+                widget.setChecked(True)
+
+    def on_mode(self, which: str, evt=None):
+        """Update mode."""
+        widget = self._get_mode_button(which, evt.mode)
         if widget is not None:
             widget.setChecked(True)
 
+    @ensure_main_thread
     def on_move(self, which: str, evt=None):
         """Move points."""
         widget = self.fixed_move_btn if which == "fixed" else self.moving_move_btn
@@ -225,13 +176,23 @@ class ImageRegistrationDialog(QtDialog, ConfigMixin, IndicatorMixin, ImageViewMi
 
         # make sure the points layer is present
         if which == "fixed" and self.fixed_points_layer is None:
-            self.fixed_points_layer = self.view_fixed.add_points_layer(
-                None, [], size=self.fixed_point_size.value(), name="Fixed (points)"
+            self.fixed_points_layer = self.view_fixed.viewer.add_points(
+                None,
+                size=self.fixed_point_size.value(),
+                name="Fixed (points)",
+                face_color="green",
+                edge_color="black",
+                symbol="cross",
             )
             _init(self.fixed_points_layer)
         elif which == "moving" and self.moving_points_layer is None:
-            self.moving_points_layer = self.view_moving.add_points_layer(
-                None, [], size=self.moving_point_size.value(), name="Moving (points)"
+            self.moving_points_layer = self.view_moving.viewer.add_points(
+                None,
+                size=self.moving_point_size.value(),
+                name="Moving (points)",
+                face_color="red",
+                edge_color="black",
+                symbol="x",
             )
             _init(self.moving_points_layer)
 
@@ -252,7 +213,7 @@ class ImageRegistrationDialog(QtDialog, ConfigMixin, IndicatorMixin, ImageViewMi
 
         data = layer.data
         layer.data = np.delete(data, -1, 0)
-        layer.text.remove([-1])
+        # layer.text.remove([-1])
 
     def on_clear(self, which: str, force: bool = True):
         """Remove point to the image."""
@@ -264,12 +225,14 @@ class ImageRegistrationDialog(QtDialog, ConfigMixin, IndicatorMixin, ImageViewMi
 
     def on_clear_transformation(self):
         """Clear transformation and remove image."""
-        if self.transform_model:
-            self.transform_model.temporary_transform = None
+        if self.temporary_transform:
+            self.temporary_transform = None
         if self.transformed_moving_image_layer:
-            self.view_fixed.layers.remove(self.transformed_moving_image_layer)
+            with suppress(ValueError):
+                self.view_fixed.layers.remove(self.transformed_moving_image_layer)
             self.transformed_moving_image_layer = None
 
+    @ensure_main_thread
     def on_run(self, _evt=None):
         """Compute transformation."""
         from ims2micro.utilities import compute_transform
@@ -288,18 +251,16 @@ class ImageRegistrationDialog(QtDialog, ConfigMixin, IndicatorMixin, ImageViewMi
                 self.fixed_points_layer.data,  # destination
                 method,
             )
-            temporary_transform = Transformation(
-                transform,
-                method,
-                self.filename,
-                datetime.now(),
-                self.fixed_points_layer.data,
-                self.moving_points_layer.data,
+            self.temporary_transform = Transformation(
+                transform=transform,
+                transformation_type=method,
+                micro_model=self._micro_widget.model,
+                ims_model=self._ims_widget.model,
+                time_created=datetime.now(),
+                fixed_points=self.fixed_points_layer.data,
+                moving_points=self.moving_points_layer.data,
             )
-            self.transform_model.temporary_transform = temporary_transform
-            if self.transform_model.path and self.transform_model.is_exported:
-                self.transform_model.is_exported = False
-                self.registration_list.refresh()
+            logger.info(self.temporary_transform.about())
             self.on_apply()
         else:
             if n_fixed <= 3 or n_moving <= 3:
@@ -307,9 +268,11 @@ class ImageRegistrationDialog(QtDialog, ConfigMixin, IndicatorMixin, ImageViewMi
             elif n_fixed != n_moving:
                 logger.warning("The number of `fixed` and `moving` points must be the same.")
 
+    @ensure_main_thread
     def on_apply(self):
         """Apply transformation."""
-        if self.transform is None:
+        if self.transform is None and self.moving_image_layer is None:
+            logger.warning("Cannot apply transformation - no transformation has been computed.")
             return
 
         # add image and apply transformation
@@ -318,14 +281,17 @@ class ImageRegistrationDialog(QtDialog, ConfigMixin, IndicatorMixin, ImageViewMi
             name="Transformed",
             blending="translucent",
             opacity=self.moving_opacity.value() / 100,
+            affine=self.transform.params,
         )
-        self.transformed_moving_image_layer.affine = self.fixed_image_layer.affine.affine_matrix @ self.transform.params
+        # self.transformed_moving_image_layer.affine = self.fixed_image_layer.affine.affine_matrix @ self.transform.params
         self._select_layer("fixed")
 
+    @ensure_main_thread
     def on_predict(self, which: str, _evt=None):
         """Predict transformation from either image."""
         self.on_update_text()
         if self.transform is None:
+            logger.warning("Cannot predict - no transformation has been computed.")
             return
 
         if which == "fixed":
@@ -346,9 +312,9 @@ class ImageRegistrationDialog(QtDialog, ConfigMixin, IndicatorMixin, ImageViewMi
     @staticmethod
     def _update_layer_points(layer: Points, data: np.ndarray):
         """Update points layer."""
-        # layer.text.values = np.asarray([str(v + 1) for v in range(data.shape[0])])
         with layer.events.data.blocker():
             layer.data = data
+            layer.properties = _get_text_data(data)
 
     def on_update_layer(self, which: str, _value=None):
         """Update points layer."""
@@ -366,7 +332,7 @@ class ImageRegistrationDialog(QtDialog, ConfigMixin, IndicatorMixin, ImageViewMi
             self.moving_points_layer.current_size = moving_size
 
         if self.fixed_image_layer and which == "fixed":
-            self.fixed_image_layer.opacity = fixed_opacity / 100
+            self.fixed_image_layer[0].opacity = fixed_opacity / 100
         if self.transformed_moving_image_layer and which == "moving":
             self.transformed_moving_image_layer.opacity = moving_opacity / 100
 
@@ -377,9 +343,9 @@ class ImageRegistrationDialog(QtDialog, ConfigMixin, IndicatorMixin, ImageViewMi
 
         # update text information
         for layer in [self.fixed_points_layer, self.moving_points_layer]:
-            # with layer.text.events.blocker():
-            layer.text.color = text_color
-            layer.text.size = text_size
+            with layer.text.events.blocker():
+                layer.text.color = text_color
+                layer.text.size = text_size
 
     # noinspection PyAttributeOutsideInit
     def make_panel(self) -> QHBoxLayout:
@@ -429,7 +395,7 @@ class ImageRegistrationDialog(QtDialog, ConfigMixin, IndicatorMixin, ImageViewMi
         self.fixed_point_size.valueChanged.connect(partial(self.on_update_layer, "fixed"))
 
         self.moving_point_size = hp.make_int_spin_box(
-            self, value=3, tooltip="Size of the points shown in the moving image."
+            self, value=1, tooltip="Size of the points shown in the moving image."
         )
         self.moving_point_size.valueChanged.connect(partial(self.on_update_layer, "moving"))
 
@@ -578,16 +544,3 @@ class ImageRegistrationDialog(QtDialog, ConfigMixin, IndicatorMixin, ImageViewMi
         moving_layout.addWidget(toolbar)
         moving_layout.addWidget(self.view_moving.widget, stretch=True)
         return moving_layout
-
-
-if __name__ == "__main__":  # pragma: no cover
-    import sys
-
-    from qtextra.utils.dev import qapplication
-
-    app = qapplication(1)
-    dlg = ImageRegistrationDialog(None)
-    dlg.setMinimumSize(1200, 500)
-
-    dlg.show()
-    sys.exit(app.exec_())

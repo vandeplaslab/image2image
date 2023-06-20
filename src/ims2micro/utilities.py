@@ -7,7 +7,7 @@ from koyo.typing import PathLike
 from napari.layers.points._points_mouse_bindings import select as _select
 
 if ty.TYPE_CHECKING:
-    from skimage.transform._geometric import GeometricTransform
+    from skimage.transform import ProjectiveTransform
 
 
 DRAG_DIST_THRESHOLD = 5
@@ -43,6 +43,21 @@ def select(layer, event):
     layer.events.move()
 
 
+def _get_text_properties():
+    return {
+        "text": "{name}",
+        "color": "red",
+        "anchor": "center",
+        "size": 12,
+    }
+
+
+def _get_text_data(data: np.ndarray) -> ty.Dict[str, ty.List[str]]:
+    """Get data."""
+    n_pts = data.shape[0]
+    return {"name": [str(i + 1) for i in range(n_pts)]}
+
+
 def add(layer, event):
     """Add a new point at the clicked position."""
     if event.type == "mouse_press":
@@ -54,15 +69,15 @@ def add(layer, event):
     dist = np.linalg.norm(start_pos - event.pos)
     if dist < DRAG_DIST_THRESHOLD:
         coordinates = round_to_half(layer.world_to_data(event.position))
-        # update text with index
-        label = np.asarray([str(v + 1) for v in range(layer.data.shape[0] + 1)])
-        layer.text.values = label
         # add point
         layer.add(coordinates)
+        # update text with index
+        layer.properties = _get_text_data(layer.data)
+        layer.text = _get_text_properties()
         layer.events.add_point()
 
 
-def compute_transform(src: np.ndarray, dst: np.ndarray, transform_type: str = "affine") -> "GeometricTransform":
+def compute_transform(src: np.ndarray, dst: np.ndarray, transform_type: str = "affine") -> "ProjectiveTransform":
     """Compute transform."""
     from skimage.transform import estimate_transform
 

@@ -96,6 +96,7 @@ class IMSWidget(LoadWidget):
         """Load data."""
         # path = hp.get_filename(self, title=self.FILE_TITLE, base_dir="", file_filter=self.FILE_FORMATS)
         path = r"D:\ims2micro_test\test.d\analysis.tsf"
+        path = r"D:\2023_02_17_Olof\VAN0052-RK-3\IMS\230119_isbergo_VAN0052_RK_3_2_05um_area3_neg_IMS.d\analysis.tsf"
         if path:
             with hp.qt_signals_blocked(self.text_edit):
                 self.text_edit.setText(str(path))
@@ -147,6 +148,7 @@ class MicroscopyWidget(LoadWidget):
         """Load data."""
         # path = hp.get_filename(self, title=self.FILE_TITLE, base_dir="", file_filter=self.FILE_FORMATS)
         path = r"D:\ims2micro_test\example.ome.tiff"
+        path = r"D:\2023_02_17_Olof\VAN0052-RK-3\coregistration\Set1\230119_isbergo_VAN0052_RK_3_2_05um_area3_neg_coreg-postIMS-registered.ome.tiff"
         path = str(sanitize_path(path))
         if path:
             with hp.qt_signals_blocked(self.text_edit):

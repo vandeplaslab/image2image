@@ -3,18 +3,14 @@
 
 if __name__ == "__main__":  # pragma: no cover
     import sys
+    import faulthandler
 
-    # from qtpy.QtCore import Qt
-    # from qtpy.QtWidgets import QApplication
     from qtextra.utils.dev import qdev
     from ims2micro.dialog import ImageRegistrationDialog
     from qtextra.config import THEMES
     from ims2micro.event_loop import get_app
 
-    # QApplication.setAttribute(Qt.AA_EnableHighDpiScaling)
-    # QApplication.setAttribute(Qt.AA_UseHighDpiPixmaps)
-    # QApplication.setAttribute(Qt.AA_UseStyleSheetPropagationInWidgetStyles)
-    # QApplication.setAttribute(Qt.AA_ShareOpenGLContexts)
+    faulthandler.enable()
 
     app = get_app()
     dlg = ImageRegistrationDialog(None)
