@@ -1,8 +1,9 @@
 """Microscopy reader."""
-from pathlib import Path
-from koyo.typing import PathLike
 import typing as ty
+from pathlib import Path
+
 import numpy as np
+from koyo.typing import PathLike
 
 IMAGE_EXTS = [".jpg", ".png"]
 
@@ -12,6 +13,9 @@ class MicroWrapper:
 
     def __init__(self, reader_or_image):
         self.reader_or_image = reader_or_image
+        self.resolution = (
+            reader_or_image.base_layer_pixel_res if hasattr(reader_or_image, "base_layer_pixel_res") else 1.0
+        )
 
     def image(self) -> ty.Dict[str, ty.Any]:
         """Return image."""
@@ -25,7 +29,7 @@ class MicroWrapper:
         else:
             array = self.reader_or_image.get_dask_pyr()
             temp = array[0] if isinstance(array, list) else array
-            channel_axis = None if (self.reader_or_image.is_rgb or temp.shape[0] > 2) else 0
+            channel_axis = None if (self.reader_or_image.is_rgb or temp.shape[0] <= 2) else 0
             if self.reader_or_image.is_rgb or channel_axis is None:
                 channel_names = self.reader_or_image.channel_names[0]
             else:
@@ -49,7 +53,6 @@ def read_microscopy(path: PathLike):
     from ims2micro.readers.tiff_reader import TIFFFILE_EXTS, TiffImageReader
 
     path = Path(path)
-    print("reading microscopy")
     assert path.exists(), f"File does not exist: {path}"
     assert path.suffix.lower() in TIFFFILE_EXTS + IMAGE_EXTS, f"Unsupported file format: {path.suffix}"
 

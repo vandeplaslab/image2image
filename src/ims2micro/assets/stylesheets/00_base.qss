@@ -67,7 +67,7 @@ QTextEdit > QWidget {
 
 /* ----------------- QPushButton ------------------ */
 
-QPushButton {
+QPushButton, QtPushButton {
   background-color: {{ foreground }};
   border-radius: 2px;
   padding: 4px;

@@ -1,9 +1,10 @@
 """IMS reader."""
-from pathlib import Path
 import sqlite3
-from koyo.typing import PathLike
-import numpy as np
 import typing as ty
+from pathlib import Path
+
+import numpy as np
+from koyo.typing import PathLike
 
 
 class IMSWrapper:

@@ -10,18 +10,16 @@ import numpy as np
 import qtextra.helpers as hp
 from napari.layers.points.points import Mode, Points
 from napari.utils.events import Event
+from qtextra._napari.mixins import ImageViewMixin
 from qtextra.mixins import ConfigMixin, IndicatorMixin
-from qtextra.utils.utilities import connect
 from qtextra.widgets.qt_dialog import QtDialog
 from qtextra.widgets.qt_mini_toolbar import QtMiniToolbar
 from qtpy.QtCore import Qt
 from qtpy.QtWidgets import QHBoxLayout, QVBoxLayout, QWidget
 
+from ims2micro._select import IMSWidget, MicroscopyWidget
 from ims2micro.enums import TRANSFORMATION_TRANSLATIONS
 from ims2micro.models import RegistrationModel, Transformation
-from ims2micro._select import IMSWidget, MicroscopyWidget
-from qtextra._napari.mixins import ImageViewMixin
-
 from ims2micro.utilities import add, select
 
 if ty.TYPE_CHECKING:

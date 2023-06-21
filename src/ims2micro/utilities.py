@@ -5,6 +5,10 @@ from pathlib import Path
 import numpy as np
 from koyo.typing import PathLike
 from napari.layers.points._points_mouse_bindings import select as _select
+from napari.layers.points.points import Mode, Points
+from napari.utils.events import Event
+
+from ims2micro.config import CONFIG
 
 if ty.TYPE_CHECKING:
     from skimage.transform import ProjectiveTransform
@@ -43,12 +47,19 @@ def select(layer, event):
     layer.events.move()
 
 
-def _get_text_properties():
+def init_points_layer(layer: Points):
+    """Initialize points layer."""
+    layer._drag_modes[Mode.ADD] = add
+    layer._drag_modes[Mode.SELECT] = select
+    layer.events.add(move=Event, add_point=Event)
+
+
+def _get_text_format():
     return {
         "text": "{name}",
-        "color": "red",
+        "color": CONFIG.label_color,
         "anchor": "center",
-        "size": 12,
+        "size": CONFIG.label_size,
     }
 
 
@@ -73,7 +84,7 @@ def add(layer, event):
         layer.add(coordinates)
         # update text with index
         layer.properties = _get_text_data(layer.data)
-        layer.text = _get_text_properties()
+        layer.text = _get_text_format()
         layer.events.add_point()
 
 

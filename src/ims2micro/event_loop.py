@@ -1,10 +1,11 @@
-"""Event loop"""
+"""Event loop."""
 import os
 import sys
+from typing import Optional
 from warnings import warn
 
 from napari._qt.dialogs.qt_notification import NapariQtNotification
-from napari._qt.qt_event_loop import _ipython_has_eventloop, _pycharm_has_eventloop  # noqa
+from napari._qt.qt_event_loop import _ipython_has_eventloop, _pycharm_has_eventloop
 from napari._qt.qthreading import wait_for_workers_to_quit
 from napari._qt.utils import _maybe_allow_interrupt
 from napari.plugins import plugin_manager
@@ -14,6 +15,7 @@ from napari.utils.theme import _themes
 from qtpy.QtCore import QDir, Qt
 from qtpy.QtGui import QIcon
 from qtpy.QtWidgets import QApplication
+from superqt import QMessageHandler
 
 from ims2micro import __version__
 
@@ -45,13 +47,13 @@ _app_ref = None
 
 def get_app(
     *,
-    app_name: str = None,
-    app_version: str = None,
-    icon: str = None,
-    org_name: str = None,
-    org_domain: str = None,
-    app_id: str = None,
-    ipy_interactive: bool = None,
+    app_name: Optional[str] = None,
+    app_version: Optional[str] = None,
+    icon: Optional[str] = None,
+    org_name: Optional[str] = None,
+    org_domain: Optional[str] = None,
+    app_id: Optional[str] = None,
+    ipy_interactive: Optional[bool] = None,
 ) -> QApplication:
     """Get or create the Qt QApplication.
 
@@ -103,55 +105,59 @@ def get_app(
     kwargs = locals() if set_values else _defaults
     global _app_ref
 
-    app = QApplication.instance()
-    if app:
-        set_values.discard("ipy_interactive")
-        if set_values:
-            warn(
-                f"QApplication already existed, these arguments to to 'get_app' were ignored: {set_values}",
-            )
-    else:
-        # automatically determine monitor DPI.
-        # Note: this MUST be set before the QApplication is instantiated
-        QApplication.setAttribute(Qt.ApplicationAttribute.AA_EnableHighDpiScaling)
-        QApplication.setAttribute(Qt.ApplicationAttribute.AA_UseHighDpiPixmaps)
-        app = QApplication(sys.argv)
+    with QMessageHandler():
+        app = QApplication.instance()
+        if app:
+            set_values.discard("ipy_interactive")
+            if set_values:
+                warn(
+                    f"QApplication already existed, these arguments to to 'get_app' were ignored: {set_values}",
+                )
+        else:
+            # automatically determine monitor DPI.
+            # Note: this MUST be set before the QApplication is instantiated
+            os.environ["QT_AUTO_SCREEN_SCALE_FACTOR"] = "1"
+            QApplication.setAttribute(Qt.AA_EnableHighDpiScaling, True)
+            QApplication.setAttribute(Qt.AA_UseHighDpiPixmaps, True)
+            QApplication.setAttribute(Qt.AA_UseStyleSheetPropagationInWidgetStyles, True)
+            QApplication.setAttribute(Qt.AA_ShareOpenGLContexts, True)
 
-        # if this is the first time the Qt app is being instantiated, we set
-        # the name and metadata
-        app.setApplicationName(kwargs.get("app_name"))
-        app.setApplicationVersion(kwargs.get("app_version"))
-        app.setOrganizationName(kwargs.get("org_name"))
-        app.setOrganizationDomain(kwargs.get("org_domain"))
-        set_app_id(kwargs.get("app_id"))
+            # if this is the first time the Qt app is being instantiated, we set
+            # the name and metadata
+            app = QApplication(sys.argv)
+            app.setApplicationName(kwargs.get("app_name"))
+            app.setApplicationVersion(kwargs.get("app_version"))
+            app.setOrganizationName(kwargs.get("org_name"))
+            app.setOrganizationDomain(kwargs.get("org_domain"))
+            set_app_id(kwargs.get("app_id"))
 
-    if not _ipython_has_eventloop():
-        notification_manager.notification_ready.connect(NapariQtNotification.show_notification)
-        notification_manager.notification_ready.connect(show_console_notification)
+        if not _ipython_has_eventloop():
+            notification_manager.notification_ready.connect(NapariQtNotification.show_notification)
+            notification_manager.notification_ready.connect(show_console_notification)
 
-    if app.windowIcon().isNull():
-        app.setWindowIcon(QIcon(kwargs.get("icon")))
+        if app.windowIcon().isNull():
+            app.setWindowIcon(QIcon(kwargs.get("icon")))
 
-    if not _app_ref:  # running get_app for the first time
-        # see docstring of `wait_for_workers_to_quit` for caveats on killing
-        # workers at shutdown.
-        app.aboutToQuit.connect(wait_for_workers_to_quit)
+        if not _app_ref:  # running get_app for the first time
+            # see docstring of `wait_for_workers_to_quit` for caveats on killing
+            # workers at shutdown.
+            app.aboutToQuit.connect(wait_for_workers_to_quit)
 
-        # Setup search paths for currently installed themes.
-        for name in _themes:
-            QDir.addSearchPath(f"theme_{name}", str(_theme_path(name)))
+            # Setup search paths for currently installed themes.
+            for name in _themes:
+                QDir.addSearchPath(f"theme_{name}", str(_theme_path(name)))
 
-        try:
-            # this will register all of our resources (icons) with Qt, so that they
-            # can be used in qss files and elsewhere.
-            plugin_manager.discover_icons()
-            plugin_manager.discover_qss()
-        except AttributeError:
-            pass
+            try:
+                # this will register all of our resources (icons) with Qt, so that they
+                # can be used in qss files and elsewhere.
+                plugin_manager.discover_icons()
+                plugin_manager.discover_qss()
+            except AttributeError:
+                pass
 
-    _app_ref = app  # prevent garbage collection
+        _app_ref = app  # prevent garbage collection
 
-    return app
+        return app
 
 
 def quit_app():
@@ -171,7 +177,7 @@ def quit_app():
 
 
 def run(*, force=False, max_loop_level=1, _func_name="run"):
-    """Start the Qt Event Loop
+    """Start the Qt Event Loop.
 
     Parameters
     ----------

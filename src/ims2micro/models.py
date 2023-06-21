@@ -20,7 +20,7 @@ class DataModel(BaseModel):
     resolution: float = 1.0
     reader: ty.Optional[ty.Any] = None
 
-    @validator("path", pre=True)
+    @validator("path", pre=True, allow_reuse=True)
     def _validate_path(value: PathLike) -> Path:
         """Validate path."""
         path = Path(value)
@@ -29,7 +29,6 @@ class DataModel(BaseModel):
 
     def load(self):
         """Load data into memory."""
-        print("Started loading data...")
         self.get_reader()
         return self
 
@@ -96,6 +95,25 @@ class Transformation(BaseModel):
         """Retrieve transformation array."""
         return self.transform.params
 
+    def compute(self, yx: bool = True, px: bool = True):
+        """Compute transformation matrix."""
+        from ims2micro.utilities import compute_transform
+
+        moving_points = self.moving_points
+        fixed_points = self.fixed_points
+        if not yx:
+            moving_points = moving_points[:, ::-1]
+            fixed_points = fixed_points[:, ::-1]
+        if not px:
+            moving_points = moving_points * self.micro_model.resolution
+            fixed_points = fixed_points * self.ims_model.resolution
+
+        return compute_transform(
+            moving_points,  # source
+            fixed_points,  # destination
+            self.transformation_type,
+        )
+
     def about(self) -> str:
         """Retrieve information about the model in textual format."""
         info = ""
@@ -103,6 +121,9 @@ class Transformation(BaseModel):
             info += f"Transformation type: {self.transformation_type}"
         transform = self.transform
         if transform:
+            if hasattr(transform, "params"):
+                info += "\nTransformation matrix:"
+                info += f"\n{transform.params}"
             if hasattr(transform, "scale"):
                 scale = transform.scale
                 scale = (scale, scale) if isinstance(scale, float) else scale
@@ -124,16 +145,52 @@ class Transformation(BaseModel):
         """Convert to dict."""
         # TODO: add xy, yx, inverse
         return {
-            "matrix": self.matrix,
-            "transformation_type": self.transformation_type,
-            "fixed_points": self.fixed_points,
-            "moving_points": self.moving_points,
+            "schema_version": "1.0",
             "time_created": self.time_created,
-            "micro_path": self.micro_model.path,
-            "ims_path": self.ims_model.path,
-            "micro_resolution": self.micro_model.resolution,
-            "ims_resolution": self.ims_model.resolution,
+            "fixed_points": self.fixed_points.tolist(),
+            "moving_points": self.moving_points.tolist(),
+            "transformation_type": self.transformation_type,
+            "micro_path": str(self.micro_model.path),
+            "micro_resolution_um": self.micro_model.resolution,
+            "ims_path": str(self.ims_model.path),
+            "ims_resolution_um": self.ims_model.resolution,
+            "matrix_yx_px": self.compute(yx=True, px=True).tolist(),
+            "matrix_yx_um": self.compute(yx=True, px=False).tolist(),
+            "matrix_xy_px": self.compute(yx=False, px=True).tolist(),
+            "matrix_xy_um": self.compute(yx=False, px=False).tolist(),
         }
 
-    def to_json(self):
+    @classmethod
+    def from_dict(cls, data: dict):
+        """Create from dict."""
+        raise NotImplementedError("Must implement method")
+
+    def to_json(self, path: PathLike):
         """Export data as JSON."""
+        from koyo.json import write_json_data
+
+        path = Path(path)
+        write_json_data(path, self.to_dict())
+
+    @classmethod
+    def from_json(cls, path: PathLike):
+        """Create from JSON."""
+        from koyo.json import read_json_data
+
+        path = Path(path)
+        return cls.from_dict(read_json_data(path))
+
+    def to_toml(self, path: PathLike):
+        """Export data as TOML."""
+        from koyo.toml import write_toml_data
+
+        path = Path(path)
+        write_toml_data(path, self.to_dict())
+
+    @classmethod
+    def from_toml(cls, path: PathLike):
+        """Create from TOML."""
+        from koyo.toml import read_toml_data
+
+        path = Path(path)
+        return cls.from_dict(read_toml_data(path))

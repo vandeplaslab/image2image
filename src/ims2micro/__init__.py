@@ -8,3 +8,8 @@ except PackageNotFoundError:
 
 __author__ = "Lukasz G. Migas"
 __email__ = "lukas.migas@yahoo.com"
+
+from ims2micro.event_loop import get_app
+
+# force application creation
+get_app()
