@@ -179,6 +179,35 @@ QtToast > QWidget#toast_header, QWidget#toast_header > QLabel {
     background-color: {{ foreground }};
 }
 
+/* ----------------- QProgressBar -------------------- */
+
+QProgressBar#progress_timer {
+    border: 0px;
+    padding: 2x;
+    margin: 2px;
+    max-height: 4px;
+    background-color: {{ background }};
+}
+
+QProgressBar::chunk#progress_timer {
+    width: 1px;
+    background-color: {{ success }};
+}
+
+QProgressBar#step_indicator {
+    border: 1px;
+    border-color: {{ foreground }};
+    padding: 2x;
+    margin: 2px;
+    max-height: 10px;
+    background-color: {{ foreground }};
+}
+
+QProgressBar::chunk#step_indicator {
+    width: 5px;
+    background-color: {{ success }};
+}
+
 /* ----------------- Statusbar ----------------- */
 QStatusBar {
     background-color: {{ darken(background, 5) }};
@@ -205,7 +234,9 @@ QtReloadWidget QLabel {
 }
 
 /* ------------ QtColorSwatch ------------ */
-QtColorSwatch QFrame {
-    border: 3px solid {{ background }};
-    border-radius: px;
+#colorSwatch {
+   border-radius: 1px;
+   min-height: 22px;
+   min-width: 22px;
 }
+

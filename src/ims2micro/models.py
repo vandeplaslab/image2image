@@ -36,6 +36,10 @@ class DataModel(BaseModel):
         """Read data from file."""
         raise NotImplementedError("Must implement method")
 
+    def channel_names(self) -> ty.List[str]:
+        """Return list of channel names."""
+        return self.get_reader().channel_names()
+
 
 class ImagingModel(DataModel):
     """IMS model."""
@@ -46,6 +50,7 @@ class ImagingModel(DataModel):
 
         if self.reader is None:
             self.reader = read_imaging(self.path)
+            self.resolution = self.reader.resolution
         return self.reader
 
 
@@ -58,6 +63,7 @@ class MicroscopyModel(DataModel):
 
         if self.reader is None:
             self.reader = read_microscopy(self.path)
+            self.resolution = self.reader.resolution
         return self.reader
 
 
@@ -108,11 +114,12 @@ class Transformation(BaseModel):
             moving_points = moving_points * self.micro_model.resolution
             fixed_points = fixed_points * self.ims_model.resolution
 
-        return compute_transform(
+        transform = compute_transform(
             moving_points,  # source
             fixed_points,  # destination
             self.transformation_type,
         )
+        return transform
 
     def about(self) -> str:
         """Retrieve information about the model in textual format."""
@@ -143,21 +150,26 @@ class Transformation(BaseModel):
 
     def to_dict(self):
         """Convert to dict."""
-        # TODO: add xy, yx, inverse
         return {
             "schema_version": "1.0",
-            "time_created": self.time_created,
-            "fixed_points": self.fixed_points.tolist(),
-            "moving_points": self.moving_points.tolist(),
+            "time_created": self.time_created.strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
+            "fixed_points_yx_px": self.fixed_points.tolist(),  # default
+            "fixed_points_yx_um": (self.micro_model.resolution * self.fixed_points).tolist(),
+            "moving_points_yx_px": self.moving_points.tolist(),  # default
+            "moving_points_yx_um": (self.ims_model.resolution * self.moving_points).tolist(),
             "transformation_type": self.transformation_type,
             "micro_path": str(self.micro_model.path),
             "micro_resolution_um": self.micro_model.resolution,
             "ims_path": str(self.ims_model.path),
             "ims_resolution_um": self.ims_model.resolution,
-            "matrix_yx_px": self.compute(yx=True, px=True).tolist(),
-            "matrix_yx_um": self.compute(yx=True, px=False).tolist(),
-            "matrix_xy_px": self.compute(yx=False, px=True).tolist(),
-            "matrix_xy_um": self.compute(yx=False, px=False).tolist(),
+            "matrix_yx_px": self.compute(yx=True, px=True).params.tolist(),
+            "matrix_yx_um": self.compute(yx=True, px=False).params.tolist(),
+            "matrix_xy_px": self.compute(yx=False, px=True).params.tolist(),
+            "matrix_xy_um": self.compute(yx=False, px=False).params.tolist(),
+            "matrix_yx_px_inv": self.compute(yx=True, px=True)._inv_matrix.tolist(),
+            "matrix_yx_um_inv": self.compute(yx=True, px=False)._inv_matrix.tolist(),
+            "matrix_xy_px_inv": self.compute(yx=False, px=True)._inv_matrix.tolist(),
+            "matrix_xy_um_inv": self.compute(yx=False, px=False)._inv_matrix.tolist(),
         }
 
     @classmethod
@@ -194,3 +206,52 @@ class Transformation(BaseModel):
 
         path = Path(path)
         return cls.from_dict(read_toml_data(path))
+
+    def to_file(self, path: PathLike):
+        """Export data as any supported format."""
+        path = Path(path)
+        if path.suffix == ".json":
+            self.to_json(path)
+        elif path.suffix == ".toml":
+            self.to_toml(path)
+        else:
+            raise ValueError(f"Unknown file format: {path.suffix}")
+
+    @classmethod
+    def from_file(cls, path: PathLike):
+        """Create from file."""
+        path = Path(path)
+        if path.suffix == ".json":
+            return cls.from_json(path)
+        elif path.suffix == ".toml":
+            return cls.from_toml(path)
+        else:
+            raise ValueError(f"Unknown file format: {path.suffix}")
+
+
+def load_from_file(path: PathLike):
+    """Load registration from file."""
+    path = Path(path)
+    if path.suffix not in [".json", ".toml"]:
+        raise ValueError(f"Unknown file format: {path.suffix}")
+
+    if path.suffix == ".json":
+        from koyo.json import read_json_data
+
+        config = read_json_data(path)
+    else:
+        from koyo.toml import read_toml_data
+
+        config = read_toml_data(path)
+
+    # read important fields
+    micro_path = Path(config["micro_path"])
+    if not micro_path.exists():
+        micro_path = None
+    fixed_points = np.array(config["fixed_points_yx_px"])
+    ims_path = Path(config["ims_path"])
+    if not ims_path.exists():
+        ims_path = None
+    moving_points = np.array(config["moving_points_yx_px"])
+    transformation_type = config["transformation_type"]
+    return transformation_type, micro_path, fixed_points, ims_path, moving_points

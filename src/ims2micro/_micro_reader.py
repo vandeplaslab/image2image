@@ -29,7 +29,7 @@ class MicroWrapper:
         else:
             array = self.reader_or_image.get_dask_pyr()
             temp = array[0] if isinstance(array, list) else array
-            channel_axis = None if (self.reader_or_image.is_rgb or temp.shape[0] <= 2) else 0
+            channel_axis = 0  # None if (self.reader_or_image.is_rgb or temp.shape[0] <= 2) else 0
             if self.reader_or_image.is_rgb or channel_axis is None:
                 channel_names = self.reader_or_image.channel_names[0]
             else:

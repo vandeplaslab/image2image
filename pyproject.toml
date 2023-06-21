@@ -40,6 +40,8 @@ dependencies = [
     "imagecodecs",
     "aicsimageio[bioformats]",
     "ome_types",
+    "toml",
+    "h5py"
     # "qtextra",
 ]
 

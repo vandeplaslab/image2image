@@ -26,6 +26,7 @@ update_icon_mapping(
         "remove_all": "fa5s.trash-alt",
         "zoom": "mdi.magnify",
         "close": "fa5s.trash-alt",
+        "bring_to_top": "fa5s.angle-double-up",
     }
 )
 THEMES.register_themes()
