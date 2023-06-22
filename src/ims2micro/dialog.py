@@ -17,6 +17,7 @@ from qtextra.widgets.qt_mini_toolbar import QtMiniToolbar
 from qtpy.QtCore import Qt
 from qtpy.QtWidgets import QHBoxLayout, QMainWindow, QSizePolicy, QVBoxLayout, QWidget
 from superqt import ensure_main_thread
+from koyo.timer import MeasureTimer
 
 # need to load to ensure all assets are loaded properly
 import ims2micro.assets
@@ -113,7 +114,7 @@ class ImageRegistrationDialog(QMainWindow, IndicatorMixin, ImageViewMixin):
         connect(self._ims_widget.evt_closed, self.on_close_moving, state=state)
         connect(self._ims_widget.evt_view_type, self.on_change_view_type, state=state)
         # microscopy view
-        connect(self.view_fixed.viewer.camera.events.zoom, self.on_auto_apply_focus, state=state)
+        # connect(self.view_fixed.viewer.camera.events.zoom, self.on_auto_apply_focus, state=state)
         # fixed points layer
         connect(self.fixed_points_layer.events.data, self.on_run, state=state)
         connect(self.fixed_points_layer.events.add_point, partial(self.on_predict, "fixed"), state=state)
@@ -144,16 +145,19 @@ class ImageRegistrationDialog(QMainWindow, IndicatorMixin, ImageViewMixin):
         self.on_indicator("fixed", False)
 
     def _on_load_fixed(self, model: DataModel):
-        wrapper = model.get_reader()
-        channel_names = wrapper.channel_names()
-        for name in channel_names:
-            if name in self.view_fixed.layers:
-                del self.view_fixed.layers[name]
-        fixed_image_layer = self.view_fixed.viewer.add_image(**wrapper.image())
-        self.fixed_image_layer = fixed_image_layer if isinstance(fixed_image_layer, list) else [fixed_image_layer]
-        if isinstance(self.fixed_image_layer, list) and len(self.fixed_image_layer) > 1:
-            link_layers(self.fixed_image_layer, attributes=("opacity",))
-        self.view_fixed.viewer.reset_view()
+        with MeasureTimer() as timer:
+            wrapper = model.get_reader()
+            channel_names = wrapper.channel_names()
+            for name in channel_names:
+                if name in self.view_fixed.layers:
+                    del self.view_fixed.layers[name]
+            logger.info(f"Loading microscopy data with {len(channel_names)} channels.")
+            fixed_image_layer = self.view_fixed.viewer.add_image(**wrapper.image())
+            self.fixed_image_layer = fixed_image_layer if isinstance(fixed_image_layer, list) else [fixed_image_layer]
+            if isinstance(self.fixed_image_layer, list) and len(self.fixed_image_layer) > 1:
+                link_layers(self.fixed_image_layer, attributes=("opacity",))
+            self.view_fixed.viewer.reset_view()
+        logger.info(f"Loaded microscopy image in {timer()}")
 
     def on_toggle_fixed_channel(self, name: str, state: bool):
         """Toggle fixed channel."""
@@ -175,6 +179,9 @@ class ImageRegistrationDialog(QMainWindow, IndicatorMixin, ImageViewMixin):
         if self._ims_widget.model:
             self.moving_image_layer.data = self._ims_widget.model.get_reader().get_image(view_type)
             self.moving_image_layer.reset_contrast_limits()
+            if self.transformed_moving_image_layer:
+                self.transformed_moving_image_layer.data = self._ims_widget.model.get_reader().get_image(view_type)
+                self.transformed_moving_image_layer                                                     .reset_contrast_limits()
 
     @ensure_main_thread
     def on_load_moving(self, model: DataModel):
@@ -188,9 +195,7 @@ class ImageRegistrationDialog(QMainWindow, IndicatorMixin, ImageViewMixin):
         if moving_data["name"] in self.view_moving.layers:
             del self.view_moving.layers[moving_data["name"]]
         self.moving_image_layer = self.view_moving.viewer.add_image(**moving_data, colormap="turbo")
-        # self.on_clear("fixed", True)
-        # self.on_clear("moving", True)
-        self.on_apply()
+        self.on_apply(update_data=True)
         self.view_moving.viewer.reset_view()
 
     def on_toggle_transformed_moving(self, state: bool):
@@ -375,7 +380,7 @@ class ImageRegistrationDialog(QMainWindow, IndicatorMixin, ImageViewMixin):
             self.on_update_text(block=False)
 
     @ensure_main_thread
-    def on_apply(self):
+    def on_apply(self, update_data: bool = False):
         """Apply transformation."""
         if self.transform is None or self.moving_image_layer is None:
             logger.warning("Cannot apply transformation - no transformation has been computed.")
@@ -384,6 +389,8 @@ class ImageRegistrationDialog(QMainWindow, IndicatorMixin, ImageViewMixin):
         # add image and apply transformation
         if self.transformed_moving_image_layer:
             self.transformed_moving_image_layer.affine = self.transform.params
+            if update_data:
+                self.transformed_moving_image_layer.data = self.moving_image_layer.data
         else:
             self.view_fixed.viewer.add_image(
                 self.moving_image_layer.data,
@@ -465,7 +472,6 @@ class ImageRegistrationDialog(QMainWindow, IndicatorMixin, ImageViewMixin):
 
     def on_set_focus(self):
         """Lock current focus to specified range."""
-        print(self.view_fixed.viewer.mouse_double_click_callbacks)
         self.zoom.setValue(self.view_fixed.viewer.camera.zoom)
         _, y, x = self.view_fixed.viewer.camera.center
         self.x_center.setValue(x)
@@ -482,16 +488,6 @@ class ImageRegistrationDialog(QMainWindow, IndicatorMixin, ImageViewMixin):
             f"Applied focus center=({self.x_center.value():.1f}, {self.y_center.value():.1f})"
             f" zoom={self.zoom.value():.3f}"
         )
-
-    def on_auto_apply_focus(self, evt=None):
-        """Automatically apply focus to the current image range."""
-        print("double-click")
-        if (
-            all(v == 1.0 for v in [self.zoom.value(), self.x_center.value(), self.y_center.value()])
-            or not self.use_focus.isChecked()
-        ):
-            return
-        self.on_apply_focus()
 
     def on_viewer_orientation_changed(self, value=None):
         """Change viewer orientation."""
@@ -553,22 +549,17 @@ class ImageRegistrationDialog(QMainWindow, IndicatorMixin, ImageViewMixin):
         main_layout.addLayout(side_layout)
 
     def _make_focus_layout(self):
-        self.set_current_focus = hp.make_btn(self, "Set current range", func=self.on_set_focus)
-        self.x_center = hp.make_double_spin_box(self, -1e5, 1e5, step_size=500)  # , func=self.on_apply_focus)
-        self.y_center = hp.make_double_spin_box(self, -1e5, 1e5, step_size=500)  # , func=self.on_apply_focus)
-        self.zoom = hp.make_double_spin_box(self, -1e5, 1e5, step_size=0.5, n_decimals=4)  # , func=self.on_apply_focus)
-        # self.use_focus = hp.make_btn(self, "Use focus", func=self.on_apply_focus)
-        self.use_focus = hp.make_checkbox(
-            self, tooltip="Use focus to zoom and center the image.", func=self.on_apply_focus
-        )
+        self.set_current_focus_btn = hp.make_btn(self, "Set current range", func=self.on_set_focus)
+        self.x_center = hp.make_double_spin_box(self, -1e5, 1e5, step_size=500)  
+        self.y_center = hp.make_double_spin_box(self, -1e5, 1e5, step_size=500)  
+        self.zoom = hp.make_double_spin_box(self, -1e5, 1e5, step_size=0.5, n_decimals=4)  
+        self.use_focus_btn = hp.make_btn(self, "Zoom-in", func=self.on_apply_focus)
 
         layout = hp.make_form_layout()
-        layout.addRow(self.set_current_focus)
         layout.addRow(hp.make_label(self, "Center (x)"), self.x_center)
         layout.addRow(hp.make_label(self, "Center (y)"), self.y_center)
         layout.addRow(hp.make_label(self, "Zoom"), self.zoom)
-        layout.addRow(hp.make_label(self, "Use focus"), self.use_focus)
-        # layout.addRow(self.use_focus)
+        layout.addRow(hp.make_h_layout(self.set_current_focus_btn, self.use_focus_btn))
         return layout
 
     def _make_settings_layout(self):

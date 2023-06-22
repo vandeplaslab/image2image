@@ -3,8 +3,10 @@ import typing as ty
 from datetime import datetime
 from pathlib import Path
 
+from loguru import logger
 import numpy as np
 from koyo.typing import PathLike
+from koyo.timer import MeasureTimer
 from pydantic import BaseModel, validator
 from skimage.transform import ProjectiveTransform
 
@@ -29,7 +31,9 @@ class DataModel(BaseModel):
 
     def load(self):
         """Load data into memory."""
-        self.get_reader()
+        with MeasureTimer() as timer:
+            self.get_reader()
+            logger.info(f"Loaded data in {timer()}")
         return self
 
     def get_reader(self):

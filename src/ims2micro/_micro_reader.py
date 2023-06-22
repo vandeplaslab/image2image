@@ -29,7 +29,10 @@ class MicroWrapper:
 
         if array.ndim == 2:
             array = np.atleast_3d(array, axis=-1)
-        n_ch = array.shape[-1]
+        
+        # get channel axis with the lowest number of elements
+        channel_axis = np.argmin(array.shape)
+        n_ch = array.shape[channel_axis]
         if channel_names is None or len(channel_names) != n_ch:
             channel_names = [f"C{i}" for i in range(n_ch)]
 
@@ -37,7 +40,7 @@ class MicroWrapper:
             "name": channel_names,
             "data": array,
             "blending": "additive",
-            "channel_axis": 2,
+            "channel_axis": channel_axis,
         }
 
     def channel_names(self) -> ty.List[str]:

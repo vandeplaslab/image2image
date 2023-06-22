@@ -36,8 +36,8 @@ class LoadWidget(QWidget):
 
     def _setup_ui(self):
         """Setup UI."""
-        self.text_edit = hp.make_line_edit(self, placeholder="Enter path to data file...")
-        self.text_edit.editingFinished.connect(self.on_load_dataset)
+        # self.text_edit = hp.make_line_edit(self, placeholder="Enter path to data file...")
+        # self.text_edit.editingFinished.connect(self.on_load_dataset)
 
         self.load_btn = hp.make_qta_btn(self, "open", func=self._on_select_dataset, small=True)
         self.close_btn = hp.make_qta_btn(self, "close", func=self._on_close_dataset, small=True)

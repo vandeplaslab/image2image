@@ -5,6 +5,7 @@ if __name__ == "__main__":  # pragma: no cover
     import faulthandler
     import sys
 
+    from loguru import logger
     from qtextra.config import THEMES
     from qtextra.utils.dev import qdev
 
@@ -12,6 +13,9 @@ if __name__ == "__main__":  # pragma: no cover
     from ims2micro.event_loop import get_app
 
     faulthandler.enable()
+    logger.enable("ims2micro")
+    logger.enable("qtextra")
+    logger.enable("qtreload")
 
     app = get_app()
     dlg = ImageRegistrationDialog(None)
