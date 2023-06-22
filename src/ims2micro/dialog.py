@@ -127,7 +127,7 @@ class ImageRegistrationDialog(QMainWindow, IndicatorMixin, ImageViewMixin):
     @ensure_main_thread
     def on_load_fixed(self, model: DataModel):
         """Load fixed image."""
-        if model:
+        if model and model.n_paths:
             self._on_load_fixed(model)
         else:
             logger.warning("Failed to load microscopy data.")
@@ -176,7 +176,7 @@ class ImageRegistrationDialog(QMainWindow, IndicatorMixin, ImageViewMixin):
     @ensure_main_thread
     def on_load_moving(self, model: DataModel):
         """Open modality."""
-        if model:
+        if model and model.n_paths:
             self._on_load_moving(model)
         else:
             logger.warning("Failed to load microscopy data.")
@@ -225,7 +225,7 @@ class ImageRegistrationDialog(QMainWindow, IndicatorMixin, ImageViewMixin):
 
     def on_change_view_type(self, view_type: str):
         """Change view type."""
-        if self._ims_widget.model:
+        if self._ims_widget.model.n_paths:
             self._plot_moving_layers()
             self.on_apply(update_data=True)
 
@@ -538,8 +538,8 @@ class ImageRegistrationDialog(QMainWindow, IndicatorMixin, ImageViewMixin):
             func=self.on_load,
         )
 
-        self._micro_widget = MicroscopyWidget(self)
-        self._ims_widget = IMSWidget(self)
+        self._micro_widget = MicroscopyWidget(self, self.view_fixed)
+        self._ims_widget = IMSWidget(self, self.view_moving)
 
         self.transform_choice = hp.make_combobox(self)
         hp.set_combobox_data(self.transform_choice, TRANSFORMATION_TRANSLATIONS, "Affine")
@@ -576,10 +576,12 @@ class ImageRegistrationDialog(QMainWindow, IndicatorMixin, ImageViewMixin):
 
         widget = QWidget()
         self.setCentralWidget(widget)
-        main_layout = QHBoxLayout(widget)
-        main_layout.addLayout(view_layout, stretch=True)
-        main_layout.addWidget(hp.make_v_line())
-        main_layout.addLayout(side_layout)
+        layout = QHBoxLayout()
+        layout.addLayout(view_layout, stretch=True)
+        layout.addWidget(hp.make_v_line())
+        layout.addLayout(side_layout)
+        main_layout = QVBoxLayout(widget)
+        main_layout.addLayout(layout)
 
     def _make_focus_layout(self):
         self.set_current_focus_btn = hp.make_btn(self, "Set current range", func=self.on_set_focus)

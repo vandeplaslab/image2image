@@ -1,12 +1,13 @@
 """Configuration."""
+import typing as ty
 from pathlib import Path
 
 from koyo.typing import PathLike
-from pydantic import Field, validator, BaseModel
-from ims2micro.enums import ViewerOrientation, ViewType
 from loguru import logger
+from pydantic import BaseModel, Field, validator
+
 from ims2micro.appdirs import USER_CONFIG_DIR
-import typing as ty
+from ims2micro.enums import ViewerOrientation, ViewType
 
 
 class Config(BaseModel):
@@ -54,6 +55,11 @@ class Config(BaseModel):
         """Validate path."""
         return ViewerOrientation(value)
 
+    @validator("view_type", pre=True, allow_reuse=True)
+    def _validate_view_type(value: ty.Union[str, ViewType]) -> ViewType:
+        """Validate path."""
+        return ViewType(value)
+
     @property
     def output_path(self) -> Path:
         """Get default output path."""
@@ -62,7 +68,11 @@ class Config(BaseModel):
 
     def save(self):
         """Export configuration to file."""
-        self.output_path.write_text(self.json(indent=4, exclude_unset=True))
+        try:
+            self.output_path.write_text(self.json(indent=4, exclude_unset=True))
+            logger.info(f"Saved configuration to {self.output_path}")
+        except Exception as e:
+            logger.warning(f"Failed to save configuration to {self.output_path}: {e}")
 
     def load(self):
         """Load configuration from file."""

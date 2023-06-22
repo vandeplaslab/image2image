@@ -22,7 +22,7 @@ class MicroWrapper(DataWrapper):
             reader_or_array.base_layer_pixel_res if hasattr(reader_or_array, "base_layer_pixel_res") else 1.0
         )
 
-    def reader_image_iter(self) -> ty.Iterator[ty.Tuple[str, ty.Any, np.ndarray]]:
+    def reader_image_iter(self) -> ty.Iterator[ty.Tuple[str, ty.Any, np.ndarray, int]]:
         """Iterator to add channels."""
         for key, reader_or_array in self.data.items():
             if isinstance(reader_or_array, np.ndarray):
@@ -36,24 +36,23 @@ class MicroWrapper(DataWrapper):
             channel_axis = np.argmin(array.shape)
             for ch in range(array.shape[channel_axis]):
                 if channel_axis == 0:
-                    yield key, self.data[key], array[ch]
+                    yield key, self.data[key], array[ch], ch
                 elif channel_axis == 1:
-                    yield key, self.data[key], array[:, ch]
+                    yield key, self.data[key], array[:, ch], ch
                 else:
-                    yield key, self.data[key], array[..., ch]
+                    yield key, self.data[key], array[..., ch], ch
 
     def image_iter(self, view_type: ty.Optional[str] = None) -> ty.Iterator[np.ndarray]:
         """Iterator to add channels."""
-        for _, _, image in self.reader_image_iter():
+        for _, _, image, _ in self.reader_image_iter():
             yield image
 
     def channel_names(self, view_type: ty.Optional[str] = None) -> ty.List[str]:
         """Return list of channel names."""
         names = []
-        for key, reader_or_array, _ in self.reader_image_iter():
+        for key, reader_or_array, _, index in self.reader_image_iter():
             if isinstance(reader_or_array, np.ndarray):
-                n_ch = reader_or_array.shape[0]
-                channel_names = [f"C{i}" for i in range(n_ch)]
+                channel_names = [f"C{index}"]
             else:
                 channel_names = reader_or_array.channel_names
             names.extend([f"{name}-{key}" for name in channel_names])

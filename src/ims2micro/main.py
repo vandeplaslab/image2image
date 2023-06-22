@@ -12,19 +12,20 @@ if __name__ == "__main__":  # pragma: no cover
     from ims2micro.dialog import ImageRegistrationDialog
     from ims2micro.event_loop import get_app
 
-    faulthandler.enable()
-    logger.enable("ims2micro")
-    logger.enable("qtextra")
-    logger.enable("qtreload")
-
     app = get_app()
     dlg = ImageRegistrationDialog(None)
     dlg.setMinimumSize(1200, 500)
     THEMES[THEMES.theme].font_size = "8pt"
     THEMES.set_theme_stylesheet(dlg)
 
+    # dev tools
+    faulthandler.enable()
+    logger.enable("ims2micro")
+    logger.enable("qtextra")
+    logger.enable("qtreload")
     dev = qdev(dlg, modules=["qtextra", "ims2micro"])
     dev.evt_theme.connect(lambda: THEMES.set_theme_stylesheet(dlg))
+    dlg.centralWidget().layout().addWidget(dev)
 
     dlg.show()
     sys.exit(app.exec_())

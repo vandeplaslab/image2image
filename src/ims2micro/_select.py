@@ -1,15 +1,16 @@
 """Widget for loading IMS data."""
 import typing as ty
-from functools import partial
 from pathlib import Path
 
 import qtextra.helpers as hp
 from koyo.typing import PathLike
 from loguru import logger
-from qtpy.QtCore import Qt, Signal
-from qtpy.QtWidgets import QCheckBox, QWidget
+from qtpy.QtCore import QRegExp, Qt, Signal
+from qtpy.QtGui import QRegExpValidator
+from qtpy.QtWidgets import QWidget
 from superqt.utils import thread_worker
 
+from ims2micro._table import TableDialog
 from ims2micro.config import CONFIG
 from ims2micro.enums import ALLOWED_IMAGING_FORMATS, ALLOWED_MICROSCOPY_FORMATS, VIEW_TYPE_TRANSLATIONS
 from ims2micro.models import ImagingModel, MicroscopyModel
@@ -24,31 +25,34 @@ class LoadWidget(QWidget):
     evt_loading = Signal()
     evt_loaded = Signal(object)
     evt_closed = Signal(object)
+    evt_toggle_channel = Signal(str, bool)
 
     IS_MICROSCOPY: bool
     INFO_TEXT: str = ""
     FILE_TITLE = "Select data file"
     FILE_FORMATS: str
 
-    def __init__(self, parent=None):
+    def __init__(self, parent, view):
         """Init."""
         super().__init__(parent=parent)
         self._setup_ui()
+        self.view = view
         self.model: ty.Optional[DataModel] = MicroscopyModel() if self.IS_MICROSCOPY else ImagingModel()
+        self.table_dlg = TableDialog(self, self.model, self.view)
 
     def _setup_ui(self):
         """Setup UI."""
-        self.info_label = hp.make_label(self, "")
-        self.load_btn = hp.make_qta_btn(self, "open", func=self._on_select_dataset, small=True)
-        self.close_btn = hp.make_qta_btn(self, "close", func=self._on_close_dataset, small=True)
+        self.load_btn = hp.make_btn(self, "Open dataset...", func=self._on_select_dataset)
+        self.close_btn = hp.make_btn(self, "Close", func=self._on_close_dataset)
 
-        self.resolution_edit = hp.make_line_edit(self, placeholder="Enter spatial resolution...")
+        self.resolution_edit = hp.make_line_edit(self, placeholder="Enter spatial resolution...", text="1.0")
+        self.resolution_edit.setValidator(QRegExpValidator(QRegExp(r"^[0-9]+(\.[0-9]+)?$")))
         self.resolution_edit.textChanged.connect(self._on_set_resolution)
         self.channel_choice = hp.make_btn(self, "Select channels...", func=self._on_select_channels)
 
         layout = hp.make_form_layout()
         layout.addRow(hp.make_label(self, self.INFO_TEXT, bold=True, wrap=True, alignment=Qt.AlignCenter))
-        layout.addRow(hp.make_h_layout(self.info_label, self.load_btn, self.close_btn, stretch_id=0))
+        layout.addRow(hp.make_h_layout(self.load_btn, self.close_btn))
         layout.addRow(hp.make_label(self, "Resolution (μm)"), self.resolution_edit)
         layout.addRow(self.channel_choice)
         self.setLayout(layout)
@@ -56,9 +60,11 @@ class LoadWidget(QWidget):
 
     def _on_close_dataset(self):
         """Close dataset."""
-        self.evt_closed.emit(self.model)
-        self.info_label.setText("")
-        self.resolution_edit.setText("1.0")
+        if self.model.n_paths and hp.confirm(
+            self, "Are you sure you want to remove <b>all</b>    images? Fiducial will be unaffected."
+        ):
+            self.evt_closed.emit(self.model)
+            self.resolution_edit.setText("1.0")
 
     def on_set_path(self, paths: ty.Union[PathLike, ty.List[PathLike]]):
         """Set the path and immediately load it."""
@@ -98,7 +104,6 @@ class LoadWidget(QWidget):
     def _on_loaded_dataset(self, model: "DataModel"):
         """Finished loading data."""
         self.resolution_edit.setText(str(model.resolution))
-        self.info_label.setText(f"Loaded '{model.n_paths}' paths")
         self.evt_loaded.emit(model)
 
     def _on_set_resolution(self, _evt=None):
@@ -107,7 +112,7 @@ class LoadWidget(QWidget):
 
     def _on_select_channels(self):
         """Select channels from list."""
-        print("Select channels...")
+        self.table_dlg.show()
 
 
 class IMSWidget(LoadWidget):
@@ -156,13 +161,6 @@ class MicroscopyWidget(LoadWidget):
     INFO_TEXT = "Select microscopy data - supported formats: .tiff, .czi, .jpg, .png"
     FILE_TITLE = "Select microscopy dataset..."
     FILE_FORMATS = ALLOWED_MICROSCOPY_FORMATS
-
-    # events
-    evt_toggle_channel = Signal(str, bool)
-
-    def __init__(self, parent=None):
-        """Init."""
-        super().__init__(parent=parent)
 
     def _on_loaded_dataset(self, model: "DataModel"):
         """Finished loading data."""
