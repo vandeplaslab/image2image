@@ -101,22 +101,23 @@ class ImageRegistrationDialog(QMainWindow, IndicatorMixin, ImageViewMixin):
 
     def setup_events(self, state: bool = True):
         """Additional setup."""
+        # microscopy widget
         connect(self._micro_widget.evt_loading, partial(self.on_indicator, which="fixed"), state=state)
         connect(self._micro_widget.evt_loaded, self.on_load_fixed, state=state)
         connect(self._micro_widget.evt_toggle_channel, self.on_toggle_fixed_channel, state=state)
         connect(self._micro_widget.evt_closed, self.on_close_fixed, state=state)
-
+        # imaging widget
         connect(self._ims_widget.evt_show_transformed, self.on_toggle_transformed_moving, state=state)
         connect(self._ims_widget.evt_loading, partial(self.on_indicator, which="moving"), state=state)
         connect(self._ims_widget.evt_loaded, self.on_load_moving, state=state)
         connect(self._ims_widget.evt_closed, self.on_close_moving, state=state)
         connect(self._ims_widget.evt_view_type, self.on_change_view_type, state=state)
-
-        # add fixed points layer
+        # microscopy view
+        connect(self.view_fixed.viewer.camera.events.zoom, self.on_auto_apply_focus, state=state)
+        # fixed points layer
         connect(self.fixed_points_layer.events.data, self.on_run, state=state)
         connect(self.fixed_points_layer.events.add_point, partial(self.on_predict, "fixed"), state=state)
-
-        # add moving points layer
+        # moving points layer
         connect(self.moving_points_layer.events.data, self.on_run, state=state)
         connect(self.moving_points_layer.events.add_point, partial(self.on_predict, "moving"), state=state)
 
@@ -464,6 +465,7 @@ class ImageRegistrationDialog(QMainWindow, IndicatorMixin, ImageViewMixin):
 
     def on_set_focus(self):
         """Lock current focus to specified range."""
+        print(self.view_fixed.viewer.mouse_double_click_callbacks)
         self.zoom.setValue(self.view_fixed.viewer.camera.zoom)
         _, y, x = self.view_fixed.viewer.camera.center
         self.x_center.setValue(x)
@@ -471,11 +473,25 @@ class ImageRegistrationDialog(QMainWindow, IndicatorMixin, ImageViewMixin):
 
     def on_apply_focus(self):
         """Apply focus to the current image range."""
-        if all([v == 1.0] for v in [*self.view_fixed.viewer.camera.center, self.view_fixed.viewer.camera.zoom]):
+        if all([v == 1.0 for v in [self.zoom.value(), self.x_center.value(), self.y_center.value()]]):
             logger.warning("Please specify zoom and center first.")
             return
         self.view_fixed.viewer.camera.center = (0.0, self.y_center.value(), self.x_center.value())
         self.view_fixed.viewer.camera.zoom = self.zoom.value()
+        logger.debug(
+            f"Applied focus center=({self.x_center.value():.1f}, {self.y_center.value():.1f})"
+            f" zoom={self.zoom.value():.3f}"
+        )
+
+    def on_auto_apply_focus(self, evt=None):
+        """Automatically apply focus to the current image range."""
+        print("double-click")
+        if (
+            all([v == 1.0 for v in [self.zoom.value(), self.x_center.value(), self.y_center.value()]])
+            or not self.use_focus.isChecked()
+        ):
+            return
+        self.on_apply_focus()
 
     def on_viewer_orientation_changed(self, value=None):
         """Change viewer orientation."""
@@ -540,15 +556,19 @@ class ImageRegistrationDialog(QMainWindow, IndicatorMixin, ImageViewMixin):
         self.set_current_focus = hp.make_btn(self, "Set current range", func=self.on_set_focus)
         self.x_center = hp.make_double_spin_box(self, -1e5, 1e5, step_size=500)  # , func=self.on_apply_focus)
         self.y_center = hp.make_double_spin_box(self, -1e5, 1e5, step_size=500)  # , func=self.on_apply_focus)
-        self.zoom = hp.make_double_spin_box(self, -1e5, 1e5, step_size=0.5)  # , func=self.on_apply_focus)
-        self.use_focus = hp.make_btn(self, "Use focus", func=self.on_apply_focus)
+        self.zoom = hp.make_double_spin_box(self, -1e5, 1e5, step_size=0.5, n_decimals=4)  # , func=self.on_apply_focus)
+        # self.use_focus = hp.make_btn(self, "Use focus", func=self.on_apply_focus)
+        self.use_focus = hp.make_checkbox(
+            self, tooltip="Use focus to zoom and center the image.", func=self.on_apply_focus
+        )
 
         layout = hp.make_form_layout()
         layout.addRow(self.set_current_focus)
         layout.addRow(hp.make_label(self, "Center (x)"), self.x_center)
         layout.addRow(hp.make_label(self, "Center (y)"), self.y_center)
         layout.addRow(hp.make_label(self, "Zoom"), self.zoom)
-        layout.addRow(self.use_focus)
+        layout.addRow(hp.make_label(self, "Use focus"), self.use_focus)
+        # layout.addRow(self.use_focus)
         return layout
 
     def _make_settings_layout(self):

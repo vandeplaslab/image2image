@@ -20,6 +20,8 @@ class MicroWrapper:
     def image(self) -> ty.Dict[str, ty.Any]:
         """Return image."""
         if isinstance(self.reader_or_image, np.ndarray):
+            array = self.reader_or_image
+
             return {
                 "name": "Microscopy",
                 "data": self.reader_or_image,
@@ -34,6 +36,8 @@ class MicroWrapper:
                 channel_names = self.reader_or_image.channel_names[0]
             else:
                 channel_names = self.reader_or_image.channel_names
+            if len(channel_names) != temp.shape[-1]:
+                channel_names = [f"Channel {i}" for i in range(temp.shape[channel_axis])]
             return {
                 "name": channel_names,
                 "data": array,
