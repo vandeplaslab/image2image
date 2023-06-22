@@ -5,6 +5,7 @@ from pathlib import Path
 import qtextra.helpers as hp
 from koyo.typing import PathLike
 from loguru import logger
+from qtextra.utils.utilities import connect
 from qtpy.QtCore import QRegExp, Qt, Signal
 from qtpy.QtGui import QRegExpValidator
 from qtpy.QtWidgets import QWidget
@@ -14,6 +15,7 @@ from ims2micro._table import TableDialog
 from ims2micro.config import CONFIG
 from ims2micro.enums import ALLOWED_IMAGING_FORMATS, ALLOWED_MICROSCOPY_FORMATS, VIEW_TYPE_TRANSLATIONS
 from ims2micro.models import ImagingModel, MicroscopyModel
+from ims2micro.utilities import style_form_layout
 
 if ty.TYPE_CHECKING:
     from ims2micro.models import DataModel
@@ -37,12 +39,12 @@ class LoadWidget(QWidget):
         super().__init__(parent=parent)
         self._setup_ui()
         self.view = view
-        self.model: ty.Optional[DataModel] = MicroscopyModel() if self.IS_MICROSCOPY else ImagingModel()
+        self.model: DataModel = MicroscopyModel() if self.IS_MICROSCOPY else ImagingModel()
         self.table_dlg = TableDialog(self, self.model, self.view)
 
     def _setup_ui(self):
         """Setup UI."""
-        self.load_btn = hp.make_btn(self, "Open dataset...", func=self._on_select_dataset)
+        self.load_btn = hp.make_btn(self, "Add image...", func=self._on_select_dataset)
         self.close_btn = hp.make_btn(self, "Close", func=self._on_close_dataset)
 
         self.resolution_edit = hp.make_line_edit(self, placeholder="Enter spatial resolution...", text="1.0")
@@ -51,10 +53,11 @@ class LoadWidget(QWidget):
         self.channel_choice = hp.make_btn(self, "Select channels...", func=self._on_select_channels)
 
         layout = hp.make_form_layout()
+        style_form_layout(layout)
         layout.addRow(hp.make_label(self, self.INFO_TEXT, bold=True, wrap=True, alignment=Qt.AlignCenter))
         layout.addRow(hp.make_h_layout(self.load_btn, self.close_btn))
-        layout.addRow(hp.make_label(self, "Resolution (μm)"), self.resolution_edit)
         layout.addRow(self.channel_choice)
+        layout.addRow(hp.make_label(self, "Resolution (μm)"), self.resolution_edit)
         self.setLayout(layout)
         return layout
 
@@ -64,6 +67,8 @@ class LoadWidget(QWidget):
             self, "Are you sure you want to remove <b>all</b>    images? Fiducial will be unaffected."
         ):
             self.evt_closed.emit(self.model)
+            self.model.reader = None
+            self.model.paths.clear()
             self.resolution_edit.setText("1.0")
 
     def on_set_path(self, paths: ty.Union[PathLike, ty.List[PathLike]]):
@@ -125,20 +130,44 @@ class IMSWidget(LoadWidget):
     FILE_FORMATS = ALLOWED_IMAGING_FORMATS
 
     # events
-    evt_show_transformed = Signal(bool)
+    evt_show_transformed = Signal(str)
     evt_view_type = Signal(object)
+
+    def __init__(self, parent, view):
+        super().__init__(parent, view)
+
+        # extra events
+        connect(self.evt_loaded, self._on_update_choice)
+        connect(self.evt_closed, self._on_clear_choice)
+
+    def _on_update_choice(self, _model):
+        """Update list of available options."""
+        hp.combobox_setter(self.transformed_choice, clear=True, items=["None", *self.model.channel_names()])
+
+    def _on_clear_choice(self, _model):
+        """Clear list of available options."""
+        hp.combobox_setter(self.transformed_choice, clear=True, items=["None"])
 
     def _setup_ui(self):
         """Setup UI."""
         layout = super()._setup_ui()
 
         self.view_type_choice = hp.make_combobox(
-            self, data=VIEW_TYPE_TRANSLATIONS, value="Random", func=self._on_update_view_type
+            self,
+            data=VIEW_TYPE_TRANSLATIONS,
+            value=str(CONFIG.view_type),
+            func=self._on_update_view_type,
         )
         layout.addRow(hp.make_label(self, "View type"), self.view_type_choice)
+
+        self.transformed_choice = hp.make_combobox(
+            self,
+            tooltip="Select which image should be displayed on the microscopy modality.",
+            func=self._on_toggle_transformed,
+        )
         layout.addRow(
-            hp.make_label(self, "Show transformed"),
-            hp.make_checkbox(self, func=self._on_toggle_transformed, value=True),
+            hp.make_label(self, "Overlay"),
+            self.transformed_choice,
         )
         return layout
 
@@ -147,10 +176,10 @@ class IMSWidget(LoadWidget):
         CONFIG.view_type = value
         self.evt_view_type.emit(value)
 
-    def _on_toggle_transformed(self, state: bool):
+    def _on_toggle_transformed(self, value: str):
         """Toggle visibility of transformed."""
-        CONFIG.show_transformed = state
-        self.evt_show_transformed.emit(state)
+        CONFIG.show_transformed = value != "None"
+        self.evt_show_transformed.emit(value)
 
 
 class MicroscopyWidget(LoadWidget):

@@ -28,6 +28,14 @@ PREFERRED_COLORMAPS = [
 ]
 
 
+def style_form_layout(layout):
+    """Override certain styles for macOS."""
+    from qtextra.utils.utilities import IS_MAC
+
+    if IS_MAC:
+        layout.setVerticalSpacing(4)
+
+
 def get_colormap(index: int, used: ty.List[str]):
     """Get colormap that has not been used yet."""
     if index < len(PREFERRED_COLORMAPS):

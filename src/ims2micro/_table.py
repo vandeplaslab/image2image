@@ -9,7 +9,14 @@ from qtextra.widgets.qt_table_view import QtCheckableTableView
 from qtpy.QtCore import Signal
 from qtpy.QtWidgets import QFormLayout
 
-Config = TableConfig().add("", "check", "bool", 25, no_sort=True).add("channel name", "channel_name", "str", 350)
+from ims2micro.utilities import style_form_layout
+
+Config = (
+    TableConfig()
+    .add("", "check", "bool", 25, no_sort=True)
+    .add("channel name", "channel_name", "str", 125)
+    .add("dataset", "dataset", "str", 250)
+)
 
 if ty.TYPE_CHECKING:
     from ims2micro._select import LoadWidget
@@ -48,7 +55,8 @@ class TableDialog(QtFramelessTool):
     def on_toggle_channel(self, index: int, state: bool):
         """Toggle channel."""
         channel_name = self.table.get_value(Config.channel_name, index)
-        self.parent().evt_toggle_channel.emit(channel_name, state)
+        dataset = self.table.get_value(Config.dataset, index)
+        self.parent().evt_toggle_channel.emit(f"{channel_name} | {dataset}", state)
 
     def on_clear(self):
         """On clear."""
@@ -59,7 +67,18 @@ class TableDialog(QtFramelessTool):
         self.model = model
         data = []
         for name in self.model.get_reader().channel_names():
-            data.append([True, name])
+            channel_name, dataset = name.split(" | ")
+            data.append([True, channel_name, dataset])
+        existing_data = self.table.get_data()
+        if existing_data:
+            for exist_row in existing_data:
+                for new_row in data:
+                    if (
+                        exist_row[Config.channel_name] == new_row[Config.channel_name]
+                        and exist_row[Config.dataset] == new_row[Config.dataset]
+                    ):
+                        new_row[Config.check] = exist_row[Config.check]
+        self.table.reset_data()
         self.table.add_data(data)
 
     # noinspection PyAttributeOutsideInit
@@ -78,6 +97,7 @@ class TableDialog(QtFramelessTool):
         self.info_label = hp.make_label(self, "", tooltip="Information about currently overlaid items.")
 
         layout = hp.make_form_layout(self)
+        style_form_layout(layout)
         layout.addRow(header_layout)
         layout.addRow(self.table)
         layout.addRow(self.info_label)

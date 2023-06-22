@@ -63,13 +63,15 @@ class IMSWrapper(DataWrapper):
             for channel_name in self.channel_names():
                 yield self.get_image(channel_name)
 
-    def image(self, channel: ty.Optional[str] = None) -> ty.Dict[str, np.ndarray]:
-        """Return IMS image."""
-        array = self.get_image(channel)
-        return {"name": "IMS", "data": array, "blending": "additive", "channel_axis": None}
-
     def get_image(self, channel: ty.Optional[str] = None):
         """Return image."""
+        if isinstance(channel, str) and " | " in channel:
+            channel, dataset = channel.split(" | ")
+            if self.data[dataset].ndim > 2:
+                index = self.map_channel_to_index(channel, dataset)
+                return self.data[dataset][..., index]
+            return self.data[dataset]
+
         if channel is None or channel not in self.data:
             array = np.full(self.image_shape, np.nan)
             array[self.y - self.ymin, self.x - self.xmin] = np.random.randint(5, 255, size=len(self.x))
@@ -77,11 +79,28 @@ class IMSWrapper(DataWrapper):
             array = self.data[channel]
         return array
 
+    def reader_image_iter(self) -> ty.Iterator[ty.Tuple[str, ty.Any, np.ndarray, int]]:
+        """Iterator to add channels."""
+        for key, reader_or_array in self.data.items():
+            if isinstance(reader_or_array, np.ndarray):
+                array = reader_or_array
+            else:
+                raise ValueError("Only supporting numpy arrays at the moment.")
+
+            channel_axis = None if array.ndim == 2 else np.argmin(array.shape)
+            if channel_axis is None:
+                yield key, reader_or_array, array, 0
+            else:
+                for i in range(array.shape[channel_axis]):
+                    yield key, reader_or_array, array, i
+
     def channel_names(self, view_type: ty.Optional[str] = None) -> ty.List[str]:
         """Return list of channel names."""
-        if view_type is None or str(view_type).lower() == "random":
-            return ["IMS"]
-        return list(self.data.keys())
+        names = []
+        for key, _reader_or_array, _, index in self.reader_image_iter():
+            channel_names = [f"C{index}"]
+            names.extend([f"{name} | {key}" for name in channel_names])
+        return names
 
 
 def read_imaging(path: PathLike, wrapper: ty.Optional[IMSWrapper] = None) -> IMSWrapper:

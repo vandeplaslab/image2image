@@ -57,7 +57,7 @@ class Config(BaseModel):
 
     @validator("view_type", pre=True, allow_reuse=True)
     def _validate_view_type(value: ty.Union[str, ViewType]) -> ViewType:
-        """Validate path."""
+        """Validate view_type."""
         return ViewType(value)
 
     @property
@@ -81,7 +81,11 @@ class Config(BaseModel):
         if self.output_path.exists():
             try:
                 data = read_json_data(self.output_path)
-                self.__dict__.update(data)
+                for key, value in data.items():
+                    try:
+                        setattr(self, key, value)
+                    except Exception as e:
+                        logger.warning(f"Failed to set {key}={value}: {e}")
                 logger.info(f"Loaded configuration from {self.output_path}")
             except Exception as e:
                 logger.warning(f"Failed to load configuration from {self.output_path}: {e}")

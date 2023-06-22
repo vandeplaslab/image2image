@@ -28,7 +28,7 @@ from ims2micro._select import IMSWidget, MicroscopyWidget
 from ims2micro.config import CONFIG
 from ims2micro.enums import ALLOWED_EXPORT_FORMATS, TRANSFORMATION_TRANSLATIONS, ViewType
 from ims2micro.models import DataModel, Transformation
-from ims2micro.utilities import _get_text_data, _get_text_format, get_colormap, init_points_layer
+from ims2micro.utilities import _get_text_data, _get_text_format, get_colormap, init_points_layer, style_form_layout
 
 
 class ImageRegistrationDialog(QMainWindow, IndicatorMixin, ImageViewMixin):
@@ -102,11 +102,12 @@ class ImageRegistrationDialog(QMainWindow, IndicatorMixin, ImageViewMixin):
         # microscopy widget
         connect(self._micro_widget.evt_loading, partial(self.on_indicator, which="fixed"), state=state)
         connect(self._micro_widget.evt_loaded, self.on_load_fixed, state=state)
-        connect(self._micro_widget.evt_toggle_channel, self.on_toggle_fixed_channel, state=state)
+        connect(self._micro_widget.evt_toggle_channel, partial(self.on_toggle_channel, which="fixed"), state=state)
         connect(self._micro_widget.evt_closed, self.on_close_fixed, state=state)
         # imaging widget
         connect(self._ims_widget.evt_show_transformed, self.on_toggle_transformed_moving, state=state)
         connect(self._ims_widget.evt_loading, partial(self.on_indicator, which="moving"), state=state)
+        connect(self._ims_widget.evt_toggle_channel, partial(self.on_toggle_channel, which="moving"), state=state)
         connect(self._ims_widget.evt_loaded, self.on_load_moving, state=state)
         connect(self._ims_widget.evt_closed, self.on_close_moving, state=state)
         connect(self._ims_widget.evt_view_type, self.on_change_view_type, state=state)
@@ -169,9 +170,13 @@ class ImageRegistrationDialog(QMainWindow, IndicatorMixin, ImageViewMixin):
         except Exception as e:
             logger.error(e)
 
-    def on_toggle_fixed_channel(self, name: str, state: bool):
-        """Toggle fixed channel."""
-        self.view_fixed.layers[name].visible = state
+    def on_toggle_channel(self, name: str, state: bool, which: str):
+        """Toggle channel."""
+        view = self.view_fixed if which == "fixed" else self.view_moving
+        if name not in view.layers:
+            logger.warning(f"Layer '{name}' not found in the {which} view.")
+            return
+        view.layers[name].visible = state
 
     @ensure_main_thread
     def on_load_moving(self, model: DataModel):
@@ -196,9 +201,11 @@ class ImageRegistrationDialog(QMainWindow, IndicatorMixin, ImageViewMixin):
         used = [layer.colormap for layer in self.view_moving.layers if isinstance(layer, Image)]
         for index, (name, array) in enumerate(wrapper.channel_image_iter(CONFIG.view_type)):
             logger.debug(f"Adding '{name}' to moving view...")
+            colormap = get_colormap(index, used) if ViewType(CONFIG.view_type) == ViewType.OVERLAY else "turbo"
             if name in self.view_moving.layers:
                 layer = self.view_moving.layers[name]
                 layer.data = array
+                layer.colormap = colormap
                 layer.reset_contrast_limits()
                 moving_image_layer.append(layer)
                 continue
@@ -207,9 +214,14 @@ class ImageRegistrationDialog(QMainWindow, IndicatorMixin, ImageViewMixin):
                     array,
                     name=name,
                     blending="additive",
-                    colormap=get_colormap(index, used) if CONFIG.view_type == ViewType.OVERLAY else "turbo",
+                    colormap=colormap,
                 )
             )
+        # hide away other layers if user selected 'random' view
+        if CONFIG.view_type == ViewType.RANDOM:
+            for index, layer in enumerate(moving_image_layer):
+                if index > 0:
+                    layer.visible = False
         self.moving_image_layer = moving_image_layer
 
     def on_close_moving(self, model: DataModel):
@@ -229,10 +241,9 @@ class ImageRegistrationDialog(QMainWindow, IndicatorMixin, ImageViewMixin):
             self._plot_moving_layers()
             self.on_apply(update_data=True)
 
-    def on_toggle_transformed_moving(self, state: bool):
+    def on_toggle_transformed_moving(self, value: str):
         """Toggle visibility of transformed moving image."""
-        if self.transformed_moving_image_layer:
-            self.transformed_moving_image_layer.visible = state
+        self.on_apply(update_data=True, name=value)
 
     def _select_layer(self, which: str):
         """Select layer."""
@@ -368,7 +379,7 @@ class ImageRegistrationDialog(QMainWindow, IndicatorMixin, ImageViewMixin):
             logger.warning("Cannot save transformation - no transformation has been computed.")
             return
         # get filename which is based on the IMS dataset
-        filename = transform.ims_model.path.parent.stem + "_i2m_transform.json"
+        filename = transform.ims_model.get_filename() + "transform.i2m.json"
         path = hp.get_save_filename(
             self,
             "Save transformation",
@@ -400,29 +411,34 @@ class ImageRegistrationDialog(QMainWindow, IndicatorMixin, ImageViewMixin):
             # load transformation
             path = Path(path)
             CONFIG.output_dir = str(path.parent)
-            transformation_type, micro_path, fixed_points, ims_path, moving_points = load_from_file(path)
+            transformation_type, micro_paths, fixed_points, ims_paths, moving_points = load_from_file(path)
             self.transform_choice.setCurrentText(transformation_type)
-            if micro_path:
-                self._micro_widget.on_set_path(str(micro_path))
-            if ims_path:
-                self._ims_widget.on_set_path(str(ims_path))
+            if micro_paths:
+                self._micro_widget.on_set_path(micro_paths)
+            if ims_paths:
+                self._ims_widget.on_set_path(ims_paths)
             self._update_layer_points(self.moving_points_layer, moving_points, block=False)
             self._update_layer_points(self.fixed_points_layer, fixed_points, block=False)
             self.on_update_text(block=False)
 
     @ensure_main_thread
-    def on_apply(self, update_data: bool = False):
+    def on_apply(self, update_data: bool = False, name: ty.Optional[str] = None):
         """Apply transformation."""
         if self.transform is None or self.moving_image_layer is None:
             logger.warning("Cannot apply transformation - no transformation has been computed.")
             return
 
-        moving_image_layer = self.moving_image_layer[0]
+        if name is None or name == "None":
+            moving_image_layer = self.moving_image_layer[0]
+        else:
+            index = [layer.name for layer in self.moving_image_layer].index(name)
+            moving_image_layer = self.moving_image_layer[index]
         # add image and apply transformation
         if self.transformed_moving_image_layer:
             self.transformed_moving_image_layer.affine = self.transform.params
             if update_data:
                 self.transformed_moving_image_layer.data = moving_image_layer.data
+                self.transformed_moving_image_layer.colormap = moving_image_layer.colormap
                 self.transformed_moving_image_layer.reset_contrast_limits()
         else:
             self.view_fixed.viewer.add_image(
@@ -431,9 +447,9 @@ class ImageRegistrationDialog(QMainWindow, IndicatorMixin, ImageViewMixin):
                 blending="translucent",
                 opacity=self.moving_opacity.value() / 100,
                 affine=self.transform.params,
-                visible=CONFIG.show_transformed,
-                colormap="turbo",
+                colormap=moving_image_layer.colormap,
             )
+        self.transformed_moving_image_layer.visible = CONFIG.show_transformed
         self._select_layer("fixed")
 
     @ensure_main_thread
@@ -559,6 +575,7 @@ class ImageRegistrationDialog(QMainWindow, IndicatorMixin, ImageViewMixin):
         )
 
         side_layout = hp.make_form_layout()
+        style_form_layout(side_layout)
         side_layout.addRow(self.load_btn)
         side_layout.addRow(hp.make_h_line_with_text("or"))
         side_layout.addRow(self._micro_widget)
@@ -591,6 +608,7 @@ class ImageRegistrationDialog(QMainWindow, IndicatorMixin, ImageViewMixin):
         self.use_focus_btn = hp.make_btn(self, "Zoom-in", func=self.on_apply_focus)
 
         layout = hp.make_form_layout()
+        style_form_layout(layout)
         layout.addRow(hp.make_label(self, "Center (x)"), self.x_center)
         layout.addRow(hp.make_label(self, "Center (y)"), self.y_center)
         layout.addRow(hp.make_label(self, "Zoom"), self.zoom)
@@ -637,6 +655,7 @@ class ImageRegistrationDialog(QMainWindow, IndicatorMixin, ImageViewMixin):
         # self.viewer_orientation.currentTextChanged.connect(self.on_viewer_orientation_changed)
 
         layout = hp.make_form_layout()
+        style_form_layout(layout)
         layout.addRow(hp.make_label(self, "Size (fixed)"), self.fixed_point_size)
         layout.addRow(hp.make_label(self, "Size (moving)"), self.moving_point_size)
         layout.addRow(hp.make_label(self, "Opacity (fixed)"), self.fixed_opacity)

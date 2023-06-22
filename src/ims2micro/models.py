@@ -46,6 +46,14 @@ class DataWrapper:
         """Return list of channel names."""
         raise NotImplementedError("Must implement method")
 
+    def map_channel_to_index(self, dataset: str, channel_name: str) -> int:
+        """Map channel name to index."""
+        dataset_to_channel_map = {}
+        for name in self.channel_names():
+            dataset, channel = name.split(" | ")
+            dataset_to_channel_map.setdefault(dataset, []).append(channel)
+        return dataset_to_channel_map[dataset].index(channel_name)
+
     def image_iter(self, view_type: ty.Optional[str] = None):
         """Iterator to add channels."""
         raise NotImplementedError("Must implement method")
@@ -70,6 +78,12 @@ class DataModel(BaseModel):
         value = [Path(path) for path in value]
         assert all(path.exists() for path in value), "Path does not exist."
         return value
+
+    def get_filename(self) -> str:
+        """Get representative filename."""
+        if self.n_paths == 1:
+            return self.paths[0].parent.stem
+        return self.paths[-1].parent.stem + "_multiple_files"
 
     def add_paths(self, path_or_paths: ty.Union[PathLike, ty.List[PathLike]]):
         """Add paths to model."""
@@ -302,20 +316,44 @@ def load_from_file(path: PathLike):
     if path.suffix == ".json":
         from koyo.json import read_json_data
 
-        config = read_json_data(path)
+        data = read_json_data(path)
     else:
         from koyo.toml import read_toml_data
 
-        config = read_toml_data(path)
+        data = read_toml_data(path)
+    if "schema_version" in data:
+        return _read_ims2micro_config(data)
+    elif "Project name" in data:
+        return _read_imsmicrolink_config(data)
 
+
+def _get_paths(paths: ty.List[PathLike]):
+    _paths = []
+    for path in paths:
+        path = Path(path)
+        if path.exists():
+            _paths.append(path)
+    if not _paths:
+        _paths = None
+    return _paths
+
+
+def _read_ims2micro_config(config: ty.Dict):
+    """Read ims2micro configuration file."""
     # read important fields
-    micro_path = Path(config["micro_path"])
-    if not micro_path.exists():
-        micro_path = None
+    micro_paths = _get_paths(config["micro_paths"])
+    ims_paths = _get_paths(config["ims_paths"])
     fixed_points = np.array(config["fixed_points_yx_px"])
-    ims_path = Path(config["ims_path"])
-    if not ims_path.exists():
-        ims_path = None
     moving_points = np.array(config["moving_points_yx_px"])
     transformation_type = config["transformation_type"]
-    return transformation_type, micro_path, fixed_points, ims_path, moving_points
+    return transformation_type, micro_paths, fixed_points, ims_paths, moving_points
+
+
+def _read_imsmicrolink_config(config: ty.Dict):
+    """Read imsmicrolink configuration file."""
+    micro_paths = _get_paths(config["PostIMS microscopy image"])
+    ims_paths = _get_paths(config["Pixel Map Datasets Files"])
+    fixed_points = np.array(config["PAQ microscopy points (xy, px)"])
+    moving_points = np.array(config["IMS pixel map points (xy, px)"])
+    transformation_type = "Affine"
+    return transformation_type, micro_paths, fixed_points, ims_paths, moving_points
