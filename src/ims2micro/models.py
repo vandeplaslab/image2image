@@ -3,10 +3,10 @@ import typing as ty
 from datetime import datetime
 from pathlib import Path
 
-from loguru import logger
 import numpy as np
-from koyo.typing import PathLike
 from koyo.timer import MeasureTimer
+from koyo.typing import PathLike
+from loguru import logger
 from pydantic import BaseModel, validator
 from skimage.transform import ProjectiveTransform
 
@@ -15,19 +15,72 @@ if ty.TYPE_CHECKING:
     from ims2micro._micro_reader import MicroWrapper
 
 
+class DataWrapper:
+    """Base class for IMS and microscopy wrappers."""
+
+    data: ty.Dict[str, ty.Optional[np.ndarray]]
+    paths: ty.List[Path]
+
+    def __init__(self, data: ty.Optional[ty.Dict[str, ty.Optional[ty.Union[np.ndarray, ty.Any]]]] = None):
+        self.data = data or {}
+        self.paths = []
+
+    def add(self, key: str, array: ty.Union[np.ndarray, ty.Any]):
+        """Add data to wrapper."""
+        self.data[key] = array
+
+    def add_path(self, path: PathLike):
+        """Add path to wrapper."""
+        self.paths.append(Path(path))
+
+    def is_loaded(self, path: PathLike):
+        """Check if path is loaded."""
+        return Path(path) in self.paths
+
+    @property
+    def n_channels(self) -> int:
+        """Return number of channels."""
+        return len(self.channel_names())
+
+    def channel_names(self, view_type: ty.Optional[str] = None) -> ty.List[str]:
+        """Return list of channel names."""
+        raise NotImplementedError("Must implement method")
+
+    def image_iter(self, view_type: ty.Optional[str] = None):
+        """Iterator to add channels."""
+        raise NotImplementedError("Must implement method")
+
+    def channel_image_iter(self, view_type: ty.Optional[str] = None) -> ty.Iterator[ty.Tuple[str, np.ndarray]]:
+        """Iterator of channel name + image."""
+        yield from zip(self.channel_names(view_type), self.image_iter(view_type))
+
+
 class DataModel(BaseModel):
     """Base model."""
 
-    path: Path
+    paths: ty.Optional[ty.List[Path]] = None
     resolution: float = 1.0
     reader: ty.Optional[ty.Any] = None
 
-    @validator("path", pre=True, allow_reuse=True)
-    def _validate_path(value: PathLike) -> Path:
+    @validator("paths", pre=True, allow_reuse=True)
+    def _validate_path(value: ty.Union[PathLike, ty.List[PathLike]]) -> ty.List[Path]:
         """Validate path."""
-        path = Path(value)
-        assert path.exists(), f"Path {path} does not exist."
-        return path
+        if isinstance(value, (str, Path)):
+            value = [Path(value)]
+        value = [Path(path) for path in value]
+        assert all(path.exists() for path in value), "Path does not exist."
+        return value
+
+    def add_paths(self, path_or_paths: ty.Union[PathLike, ty.List[PathLike]]):
+        """Add paths to model."""
+        if isinstance(path_or_paths, (str, Path)):
+            path_or_paths = [path_or_paths]
+        if self.paths is None:
+            self.paths = []
+        for path in path_or_paths:
+            path = Path(path)
+            if path not in self.paths:
+                self.paths.append(path)
 
     def load(self):
         """Load data into memory."""
@@ -36,13 +89,18 @@ class DataModel(BaseModel):
             logger.info(f"Loaded data in {timer()}")
         return self
 
-    def get_reader(self):
+    def get_reader(self) -> DataWrapper:
         """Read data from file."""
         raise NotImplementedError("Must implement method")
 
     def channel_names(self) -> ty.List[str]:
         """Return list of channel names."""
         return self.get_reader().channel_names()
+
+    @property
+    def n_paths(self) -> int:
+        """Return number of paths."""
+        return len(self.paths) if self.paths is not None else 0
 
 
 class ImagingModel(DataModel):
@@ -52,9 +110,10 @@ class ImagingModel(DataModel):
         """Read data from file."""
         from ims2micro._ims_reader import read_imaging
 
-        if self.reader is None:
-            self.reader = read_imaging(self.path)
-            self.resolution = self.reader.resolution
+        for path in self.paths:
+            if self.reader is None or not self.reader.is_loaded(path):
+                self.reader = read_imaging(path, self.reader)
+        self.resolution = self.reader.resolution
         return self.reader
 
 
@@ -65,9 +124,10 @@ class MicroscopyModel(DataModel):
         """Read data from file."""
         from ims2micro._micro_reader import read_microscopy
 
-        if self.reader is None:
-            self.reader = read_microscopy(self.path)
-            self.resolution = self.reader.resolution
+        for path in self.paths:
+            if self.reader is None or not self.reader.is_loaded(path):
+                self.reader = read_microscopy(path, self.reader)
+        self.resolution = self.reader.resolution
         return self.reader
 
 
@@ -162,9 +222,9 @@ class Transformation(BaseModel):
             "moving_points_yx_px": self.moving_points.tolist(),  # default
             "moving_points_yx_um": (self.ims_model.resolution * self.moving_points).tolist(),
             "transformation_type": self.transformation_type,
-            "micro_path": str(self.micro_model.path),
+            "micro_paths": [str(path) for path in self.micro_model.paths],
             "micro_resolution_um": self.micro_model.resolution,
-            "ims_path": str(self.ims_model.path),
+            "ims_paths": [str(path) for path in self.ims_model.paths],
             "ims_resolution_um": self.ims_model.resolution,
             "matrix_yx_px": self.compute(yx=True, px=True).params.tolist(),
             "matrix_yx_um": self.compute(yx=True, px=False).params.tolist(),

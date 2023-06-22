@@ -22,7 +22,7 @@ from ims2micro.readers.utilities import (
     tifffile_to_dask,
 )
 
-TIFFFILE_EXTS = [".scn", ".ome.tiff", ".tif", ".tiff", ".svs", ".ndpi"]
+TIFF_EXTENSIONS = [".scn", ".ome.tiff", ".tif", ".tiff", ".svs", ".ndpi"]
 
 
 class TiffImageReader:

@@ -5,6 +5,8 @@ from pathlib import Path
 import numpy as np
 from koyo.typing import PathLike
 
+from ims2micro.models import DataWrapper
+
 
 def set_dimensions(reader: "IMSWrapper"):
     """Set dimension information."""
@@ -14,7 +16,7 @@ def set_dimensions(reader: "IMSWrapper"):
     reader.image_shape = (reader.ymax - reader.ymin + 1, reader.xmax - reader.xmin + 1)
 
 
-class IMSWrapper:
+class IMSWrapper(DataWrapper):
     """Wrapper around IMS data."""
 
     xmin: int
@@ -22,6 +24,7 @@ class IMSWrapper:
     ymin: int
     ymax: int
     image_shape: ty.Tuple[int, int]
+    data = ty.Dict[str, ty.Optional[np.ndarray]]
 
     def __init__(
         self,
@@ -29,12 +32,12 @@ class IMSWrapper:
         x: np.ndarray,
         y: np.ndarray,
         resolution: float = 1.0,
-        tic: ty.Optional[np.ndarray] = None,
+        data: ty.Optional[ty.Dict[str, ty.Optional[np.ndarray]]] = None,
     ):
+        super().__init__(data)
         self.regions = regions
         self.x = x
         self.y = y
-        self.tic = tic
         self.resolution = resolution
         set_dimensions(self)
 
@@ -45,58 +48,78 @@ class IMSWrapper:
         mask = self.regions == index
         self.x = self.x[mask]
         self.y = self.y[mask]
-        if self.tic is not None:
-            self.tic = self.tic[mask]
+        if self.data:
+            data = {}
+            for key in self.data:
+                data[key] = self.data[key][mask]
+            self.data = data
         set_dimensions(self)
 
-    def image(self, view_type: str = "random") -> ty.Dict[str, np.ndarray]:
+    def image_iter(self, view_type: ty.Optional[str] = None):
+        """Iterator of image channels."""
+        if view_type is None or str(view_type).lower() == "random":
+            yield self.get_image(None)
+        else:
+            for channel_name in self.channel_names():
+                yield self.get_image(channel_name)
+
+    def image(self, channel: ty.Optional[str] = None) -> ty.Dict[str, np.ndarray]:
         """Return IMS image."""
-        array = self.get_image(view_type)
+        array = self.get_image(channel)
         return {"name": "IMS", "data": array, "blending": "additive", "channel_axis": None}
 
-    def get_image(self, view_type: str):
+    def get_image(self, channel: ty.Optional[str] = None):
         """Return image."""
-        if view_type.lower() == "random" or self.tic is None:
+        if channel is None or channel not in self.data:
             array = np.full(self.image_shape, np.nan)
             array[self.y - self.ymin, self.x - self.xmin] = np.random.randint(5, 255, size=len(self.x))
         else:
-            array = self.tic
+            array = self.data[channel]
         return array
 
-    @staticmethod
-    def channel_names() -> ty.List[str]:
+    def channel_names(self, view_type: ty.Optional[str] = None) -> ty.List[str]:
         """Return list of channel names."""
-        return ["IMS"]
+        if view_type is None or str(view_type).lower() == "random":
+            return ["IMS"]
+        return list(self.data.keys())
 
 
-def read_imaging(path: PathLike):
+def read_imaging(path: PathLike, wrapper: ty.Optional[IMSWrapper] = None) -> IMSWrapper:
     """Read imaging data."""
     path = Path(path)
     if path.suffix.lower() in [".tsf", ".tdf"]:
-        return IMSWrapper(*_read_tsf_tdf_coordinates(path))
+        region, x, y, resolution, data = _read_tsf_tdf_coordinates(path)
     elif path.suffix.lower() == ".imzml":
-        return IMSWrapper(*_read_imzml_coordinates(path))
+        region, x, y, resolution, data = _read_imzml_coordinates(path)
     elif path.suffix.lower() == ".h5":
-        return IMSWrapper(*_read_metadata_h5_coordinates(path))
+        region, x, y, resolution, data = _read_metadata_h5_coordinates(path)
     elif path.suffix.lower() in [".npy"]:
-        return IMSWrapper(*_read_npy_coordinates(path))
-    raise ValueError(f"Unsupported file format: {path.suffix}")
+        region, x, y, resolution, data = _read_npy_coordinates(path)
+    else:
+        raise ValueError(f"Unsupported file format: {path.suffix}")
+    if wrapper is None:
+        wrapper = IMSWrapper(region, x, y, resolution, data)
+    else:
+        for key, value in data.items():
+            wrapper.add(key, value)
+    wrapper.add_path(Path(path))
+    return wrapper
 
 
 def _read_npy_coordinates(
     path: PathLike,
-) -> ty.Tuple[ty.Optional[np.ndarray], np.ndarray, np.ndarray, float, np.ndarray]:
+) -> ty.Tuple[ty.Optional[np.ndarray], np.ndarray, np.ndarray, float, ty.Dict[str, np.ndarray]]:
     """Read data from npz or npy file."""
     with open(path, "rb") as f:
         image = np.load(f)
     assert image.ndim == 2, "Only 2D images are supported"
     y, x = get_yx_coordinates_from_shape(image.shape)
-    return None, x, y, 1.0, image
+    return None, x, y, 1.0, {path.name: image}
 
 
 def _read_metadata_h5_coordinates(
     path: PathLike,
-) -> ty.Tuple[ty.Optional[np.ndarray], np.ndarray, np.ndarray, float, np.ndarray]:
+) -> ty.Tuple[ty.Optional[np.ndarray], np.ndarray, np.ndarray, float, ty.Dict[str, np.ndarray]]:
     """Read coordinates from HDF5 file."""
     import h5py
     from koyo.json import read_json_data
@@ -115,10 +138,12 @@ def _read_metadata_h5_coordinates(
     if (path.parent / "metadata.json").exists():
         metadata = read_json_data(path.parent / "metadata.json")
         resolution = metadata["metadata.experimental"]["pixel_size"]
-    return None, x, y, resolution, reshape(x, y, tic)
+    return None, x, y, resolution, {path.name: reshape(x, y, tic)}
 
 
-def _read_tsf_tdf_coordinates(path: PathLike) -> ty.Tuple[np.ndarray, np.ndarray, np.ndarray, float, np.ndarray]:
+def _read_tsf_tdf_coordinates(
+    path: PathLike,
+) -> ty.Tuple[np.ndarray, np.ndarray, np.ndarray, float, ty.Dict[str, np.ndarray]]:
     """Read coordinates from TSF file."""
     import sqlite3
 
@@ -148,12 +173,12 @@ def _read_tsf_tdf_coordinates(path: PathLike) -> ty.Tuple[np.ndarray, np.ndarray
     cursor = conn.execute("SELECT SummedIntensities FROM Frames")
     tic = np.array(cursor.fetchall())
     tic = tic[:, 0]
-    return regions, x, y, resolution, reshape(x, y, tic)
+    return regions, x, y, resolution, {path.name: reshape(x, y, tic)}
 
 
 def _read_imzml_coordinates(
     path: PathLike,
-) -> ty.Tuple[ty.Optional[np.ndarray], np.ndarray, np.ndarray, float, np.ndarray]:
+) -> ty.Tuple[ty.Optional[np.ndarray], np.ndarray, np.ndarray, float, ty.Dict[str, np.ndarray]]:
     """Read coordinates from imzML file."""
     from imzy import get_reader
 
@@ -167,7 +192,7 @@ def _read_imzml_coordinates(
     y = reader.y_coordinates
     y = y - np.min(y)  # minimized
     tic = reader.get_tic()
-    return None, x, y, 1.0, reader.reshape(tic)
+    return None, x, y, 1.0, {path.name: reader.reshape(tic)}
 
 
 def reshape(x, y, array):

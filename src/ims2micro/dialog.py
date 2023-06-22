@@ -8,6 +8,9 @@ from pathlib import Path
 
 import numpy as np
 import qtextra.helpers as hp
+from koyo.timer import MeasureTimer
+from loguru import logger
+from napari.layers import Image
 from napari.layers.points.points import Mode, Points
 from napari.layers.utils._link_layers import link_layers
 from qtextra._napari.mixins import ImageViewMixin
@@ -17,28 +20,22 @@ from qtextra.widgets.qt_mini_toolbar import QtMiniToolbar
 from qtpy.QtCore import Qt
 from qtpy.QtWidgets import QHBoxLayout, QMainWindow, QSizePolicy, QVBoxLayout, QWidget
 from superqt import ensure_main_thread
-from koyo.timer import MeasureTimer
 
 # need to load to ensure all assets are loaded properly
 import ims2micro.assets
 from ims2micro import __version__
 from ims2micro._select import IMSWidget, MicroscopyWidget
 from ims2micro.config import CONFIG
-from ims2micro.enums import ALLOWED_EXPORT_FORMATS, TRANSFORMATION_TRANSLATIONS
+from ims2micro.enums import ALLOWED_EXPORT_FORMATS, TRANSFORMATION_TRANSLATIONS, ViewType
 from ims2micro.models import DataModel, Transformation
-from ims2micro.utilities import _get_text_data, _get_text_format, init_points_layer
-
-if ty.TYPE_CHECKING:
-    from napari.layers import Image
-
-from loguru import logger
+from ims2micro.utilities import _get_text_data, _get_text_format, get_colormap, init_points_layer
 
 
 class ImageRegistrationDialog(QMainWindow, IndicatorMixin, ImageViewMixin):
     """Image registration dialog."""
 
     fixed_image_layer: ty.Optional[ty.List["Image"]] = None
-    moving_image_layer: ty.Optional["Image"] = None
+    moving_image_layer: ty.Optional[ty.List["Image"]] = None
     temporary_transform: ty.Optional[Transformation] = None
 
     def __init__(self, parent):
@@ -127,6 +124,40 @@ class ImageRegistrationDialog(QMainWindow, IndicatorMixin, ImageViewMixin):
         indicator = self.moving_indicator if which == "moving" else self.fixed_indicator
         indicator.setVisible(state)
 
+    @ensure_main_thread
+    def on_load_fixed(self, model: DataModel):
+        """Load fixed image."""
+        if model:
+            self._on_load_fixed(model)
+        else:
+            logger.warning("Failed to load microscopy data.")
+        self.on_indicator("fixed", False)
+
+    def _on_load_fixed(self, model: DataModel):
+        with MeasureTimer() as timer:
+            logger.info(f"Loading microscopy data with {model.n_paths} paths...")
+            self._plot_fixed_layers()
+            self.view_fixed.viewer.reset_view()
+        logger.info(f"Loaded microscopy data in {timer()}")
+
+    def _plot_fixed_layers(self):
+        wrapper = self._micro_widget.model.get_reader()
+        fixed_image_layer = []
+        used = [layer.colormap for layer in self.view_fixed.layers if isinstance(layer, Image)]
+        for index, (name, array) in enumerate(wrapper.channel_image_iter()):
+            logger.debug(f"Adding '{name}' to fixed view...")
+            if name in self.view_fixed.layers:
+                fixed_image_layer.append(self.view_fixed.layers[name])
+                continue
+            fixed_image_layer.append(
+                self.view_fixed.viewer.add_image(
+                    array, name=name, blending="additive", colormap=get_colormap(index, used)
+                )
+            )
+        self.fixed_image_layer = fixed_image_layer
+        if isinstance(self.fixed_image_layer, list) and len(self.fixed_image_layer) > 1:
+            link_layers(self.fixed_image_layer, attributes=("opacity",))
+
     def on_close_fixed(self, model: DataModel):
         """Close fixed image."""
         try:
@@ -138,30 +169,48 @@ class ImageRegistrationDialog(QMainWindow, IndicatorMixin, ImageViewMixin):
         except Exception as e:
             logger.error(e)
 
-    @ensure_main_thread
-    def on_load_fixed(self, model: DataModel):
-        """Load fixed image."""
-        self._on_load_fixed(model)
-        self.on_indicator("fixed", False)
-
-    def _on_load_fixed(self, model: DataModel):
-        with MeasureTimer() as timer:
-            wrapper = model.get_reader()
-            channel_names = wrapper.channel_names()
-            for name in channel_names:
-                if name in self.view_fixed.layers:
-                    del self.view_fixed.layers[name]
-            logger.info(f"Loading microscopy data with {len(channel_names)} channels.")
-            fixed_image_layer = self.view_fixed.viewer.add_image(**wrapper.image())
-            self.fixed_image_layer = fixed_image_layer if isinstance(fixed_image_layer, list) else [fixed_image_layer]
-            if isinstance(self.fixed_image_layer, list) and len(self.fixed_image_layer) > 1:
-                link_layers(self.fixed_image_layer, attributes=("opacity",))
-            self.view_fixed.viewer.reset_view()
-        logger.info(f"Loaded microscopy image in {timer()}")
-
     def on_toggle_fixed_channel(self, name: str, state: bool):
         """Toggle fixed channel."""
         self.view_fixed.layers[name].visible = state
+
+    @ensure_main_thread
+    def on_load_moving(self, model: DataModel):
+        """Open modality."""
+        if model:
+            self._on_load_moving(model)
+        else:
+            logger.warning("Failed to load microscopy data.")
+        self.on_indicator("moving", False)
+
+    def _on_load_moving(self, model: DataModel):
+        with MeasureTimer() as timer:
+            logger.info(f"Loading imaging data with {model.n_paths} paths...")
+            self._plot_moving_layers()
+            self.on_apply(update_data=True)
+            self.view_moving.viewer.reset_view()
+        logger.info(f"Loaded imaging data in {timer()}")
+
+    def _plot_moving_layers(self):
+        wrapper = self._ims_widget.model.get_reader()
+        moving_image_layer = []
+        used = [layer.colormap for layer in self.view_moving.layers if isinstance(layer, Image)]
+        for index, (name, array) in enumerate(wrapper.channel_image_iter(CONFIG.view_type)):
+            logger.debug(f"Adding '{name}' to moving view...")
+            if name in self.view_moving.layers:
+                layer = self.view_moving.layers[name]
+                layer.data = array
+                layer.reset_contrast_limits()
+                moving_image_layer.append(layer)
+                continue
+            moving_image_layer.append(
+                self.view_moving.viewer.add_image(
+                    array,
+                    name=name,
+                    blending="additive",
+                    colormap=get_colormap(index, used) if CONFIG.view_type == ViewType.OVERLAY else "turbo",
+                )
+            )
+        self.moving_image_layer = moving_image_layer
 
     def on_close_moving(self, model: DataModel):
         """Close moving image."""
@@ -177,26 +226,8 @@ class ImageRegistrationDialog(QMainWindow, IndicatorMixin, ImageViewMixin):
     def on_change_view_type(self, view_type: str):
         """Change view type."""
         if self._ims_widget.model:
-            self.moving_image_layer.data = self._ims_widget.model.get_reader().get_image(view_type)
-            self.moving_image_layer.reset_contrast_limits()
-            if self.transformed_moving_image_layer:
-                self.transformed_moving_image_layer.data = self._ims_widget.model.get_reader().get_image(view_type)
-                self.transformed_moving_image_layer                                                     .reset_contrast_limits()
-
-    @ensure_main_thread
-    def on_load_moving(self, model: DataModel):
-        """Open modality."""
-        self._on_load_moving(model)
-        self.on_indicator("moving", False)
-
-    def _on_load_moving(self, model: DataModel):
-        wrapper = model.get_reader()
-        moving_data = wrapper.image(str(CONFIG.view_type).lower())
-        if moving_data["name"] in self.view_moving.layers:
-            del self.view_moving.layers[moving_data["name"]]
-        self.moving_image_layer = self.view_moving.viewer.add_image(**moving_data, colormap="turbo")
-        self.on_apply(update_data=True)
-        self.view_moving.viewer.reset_view()
+            self._plot_moving_layers()
+            self.on_apply(update_data=True)
 
     def on_toggle_transformed_moving(self, state: bool):
         """Toggle visibility of transformed moving image."""
@@ -386,14 +417,16 @@ class ImageRegistrationDialog(QMainWindow, IndicatorMixin, ImageViewMixin):
             logger.warning("Cannot apply transformation - no transformation has been computed.")
             return
 
+        moving_image_layer = self.moving_image_layer[0]
         # add image and apply transformation
         if self.transformed_moving_image_layer:
             self.transformed_moving_image_layer.affine = self.transform.params
             if update_data:
-                self.transformed_moving_image_layer.data = self.moving_image_layer.data
+                self.transformed_moving_image_layer.data = moving_image_layer.data
+                self.transformed_moving_image_layer.reset_contrast_limits()
         else:
             self.view_fixed.viewer.add_image(
-                self.moving_image_layer.data,
+                moving_image_layer.data,
                 name="Transformed",
                 blending="translucent",
                 opacity=self.moving_opacity.value() / 100,
@@ -550,9 +583,9 @@ class ImageRegistrationDialog(QMainWindow, IndicatorMixin, ImageViewMixin):
 
     def _make_focus_layout(self):
         self.set_current_focus_btn = hp.make_btn(self, "Set current range", func=self.on_set_focus)
-        self.x_center = hp.make_double_spin_box(self, -1e5, 1e5, step_size=500)  
-        self.y_center = hp.make_double_spin_box(self, -1e5, 1e5, step_size=500)  
-        self.zoom = hp.make_double_spin_box(self, -1e5, 1e5, step_size=0.5, n_decimals=4)  
+        self.x_center = hp.make_double_spin_box(self, -1e5, 1e5, step_size=500)
+        self.y_center = hp.make_double_spin_box(self, -1e5, 1e5, step_size=500)
+        self.zoom = hp.make_double_spin_box(self, -1e5, 1e5, step_size=0.5, n_decimals=4)
         self.use_focus_btn = hp.make_btn(self, "Zoom-in", func=self.on_apply_focus)
 
         layout = hp.make_form_layout()

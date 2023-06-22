@@ -18,6 +18,27 @@ DRAG_DIST_THRESHOLD = 5
 
 np.seterr(divide="ignore", invalid="ignore")
 
+PREFERRED_COLORMAPS = [
+    "red",
+    "green",
+    "blue",
+    "magenta",
+    "yellow",
+    "cyan",
+]
+
+
+def get_colormap(index: int, used: ty.List[str]):
+    """Get colormap that has not been used yet."""
+    if index < len(PREFERRED_COLORMAPS):
+        colormap = PREFERRED_COLORMAPS[index]
+        if colormap not in used:
+            return colormap
+    for colormap in PREFERRED_COLORMAPS:
+        if colormap not in used:
+            return colormap
+    return "gray"
+
 
 def sanitize_path(path: PathLike) -> ty.Optional[Path]:
     """Sanitize path."""

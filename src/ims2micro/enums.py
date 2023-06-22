@@ -48,10 +48,10 @@ class ViewType(StringEnum):
     """View type."""
 
     RANDOM = auto()
-    TIC = auto()
+    OVERLAY = auto()
 
 
 VIEW_TYPE_TRANSLATIONS = {
     ViewType.RANDOM: "Random",
-    ViewType.TIC: "TIC",
+    ViewType.OVERLAY: "Overlay",
 }
