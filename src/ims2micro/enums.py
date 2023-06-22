@@ -2,11 +2,11 @@ from enum import auto
 
 from napari.utils.misc import StringEnum
 
-
 ALLOWED_EXPORT_FORMATS = "Any transformation (*.json *.toml);; Transformation (*.json);; Transformation (*.toml)"
 ALLOWED_IMAGING_FORMATS = (
-    "Any imaging (*.tsf *.tdf *.imzML *.metadata.h5);; Bruker QTOF (*.tsf);; "
-    "Bruker IMS-QTOF (*.tdf);; imzML (*.imzML);; ionglow (*.metadata.h5);"
+    "Any imaging (*.tsf *.tdf *.imzML *.metadata.h5, *.npy);; Bruker QTOF (*.tsf);; "
+    "Bruker IMS-QTOF (*.tdf);; imzML (*.imzML);; ionglow (*.metadata.h5);;"
+    "Numpy (*.npy);;"
 )
 ALLOWED_MICROSCOPY_FORMATS = (
     "Any microscopy (*.czi *.ome.tiff *.tiff *.scn *.tif *.svs *.ndpi *.jpg *.jpeg *.png);;"

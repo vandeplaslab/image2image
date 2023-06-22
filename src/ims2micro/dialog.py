@@ -15,15 +15,15 @@ from qtextra.mixins import IndicatorMixin
 from qtextra.utils.utilities import connect
 from qtextra.widgets.qt_mini_toolbar import QtMiniToolbar
 from qtpy.QtCore import Qt
-from qtpy.QtWidgets import QHBoxLayout, QMainWindow, QSizePolicy, QVBoxLayout, QWidget, QGridLayout
+from qtpy.QtWidgets import QHBoxLayout, QMainWindow, QSizePolicy, QVBoxLayout, QWidget
 from superqt import ensure_main_thread
 
 # need to load to ensure all assets are loaded properly
-import ims2micro.assets  # noqa: F401
+import ims2micro.assets
 from ims2micro import __version__
 from ims2micro._select import IMSWidget, MicroscopyWidget
 from ims2micro.config import CONFIG
-from ims2micro.enums import TRANSFORMATION_TRANSLATIONS, ALLOWED_EXPORT_FORMATS
+from ims2micro.enums import ALLOWED_EXPORT_FORMATS, TRANSFORMATION_TRANSLATIONS
 from ims2micro.models import DataModel, Transformation
 from ims2micro.utilities import _get_text_data, _get_text_format, init_points_layer
 
@@ -473,7 +473,7 @@ class ImageRegistrationDialog(QMainWindow, IndicatorMixin, ImageViewMixin):
 
     def on_apply_focus(self):
         """Apply focus to the current image range."""
-        if all([v == 1.0 for v in [self.zoom.value(), self.x_center.value(), self.y_center.value()]]):
+        if all(v == 1.0 for v in [self.zoom.value(), self.x_center.value(), self.y_center.value()]):
             logger.warning("Please specify zoom and center first.")
             return
         self.view_fixed.viewer.camera.center = (0.0, self.y_center.value(), self.x_center.value())
@@ -487,7 +487,7 @@ class ImageRegistrationDialog(QMainWindow, IndicatorMixin, ImageViewMixin):
         """Automatically apply focus to the current image range."""
         print("double-click")
         if (
-            all([v == 1.0 for v in [self.zoom.value(), self.x_center.value(), self.y_center.value()]])
+            all(v == 1.0 for v in [self.zoom.value(), self.x_center.value(), self.y_center.value()])
             or not self.use_focus.isChecked()
         ):
             return

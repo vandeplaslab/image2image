@@ -5,7 +5,7 @@ from pathlib import Path
 import numpy as np
 from koyo.typing import PathLike
 
-IMAGE_EXTS = [".jpg", ".png"]
+IMAGE_EXTS = [".jpg", ".jpeg", ".png"]
 
 
 class MicroWrapper:
@@ -21,35 +21,29 @@ class MicroWrapper:
         """Return image."""
         if isinstance(self.reader_or_image, np.ndarray):
             array = self.reader_or_image
-
-            return {
-                "name": "Microscopy",
-                "data": self.reader_or_image,
-                "blending": "additive",
-                "channel_axis": None,
-            }
+            channel_names = None
         else:
-            array = self.reader_or_image.get_dask_pyr()
-            temp = array[0] if isinstance(array, list) else array
-            channel_axis = 0  # None if (self.reader_or_image.is_rgb or temp.shape[0] <= 2) else 0
-            if self.reader_or_image.is_rgb or channel_axis is None:
-                channel_names = self.reader_or_image.channel_names[0]
-            else:
-                channel_names = self.reader_or_image.channel_names
-            if len(channel_names) != temp.shape[-1]:
-                channel_names = [f"Channel {i}" for i in range(temp.shape[channel_axis])]
-            return {
-                "name": channel_names,
-                "data": array,
-                "blending": "additive",
-                "channel_axis": channel_axis,
-            }
+            temp = self.reader_or_image.get_dask_pyr()
+            array = temp[0] if isinstance(temp, list) else temp
+            channel_names = self.reader_or_image.channel_names
+
+        if array.ndim == 2:
+            array = np.atleast_3d(array, axis=-1)
+        n_ch = array.shape[-1]
+        if channel_names is None or len(channel_names) != n_ch:
+            channel_names = [f"C{i}" for i in range(n_ch)]
+
+        return {
+            "name": channel_names,
+            "data": array,
+            "blending": "additive",
+            "channel_axis": 2,
+        }
 
     def channel_names(self) -> ty.List[str]:
         """Return list of channel names."""
-        if isinstance(self.reader_or_image, np.ndarray):
-            return ["Microscopy"]
-        return self.reader_or_image.channel_names
+        metadata = self.image()
+        return metadata["name"]
 
 
 def read_microscopy(path: PathLike):

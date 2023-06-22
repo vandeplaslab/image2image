@@ -4,13 +4,13 @@ from functools import partial
 from pathlib import Path
 
 import qtextra.helpers as hp
+from loguru import logger
 from qtpy.QtCore import Qt, Signal
 from qtpy.QtWidgets import QCheckBox, QWidget
 from superqt.utils import thread_worker
-from loguru import logger
 
 from ims2micro.config import CONFIG
-from ims2micro.enums import ALLOWED_MICROSCOPY_FORMATS, ALLOWED_IMAGING_FORMATS, VIEW_TYPE_TRANSLATIONS
+from ims2micro.enums import ALLOWED_IMAGING_FORMATS, ALLOWED_MICROSCOPY_FORMATS, VIEW_TYPE_TRANSLATIONS
 
 if ty.TYPE_CHECKING:
     from ims2micro.models import DataModel
@@ -77,7 +77,6 @@ class LoadWidget(QWidget):
 
     def _on_select_dataset(self, evt=None):
         """Load data."""
-
         path = hp.get_filename(
             self,
             title=self.FILE_TITLE,
@@ -115,16 +114,12 @@ class IMSWidget(LoadWidget):
 
     # class attrs
     IS_MICROSCOPY = False
-    INFO_TEXT = "Select IMS dataset - supported formats: .imzML, .tdf/.tsf (Bruker), .data"
+    INFO_TEXT = "Select IMS dataset - supported formats: .imzML, .tdf/.tsf (Bruker), .data, .npy"
     FILE_TITLE = "Select IMS dataset..."
     FILE_FORMATS = ALLOWED_IMAGING_FORMATS
-    FILENAME = r"D:\ims2micro_test\test.d\analysis.tsf"  # noqa
-    FILENAME = (  # noqa
-        r"D:\2023_02_17_Olof\VAN0052-RK-3\IMS\230119_isbergo_VAN0052_RK_3_2_05um_area3_neg_IMS.d\analysis.tsf"
-    )
-    FILENAME = (  # noqa
-        r"D:\2023_02_17_Olof\VAN0052-RK-3\IMS\230119_isbergo_VAN0052_RK_3_2_05um_area2_neg_IMS.d\analysis.tsf"
-    )
+    FILENAME = r"D:\ims2micro_test\test.d\analysis.tsf"
+    FILENAME = r"D:\2023_02_17_Olof\VAN0052-RK-3\IMS\230119_isbergo_VAN0052_RK_3_2_05um_area3_neg_IMS.d\analysis.tsf"
+    FILENAME = r"D:\2023_02_17_Olof\VAN0052-RK-3\IMS\230119_isbergo_VAN0052_RK_3_2_05um_area2_neg_IMS.d\analysis.tsf"
 
     # events
     evt_show_transformed = Signal(bool)

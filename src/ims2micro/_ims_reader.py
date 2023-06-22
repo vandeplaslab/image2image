@@ -17,10 +17,10 @@ def set_dimensions(reader: "IMSWrapper"):
 class IMSWrapper:
     """Wrapper around IMS data."""
 
-    xmin: float
-    xmax: float
-    ymin: float
-    ymax: float
+    xmin: int
+    xmax: int
+    ymin: int
+    ymax: int
     image_shape: ty.Tuple[int, int]
 
     def __init__(
@@ -78,7 +78,20 @@ def read_imaging(path: PathLike):
         return IMSWrapper(*_read_imzml_coordinates(path))
     elif path.suffix.lower() == ".h5":
         return IMSWrapper(*_read_metadata_h5_coordinates(path))
+    elif path.suffix.lower() in [".npy"]:
+        return IMSWrapper(*_read_npy_coordinates(path))
     raise ValueError(f"Unsupported file format: {path.suffix}")
+
+
+def _read_npy_coordinates(
+    path: PathLike,
+) -> ty.Tuple[ty.Optional[np.ndarray], np.ndarray, np.ndarray, float, np.ndarray]:
+    """Read data from npz or npy file."""
+    with open(path, "rb") as f:
+        image = np.load(f)
+    assert image.ndim == 2, "Only 2D images are supported"
+    y, x = get_yx_coordinates_from_shape(image.shape)
+    return None, x, y, 1.0, image
 
 
 def _read_metadata_h5_coordinates(
@@ -132,7 +145,7 @@ def _read_tsf_tdf_coordinates(path: PathLike) -> ty.Tuple[np.ndarray, np.ndarray
     y = y - np.min(y)  # minimized
 
     # get tic
-    cursor = conn.execute(f"SELECT SummedIntensities FROM Frames")
+    cursor = conn.execute("SELECT SummedIntensities FROM Frames")
     tic = np.array(cursor.fetchall())
     tic = tic[:, 0]
     return regions, x, y, resolution, reshape(x, y, tic)
@@ -165,3 +178,10 @@ def reshape(x, y, array):
     new_array = np.full(shape, np.nan)
     new_array[y - ymin, x - xmin] = array
     return new_array
+
+
+def get_yx_coordinates_from_shape(shape: ty.Tuple[int, int]) -> ty.Tuple[np.ndarray, np.ndarray]:
+    """Get coordinates from image shape."""
+    _y, _x = np.indices(shape)
+    yx_coordinates = np.c_[np.ravel(_y), np.ravel(_x)]
+    return yx_coordinates[:, 0], yx_coordinates[:, 1]
