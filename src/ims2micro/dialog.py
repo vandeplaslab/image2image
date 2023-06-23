@@ -17,12 +17,11 @@ from qtextra._napari.mixins import ImageViewMixin
 from qtextra.mixins import IndicatorMixin
 from qtextra.utils.utilities import connect
 from qtextra.widgets.qt_mini_toolbar import QtMiniToolbar
-from qtpy.QtCore import Qt
+from qtpy.QtCore import Qt, Signal
 from qtpy.QtWidgets import QHBoxLayout, QMainWindow, QSizePolicy, QVBoxLayout, QWidget
 from superqt import ensure_main_thread
 
 # need to load to ensure all assets are loaded properly
-import ims2micro.assets
 from ims2micro import __version__
 from ims2micro._select import IMSWidget, MicroscopyWidget
 from ims2micro.config import CONFIG
@@ -37,6 +36,10 @@ class ImageRegistrationDialog(QMainWindow, IndicatorMixin, ImageViewMixin):
     fixed_image_layer: ty.Optional[ty.List["Image"]] = None
     moving_image_layer: ty.Optional[ty.List["Image"]] = None
     temporary_transform: ty.Optional[Transformation] = None
+    _table = None
+
+    # events
+    evt_predicted = Signal()
 
     def __init__(self, parent):
         super().__init__()
@@ -163,10 +166,11 @@ class ImageRegistrationDialog(QMainWindow, IndicatorMixin, ImageViewMixin):
         """Close fixed image."""
         try:
             channel_names = model.channel_names()
-            for name in channel_names:
-                if name in self.view_fixed.layers:
+            layer_names = [layer.name for layer in self.view_fixed.layers if isinstance(layer, Image)]
+            for name in layer_names:
+                if name not in channel_names:
                     del self.view_fixed.layers[name]
-            self.fixed_points_layer.data = None
+                    logger.debug(f"Removed {name} from fixed view.")
         except Exception as e:
             logger.error(e)
 
@@ -228,12 +232,13 @@ class ImageRegistrationDialog(QMainWindow, IndicatorMixin, ImageViewMixin):
         """Close moving image."""
         try:
             channel_names = model.channel_names()
-            for name in channel_names:
-                if name in self.view_moving.layers:
+            layer_names = [layer.name for layer in self.view_moving.layers if isinstance(layer, Image)]
+            for name in layer_names:
+                if name not in channel_names:
                     del self.view_moving.layers[name]
+                    logger.debug(f"Removed {name} from moving view.")
         except Exception as e:
             logger.error(e)
-            self.moving_points_layer.data = None
 
     def on_change_view_type(self, view_type: str):
         """Change view type."""
@@ -379,7 +384,7 @@ class ImageRegistrationDialog(QMainWindow, IndicatorMixin, ImageViewMixin):
             logger.warning("Cannot save transformation - no transformation has been computed.")
             return
         # get filename which is based on the IMS dataset
-        filename = transform.ims_model.get_filename() + "transform.i2m.json"
+        filename = transform.ims_model.get_filename() + "_transform.i2m.json"
         path = hp.get_save_filename(
             self,
             "Save transformation",
@@ -402,24 +407,46 @@ class ImageRegistrationDialog(QMainWindow, IndicatorMixin, ImageViewMixin):
             file_filter=ALLOWED_EXPORT_FORMATS,
         )
         if path:
+            from ims2micro._dialogs import ImportSelectDialog
             from ims2micro.models import load_from_file
-
-            # reset all widgets
-            self._micro_widget._on_close_dataset()
-            self._ims_widget._on_close_dataset()
 
             # load transformation
             path = Path(path)
             CONFIG.output_dir = str(path.parent)
-            transformation_type, micro_paths, fixed_points, ims_paths, moving_points = load_from_file(path)
-            self.transform_choice.setCurrentText(transformation_type)
-            if micro_paths:
-                self._micro_widget.on_set_path(micro_paths)
-            if ims_paths:
-                self._ims_widget.on_set_path(ims_paths)
-            self._update_layer_points(self.moving_points_layer, moving_points, block=False)
-            self._update_layer_points(self.fixed_points_layer, fixed_points, block=False)
-            self.on_update_text(block=False)
+
+            # get info on which settings should be imported
+            dlg = ImportSelectDialog(self)
+            if dlg.exec_():
+                config = dlg.config
+                print(config)
+
+                # reset all widgets
+                if config["micro"]:
+                    self._micro_widget._on_close_dataset(force=True)
+                if config["ims"]:
+                    self._ims_widget._on_close_dataset(force=True)
+
+                transformation_type, micro_paths, fixed_points, ims_paths, moving_points = load_from_file(
+                    path, **config
+                )
+                self.transform_choice.setCurrentText(transformation_type)
+                if micro_paths:
+                    self._micro_widget.on_set_path(micro_paths)
+                if ims_paths:
+                    self._ims_widget.on_set_path(ims_paths)
+                if moving_points is not None:
+                    self._update_layer_points(self.moving_points_layer, moving_points, block=False)
+                if fixed_points is not None:
+                    self._update_layer_points(self.fixed_points_layer, fixed_points, block=False)
+                self.on_update_text(block=False)
+
+    def on_view_fiducials(self):
+        """View fiducials table."""
+        if self._table is None:
+            from ims2micro._table import FiducialTableDialog
+
+            self._table = FiducialTableDialog(self)
+        self._table.show()
 
     @ensure_main_thread
     def on_apply(self, update_data: bool = False, name: ty.Optional[str] = None):
@@ -474,6 +501,7 @@ class ImageRegistrationDialog(QMainWindow, IndicatorMixin, ImageViewMixin):
             return
 
         self._update_layer_points(layer, transformed_data)
+        self.evt_predicted.emit()
 
     @staticmethod
     def _update_layer_points(layer: Points, data: np.ndarray, block: bool = True):
@@ -534,7 +562,7 @@ class ImageRegistrationDialog(QMainWindow, IndicatorMixin, ImageViewMixin):
         self.view_fixed.viewer.camera.center = (0.0, self.y_center.value(), self.x_center.value())
         self.view_fixed.viewer.camera.zoom = self.zoom.value()
         logger.debug(
-            f"Applied focus center=({self.x_center.value():.1f}, {self.y_center.value():.1f})"
+            f"Applied focus center=({self.y_center.value():.1f}, {self.x_center.value():.1f})"
             f" zoom={self.zoom.value():.3f}"
         )
 
@@ -574,6 +602,13 @@ class ImageRegistrationDialog(QMainWindow, IndicatorMixin, ImageViewMixin):
             func=self.on_save,
         )
 
+        self.view_btn = hp.make_btn(
+            self,
+            "Show fiducials table...",
+            tooltip="Show fiducial markers table where you can view and edit the markers",
+            func=self.on_view_fiducials,
+        )
+
         side_layout = hp.make_form_layout()
         style_form_layout(side_layout)
         side_layout.addRow(self.load_btn)
@@ -585,6 +620,7 @@ class ImageRegistrationDialog(QMainWindow, IndicatorMixin, ImageViewMixin):
         side_layout.addRow(self._make_focus_layout())
         side_layout.addRow(hp.make_h_line(self))
         side_layout.addRow(hp.make_label(self, "Type of transformation"), self.transform_choice)
+        side_layout.addRow(self.view_btn)
         side_layout.addRow(self.run_btn)
         side_layout.addRow(self.save_btn)
         side_layout.addRow(hp.make_spacer_widget())

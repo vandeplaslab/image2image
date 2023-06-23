@@ -112,6 +112,7 @@ def get_app(
             if set_values:
                 warn(
                     f"QApplication already existed, these arguments to to 'get_app' were ignored: {set_values}",
+                    stacklevel=1,
                 )
         else:
             # automatically determine monitor DPI.
@@ -218,6 +219,7 @@ def run(*, force=False, max_loop_level=1, _func_name="run"):
         warn(
             f"Refusing to run a QApplication with no topLevelWidgets. To run the app anyway, use `{_func_name}"
             "(force=True)`",
+            stacklevel=1,
         )
         return
 
@@ -227,6 +229,7 @@ def run(*, force=False, max_loop_level=1, _func_name="run"):
             f"A QApplication is already running with 1 event loop. To enter *another* event loop, use `{_func_name}"
             f"(max_loop_level={max_loop_level})` A QApplication is already running with {loops} event loops. To enter"
             f" *another* event loop, use `{_func_name}(max_loop_level={max_loop_level})`",
+            stacklevel=1,
         )
         return
     with _maybe_allow_interrupt(app):

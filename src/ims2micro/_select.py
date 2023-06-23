@@ -11,7 +11,7 @@ from qtpy.QtGui import QRegExpValidator
 from qtpy.QtWidgets import QWidget
 from superqt.utils import thread_worker
 
-from ims2micro._table import TableDialog
+from ims2micro._table import OverlayTableDialog
 from ims2micro.config import CONFIG
 from ims2micro.enums import ALLOWED_IMAGING_FORMATS, ALLOWED_MICROSCOPY_FORMATS, VIEW_TYPE_TRANSLATIONS
 from ims2micro.models import ImagingModel, MicroscopyModel
@@ -40,7 +40,7 @@ class LoadWidget(QWidget):
         self._setup_ui()
         self.view = view
         self.model: DataModel = MicroscopyModel() if self.IS_MICROSCOPY else ImagingModel()
-        self.table_dlg = TableDialog(self, self.model, self.view)
+        self.table_dlg = OverlayTableDialog(self, self.model, self.view)
 
     def _setup_ui(self):
         """Setup UI."""
@@ -61,15 +61,26 @@ class LoadWidget(QWidget):
         self.setLayout(layout)
         return layout
 
-    def _on_close_dataset(self):
+    def _on_close_dataset(self, force: bool = False) -> bool:
         """Close dataset."""
-        if self.model.n_paths and hp.confirm(
-            self, "Are you sure you want to remove <b>all</b>    images? Fiducial will be unaffected."
-        ):
+        from ims2micro._dialogs import CloseDatasetDialog
+
+        print(self.model.reader.data)
+
+        if self.model.n_paths:
+            config = None
+            if not force:  # only ask user if not forced
+                dlg = CloseDatasetDialog(self, self.model)
+                if dlg.exec_():
+                    config = dlg.config
+            else:
+                config = self.model.paths
+            self.model.close(config)
             self.evt_closed.emit(self.model)
-            self.model.reader = None
-            self.model.paths.clear()
-            self.resolution_edit.setText("1.0")
+            if not self.model.n_paths:
+                self.resolution_edit.setText("1.0")
+            return True
+        return False
 
     def on_set_path(self, paths: ty.Union[PathLike, ty.List[PathLike]]):
         """Set the path and immediately load it."""

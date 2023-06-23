@@ -33,6 +33,15 @@ class DataWrapper:
         """Add path to wrapper."""
         self.paths.append(Path(path))
 
+    def remove_path(self, path: PathLike):
+        """Remove path from wrapper."""
+        path = Path(path)
+        if path in self.paths:
+            self.paths.remove(path)
+        path = str(path.name)
+        if path in self.data:
+            del self.data[path]
+
     def is_loaded(self, path: PathLike):
         """Check if path is loaded."""
         return Path(path) in self.paths
@@ -68,7 +77,12 @@ class DataModel(BaseModel):
 
     paths: ty.Optional[ty.List[Path]] = None
     resolution: float = 1.0
-    reader: ty.Optional[ty.Any] = None
+    reader: ty.Optional[DataWrapper] = None
+
+    class Config:
+        """Config."""
+
+        arbitrary_types_allowed = True
 
     @validator("paths", pre=True, allow_reuse=True)
     def _validate_path(value: ty.Union[PathLike, ty.List[PathLike]]) -> ty.List[Path]:
@@ -115,6 +129,17 @@ class DataModel(BaseModel):
     def n_paths(self) -> int:
         """Return number of paths."""
         return len(self.paths) if self.paths is not None else 0
+
+    def close(self, paths: ty.List[PathLike]):
+        """Close certain (or all) paths."""
+        if paths is None:
+            return
+        for path in paths:
+            path = Path(path)
+            if path in self.paths:
+                self.paths.remove(path)
+            if self.reader:
+                self.reader.remove_path(path)
 
 
 class ImagingModel(DataModel):
@@ -307,7 +332,11 @@ class Transformation(BaseModel):
             raise ValueError(f"Unknown file format: {path.suffix}")
 
 
-def load_from_file(path: PathLike):
+def load_from_file(
+    path: PathLike, micro: bool = True, ims: bool = True, fixed: bool = True, moving: bool = True
+) -> ty.Tuple[
+    str, ty.Optional[ty.List[Path]], ty.Optional[np.ndarray], ty.Optional[ty.List[Path]], ty.Optional[np.ndarray]
+]:
     """Load registration from file."""
     path = Path(path)
     if path.suffix not in [".json", ".toml"]:
@@ -321,10 +350,22 @@ def load_from_file(path: PathLike):
         from koyo.toml import read_toml_data
 
         data = read_toml_data(path)
+
+    # ims2micro config
     if "schema_version" in data:
-        return _read_ims2micro_config(data)
+        transformation_type, micro_paths, fixed_points, ims_paths, moving_points = _read_ims2micro_config(data)
+    # imsmicrolink config
     elif "Project name" in data:
-        return _read_imsmicrolink_config(data)
+        transformation_type, micro_paths, fixed_points, ims_paths, moving_points = _read_imsmicrolink_config(data)
+    else:
+        raise ValueError(f"Unknown file format: {path.suffix}")
+
+    # apply config
+    micro_paths = micro_paths if micro else None
+    ims_paths = ims_paths if ims else None
+    fixed_points = fixed_points if fixed else None
+    moving_points = moving_points if moving else None
+    return transformation_type, micro_paths, fixed_points, ims_paths, moving_points
 
 
 def _get_paths(paths: ty.List[PathLike]):

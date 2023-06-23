@@ -54,7 +54,10 @@ class MicroWrapper(DataWrapper):
             if isinstance(reader_or_array, np.ndarray):
                 channel_names = [f"C{index}"]
             else:
-                channel_names = [reader_or_array.channel_names[index]]
+                try:
+                    channel_names = [reader_or_array.channel_names[index]]
+                except IndexError:
+                    channel_names = [f"C{index}"]
             names.extend([f"{name} | {key}" for name in channel_names])
         return names
 

@@ -240,3 +240,42 @@ QtReloadWidget QLabel {
    min-width: 22px;
 }
 
+/* ----------------- QtCheckableTableView ----------------- */
+
+QHeaderView::section {
+    color: {{ text }};
+    background-color: {{ background }};
+    border-width: 0px 0px 2px 0px;
+    border-style: dotted;
+    border-color: {{ foreground }};
+}
+
+QTableWidget {
+  border-style: none;
+}
+
+QtCheckableTableView::indicator {
+  width: 16px;
+  height: 16px;
+  position: absolute;
+  left: 0px;
+  image: url("theme_{{ id }}://2d.svg");
+}
+
+QtCheckableTableView::indicator:unchecked {
+  image: url("theme_{{ id }}://2d.svg");
+}
+
+QtCheckableTableView::indicator:checked {
+  image: url("theme_{{ id }}://check.svg");
+}
+
+QtCheckableTableView {
+    border: 2px solid {{ foreground }};
+    border-radius: 2px;
+}
+
+QHeaderView {
+    font-size: {{ font_size }};
+    font-weight: bold;
+}
