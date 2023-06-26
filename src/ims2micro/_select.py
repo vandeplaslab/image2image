@@ -11,7 +11,7 @@ from qtpy.QtGui import QRegExpValidator
 from qtpy.QtWidgets import QWidget
 from superqt.utils import thread_worker
 
-from ims2micro._table import OverlayTableDialog
+from ims2micro._dialogs import OverlayTableDialog
 from ims2micro.config import CONFIG
 from ims2micro.enums import ALLOWED_IMAGING_FORMATS, ALLOWED_MICROSCOPY_FORMATS, VIEW_TYPE_TRANSLATIONS
 from ims2micro.models import ImagingModel, MicroscopyModel

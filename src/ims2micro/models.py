@@ -335,7 +335,13 @@ class Transformation(BaseModel):
 def load_from_file(
     path: PathLike, micro: bool = True, ims: bool = True, fixed: bool = True, moving: bool = True
 ) -> ty.Tuple[
-    str, ty.Optional[ty.List[Path]], ty.Optional[np.ndarray], ty.Optional[ty.List[Path]], ty.Optional[np.ndarray]
+    str,
+    ty.Optional[ty.List[Path]],
+    ty.Optional[ty.List[Path]],
+    ty.Optional[np.ndarray],
+    ty.Optional[ty.List[Path]],
+    ty.Optional[ty.List[Path]],
+    ty.Optional[np.ndarray],
 ]:
     """Load registration from file."""
     path = Path(path)
@@ -353,48 +359,90 @@ def load_from_file(
 
     # ims2micro config
     if "schema_version" in data:
-        transformation_type, micro_paths, fixed_points, ims_paths, moving_points = _read_ims2micro_config(data)
+        (
+            transformation_type,
+            micro_paths,
+            micro_paths_missing,
+            fixed_points,
+            ims_paths,
+            ims_paths_missing,
+            moving_points,
+        ) = _read_ims2micro_config(data)
     # imsmicrolink config
     elif "Project name" in data:
-        transformation_type, micro_paths, fixed_points, ims_paths, moving_points = _read_imsmicrolink_config(data)
+        (
+            transformation_type,
+            micro_paths,
+            micro_paths_missing,
+            fixed_points,
+            ims_paths,
+            ims_paths_missing,
+            moving_points,
+        ) = _read_imsmicrolink_config(data)
     else:
         raise ValueError(f"Unknown file format: {path.suffix}")
 
     # apply config
-    micro_paths = micro_paths if micro else None
-    ims_paths = ims_paths if ims else None
+    micro_paths, micro_paths_missing = (micro_paths, micro_paths_missing) if micro else (None, None)
+    ims_paths, ims_paths_missing = (ims_paths, ims_paths_missing) if ims else (None, None)
     fixed_points = fixed_points if fixed else None
     moving_points = moving_points if moving else None
-    return transformation_type, micro_paths, fixed_points, ims_paths, moving_points
+    return (
+        transformation_type,
+        micro_paths,
+        micro_paths_missing,
+        fixed_points,
+        ims_paths,
+        ims_paths_missing,
+        moving_points,
+    )
 
 
 def _get_paths(paths: ty.List[PathLike]):
-    _paths = []
+    _paths_exist, _paths_missing = [], []
     for path in paths:
         path = Path(path)
         if path.exists():
-            _paths.append(path)
-    if not _paths:
-        _paths = None
-    return _paths
+            _paths_exist.append(path)
+        else:
+            _paths_missing.append(path)
+    if not _paths_exist:
+        _paths_exist = None
+    return _paths_exist, _paths_missing
 
 
 def _read_ims2micro_config(config: ty.Dict):
     """Read ims2micro configuration file."""
     # read important fields
-    micro_paths = _get_paths(config["micro_paths"])
-    ims_paths = _get_paths(config["ims_paths"])
+    micro_paths, micro_paths_missing = _get_paths(config["micro_paths"])
+    ims_paths, ims_paths_missing = _get_paths(config["ims_paths"])
     fixed_points = np.array(config["fixed_points_yx_px"])
     moving_points = np.array(config["moving_points_yx_px"])
     transformation_type = config["transformation_type"]
-    return transformation_type, micro_paths, fixed_points, ims_paths, moving_points
+    return (
+        transformation_type,
+        micro_paths,
+        micro_paths_missing,
+        fixed_points,
+        ims_paths,
+        ims_paths_missing,
+        moving_points,
+    )
 
 
 def _read_imsmicrolink_config(config: ty.Dict):
     """Read imsmicrolink configuration file."""
-    micro_paths = _get_paths(config["PostIMS microscopy image"])
-    ims_paths = _get_paths(config["Pixel Map Datasets Files"])
+    micro_paths, micro_paths_missing = _get_paths([config["PostIMS microscopy image"]])  # need to be a list
+    ims_paths, ims_paths_missing = _get_paths(config["Pixel Map Datasets Files"])
     fixed_points = np.array(config["PAQ microscopy points (xy, px)"])
     moving_points = np.array(config["IMS pixel map points (xy, px)"])
     transformation_type = "Affine"
-    return transformation_type, micro_paths, fixed_points, ims_paths, moving_points
+    return (
+        transformation_type,
+        micro_paths,
+        micro_paths_missing,
+        fixed_points,
+        ims_paths,
+        ims_paths_missing,
+        moving_points,
+    )

@@ -279,3 +279,7 @@ QHeaderView {
     font-size: {{ font_size }};
     font-weight: bold;
 }
+
+QLabel#tip_label {
+    color: {{ lighten(text, 30) }};
+}

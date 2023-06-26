@@ -2,15 +2,360 @@
 import typing as ty
 from pathlib import Path
 
+import numpy as np
 import qtextra.helpers as hp
-from qtextra.widgets.qt_dialog import QtDialog
-from qtpy.QtCore import Qt
+from koyo.typing import PathLike
+from loguru import logger
+from qtextra.utils.table_config import TableConfig
+from qtextra.utils.utilities import connect
+from qtextra.widgets.qt_dialog import QtDialog, QtFramelessTool
+from qtextra.widgets.qt_table_view import QtCheckableTableView
+from qtpy.QtCore import Qt, Signal
 from qtpy.QtWidgets import QFormLayout
 
 from ims2micro.utilities import style_form_layout
 
 if ty.TYPE_CHECKING:
+    from ims2micro._select import LoadWidget
     from ims2micro.models import DataModel
+
+OverlayConfig = (
+    TableConfig()
+    .add("", "check", "bool", 25, no_sort=True)
+    .add("channel name", "channel_name", "str", 125)
+    .add("dataset", "dataset", "str", 250)
+)
+
+LocateConfig = (
+    TableConfig()
+    .add("", "check", "bool", 0, no_sort=True, hidden=True)
+    .add("old path", "old_path", "str", 250)
+    .add("new path", "new_path", "str", 250)
+    .add("comment", "valid", "str", 100)
+)
+
+FiducialConfig = (
+    TableConfig()
+    .add("", "check", "bool", 0, no_sort=True, hidden=True)
+    .add("index", "index", "int", 50)
+    .add("y-m(px)", "y_px_micro", "float", 50)
+    .add("x-m(px)", "x_px_micro", "float", 50)
+    .add("y-i(px)", "y_px_ims", "float", 50)
+    .add("x-i(px)", "x_px_ims", "float", 50)
+)
+
+
+class LocateFilesDialog(QtDialog):
+    """Dialog to locate files."""
+
+    def __init__(self, parent, micro_paths: ty.List[PathLike], ims_paths: ty.List[PathLike]):
+        paths = ims_paths + micro_paths
+        self.paths: ty.List[ty.Dict[str, ty.Optional[PathLike]]] = [
+            {"old_path": Path(path), "new_path": None} for path in paths
+        ]
+        super().__init__(parent)
+        self.setWindowTitle("Locate files...")
+        self.setMinimumWidth(600)
+        self.setMinimumHeight(400)
+        self.on_load()
+
+    def connect_events(self, state: bool = True):
+        """Connect events."""
+        connect(self.table.doubleClicked, self.on_double_click, state=state)
+
+    def keyPressEvent(self, evt):
+        """Key press event."""
+        if evt.key() == Qt.Key_Escape:
+            evt.ignore()
+        else:
+            super().keyPressEvent(evt)
+
+    def fix_missing_paths(self, paths_missing: ty.List[PathLike], paths: ty.List[PathLike]):
+        """Locate missing paths."""
+        if paths is None:
+            paths = []
+        for path in paths_missing:
+            for path_pair in self.paths:
+                if path_pair["old_path"] == Path(path) and path_pair["new_path"] is not None:
+                    paths.append(path_pair["new_path"])
+        return paths
+
+    def on_double_click(self, index):
+        """Zoom in."""
+        row = index.row()
+        path = self.paths[row]["old_path"]
+        new_path = self.paths[row]["new_path"]
+        if new_path and new_path.exists():
+            path = new_path
+        suffix = path.suffix.lower()
+        base_dir = ""
+        if path.parent.exists():
+            base_dir = str(path.parent)
+        # looking for a file
+        if suffix in [".tiff", ".jpg", ".jpeg", ".png", ".h5", ".imzml", ".tdf", ".tsf", ".npy"]:
+            new_path = hp.get_filename(
+                self,
+                title="Locate file...",
+                base_dir=base_dir,
+                base_filename=path.name,
+                file_filter=f"All files (*.*);; File type (*{suffix})",
+            )
+            if not new_path:
+                logger.warning("No file selected.")
+                return
+            self.paths[row]["new_path"] = Path(new_path)
+            self.on_load()
+            logger.info(f"Located file - {new_path}")
+
+    def on_load(self, evt=None):
+        """On load."""
+        data = []
+        for path_pair in self.paths:
+            old_path = path_pair["old_path"]
+            new_path = path_pair["new_path"]
+            comment = "File found at old location" if old_path.exists() else "File not found"
+            if new_path and new_path.exists():
+                comment = "File found at new location"
+                if old_path.name != new_path.name:
+                    comment += " but has different name."
+            data.append([True, str(old_path), str(new_path) if new_path else "", comment])
+        self.table.reset_data()
+        self.table.add_data(data)
+
+    # noinspection PyAttributeOutsideInit
+    def make_panel(self) -> QFormLayout:
+        """Make panel."""
+        self.table = QtCheckableTableView(self, config=LocateConfig, enable_all_check=False, sortable=False)
+        self.table.setCornerButtonEnabled(False)
+        hp.set_font(self.table)
+        self.table.setup_model(LocateConfig.header, LocateConfig.no_sort_columns, LocateConfig.hidden_columns)
+        self.table.setTextElideMode(Qt.TextElideMode.ElideLeft)
+
+        layout = hp.make_form_layout(self)
+        style_form_layout(layout)
+        layout.addRow(
+            hp.make_label(
+                self,
+                "At least one file read from the configuration file is no longer at the specified path."
+                " Please locate it on your hard drive or it won't be imported.",
+                alignment=Qt.AlignHCenter,
+            )
+        )
+        layout.addRow(self.table)
+        layout.addRow(
+            hp.make_label(
+                self,
+                "Double-click on a row to zoom in on the point.",
+                alignment=Qt.AlignHCenter,
+                object_name="tip_label",
+            )
+        )
+        layout.addRow(
+            hp.make_h_layout(
+                hp.make_btn(self, "OK", func=self.accept),
+                hp.make_btn(self, "Cancel", func=self.reject),
+            )
+        )
+        return layout
+
+
+class FiducialTableDialog(QtFramelessTool):
+    """Dialog to display fiducial marker information."""
+
+    HIDE_WHEN_CLOSE = True
+
+    shown_once = False
+
+    # event emitted when the popup closes
+    evt_close = Signal()
+
+    def __init__(self, parent):
+        super().__init__(parent)
+        self.setMinimumWidth(600)
+        self.setMinimumHeight(400)
+        self.points_data = None
+        self.on_load()
+
+    def connect_events(self, state: bool = True):
+        """Connect events."""
+        # change of model events
+        connect(self.parent().fixed_points_layer.events.data, self.on_load, state=state)
+        connect(self.parent().moving_points_layer.events.data, self.on_load, state=state)
+        connect(self.parent().evt_predicted, self.on_load, state=state)
+        # table events
+        connect(self.table.doubleClicked, self.on_double_click, state=state)
+
+    def keyPressEvent(self, evt):
+        """Key press event."""
+        if evt.key() == Qt.Key_Escape:
+            evt.ignore()
+        elif evt.key() == Qt.Key_Backspace or evt.key() == Qt.Key_Delete:
+            self.on_delete_row()
+            evt.accept()
+        else:
+            super().keyPressEvent(evt)
+
+    def on_delete_row(self):
+        """Delete row."""
+        sel_model = self.table.selectionModel()
+        if sel_model.hasSelection():
+            indices = [index.row() for index in sel_model.selectedRows()]
+            indices = sorted(indices, reverse=True)
+            for index in indices:
+                fixed_points = self.parent().fixed_points_layer.data
+                moving_points = self.parent().moving_points_layer.data
+                if index < len(fixed_points):
+                    fixed_points = np.delete(fixed_points, index, axis=0)
+                    self.parent().fixed_points_layer.data = fixed_points
+                if index < len(moving_points):
+                    moving_points = np.delete(moving_points, index, axis=0)
+                    self.parent().moving_points_layer.data = moving_points
+                logger.debug(f"Deleted {index} from fiducial table")
+
+    def on_double_click(self, index):
+        """Zoom in."""
+        row = index.row()
+        ym, xm, yi, xi = self.points_data[row]
+        # zoom-in on IMS data
+        if not np.isnan(xi):
+            view_moving = self.parent().view_moving
+            view_moving.viewer.camera.center = (0.0, yi, xi)
+            view_moving.viewer.camera.zoom = 15
+            logger.debug(f"Applied focus center=({yi:.1f}, {xi:.1f}) zoom={15:.3f} on IMS data")
+        if not np.isnan(xm):
+            view_fixed = self.parent().view_fixed
+            view_fixed.viewer.camera.center = (0.0, ym, xm)
+            view_fixed.viewer.camera.zoom = 20
+            logger.debug(f"Applied focus center=({ym:.1f}, {xm:.1f}) zoom={20:.3f} on micro data")
+
+    def on_load(self, evt=None):
+        """On load."""
+
+        def _str_fmt(value):
+            if np.isnan(value):
+                return ""
+            return f"{value:.3f}"
+
+        fixed_points_layer = self.parent().fixed_points_layer
+        moving_points_layer = self.parent().moving_points_layer
+        n = max([len(fixed_points_layer.data), len(moving_points_layer.data)])
+        array = np.full((n, 4), fill_value=np.nan)
+        array[0 : len(fixed_points_layer.data), 0:2] = fixed_points_layer.data
+        array[0 : len(moving_points_layer.data), 2:] = moving_points_layer.data
+
+        data = []
+        for index, row in enumerate(array, start=1):
+            data.append([True, str(index), *map(_str_fmt, row)])
+        self.table.reset_data()
+        self.table.add_data(data)
+        self.points_data = array
+
+    # noinspection PyAttributeOutsideInit
+    def make_panel(self) -> QFormLayout:
+        """Make panel."""
+        _, header_layout = self._make_hide_handle()
+        self._title_label.setText("Fiducial markers")
+
+        self.table = QtCheckableTableView(self, config=FiducialConfig, enable_all_check=False, sortable=False)
+        self.table.setCornerButtonEnabled(False)
+        hp.set_font(self.table)
+        self.table.setup_model(FiducialConfig.header, FiducialConfig.no_sort_columns, FiducialConfig.hidden_columns)
+        self.get_all_unchecked = self.table.get_all_unchecked
+        self.get_all_checked = self.table.get_all_checked
+
+        layout = hp.make_form_layout(self)
+        style_form_layout(layout)
+        layout.addRow(header_layout)
+        layout.addRow(self.table)
+        layout.addRow(
+            hp.make_label(
+                self,
+                "Double-click on a row to zoom in on the point.\nPress <Delete> or <Backspace> to delete a point.",
+                alignment=Qt.AlignHCenter,
+                object_name="tip_label",
+            )
+        )
+        return layout
+
+
+class OverlayTableDialog(QtFramelessTool):
+    """Dialog to enable creation of overlays."""
+
+    HIDE_WHEN_CLOSE = True
+
+    shown_once = False
+
+    # event emitted when the popup closes
+    evt_close = Signal()
+
+    def __init__(self, parent: "LoadWidget", model: "DataModel", view):
+        super().__init__(parent)
+        self.model = model
+        self.view = view
+
+        self.setMinimumWidth(400)
+        self.setMinimumHeight(400)
+
+    def connect_events(self, state: bool = True):
+        """Connect events."""
+        # TODO: connect event that updates checkbox state when user changes visibility in layer list
+        # change of model events
+        connect(self.parent().evt_loaded, self.on_load, state=state)
+        connect(self.parent().evt_closed, self.on_load, state=state)
+        # table events
+        connect(self.table.evt_checked, self.on_toggle_channel, state=state)
+
+    def on_toggle_channel(self, index: int, state: bool):
+        """Toggle channel."""
+        channel_name = self.table.get_value(OverlayConfig.channel_name, index)
+        dataset = self.table.get_value(OverlayConfig.dataset, index)
+        self.parent().evt_toggle_channel.emit(f"{channel_name} | {dataset}", state)
+
+    def on_load(self, model: "DataModel"):
+        """On load."""
+        self.model = model
+        data = []
+        for name in self.model.get_reader().channel_names():
+            channel_name, dataset = name.split(" | ")
+            data.append([True, channel_name, dataset])
+        existing_data = self.table.get_data()
+        if existing_data:
+            for exist_row in existing_data:
+                for new_row in data:
+                    if (
+                        exist_row[OverlayConfig.channel_name] == new_row[OverlayConfig.channel_name]
+                        and exist_row[OverlayConfig.dataset] == new_row[OverlayConfig.dataset]
+                    ):
+                        new_row[OverlayConfig.check] = exist_row[OverlayConfig.check]
+        self.table.reset_data()
+        self.table.add_data(data)
+
+    # noinspection PyAttributeOutsideInit
+    def make_panel(self) -> QFormLayout:
+        """Make panel."""
+        _, header_layout = self._make_hide_handle()
+        self._title_label.setText("Channel Selection")
+
+        self.table = QtCheckableTableView(self, config=OverlayConfig, enable_all_check=False, sortable=False)
+        self.table.setCornerButtonEnabled(False)
+        hp.set_font(self.table)
+        self.table.setup_model(OverlayConfig.header, OverlayConfig.no_sort_columns, OverlayConfig.hidden_columns)
+        self.get_all_unchecked = self.table.get_all_unchecked
+        self.get_all_checked = self.table.get_all_checked
+
+        layout = hp.make_form_layout(self)
+        style_form_layout(layout)
+        layout.addRow(header_layout)
+        layout.addRow(self.table)
+        layout.addRow(
+            hp.make_label(
+                self,
+                "Check/uncheck a row to toggle visibility of the channel.",
+                alignment=Qt.AlignHCenter,
+                object_name="tip_label",
+            )
+        )
+        return layout
 
 
 class CloseDatasetDialog(QtDialog):
@@ -54,7 +399,12 @@ class CloseDatasetDialog(QtDialog):
         layout.addRow(hp.make_h_line())
         for checkbox in self.checkboxes:
             layout.addRow(checkbox)
-        layout.addRow(hp.make_btn(self, "OK", func=self.accept), hp.make_btn(self, "Cancel", func=self.reject))
+        layout.addRow(
+            hp.make_h_layout(
+                hp.make_btn(self, "OK", func=self.accept),
+                hp.make_btn(self, "Cancel", func=self.reject),
+            )
+        )
         return layout
 
     def on_check_all(self, state: bool):
@@ -104,7 +454,12 @@ class ImportSelectDialog(QtDialog):
         layout.addRow(self.ims_check)
         layout.addRow(self.fixed_check)
         layout.addRow(self.moving_check)
-        layout.addRow(hp.make_btn(self, "OK", func=self.accept), hp.make_btn(self, "Cancel", func=self.reject))
+        layout.addRow(
+            hp.make_h_layout(
+                hp.make_btn(self, "OK", func=self.accept),
+                hp.make_btn(self, "Cancel", func=self.reject),
+            )
+        )
         return layout
 
     def on_check_all(self, state: bool):

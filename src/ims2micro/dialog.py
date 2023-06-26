@@ -22,7 +22,7 @@ from qtpy.QtWidgets import QHBoxLayout, QMainWindow, QSizePolicy, QVBoxLayout, Q
 from superqt import ensure_main_thread
 
 # need to load to ensure all assets are loaded properly
-import ims2micro.assets  # noqa
+import ims2micro.assets
 from ims2micro import __version__
 from ims2micro._select import IMSWidget, MicroscopyWidget
 from ims2micro.config import CONFIG
@@ -419,7 +419,7 @@ class ImageRegistrationDialog(QMainWindow, IndicatorMixin, ImageViewMixin):
             dlg = ImportSelectDialog(self)
             if dlg.exec_():
                 config = dlg.config
-                print(config)
+                logger.debug(f"Loaded configuration from {path}\n{config}")
 
                 # reset all widgets
                 if config["micro"]:
@@ -427,10 +427,28 @@ class ImageRegistrationDialog(QMainWindow, IndicatorMixin, ImageViewMixin):
                 if config["ims"]:
                     self._ims_widget._on_close_dataset(force=True)
 
-                transformation_type, micro_paths, fixed_points, ims_paths, moving_points = load_from_file(
-                    path, **config
-                )
+                (
+                    transformation_type,
+                    micro_paths,
+                    micro_paths_missing,
+                    fixed_points,
+                    ims_paths,
+                    ims_paths_missing,
+                    moving_points,
+                ) = load_from_file(path, **config)
                 self.transform_choice.setCurrentText(transformation_type)
+
+                # locate paths that are missing
+                if micro_paths_missing or ims_paths_missing:
+                    from ims2micro._dialogs import LocateFilesDialog
+
+                    dlg = LocateFilesDialog(self, micro_paths_missing, ims_paths_missing)
+                    if dlg.exec_():
+                        if micro_paths_missing:
+                            micro_paths = dlg.fix_missing_paths(micro_paths_missing, micro_paths)
+                        if ims_paths_missing:
+                            ims_paths = dlg.fix_missing_paths(ims_paths_missing, ims_paths)
+
                 if micro_paths:
                     self._micro_widget.on_set_path(micro_paths)
                 if ims_paths:
@@ -444,7 +462,7 @@ class ImageRegistrationDialog(QMainWindow, IndicatorMixin, ImageViewMixin):
     def on_view_fiducials(self):
         """View fiducials table."""
         if self._table is None:
-            from ims2micro._table import FiducialTableDialog
+            from ims2micro._dialogs import FiducialTableDialog
 
             self._table = FiducialTableDialog(self)
         self._table.show()
