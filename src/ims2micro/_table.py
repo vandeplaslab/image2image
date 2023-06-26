@@ -8,7 +8,7 @@ from qtextra.utils.table_config import TableConfig
 from qtextra.utils.utilities import connect
 from qtextra.widgets.qt_dialog import QtFramelessTool
 from qtextra.widgets.qt_table_view import QtCheckableTableView
-from qtpy.QtCore import Signal
+from qtpy.QtCore import Signal, Qt
 from qtpy.QtWidgets import QFormLayout
 
 from ims2micro.utilities import style_form_layout
@@ -54,14 +54,28 @@ class FiducialTableDialog(QtFramelessTool):
     def connect_events(self, state: bool = True):
         """Connect events."""
         # TODO: connect event that updates checkbox state when user changes visibility in layer list
+        # TODO: connect event that monitors which key is pressed
         # change of model events
         connect(self.parent().fixed_points_layer.events.data, self.on_load, state=state)
         connect(self.parent().moving_points_layer.events.data, self.on_load, state=state)
         connect(self.parent().evt_predicted, self.on_load, state=state)
         # table events
-        connect(self.table.doubleClicked, self.on_zoom_in, state=state)
+        connect(self.table.doubleClicked, self.on_double_click, state=state)
 
-    def on_zoom_in(self, index):
+    def keyPressEvent(self, evt):
+        """Key press event."""
+        if evt.key() == Qt.Key_Escape:
+            evt.ignore()
+        elif evt.key() == Qt.Key_Backspace or evt.key() == Qt.Key_Delete:
+            self.on_delete_row()
+        else:
+            super().keyPressEvent(evt)
+
+    def on_delete_row(self):
+        """Delete row."""
+        print("Delete row")
+
+    def on_double_click(self, index):
         """Zoom in."""
         row = index.row()
         ym, xm, yi, xi = self.points_data[row]

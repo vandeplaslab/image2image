@@ -57,15 +57,13 @@ class LoadWidget(QWidget):
         layout.addRow(hp.make_label(self, self.INFO_TEXT, bold=True, wrap=True, alignment=Qt.AlignCenter))
         layout.addRow(hp.make_h_layout(self.load_btn, self.close_btn))
         layout.addRow(self.channel_choice)
-        layout.addRow(hp.make_label(self, "Resolution (μm)"), self.resolution_edit)
+        layout.addRow(hp.make_label(self, "Pixel size (μm)"), self.resolution_edit)
         self.setLayout(layout)
         return layout
 
     def _on_close_dataset(self, force: bool = False) -> bool:
         """Close dataset."""
         from ims2micro._dialogs import CloseDatasetDialog
-
-        print(self.model.reader.data)
 
         if self.model.n_paths:
             config = None

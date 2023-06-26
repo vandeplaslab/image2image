@@ -30,8 +30,6 @@ class CloseDatasetDialog(QtDialog):
             "Check all",
             clicked=self.on_check_all,
             value=True,
-            tristate=True
-            # , model=QtTriCheckBox
         )
         # iterate over all available paths
         self.checkboxes = []
@@ -68,13 +66,7 @@ class CloseDatasetDialog(QtDialog):
         """Apply."""
         self.config = self.get_config()
         all_checked = len(self.config) == len(self.checkboxes)
-        if all_checked:
-            state = Qt.Checked
-        elif len(self.config) == 0:
-            state = Qt.Unchecked
-        else:
-            state = Qt.PartiallyChecked
-        self.all_check.setCheckState(state)
+        self.all_check.setCheckState(Qt.Checked if all_checked else Qt.Unchecked)
 
     def get_config(self) -> ty.List[Path]:
         """Return state."""
@@ -95,9 +87,9 @@ class ImportSelectDialog(QtDialog):
     # noinspection PyAttributeOutsideInit
     def make_panel(self) -> QFormLayout:
         """Make panel."""
-        self.all_check = hp.make_checkbox(self, "Check all", func=self.on_check_all, value=True, tristate=True)
-        self.micro_check = hp.make_checkbox(self, "Microscope", value=True, func=self.on_apply)
-        self.ims_check = hp.make_checkbox(self, "IMS", value=True, func=self.on_apply)
+        self.all_check = hp.make_checkbox(self, "Check all", clicked=self.on_check_all, value=True)
+        self.micro_check = hp.make_checkbox(self, "Microscopy images (if exist)", value=True, func=self.on_apply)
+        self.ims_check = hp.make_checkbox(self, "IMS images (if exist)", value=True, func=self.on_apply)
         self.fixed_check = hp.make_checkbox(self, "Microscopy fiducials", value=True, func=self.on_apply)
         self.moving_check = hp.make_checkbox(self, "Imaging fiducials", value=True, func=self.on_apply)
 
@@ -126,13 +118,7 @@ class ImportSelectDialog(QtDialog):
         """Apply."""
         self.config = self.get_config()
         all_checked = all(self.config.values())
-        if all_checked:
-            state = Qt.Checked
-        elif len(self.config) == 0:
-            state = Qt.Unchecked
-        else:
-            state = Qt.PartiallyChecked
-        self.all_check.setCheckState(state)
+        self.all_check.setCheckState(Qt.Checked if all_checked else Qt.Unchecked)
 
     def get_config(self) -> ty.Dict[str, bool]:
         """Return state."""

@@ -18,9 +18,12 @@ class MicroWrapper(DataWrapper):
 
     def __init__(self, reader_or_array: ty.Dict[str, ty.Any]):
         super().__init__(reader_or_array)
-        self.resolution = (
-            reader_or_array.base_layer_pixel_res if hasattr(reader_or_array, "base_layer_pixel_res") else 1.0
-        )
+
+        resolution = [1.0]
+        for _, _reader_or_array in reader_or_array.items():
+            if hasattr(_reader_or_array, "base_layer_pixel_res"):
+                resolution.append(_reader_or_array.base_layer_pixel_res)
+        self.resolution = np.min(resolution)
 
     def reader_image_iter(self) -> ty.Iterator[ty.Tuple[str, ty.Any, np.ndarray, int]]:
         """Iterator to add channels."""
