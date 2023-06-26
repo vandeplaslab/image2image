@@ -22,7 +22,7 @@ from qtpy.QtWidgets import QHBoxLayout, QMainWindow, QSizePolicy, QVBoxLayout, Q
 from superqt import ensure_main_thread
 
 # need to load to ensure all assets are loaded properly
-import ims2micro.assets
+import ims2micro.assets  # noqa: F401
 from ims2micro import __version__
 from ims2micro._select import IMSWidget, MicroscopyWidget
 from ims2micro.config import CONFIG
