@@ -35,6 +35,8 @@ update_icon_mapping(
         "web": "mdi.web",
         "bug": "fa5s.bug",
         "info": "fa5s.info-circle",
+        "lock_closed": "fa5s.lock",
+        "lock_open": "fa5s.lock-open",
     }
 )
 THEMES.register_themes()

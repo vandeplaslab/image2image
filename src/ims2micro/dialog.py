@@ -566,6 +566,11 @@ class ImageRegistrationWindow(QMainWindow, IndicatorMixin, ImageViewMixin):
             else:
                 layer.text = _get_text_format()
 
+    def on_lock(self):
+        """Lock transformation."""
+        self.on_set_focus()
+        hp.disable_widgets(self.x_center, self.y_center, self.zoom, disabled=self.lock_btn.locked, min_opacity=0.75)
+
     def on_set_focus(self):
         """Lock current focus to specified range."""
         self.zoom.setValue(self.view_fixed.viewer.camera.zoom)
@@ -608,12 +613,6 @@ class ImageRegistrationWindow(QMainWindow, IndicatorMixin, ImageViewMixin):
         hp.set_combobox_data(self.transform_choice, TRANSFORMATION_TRANSLATIONS, "Affine")
         self.transform_choice.currentTextChanged.connect(self.on_run)
 
-        self.run_btn = hp.make_btn(
-            self,
-            "Compute transformation",
-            tooltip="Compute transformation between the fixed and moving image.",
-            func=self.on_run,
-        )
         self.save_btn = hp.make_btn(
             self,
             "Export to file",
@@ -640,7 +639,6 @@ class ImageRegistrationWindow(QMainWindow, IndicatorMixin, ImageViewMixin):
         side_layout.addRow(hp.make_h_line_with_text("Transformation"))
         side_layout.addRow(hp.make_label(self, "Type of transformation"), self.transform_choice)
         side_layout.addRow(self.view_btn)
-        side_layout.addRow(self.run_btn)
         side_layout.addRow(self.save_btn)
         side_layout.addRow(hp.make_spacer_widget())
         side_layout.addRow(hp.make_h_line_with_text("Settings"))
@@ -725,7 +723,8 @@ class ImageRegistrationWindow(QMainWindow, IndicatorMixin, ImageViewMixin):
         self.setMenuBar(self.menubar)
 
     def _make_focus_layout(self):
-        self.set_current_focus_btn = hp.make_btn(self, "Set current range", func=self.on_set_focus)
+        self.lock_btn = hp.make_lock_btn(self, func=self.on_lock, medium=True)
+        # self.set_current_focus_btn = hp.make_btn(self, "Set current range", func=self.on_set_focus)
         self.x_center = hp.make_double_spin_box(self, -1e5, 1e5, step_size=500)
         self.y_center = hp.make_double_spin_box(self, -1e5, 1e5, step_size=500)
         self.zoom = hp.make_double_spin_box(self, -1e5, 1e5, step_size=0.5, n_decimals=4)
@@ -736,7 +735,7 @@ class ImageRegistrationWindow(QMainWindow, IndicatorMixin, ImageViewMixin):
         layout.addRow(hp.make_label(self, "Center (x)"), self.x_center)
         layout.addRow(hp.make_label(self, "Center (y)"), self.y_center)
         layout.addRow(hp.make_label(self, "Zoom"), self.zoom)
-        layout.addRow(hp.make_h_layout(self.set_current_focus_btn, self.use_focus_btn))
+        layout.addRow(hp.make_h_layout(self.lock_btn, self.use_focus_btn, stretch_id=1))
         return layout
 
     def _make_settings_layout(self):
@@ -792,8 +791,9 @@ class ImageRegistrationWindow(QMainWindow, IndicatorMixin, ImageViewMixin):
     def _make_image_layout(self):
         self.info = hp.make_label(
             self,
-            "Please select at least <b>3 points</b> in either image to compute transformation.",
+            "Please select at least <b>3 points</b> in each image to compute transformation.",
             tooltip="Information regarding registration.",
+            object_name="tip_label",
         )
 
         view_layout = QVBoxLayout()
