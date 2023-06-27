@@ -28,6 +28,33 @@ PREFERRED_COLORMAPS = [
 ]
 
 
+def open_link(url: str):
+    """Open link."""
+    import webbrowser
+
+    webbrowser.open(url)
+
+
+def open_docs():
+    """Open documentation site."""
+    open_link("https://ims2micro.readthedocs.io/en/latest/")
+
+
+def open_github():
+    """Open GitHub website."""
+    open_link("https://github.com/vandeplaslab/ims2micro")
+
+
+def open_request():
+    """Open GitHub website."""
+    open_link("https://github.com/vandeplaslab/ims2micro/issues/new")
+
+
+def open_bug_report():
+    """Open GitHub website."""
+    open_link("https://github.com/vandeplaslab/ims2micro/issues/new")
+
+
 def style_form_layout(layout):
     """Override certain styles for macOS."""
     from qtextra.utils.utilities import IS_MAC

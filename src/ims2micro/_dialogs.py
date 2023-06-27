@@ -8,7 +8,7 @@ from koyo.typing import PathLike
 from loguru import logger
 from qtextra.utils.table_config import TableConfig
 from qtextra.utils.utilities import connect
-from qtextra.widgets.qt_dialog import QtDialog, QtFramelessTool
+from qtextra.widgets.qt_dialog import QtDialog, QtFramelessPopup, QtFramelessTool
 from qtextra.widgets.qt_table_view import QtCheckableTableView
 from qtpy.QtCore import Qt, Signal
 from qtpy.QtWidgets import QFormLayout
@@ -483,3 +483,58 @@ class ImportSelectDialog(QtDialog):
             "fixed": self.fixed_check.isChecked(),
             "moving": self.moving_check.isChecked(),
         }
+
+
+def open_about(parent):
+    """Open dialog with information about the app."""
+    dlg = DialogAbout(parent)
+    dlg.show()
+
+
+class DialogAbout(QtFramelessPopup):
+    """About dialog."""
+
+    def __init__(self, parent):
+        super().__init__(parent)
+
+    # noinspection PyAttributeOutsideInit
+    def make_panel(self):
+        """Make panel."""
+        from qtextra.widgets.qt_svg import QtColoredSVGIcon
+
+        from ims2micro import __version__
+        from ims2micro.assets import ICON_SVG
+
+        links = {
+            "project": "https://github.com/vandeplaslab/ims2micro",
+            "github": "https://github.com/lukasz-migas",
+            "website": "https://lukasz-migas.com/",
+        }
+
+        text = f"""
+        <p><h2><strong>ims2micro</strong></h2></p>
+        <p><strong>Version:</strong> {__version__}</p>
+        <p><strong>Author:</strong> Lukasz G. Migas</p>
+        <p><strong>Email:</strong> {hp.parse_link_to_link_tag("mailto:l.g.migas@tudelft.nl",
+                                                              "l.g.migas@tudelft.nl")}</p>
+        <p><strong>GitHub:</strong>&nbsp;{hp.parse_link_to_link_tag(links["project"])}</p>
+        <p><strong>Project's GitHub:</strong>&nbsp;{hp.parse_link_to_link_tag(links["github"])}</p>
+        <p><strong>Author's website:</strong>&nbsp;{hp.parse_link_to_link_tag(links["website"])}</p>
+        <br>
+        <p>Developed in the Van de Plas lab</p>
+        """
+
+        pix = QtColoredSVGIcon(ICON_SVG)
+        self._image = hp.make_label(self, "")
+        self._image.setPixmap(pix.pixmap(300, 300))
+
+        # about label
+        self.about_label = hp.make_label(self)
+        self.about_label.setText(text)
+        self.about_label.setAlignment(Qt.AlignCenter)
+
+        # set layout
+        vertical_layout = hp.make_v_layout()
+        vertical_layout.addWidget(self._image, alignment=Qt.AlignHCenter)
+        vertical_layout.addWidget(self.about_label)
+        return vertical_layout

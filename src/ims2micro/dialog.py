@@ -18,7 +18,7 @@ from qtextra.mixins import IndicatorMixin
 from qtextra.utils.utilities import connect
 from qtextra.widgets.qt_mini_toolbar import QtMiniToolbar
 from qtpy.QtCore import Qt, Signal
-from qtpy.QtWidgets import QHBoxLayout, QMainWindow, QSizePolicy, QVBoxLayout, QWidget
+from qtpy.QtWidgets import QHBoxLayout, QMainWindow, QMenuBar, QSizePolicy, QVBoxLayout, QWidget
 from superqt import ensure_main_thread
 
 # need to load to ensure all assets are loaded properly
@@ -590,7 +590,7 @@ class ImageRegistrationDialog(QMainWindow, IndicatorMixin, ImageViewMixin):
         self.viewer_orientation.currentText()
 
     # noinspection PyAttributeOutsideInit
-    def _setup_ui(self) -> QHBoxLayout:
+    def _setup_ui(self):
         """Create panel."""
         view_layout = self._make_image_layout()
 
@@ -635,9 +635,9 @@ class ImageRegistrationDialog(QMainWindow, IndicatorMixin, ImageViewMixin):
         side_layout.addRow(self._micro_widget)
         side_layout.addRow(hp.make_h_line_with_text("+"))
         side_layout.addRow(self._ims_widget)
-        side_layout.addRow(hp.make_h_line(self))
+        side_layout.addRow(hp.make_h_line_with_text("Area of interest"))
         side_layout.addRow(self._make_focus_layout())
-        side_layout.addRow(hp.make_h_line(self))
+        side_layout.addRow(hp.make_h_line_with_text("Transformation"))
         side_layout.addRow(hp.make_label(self, "Type of transformation"), self.transform_choice)
         side_layout.addRow(self.view_btn)
         side_layout.addRow(self.run_btn)
@@ -654,6 +654,75 @@ class ImageRegistrationDialog(QMainWindow, IndicatorMixin, ImageViewMixin):
         layout.addLayout(side_layout)
         main_layout = QVBoxLayout(widget)
         main_layout.addLayout(layout)
+
+        # extra settings
+        self._make_menu()
+        self._make_icon()
+
+    def _make_icon(self):
+        """Make icon."""
+        from ims2micro.assets import ICON_ICO
+
+        self.setWindowIcon(hp.get_icon_from_img(ICON_ICO))
+
+    def _make_menu(self):
+        """Make menu items."""
+        from ims2micro._dialogs import open_about
+        from ims2micro.utilities import open_bug_report, open_docs, open_github, open_request
+
+        # File menu
+        menu_file = hp.make_menu(self, "File")
+        hp.make_menu_item(self, "Import configuration file (.json, .toml)...", menu=menu_file, func=self.on_load)
+        hp.make_menu_item(
+            self,
+            "Add microscopy image (.tiff, .png, .jpg, + others)...",
+            menu=menu_file,
+            func=self._micro_widget.on_select_dataset,
+        )
+        hp.make_menu_item(
+            self,
+            "Add imaging image (.imzML, .tdf, .tsf, + others)...",
+            menu=menu_file,
+            func=self._ims_widget.on_select_dataset,
+        )
+        menu_file.addSeparator()
+        hp.make_menu_item(self, "Quit", menu=menu_file, func=self.close)
+
+        # Help menu
+        menu_help = hp.make_menu(self, "Help")
+        hp.make_menu_item(self, "Documentation (in browser)", menu=menu_help, icon="web", func=open_docs)
+        hp.make_menu_item(
+            self,
+            "GitHub (online)",
+            menu=menu_help,
+            status_tip="Open project's GitHub page.",
+            icon="github",
+            func=open_github,
+        )
+        hp.make_menu_item(
+            self,
+            "Request Feature (online)",
+            menu=menu_help,
+            status_tip="Open project's GitHub feature request page.",
+            icon="request",
+            func=open_request,
+        )
+        hp.make_menu_item(
+            self,
+            "Report Bug (online)",
+            menu=menu_help,
+            status_tip="Open project's GitHub bug report page.",
+            icon="bug",
+            func=open_bug_report,
+        )
+        menu_help.addSeparator()
+        hp.make_menu_item(self, "About...", menu=menu_help, func=partial(open_about, parent=self), icon="info")
+
+        # set actions
+        self.menubar = QMenuBar(self)
+        self.menubar.addAction(menu_file.menuAction())
+        self.menubar.addAction(menu_help.menuAction())
+        self.setMenuBar(self.menubar)
 
     def _make_focus_layout(self):
         self.set_current_focus_btn = hp.make_btn(self, "Set current range", func=self.on_set_focus)
@@ -865,4 +934,6 @@ class ImageRegistrationDialog(QMainWindow, IndicatorMixin, ImageViewMixin):
     def closeEvent(self, evt):
         """Close."""
         CONFIG.save()
-        return super().closeEvent(evt)
+        if self.temporary_transform:
+            if hp.confirm(self, "There might be unsaved changes. Would you like to save it?"):
+                self.on_save()

@@ -3,9 +3,12 @@ from pathlib import Path
 
 from qtextra.assets import update_icon_mapping, update_icons, update_styles
 from qtextra.config import THEMES
-from qtextra.utils.utilities import get_module_path
+from qtextra.utils.utilities import IS_MAC, get_module_path
 
 HERE = Path(get_module_path("ims2micro.assets", "__init__.py")).parent.resolve()
+
+ICON_SVG = str(HERE / "icon.svg")
+ICON_ICO = str(HERE / ("icon.icns" if IS_MAC else "icon.ico"))
 
 icon_path = HERE / "icons"
 icon_path.mkdir(exist_ok=True)
@@ -27,6 +30,11 @@ update_icon_mapping(
         "zoom": "mdi.magnify",
         "close": "fa5s.trash-alt",
         "bring_to_top": "fa5s.angle-double-up",
+        "github": "fa5b.github",
+        "request": "msc.request-changes",
+        "web": "mdi.web",
+        "bug": "fa5s.bug",
+        "info": "fa5s.info-circle",
     }
 )
 THEMES.register_themes()

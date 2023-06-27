@@ -44,7 +44,7 @@ class LoadWidget(QWidget):
 
     def _setup_ui(self):
         """Setup UI."""
-        self.load_btn = hp.make_btn(self, "Add image...", func=self._on_select_dataset)
+        self.load_btn = hp.make_btn(self, "Add image...", func=self.on_select_dataset)
         self.close_btn = hp.make_btn(self, "Close", func=self._on_close_dataset)
 
         self.resolution_edit = hp.make_line_edit(self, placeholder="Enter spatial resolution...", text="1.0")
@@ -86,7 +86,7 @@ class LoadWidget(QWidget):
             paths = [paths]
         self._on_load_dataset(paths)
 
-    def _on_select_dataset(self, evt=None):
+    def on_select_dataset(self, evt=None):
         """Load data."""
         path = hp.get_filename(
             self,
