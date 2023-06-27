@@ -9,6 +9,7 @@ HERE = Path(get_module_path("ims2micro.assets", "__init__.py")).parent.resolve()
 
 ICON_SVG = str(HERE / "icon.svg")
 ICON_ICO = str(HERE / ("icon.icns" if IS_MAC else "icon.ico"))
+ICON_PNG = str(HERE / "icon.png")
 
 icon_path = HERE / "icons"
 icon_path.mkdir(exist_ok=True)

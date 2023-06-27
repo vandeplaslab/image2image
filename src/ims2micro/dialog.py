@@ -43,8 +43,8 @@ class ImageRegistrationWindow(QMainWindow, IndicatorMixin, ImageViewMixin):
     evt_predicted = Signal()
 
     def __init__(self, parent):
-        super().__init__()
-        self.setAttribute(Qt.WA_DeleteOnClose)
+        super().__init__(parent)
+        self.setAttribute(Qt.WA_DeleteOnClose)  # noqa
         self.setWindowTitle(f"ims2micro: Simple image registration tool (v{__version__})")
         self.setUnifiedTitleAndToolBarOnMac(True)
         self.setMouseTracking(True)
@@ -241,7 +241,7 @@ class ImageRegistrationWindow(QMainWindow, IndicatorMixin, ImageViewMixin):
         except Exception as e:
             logger.error(e)
 
-    def on_change_view_type(self, view_type: str):
+    def on_change_view_type(self, _view_type: str):
         """Change view type."""
         if self._ims_widget.model.n_paths:
             self._plot_moving_layers()
@@ -287,20 +287,20 @@ class ImageRegistrationWindow(QMainWindow, IndicatorMixin, ImageViewMixin):
         if widget is not None:
             widget.setChecked(True)
 
-    def on_panzoom(self, which: str, evt=None):
+    def on_panzoom(self, which: str, _evt=None):
         """Switch to `panzoom` tool."""
         self._select_layer(which)
         layer = self.fixed_points_layer if which == "fixed" else self.moving_points_layer
         layer.mode = "pan_zoom"
 
-    def on_move(self, which: str, evt=None):
+    def on_move(self, which: str, _evt=None):
         """Move points."""
         self._select_layer(which)
         widget = self.fixed_move_btn if which == "fixed" else self.moving_move_btn
         layer = self.fixed_points_layer if which == "fixed" else self.moving_points_layer
         layer.mode = "select" if widget.isChecked() else "pan_zoom"
 
-    def on_add(self, which: str, evt=None):
+    def on_add(self, which: str, _evt=None):
         """Add point to the image."""
         self._select_layer(which)
         # extract button and layer based on the appropriate mode
@@ -309,7 +309,7 @@ class ImageRegistrationWindow(QMainWindow, IndicatorMixin, ImageViewMixin):
         # make sure the add mode is active
         layer.mode = "add" if widget.isChecked() else "pan_zoom"
 
-    def on_remove(self, which: str, evt=None):
+    def on_remove(self, which: str, _evt=None):
         """Remove point to the image."""
         layer = self.fixed_points_layer if which == "fixed" else self.moving_points_layer
         # there is no data to remove
@@ -319,7 +319,7 @@ class ImageRegistrationWindow(QMainWindow, IndicatorMixin, ImageViewMixin):
         data = layer.data
         layer.data = np.delete(data, -1, 0)
 
-    def on_remove_selected(self, which: str, evt=None):
+    def on_remove_selected(self, which: str, _evt=None):
         """Remove selected points from the image."""
         layer = self.fixed_points_layer if which == "fixed" else self.moving_points_layer
         # there is no data to remove
@@ -427,6 +427,7 @@ class ImageRegistrationWindow(QMainWindow, IndicatorMixin, ImageViewMixin):
                 if config["ims"]:
                     self._ims_widget._on_close_dataset(force=True)
 
+                # load data from config file
                 (
                     transformation_type,
                     micro_paths,
@@ -449,14 +450,18 @@ class ImageRegistrationWindow(QMainWindow, IndicatorMixin, ImageViewMixin):
                         if ims_paths_missing:
                             ims_paths = dlg.fix_missing_paths(ims_paths_missing, ims_paths)
 
+                # set new paths
                 if micro_paths:
                     self._micro_widget.on_set_path(micro_paths)
                 if ims_paths:
                     self._ims_widget.on_set_path(ims_paths)
+
+                # update points
                 if moving_points is not None:
                     self._update_layer_points(self.moving_points_layer, moving_points, block=False)
                 if fixed_points is not None:
                     self._update_layer_points(self.fixed_points_layer, fixed_points, block=False)
+                # force update of text
                 self.on_update_text(block=False)
 
     def on_view_fiducials(self):
@@ -590,7 +595,7 @@ class ImageRegistrationWindow(QMainWindow, IndicatorMixin, ImageViewMixin):
             f" zoom={self.zoom.value():.3f}"
         )
 
-    def on_viewer_orientation_changed(self, value=None):
+    def on_viewer_orientation_changed(self, _value=None):
         """Change viewer orientation."""
         self.viewer_orientation.currentText()
 
@@ -799,7 +804,7 @@ class ImageRegistrationWindow(QMainWindow, IndicatorMixin, ImageViewMixin):
         view_layout = QVBoxLayout()
         view_layout.setContentsMargins(0, 0, 0, 0)
         view_layout.setSpacing(0)
-        view_layout.addWidget(self.info, alignment=Qt.AlignCenter)
+        view_layout.addWidget(self.info, alignment=Qt.AlignCenter)  # noqa
         view_layout.addLayout(self._make_fixed_view())
         view_layout.addWidget(hp.make_v_line())
         view_layout.addLayout(self._make_moving_view())
@@ -811,7 +816,7 @@ class ImageRegistrationWindow(QMainWindow, IndicatorMixin, ImageViewMixin):
         self.view_fixed.viewer.text_overlay.font_size = 8
         self.view_fixed.viewer.text_overlay.visible = True
 
-        toolbar = QtMiniToolbar(self, Qt.Vertical, add_spacer=True)
+        toolbar = QtMiniToolbar(self, Qt.Vertical, add_spacer=True)  # noqa
         _fixed_clear_btn = toolbar.insert_qta_tool(
             "remove_all",
             func=lambda *args: self.on_clear("fixed", force=False),
@@ -874,7 +879,7 @@ class ImageRegistrationWindow(QMainWindow, IndicatorMixin, ImageViewMixin):
         self.view_moving.viewer.text_overlay.font_size = 8
         self.view_moving.viewer.text_overlay.visible = True
 
-        toolbar = QtMiniToolbar(self, Qt.Vertical, add_spacer=True)
+        toolbar = QtMiniToolbar(self, Qt.Vertical, add_spacer=True)  # noqa
         _moving_clear_btn = toolbar.insert_qta_tool(
             "remove_all",
             func=lambda *args: self.on_clear("moving", force=False),

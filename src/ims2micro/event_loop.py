@@ -18,9 +18,8 @@ from qtpy.QtWidgets import QApplication
 from superqt import QMessageHandler
 
 from ims2micro import __version__
-from ims2micro.assets import ICON_ICO
+from ims2micro.assets import ICON_PNG
 
-# ICON_PATH = os.path.join(os.path.dirname(__file__), "..", "resources", "logo.png")
 APP_ID = f"ims2micro.app.{__version__}"
 
 
@@ -35,7 +34,7 @@ def set_app_id(app_id):
 _defaults = {
     "app_name": "ims2micro",
     "app_version": __version__,
-    "icon": ICON_ICO,
+    "icon": ICON_PNG,
     "org_name": "ims2micro",
     "org_domain": "",
     "app_id": APP_ID,
