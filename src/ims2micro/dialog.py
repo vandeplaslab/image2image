@@ -31,7 +31,7 @@ from ims2micro.models import DataModel, Transformation
 from ims2micro.utilities import _get_text_data, _get_text_format, get_colormap, init_points_layer, style_form_layout
 
 
-class ImageRegistrationDialog(QMainWindow, IndicatorMixin, ImageViewMixin):
+class ImageRegistrationWindow(QMainWindow, IndicatorMixin, ImageViewMixin):
     """Image registration dialog."""
 
     fixed_image_layer: ty.Optional[ty.List["Image"]] = None

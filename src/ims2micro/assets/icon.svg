@@ -4,11 +4,15 @@
 	 viewBox="0 0 800 800" style="enable-background:new 0 0 800 800;" xml:space="preserve">
 <style type="text/css">
 	.st0{opacity:0.72;fill:#ED1C24;enable-background:new    ;}
-	.st1{fill:none;stroke:#DFFF94;stroke-width:66.667;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:133.3333;}
-	.st2{fill:none;stroke:#323232;stroke-width:66.6667;stroke-miterlimit:133.3333;}
+	.st1{fill:none;stroke:#323232;stroke-width:66.6667;stroke-miterlimit:133.3333;}
+	.st2{fill:none;stroke:#DFFF94;stroke-width:66.667;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:133.3333;}
 </style>
-<path class="st0" d="M100,398.7c0-247.1,52.9-300,300-300s300,52.9,300,300s-53,300-300,300S100,645.7,100,398.7z"/>
-<path class="st1" d="M264.5,498.7l90.5-90.5l0,0c5.2-5.2,5.2-13.7,0-18.9l0,0l-90.5-90.5"/>
-<path class="st2" d="M100,398.7c0-247.1,52.9-300,300-300s300,52.9,300,300s-53,300-300,300S100,645.7,100,398.7z"/>
-<path class="st1" d="M439.8,498.7l90.5-90.5l0,0c5.2-5.2,5.2-13.7,0-18.9l0,0l-90.5-90.5"/>
+<g>
+	<path class="st0" d="M44,400c0-293.2,62.8-356,356-356s356,62.8,356,356s-62.9,356-356,356S44,693.1,44,400z"/>
+	<path class="st1" d="M44,400c0-293.2,62.8-356,356-356s356,62.8,356,356s-62.9,356-356,356S44,693.1,44,400z"/>
+	<g>
+		<path class="st2" d="M209.4,541.3l127.9-127.9l0,0c7.4-7.4,7.4-19.4,0-26.7l0,0L209.4,258.7"/>
+		<path class="st2" d="M457.2,541.3l127.9-127.9l0,0c7.4-7.4,7.4-19.4,0-26.7l0,0L457.2,258.7"/>
+	</g>
+</g>
 </svg>
