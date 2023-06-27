@@ -41,7 +41,8 @@ dependencies = [
     "aicsimageio[bioformats]",
     "ome_types",
     "toml",
-    "h5py"
+    "h5py",
+    "dicttoxml",
     # "qtextra",
 ]
 

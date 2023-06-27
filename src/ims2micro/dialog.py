@@ -620,8 +620,8 @@ class ImageRegistrationWindow(QMainWindow, IndicatorMixin, ImageViewMixin):
 
         self.save_btn = hp.make_btn(
             self,
-            "Export to file",
-            tooltip="Export transformation to file.",
+            "Export to file...",
+            tooltip="Export transformation to file. XML format is usable by MATLAB fusion.",
             func=self.on_save,
         )
 

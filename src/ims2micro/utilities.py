@@ -158,3 +158,25 @@ def transform_image(moving_image: np.ndarray, transform) -> np.ndarray:
     from skimage.transform import warp
 
     return warp(moving_image, transform, clip=False)
+
+
+def write_xml_registration(output_path: PathLike, affine: np.ndarray):
+    """Export affine matrix as XML file."""
+    from dicttoxml import dicttoxml
+    from xml.dom.minidom import parseString
+
+    assert affine.ndim == 2, "Affine matrix must be 2D."
+    assert affine.shape == (3, 3), "Affine matrix must be 3x3."
+
+    temp = [
+        " ".join([str(x) for x in affine[0]]),
+        " ".join([str(x) for x in affine[1]]),
+        " ".join([str(x) for x in affine[2]]),
+    ]
+    affine = "\n".join(temp)
+    meta = {"affine_transformation_matrix": affine}
+
+    xml = dicttoxml(meta, custom_root="data_source_registration", attr_type=False)
+
+    with open(output_path, "w") as f:
+        f.write(parseString(xml).toprettyxml())

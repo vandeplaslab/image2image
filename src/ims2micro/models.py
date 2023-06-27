@@ -95,7 +95,9 @@ class DataModel(BaseModel):
 
     def get_filename(self) -> str:
         """Get representative filename."""
-        if self.n_paths == 1:
+        if self.n_paths == 0:
+            return "no_files"
+        elif self.n_paths == 1:
             return self.paths[0].parent.stem
         return self.paths[-1].parent.stem + "_multiple_files"
 
@@ -317,8 +319,19 @@ class Transformation(BaseModel):
             self.to_json(path)
         elif path.suffix == ".toml":
             self.to_toml(path)
+        elif path.suffix == ".xml":
+            self.to_xml(path)
         else:
             raise ValueError(f"Unknown file format: {path.suffix}")
+        logger.info(f"Exported to {path}")
+
+    def to_xml(self, path: PathLike):
+        """Export dat aas fusion file."""
+        from ims2micro.utilities import write_xml_registration
+
+        affine = self.compute(yx=False, px=True).params
+        affine = affine.flatten("F").reshape(3, 3)
+        write_xml_registration(path, affine)
 
     @classmethod
     def from_file(cls, path: PathLike):
@@ -434,8 +447,13 @@ def _read_imsmicrolink_config(config: ty.Dict):
     """Read imsmicrolink configuration file."""
     micro_paths, micro_paths_missing = _get_paths([config["PostIMS microscopy image"]])  # need to be a list
     ims_paths, ims_paths_missing = _get_paths(config["Pixel Map Datasets Files"])
-    fixed_points = np.array(config["PAQ microscopy points (xy, px)"])
-    moving_points = np.array(config["IMS pixel map points (xy, px)"])
+    fixed_points = np.array(config["PAQ microscopy points (xy, px)"])[:, ::-1]
+    moving_points = np.array(config["IMS pixel map points (xy, px)"])[:, ::-1]
+    padding = config["padding"]
+    if padding["x_left_padding (px)"]:
+        moving_points[:, 1] -= padding["x_left_padding (px)"]
+    if padding["y_top_padding (px)"]:
+        moving_points[:, 0] -= padding["y_top_padding (px)"]
     transformation_type = "Affine"
     return (
         transformation_type,
