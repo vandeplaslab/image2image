@@ -43,6 +43,7 @@ dependencies = [
     "toml",
     "h5py",
     "dicttoxml",
+    "czifile"
     # "qtextra",
 ]
 

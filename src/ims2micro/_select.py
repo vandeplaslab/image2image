@@ -11,7 +11,7 @@ from qtpy.QtGui import QRegExpValidator
 from qtpy.QtWidgets import QWidget
 from superqt.utils import thread_worker
 
-from ims2micro._dialogs import OverlayTableDialog
+from ims2micro._dialogs import OverlayTableDialog, SelectChannelsTableDialog
 from ims2micro.config import CONFIG
 from ims2micro.enums import ALLOWED_IMAGING_FORMATS, ALLOWED_MICROSCOPY_FORMATS, VIEW_TYPE_TRANSLATIONS
 from ims2micro.models import ImagingModel, MicroscopyModel
@@ -25,7 +25,7 @@ class LoadWidget(QWidget):
     """Widget for loading IMS data."""
 
     evt_loading = Signal()
-    evt_loaded = Signal(object)
+    evt_loaded = Signal(object, object)
     evt_closed = Signal(object)
     evt_toggle_channel = Signal(str, bool)
 
@@ -110,15 +110,23 @@ class LoadWidget(QWidget):
         func = thread_worker(
             model.load,
             start_thread=True,
-            connect={"returned": self._on_loaded_dataset, "errored": lambda: self.evt_loaded.emit(None)},
+            connect={"returned": self._on_loaded_dataset, "errored": lambda: self.evt_loaded.emit(None, None)},
         )
         func()
         logger.info(f"Started loading dataset - '{model.paths}'")
 
     def _on_loaded_dataset(self, model: "DataModel"):
         """Finished loading data."""
+        # setup resolution
         self.resolution_edit.setText(str(model.resolution))
-        self.evt_loaded.emit(model)
+        # select what should be loaded
+        dlg = SelectChannelsTableDialog(self, model)
+        channel_list = []
+        if dlg.exec_():
+            channel_list = dlg.channels
+        logger.debug(f"Selected channels: {channel_list}")
+        # load data into an image
+        self.evt_loaded.emit(model, channel_list)
 
     def _on_set_resolution(self, _evt=None):
         """Specify resolution."""
@@ -149,13 +157,15 @@ class IMSWidget(LoadWidget):
         connect(self.evt_loaded, self._on_update_choice)
         connect(self.evt_closed, self._on_clear_choice)
 
-    def _on_update_choice(self, _model):
+    def _on_update_choice(self, _model, _channel_list):
         """Update list of available options."""
         hp.combobox_setter(self.transformed_choice, clear=True, items=["None", *self.model.channel_names()])
+        self._on_toggle_transformed(self.transformed_choice.currentText())
 
     def _on_clear_choice(self, _model):
         """Clear list of available options."""
         hp.combobox_setter(self.transformed_choice, clear=True, items=["None"])
+        self._on_toggle_transformed(self.transformed_choice.currentText())
 
     def _setup_ui(self):
         """Setup UI."""

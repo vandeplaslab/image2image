@@ -10,11 +10,15 @@ def run(level: int = 10, no_color: bool = False, dev: bool = False):
     from qtextra.config import THEMES
 
     from ims2micro.appdirs import USER_LOG_DIR
-    from ims2micro.dialog import ImageRegistrationWindow
+    from ims2micro.dialog_register import ImageRegistrationWindow
     from ims2micro.event_loop import get_app
 
     set_loguru_log(USER_LOG_DIR / "log.txt", level=level, no_color=no_color, diagnose=True, catch=True)
     logger.enable("ims2micro")
+    if dev:
+        # enable extra loggers
+        logger.enable("qtextra")
+        logger.enable("qtreload")
 
     # make app
     app = get_app()
@@ -33,9 +37,6 @@ def run(level: int = 10, no_color: bool = False, dev: bool = False):
         faulthandler.enable(segfault_file, all_threads=True)
         logger.trace(f"Enabled fault handler to '{segfault_filename}'.")
 
-        # enable extra loggers
-        logger.enable("qtextra")
-        logger.enable("qtreload")
         dev = qdev(dlg, modules=["qtextra", "ims2micro"])
         dev.evt_theme.connect(lambda: THEMES.set_theme_stylesheet(dlg))
         dlg.centralWidget().layout().addWidget(dev)

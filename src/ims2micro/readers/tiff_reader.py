@@ -5,7 +5,6 @@ https://github.com/NHPatterson/napari-imsmicrolink/blob/master/src/napari_imsmic
 """
 import warnings
 from pathlib import Path
-
 from ome_types import from_xml
 from tifffile import TiffFile
 
@@ -21,15 +20,16 @@ from ims2micro.readers.utilities import (
     tf_zarr_read_single_ch,
     tifffile_to_dask,
 )
+from ims2micro.readers.base import BaseImageReader
 
 TIFF_EXTENSIONS = [".scn", ".ome.tiff", ".tif", ".tiff", ".svs", ".ndpi"]
 
 
-class TiffImageReader:
+class TiffImageReader(BaseImageReader):
     """TIFF image reader."""
 
-    def __init__(self, path, init_pyramid=True):
-        self.path = Path(path)
+    def __init__(self, path, init_pyramid: bool = True):
+        super().__init__(path)
         self.tf = TiffFile(self.path)
         self.reader = "tifffile"
 
@@ -44,12 +44,7 @@ class TiffImageReader:
         self.channel_colors = None
 
         if init_pyramid:
-            d_image = self.get_dask_pyr()
-            if isinstance(d_image, list):
-                self.pyr_levels_dask = {1: d_image[0]}
-            else:
-                self.pyr_levels_dask = {1: d_image}
-        self.base_layer_idx = 0
+            self._pyramid = self.pyramid
 
     def get_dask_pyr(self):
         """Get instance of Dask pyramid."""
@@ -119,7 +114,7 @@ class TiffImageReader:
         return im_dims, im_dtype, largest_series
 
     def read_single_channel(self, channel_idx: int):
-        """Read data from single channel."""
+        """Read data from a single channel."""
         if channel_idx > (self.n_channels - 1):
             warnings.warn(
                 "channel_idx exceeds number of channels, reading channel at channel_idx == 0",

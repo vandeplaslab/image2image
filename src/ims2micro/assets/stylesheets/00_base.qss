@@ -735,8 +735,12 @@ QStatusBar::item{
   border: None;
 }
 
-/* ----------------- QHeaderView ----------------- */
+/* ----------------- QtCheckableTableView ----------------- */
+
 QHeaderView::section {
-  background-color: {{ background }};
-  padding: 2px;
+    color: {{ text }};
+    background-color: {{ background }};
+    border-width: 0px 2px 2px 2px;
+    border-style: dotted;
+    border-color: {{ foreground }};
 }

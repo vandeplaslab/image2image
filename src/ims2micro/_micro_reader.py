@@ -8,6 +8,7 @@ from koyo.typing import PathLike
 from ims2micro.models import DataWrapper
 
 if ty.TYPE_CHECKING:
+    from ims2micro.readers.base import BaseImageReader
     from ims2micro.readers.tiff_reader import TiffImageReader
 
 IMAGE_EXTENSIONS = [".jpg", ".jpeg", ".png"]
@@ -16,7 +17,7 @@ IMAGE_EXTENSIONS = [".jpg", ".jpeg", ".png"]
 class MicroWrapper(DataWrapper):
     """Wrapper around microscopy data."""
 
-    def __init__(self, reader_or_array: ty.Dict[str, ty.Any]):
+    def __init__(self, reader_or_array: ty.Dict[str, "BaseImageReader"]):
         super().__init__(reader_or_array)
 
         resolution = [1.0]
@@ -32,18 +33,21 @@ class MicroWrapper(DataWrapper):
                 if reader_or_array.ndim == 2:
                     reader_or_array = np.atleast_3d(reader_or_array, axis=-1)
                     self.data[key] = reader_or_array  # replace to ensure it's 3d array
-                array = reader_or_array
+                array = [reader_or_array]
             else:
-                temp = reader_or_array.get_dask_pyr()
-                array = temp[0] if isinstance(temp, list) else temp
-            channel_axis = np.argmin(array.shape)
-            for ch in range(array.shape[channel_axis]):
+                temp = reader_or_array.pyramid
+                array = temp if isinstance(temp, list) else [temp]
+                shape = temp[0].shape
+
+            channel_axis = np.argmin(shape)
+            n_channels = shape[channel_axis]
+            for ch in range(n_channels):
                 if channel_axis == 0:
-                    yield key, self.data[key], array[ch], ch
+                    yield key, self.data[key], [a[ch] for a in array], ch
                 elif channel_axis == 1:
-                    yield key, self.data[key], array[:, ch], ch
+                    yield key, self.data[key], [a[:, ch] for a in array], ch
                 else:
-                    yield key, self.data[key], array[..., ch], ch
+                    yield key, self.data[key], [a[..., ch] for a in array], ch
 
     def image_iter(self, view_type: ty.Optional[str] = None) -> ty.Iterator[np.ndarray]:
         """Iterator to add channels."""
@@ -68,13 +72,18 @@ class MicroWrapper(DataWrapper):
 def read_microscopy(path: PathLike, wrapper: ty.Optional["MicroWrapper"] = None) -> "MicroWrapper":
     """Read microscopy data."""
     from ims2micro.readers.tiff_reader import TIFF_EXTENSIONS
+    from ims2micro.readers.czi_reader import CZI_EXTENSIONS
 
     path = Path(path)
     assert path.exists(), f"File does not exist: {path}"
-    assert path.suffix.lower() in TIFF_EXTENSIONS + IMAGE_EXTENSIONS, f"Unsupported file format: {path.suffix}"
+    assert (
+        path.suffix.lower() in TIFF_EXTENSIONS + IMAGE_EXTENSIONS + CZI_EXTENSIONS
+    ), f"Unsupported file format: {path.suffix}"
 
     if path.suffix in TIFF_EXTENSIONS:
         data = _read_tiff(path)
+    elif path.suffix in CZI_EXTENSIONS:
+        data = _read_czi(path)
     elif path.suffix in IMAGE_EXTENSIONS:
         data = _read_image(path)
     else:
@@ -86,6 +95,15 @@ def read_microscopy(path: PathLike, wrapper: ty.Optional["MicroWrapper"] = None)
             wrapper.add(key, value)
     wrapper.add_path(path)
     return wrapper
+
+
+def _read_czi(path: PathLike):
+    """Read CZI file."""
+    from ims2micro.readers.czi_reader import CziImageReader
+
+    path = Path(path)
+    assert path.exists(), f"File does not exist: {path}"
+    return {path.name: CziImageReader(path)}
 
 
 def _read_tiff(path: PathLike) -> ty.Dict[str, "TiffImageReader"]:

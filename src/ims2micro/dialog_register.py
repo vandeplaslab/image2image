@@ -80,10 +80,11 @@ class ImageRegistrationWindow(QMainWindow, IndicatorMixin, ImageViewMixin):
                 size=self.fixed_point_size.value(),
                 name="Fixed (points)",
                 face_color="green",
-                edge_color="black",
-                symbol="cross",
+                edge_color="white",
+                symbol="ring",
             )
-            init_points_layer(layer)
+            visual = self.view_fixed.widget.layer_to_visual[layer]
+            init_points_layer(layer, visual)
         return self.view_fixed.layers["Fixed (points)"]
 
     @property
@@ -95,10 +96,11 @@ class ImageRegistrationWindow(QMainWindow, IndicatorMixin, ImageViewMixin):
                 size=self.moving_point_size.value(),
                 name="Moving (points)",
                 face_color="red",
-                edge_color="black",
-                symbol="x",
+                edge_color="white",
+                symbol="ring",
             )
-            init_points_layer(layer)
+            visual = self.view_moving.widget.layer_to_visual[layer]
+            init_points_layer(layer, visual)
         return self.view_moving.layers["Moving (points)"]
 
     def setup_events(self, state: bool = True):
@@ -130,35 +132,44 @@ class ImageRegistrationWindow(QMainWindow, IndicatorMixin, ImageViewMixin):
         indicator.setVisible(state)
 
     @ensure_main_thread
-    def on_load_fixed(self, model: DataModel):
+    def on_load_fixed(self, model: DataModel, channel_list: ty.List[str]):
         """Load fixed image."""
         if model and model.n_paths:
-            self._on_load_fixed(model)
+            self._on_load_fixed(model, channel_list)
+            hp.toast(self, "Loaded fixed data", f"Loaded fixed model with {model.n_paths} paths.")
         else:
             logger.warning("Failed to load microscopy data.")
         self.on_indicator("fixed", False)
 
-    def _on_load_fixed(self, model: DataModel):
+    def _on_load_fixed(self, model: DataModel, channel_list: ty.List[str] = None):
         with MeasureTimer() as timer:
             logger.info(f"Loading microscopy data with {model.n_paths} paths...")
-            self._plot_fixed_layers()
+            self._plot_fixed_layers(channel_list)
             self.view_fixed.viewer.reset_view()
         logger.info(f"Loaded microscopy data in {timer()}")
 
-    def _plot_fixed_layers(self):
+    def _plot_fixed_layers(self, channel_list: ty.List[str] = None):
         wrapper = self._micro_widget.model.get_reader()
+        if channel_list is None:
+            channel_list = wrapper.channel_names()
         fixed_image_layer = []
         used = [layer.colormap for layer in self.view_fixed.layers if isinstance(layer, Image)]
         for index, (name, array) in enumerate(wrapper.channel_image_iter()):
             logger.debug(f"Adding '{name}' to fixed view...")
-            if name in self.view_fixed.layers:
-                fixed_image_layer.append(self.view_fixed.layers[name])
-                continue
-            fixed_image_layer.append(
-                self.view_fixed.viewer.add_image(
-                    array, name=name, blending="additive", colormap=get_colormap(index, used)
+            with MeasureTimer() as timer:
+                if name in self.view_fixed.layers:
+                    fixed_image_layer.append(self.view_fixed.layers[name])
+                    continue
+                fixed_image_layer.append(
+                    self.view_fixed.viewer.add_image(
+                        array,
+                        name=name,
+                        blending="additive",
+                        colormap=get_colormap(index, used),
+                        visible=name in channel_list,
+                    )
                 )
-            )
+                logger.debug(f"Added '{name}' to fixed view in {timer()}.")
         self.fixed_image_layer = fixed_image_layer
         if isinstance(self.fixed_image_layer, list) and len(self.fixed_image_layer) > 1:
             link_layers(self.fixed_image_layer, attributes=("opacity",))
@@ -184,44 +195,55 @@ class ImageRegistrationWindow(QMainWindow, IndicatorMixin, ImageViewMixin):
         view.layers[name].visible = state
 
     @ensure_main_thread
-    def on_load_moving(self, model: DataModel):
+    def on_load_moving(self, model: DataModel, channel_list: ty.List[str]):
         """Open modality."""
         if model and model.n_paths:
-            self._on_load_moving(model)
+            self._on_load_moving(model, channel_list)
+            hp.toast(self, "Loaded moving data", f"Loaded moving model with {model.n_paths} paths.")
         else:
             logger.warning("Failed to load microscopy data.")
         self.on_indicator("moving", False)
 
-    def _on_load_moving(self, model: DataModel):
+    def _on_load_moving(self, model: DataModel, channel_list: ty.List[str] = None):
         with MeasureTimer() as timer:
             logger.info(f"Loading imaging data with {model.n_paths} paths...")
-            self._plot_moving_layers()
+            self._plot_moving_layers(channel_list)
             self.on_apply(update_data=True)
             self.view_moving.viewer.reset_view()
         logger.info(f"Loaded imaging data in {timer()}")
 
-    def _plot_moving_layers(self):
+    def _plot_moving_layers(self, channel_list: ty.List[str] = None):
+        CONFIG.view_type = ViewType(CONFIG.view_type)
+        is_overlay = CONFIG.view_type == ViewType.OVERLAY
         wrapper = self._ims_widget.model.get_reader()
+        if channel_list is None:
+            channel_list = wrapper.channel_names(CONFIG.view_type)
+
         moving_image_layer = []
         used = [layer.colormap for layer in self.view_moving.layers if isinstance(layer, Image)]
         for index, (name, array) in enumerate(wrapper.channel_image_iter(CONFIG.view_type)):
             logger.debug(f"Adding '{name}' to moving view...")
-            colormap = get_colormap(index, used) if ViewType(CONFIG.view_type) == ViewType.OVERLAY else "turbo"
-            if name in self.view_moving.layers:
-                layer = self.view_moving.layers[name]
-                layer.data = array
-                layer.colormap = colormap
-                layer.reset_contrast_limits()
-                moving_image_layer.append(layer)
-                continue
-            moving_image_layer.append(
-                self.view_moving.viewer.add_image(
-                    array,
-                    name=name,
-                    blending="additive",
-                    colormap=colormap,
+            with MeasureTimer() as timer:
+                colormap = get_colormap(index, used) if is_overlay else "turbo"
+                is_visible = True if (is_overlay and index == 0) else (not is_overlay)
+                if name in self.view_moving.layers:
+                    layer = self.view_moving.layers[name]
+                    layer.data = array
+                    layer.colormap = colormap
+                    layer.reset_contrast_limits()
+                    layer.visible = is_visible
+                    moving_image_layer.append(layer)
+                    continue
+                moving_image_layer.append(
+                    self.view_moving.viewer.add_image(
+                        array,
+                        name=name,
+                        blending="additive",
+                        colormap=colormap,
+                        visible=is_visible and name in channel_list,
+                    )
                 )
-            )
+            logger.debug(f"Added '{name}' to fixed view in {timer()}.")
         # hide away other layers if user selected 'random' view
         if CONFIG.view_type == ViewType.RANDOM:
             for index, layer in enumerate(moving_image_layer):
@@ -397,7 +419,7 @@ class ImageRegistrationWindow(QMainWindow, IndicatorMixin, ImageViewMixin):
             path = Path(path)
             CONFIG.output_dir = str(path.parent)
             transform.to_file(path)
-            hp.toast(self, "Exported transformation", f"Saved transformation to\n\n<b>{path}</b>")
+            hp.toast(self, "Exported transformation", f"Saved transformation to<br<<b>{path}</b>")
 
     def on_load(self, _evt=None):
         """Import transformation."""
@@ -484,6 +506,7 @@ class ImageRegistrationWindow(QMainWindow, IndicatorMixin, ImageViewMixin):
         else:
             index = [layer.name for layer in self.moving_image_layer].index(name)
             moving_image_layer = self.moving_image_layer[index]
+
         # add image and apply transformation
         if self.transformed_moving_image_layer:
             self.transformed_moving_image_layer.affine = self.transform.params
@@ -552,7 +575,6 @@ class ImageRegistrationWindow(QMainWindow, IndicatorMixin, ImageViewMixin):
         if self.moving_points_layer and which == "moving":
             self.moving_points_layer.size = CONFIG.size_moving
             self.moving_points_layer.current_size = CONFIG.size_moving
-
         if self.fixed_image_layer and which == "fixed":
             self.fixed_image_layer[0].opacity = CONFIG.opacity_fixed / 100
         if self.transformed_moving_image_layer and which == "moving":
@@ -675,21 +697,35 @@ class ImageRegistrationWindow(QMainWindow, IndicatorMixin, ImageViewMixin):
 
         # File menu
         menu_file = hp.make_menu(self, "File")
-        hp.make_menu_item(self, "Import configuration file (.json, .toml)...", menu=menu_file, func=self.on_load)
+        hp.make_menu_item(
+            self, "Import configuration file (.json, .toml)...", "Ctrl+C", menu=menu_file, func=self.on_load
+        )
         hp.make_menu_item(
             self,
             "Add microscopy image (.tiff, .png, .jpg, + others)...",
+            "Ctrl+M",
             menu=menu_file,
             func=self._micro_widget.on_select_dataset,
         )
         hp.make_menu_item(
             self,
             "Add imaging image (.imzML, .tdf, .tsf, + others)...",
+            "Ctrl+I",
             menu=menu_file,
             func=self._ims_widget.on_select_dataset,
         )
         menu_file.addSeparator()
         hp.make_menu_item(self, "Quit", menu=menu_file, func=self.close)
+
+        # Help menu
+        menu_tools = hp.make_menu(self, "Tools")
+        hp.make_menu_item(
+            self, "Select microscopy channels...", menu=menu_tools, func=self._micro_widget._on_select_channels
+        )
+        hp.make_menu_item(
+            self, "Select imaging channels...", menu=menu_tools, func=self._ims_widget._on_select_channels
+        )
+        hp.make_menu_item(self, "Show fiducials table...", menu=menu_tools, func=self.on_view_fiducials)
 
         # Help menu
         menu_help = hp.make_menu(self, "Help")
@@ -724,6 +760,7 @@ class ImageRegistrationWindow(QMainWindow, IndicatorMixin, ImageViewMixin):
         # set actions
         self.menubar = QMenuBar(self)
         self.menubar.addAction(menu_file.menuAction())
+        self.menubar.addAction(menu_tools.menuAction())
         self.menubar.addAction(menu_help.menuAction())
         self.setMenuBar(self.menubar)
 

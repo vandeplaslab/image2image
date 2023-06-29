@@ -46,6 +46,7 @@ def cli(ctx, verbosity: int, no_color: bool, dev: bool = False, extras=None):
     """Launch ims2micro app."""
     from ims2micro.main import run
 
-    min(1, verbosity) * 10
+    if dev:
+        verbosity = 1
     level = min(1, verbosity) * 10
     run(level=level, no_color=no_color, dev=dev)

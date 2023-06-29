@@ -20,6 +20,7 @@ class DataWrapper:
 
     data: ty.Dict[str, ty.Optional[np.ndarray]]
     paths: ty.List[Path]
+    resolution: float = 1.0
 
     def __init__(self, data: ty.Optional[ty.Dict[str, ty.Optional[ty.Union[np.ndarray, ty.Any]]]] = None):
         self.data = data or {}
@@ -30,11 +31,11 @@ class DataWrapper:
         self.data[key] = array
 
     def add_path(self, path: PathLike):
-        """Add path to wrapper."""
+        """Add the path to wrapper."""
         self.paths.append(Path(path))
 
     def remove_path(self, path: PathLike):
-        """Remove path from wrapper."""
+        """Remove the path from wrapper."""
         path = Path(path)
         if path in self.paths:
             self.paths.remove(path)
@@ -43,7 +44,7 @@ class DataWrapper:
             del self.data[path]
 
     def is_loaded(self, path: PathLike):
-        """Check if path is loaded."""
+        """Check if the path is loaded."""
         return Path(path) in self.paths
 
     @property
@@ -54,6 +55,22 @@ class DataWrapper:
     def channel_names(self, view_type: ty.Optional[str] = None) -> ty.List[str]:
         """Return list of channel names."""
         raise NotImplementedError("Must implement method")
+
+    def channel_names_for_names(self, names: ty.List[PathLike]) -> ty.List[str]:
+        """Return list of channel names for a given reader/dataset."""
+        clean_names = []
+        for name in names:
+            if isinstance(name, Path):
+                name = str(name.name)
+            if "| " not in name:
+                name = f"| {name}"
+            clean_names.append(name)
+        channel_names = []
+        for channel_name in self.channel_names():
+            for name in clean_names:
+                if channel_name.endswith(name):
+                    channel_names.append(channel_name)
+        return channel_names
 
     def map_channel_to_index(self, dataset: str, channel_name: str) -> int:
         """Map channel name to index."""
@@ -76,6 +93,7 @@ class DataModel(BaseModel):
     """Base model."""
 
     paths: ty.Optional[ty.List[Path]] = None
+    just_added: ty.Optional[ty.List[Path]] = None
     resolution: float = 1.0
     reader: ty.Optional[DataWrapper] = None
 
@@ -84,6 +102,7 @@ class DataModel(BaseModel):
 
         arbitrary_types_allowed = True
 
+    # noinspection PyMethodFirstArgAssignment,PyMethodParameters
     @validator("paths", pre=True, allow_reuse=True)
     def _validate_path(value: ty.Union[PathLike, ty.List[PathLike]]) -> ty.List[Path]:
         """Validate path."""
@@ -107,10 +126,13 @@ class DataModel(BaseModel):
             path_or_paths = [path_or_paths]
         if self.paths is None:
             self.paths = []
+        just_added = []
         for path in path_or_paths:
             path = Path(path)
             if path not in self.paths:
                 self.paths.append(path)
+                just_added.append(path)
+        self.just_added = just_added
 
     def load(self):
         """Load data into memory."""
@@ -140,6 +162,8 @@ class DataModel(BaseModel):
             path = Path(path)
             if path in self.paths:
                 self.paths.remove(path)
+            if self.just_added and path in self.just_added:
+                self.just_added.remove(path)
             if self.reader:
                 self.reader.remove_path(path)
 
@@ -155,7 +179,7 @@ class ImagingModel(DataModel):
             if self.reader is None or not self.reader.is_loaded(path):
                 self.reader = read_imaging(path, self.reader)
         self.resolution = self.reader.resolution
-        return self.reader
+        return self.reader  # noqa
 
 
 class MicroscopyModel(DataModel):
@@ -169,7 +193,7 @@ class MicroscopyModel(DataModel):
             if self.reader is None or not self.reader.is_loaded(path):
                 self.reader = read_microscopy(path, self.reader)
         self.resolution = self.reader.resolution
-        return self.reader
+        return self.reader  # noqa
 
 
 class Transformation(BaseModel):
@@ -203,7 +227,7 @@ class Transformation(BaseModel):
 
     @property
     def matrix(self):
-        """Retrieve transformation array."""
+        """Retrieve the transformation array."""
         return self.transform.params
 
     def compute(self, yx: bool = True, px: bool = True):

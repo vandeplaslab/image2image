@@ -6,6 +6,7 @@ import numpy as np
 from koyo.typing import PathLike
 from napari.layers.points._points_mouse_bindings import select as _select
 from napari.layers.points.points import Mode, Points
+from napari._vispy.layers.points import VispyPointsLayer
 from napari.utils.events import Event
 
 from ims2micro.config import CONFIG
@@ -103,11 +104,14 @@ def select(layer, event):
     layer.events.move()
 
 
-def init_points_layer(layer: Points):
+def init_points_layer(layer: Points, visual: VispyPointsLayer):
     """Initialize points layer."""
     layer._drag_modes[Mode.ADD] = add
     layer._drag_modes[Mode.SELECT] = select
+    layer.edge_width = 0
     layer.events.add(move=Event, add_point=Event)
+
+    visual._highlight_color = (0, 0.6, 1, 0.3)
 
 
 def _get_text_format():

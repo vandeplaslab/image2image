@@ -26,6 +26,14 @@ OverlayConfig = (
     .add("dataset", "dataset", "str", 250)
 )
 
+SelectConfig = (
+    TableConfig()
+    .add("", "check", "bool", 25, no_sort=True)
+    .add("channel name", "channel_name", "str", 200)
+    .add("channel name (full)", "channel_name_full", "str", 0, hidden=True)
+)
+
+
 LocateConfig = (
     TableConfig()
     .add("", "check", "bool", 0, no_sort=True, hidden=True)
@@ -145,9 +153,10 @@ class LocateFilesDialog(QtDialog):
         layout.addRow(
             hp.make_label(
                 self,
-                "Double-click on a row to zoom in on the point.",
+                "<b>Tip.</b> Double-click on a row to zoom in on the point.",
                 alignment=Qt.AlignHCenter,
                 object_name="tip_label",
+                enable_url=True,
             )
         )
         layout.addRow(
@@ -215,18 +224,24 @@ class FiducialTableDialog(QtFramelessTool):
     def on_double_click(self, index):
         """Zoom in."""
         row = index.row()
-        ym, xm, yi, xi = self.points_data[row]
-        # zoom-in on IMS data
-        if not np.isnan(xi):
-            view_moving = self.parent().view_moving
-            view_moving.viewer.camera.center = (0.0, yi, xi)
-            view_moving.viewer.camera.zoom = 15
-            logger.debug(f"Applied focus center=({yi:.1f}, {xi:.1f}) zoom={15:.3f} on IMS data")
-        if not np.isnan(xm):
+        y_micro, x_micro, y_ims, x_ims = self.points_data[row]
+        # zoom-in on microscopy data
+        if not np.isnan(x_micro):
             view_fixed = self.parent().view_fixed
-            view_fixed.viewer.camera.center = (0.0, ym, xm)
-            view_fixed.viewer.camera.zoom = 20
-            logger.debug(f"Applied focus center=({ym:.1f}, {xm:.1f}) zoom={20:.3f} on micro data")
+            view_fixed.viewer.camera.center = (0.0, y_micro, x_micro)
+            view_fixed.viewer.camera.zoom = 5
+            logger.debug(
+                f"Applied focus center=({y_micro:.1f}, {x_micro:.1f}) zoom={view_fixed.viewer.camera.zoom:.3f} on micro"
+                f" data"
+            )
+        # zoom-in on IMS data
+        if not np.isnan(x_ims):
+            view_moving = self.parent().view_moving
+            view_moving.viewer.camera.center = (0.0, y_ims, x_ims)
+            view_moving.viewer.camera.zoom = 50
+            logger.debug(
+                f"Applied focus center=({y_ims:.1f}, {x_ims:.1f}) zoom={view_moving.viewer.camera.zoom:.3f} on IMS data"
+            )
 
     def on_load(self, evt=None):
         """On load."""
@@ -260,8 +275,6 @@ class FiducialTableDialog(QtFramelessTool):
         self.table.setCornerButtonEnabled(False)
         hp.set_font(self.table)
         self.table.setup_model(FiducialConfig.header, FiducialConfig.no_sort_columns, FiducialConfig.hidden_columns)
-        self.get_all_unchecked = self.table.get_all_unchecked
-        self.get_all_checked = self.table.get_all_checked
 
         layout = hp.make_form_layout(self)
         style_form_layout(layout)
@@ -270,9 +283,11 @@ class FiducialTableDialog(QtFramelessTool):
         layout.addRow(
             hp.make_label(
                 self,
-                "Double-click on a row to zoom in on the point.\nPress <Delete> or <Backspace> to delete a point.",
+                "<b>Tip.</b> Double-click on a row to zoom in on the point.\nPress <Delete> or <Backspace> to delete a"
+                " point.",
                 alignment=Qt.AlignHCenter,
                 object_name="tip_label",
+                enable_url=True,
             )
         )
         return layout
@@ -313,6 +328,9 @@ class OverlayTableDialog(QtFramelessTool):
 
     def on_load(self, model: "DataModel"):
         """On load."""
+        if not model:
+            return
+
         self.model = model
         data = []
         for name in self.model.get_reader().channel_names():
@@ -340,8 +358,6 @@ class OverlayTableDialog(QtFramelessTool):
         self.table.setCornerButtonEnabled(False)
         hp.set_font(self.table)
         self.table.setup_model(OverlayConfig.header, OverlayConfig.no_sort_columns, OverlayConfig.hidden_columns)
-        self.get_all_unchecked = self.table.get_all_unchecked
-        self.get_all_checked = self.table.get_all_checked
 
         layout = hp.make_form_layout(self)
         style_form_layout(layout)
@@ -350,9 +366,10 @@ class OverlayTableDialog(QtFramelessTool):
         layout.addRow(
             hp.make_label(
                 self,
-                "Check/uncheck a row to toggle visibility of the channel.",
+                "<b>Tip.</b> Check/uncheck a row to toggle visibility of the channel.",
                 alignment=Qt.AlignHCenter,
                 object_name="tip_label",
+                enable_url=True,
             )
         )
         return layout
@@ -483,6 +500,74 @@ class ImportSelectDialog(QtDialog):
             "fixed": self.fixed_check.isChecked(),
             "moving": self.moving_check.isChecked(),
         }
+
+
+class SelectChannelsTableDialog(QtDialog):
+    """Dialog to enable creation of overlays."""
+
+    def __init__(self, parent: "LoadWidget", model: "DataModel"):
+        super().__init__(parent, title="Select Channels to Load")
+        self.model = model
+
+        self.setMinimumWidth(400)
+        self.setMinimumHeight(400)
+        self.on_load()
+        self.channels = self.get_channels()
+
+    def connect_events(self, state: bool = True):
+        """Connect events."""
+        connect(self.table.evt_checked, self.on_select_channel, state=state)
+
+    def on_select_channel(self, index: int, state: bool):
+        """Toggle channel."""
+        self.channels = self.get_channels()
+
+    def get_channels(self):
+        """Select all channels."""
+        channels = []
+        for index in self.table.get_all_checked():
+            channels.append(self.table.get_value(SelectConfig.channel_name_full, index))
+        return channels
+
+    def on_load(self):
+        """On load."""
+        data = []
+        for name in self.model.get_reader().channel_names_for_names(self.model.just_added):
+            channel_name, _ = name.split(" | ")
+            data.append([True, channel_name, name])
+        self.table.add_data(data)
+
+    # noinspection PyAttributeOutsideInit
+    def make_panel(self) -> QFormLayout:
+        """Make panel."""
+        self.table = QtCheckableTableView(
+            self, config=SelectConfig, enable_all_check=True, sortable=True, double_click_to_check=True
+        )
+        self.table.setCornerButtonEnabled(False)
+        hp.set_font(self.table)
+        self.table.setup_model(SelectConfig.header, SelectConfig.no_sort_columns, SelectConfig.hidden_columns)
+
+        layout = hp.make_form_layout(self)
+        style_form_layout(layout)
+        layout.addRow(self.table)
+        layout.addRow(
+            hp.make_label(
+                self,
+                "<b>Tip.</b> You can quickly check/uncheck row by double-clicking on a row.<br>"
+                "<b>Tip.</b> Check/uncheck a row to select which channels should be immediately loaded.<br>"
+                "<b>Tip.</b> You can quickly check/uncheck all rows by clicking on the first column header.",
+                alignment=Qt.AlignHCenter,
+                object_name="tip_label",
+                enable_url=True,
+            )
+        )
+        layout.addRow(
+            hp.make_h_layout(
+                hp.make_btn(self, "OK", func=self.accept),
+                hp.make_btn(self, "Cancel", func=self.reject),
+            )
+        )
+        return layout
 
 
 def open_about(parent):
