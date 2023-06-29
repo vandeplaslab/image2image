@@ -4,9 +4,9 @@ from pathlib import Path
 
 import numpy as np
 from koyo.typing import PathLike
+from napari._vispy.layers.points import VispyPointsLayer
 from napari.layers.points._points_mouse_bindings import select as _select
 from napari.layers.points.points import Mode, Points
-from napari._vispy.layers.points import VispyPointsLayer
 from napari.utils.events import Event
 
 from ims2micro.config import CONFIG
@@ -166,8 +166,9 @@ def transform_image(moving_image: np.ndarray, transform) -> np.ndarray:
 
 def write_xml_registration(output_path: PathLike, affine: np.ndarray):
     """Export affine matrix as XML file."""
-    from dicttoxml import dicttoxml
     from xml.dom.minidom import parseString
+
+    from dicttoxml import dicttoxml
 
     assert affine.ndim == 2, "Affine matrix must be 2D."
     assert affine.shape == (3, 3), "Affine matrix must be 3x3."

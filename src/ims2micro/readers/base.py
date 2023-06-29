@@ -9,6 +9,7 @@ class BaseImageReader:
     """Base class for some of the other image readers."""
 
     _pyramid = None
+    fh = None
     base_layer_pixel_res: float
     channel_names: ty.List[str]
     channel_colors: ty.Optional[ty.List[str]]
@@ -16,6 +17,12 @@ class BaseImageReader:
     def __init__(self, path: PathLike):
         self.path = Path(path)
         self.base_layer_idx = 0
+
+    def close(self):
+        """Close the file handle."""
+        if self.fh and hasattr(self.fh, "close"):
+            self.fh.close()
+        del self.fh, self._pyramid
 
     @property
     def pyramid(self) -> ty.List:

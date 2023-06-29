@@ -10,83 +10,7 @@ from loguru import logger
 from pydantic import BaseModel, validator
 from skimage.transform import ProjectiveTransform
 
-if ty.TYPE_CHECKING:
-    from ims2micro._ims_reader import IMSWrapper
-    from ims2micro._micro_reader import MicroWrapper
-
-
-class DataWrapper:
-    """Base class for IMS and microscopy wrappers."""
-
-    data: ty.Dict[str, ty.Optional[np.ndarray]]
-    paths: ty.List[Path]
-    resolution: float = 1.0
-
-    def __init__(self, data: ty.Optional[ty.Dict[str, ty.Optional[ty.Union[np.ndarray, ty.Any]]]] = None):
-        self.data = data or {}
-        self.paths = []
-
-    def add(self, key: str, array: ty.Union[np.ndarray, ty.Any]):
-        """Add data to wrapper."""
-        self.data[key] = array
-
-    def add_path(self, path: PathLike):
-        """Add the path to wrapper."""
-        self.paths.append(Path(path))
-
-    def remove_path(self, path: PathLike):
-        """Remove the path from wrapper."""
-        path = Path(path)
-        if path in self.paths:
-            self.paths.remove(path)
-        path = str(path.name)
-        if path in self.data:
-            del self.data[path]
-
-    def is_loaded(self, path: PathLike):
-        """Check if the path is loaded."""
-        return Path(path) in self.paths
-
-    @property
-    def n_channels(self) -> int:
-        """Return number of channels."""
-        return len(self.channel_names())
-
-    def channel_names(self, view_type: ty.Optional[str] = None) -> ty.List[str]:
-        """Return list of channel names."""
-        raise NotImplementedError("Must implement method")
-
-    def channel_names_for_names(self, names: ty.List[PathLike]) -> ty.List[str]:
-        """Return list of channel names for a given reader/dataset."""
-        clean_names = []
-        for name in names:
-            if isinstance(name, Path):
-                name = str(name.name)
-            if "| " not in name:
-                name = f"| {name}"
-            clean_names.append(name)
-        channel_names = []
-        for channel_name in self.channel_names():
-            for name in clean_names:
-                if channel_name.endswith(name):
-                    channel_names.append(channel_name)
-        return channel_names
-
-    def map_channel_to_index(self, dataset: str, channel_name: str) -> int:
-        """Map channel name to index."""
-        dataset_to_channel_map = {}
-        for name in self.channel_names():
-            dataset, channel = name.split(" | ")
-            dataset_to_channel_map.setdefault(dataset, []).append(channel)
-        return dataset_to_channel_map[dataset].index(channel_name)
-
-    def image_iter(self, view_type: ty.Optional[str] = None):
-        """Iterator to add channels."""
-        raise NotImplementedError("Must implement method")
-
-    def channel_image_iter(self, view_type: ty.Optional[str] = None) -> ty.Iterator[ty.Tuple[str, np.ndarray]]:
-        """Iterator of channel name + image."""
-        yield from zip(self.channel_names(view_type), self.image_iter(view_type))
+from ims2micro._reader import ImageWrapper
 
 
 class DataModel(BaseModel):
@@ -95,7 +19,7 @@ class DataModel(BaseModel):
     paths: ty.Optional[ty.List[Path]] = None
     just_added: ty.Optional[ty.List[Path]] = None
     resolution: float = 1.0
-    reader: ty.Optional[DataWrapper] = None
+    reader: ty.Optional[ImageWrapper] = None
 
     class Config:
         """Config."""
@@ -134,6 +58,19 @@ class DataModel(BaseModel):
                 just_added.append(path)
         self.just_added = just_added
 
+    def remove_paths(self, path_or_paths: ty.Union[PathLike, ty.List[PathLike]]):
+        """Remove paths."""
+        if isinstance(path_or_paths, (str, Path)):
+            path_or_paths = [path_or_paths]
+        for path in path_or_paths:
+            path = Path(path)
+            if path in self.paths:
+                self.paths.remove(path)
+            if self.reader:
+                self.reader.remove_path(path)
+            if self.just_added and path in self.just_added:
+                self.just_added.remove(path)
+
     def load(self):
         """Load data into memory."""
         with MeasureTimer() as timer:
@@ -141,9 +78,15 @@ class DataModel(BaseModel):
             logger.info(f"Loaded data in {timer()}")
         return self
 
-    def get_reader(self) -> DataWrapper:
+    def get_reader(self) -> "ImageWrapper":
         """Read data from file."""
-        raise NotImplementedError("Must implement method")
+        from ims2micro._reader import read_image
+
+        for path in self.paths:
+            if self.reader is None or not self.reader.is_loaded(path):
+                self.reader = read_image(path, self.reader)
+        self.resolution = self.reader.resolution
+        return self.reader  # noqa
 
     def channel_names(self) -> ty.List[str]:
         """Return list of channel names."""
@@ -158,42 +101,7 @@ class DataModel(BaseModel):
         """Close certain (or all) paths."""
         if paths is None:
             return
-        for path in paths:
-            path = Path(path)
-            if path in self.paths:
-                self.paths.remove(path)
-            if self.just_added and path in self.just_added:
-                self.just_added.remove(path)
-            if self.reader:
-                self.reader.remove_path(path)
-
-
-class ImagingModel(DataModel):
-    """IMS model."""
-
-    def get_reader(self) -> "IMSWrapper":
-        """Read data from file."""
-        from ims2micro._ims_reader import read_imaging
-
-        for path in self.paths:
-            if self.reader is None or not self.reader.is_loaded(path):
-                self.reader = read_imaging(path, self.reader)
-        self.resolution = self.reader.resolution
-        return self.reader  # noqa
-
-
-class MicroscopyModel(DataModel):
-    """IMS model."""
-
-    def get_reader(self) -> "MicroWrapper":
-        """Read data from file."""
-        from ims2micro._micro_reader import read_microscopy
-
-        for path in self.paths:
-            if self.reader is None or not self.reader.is_loaded(path):
-                self.reader = read_microscopy(path, self.reader)
-        self.resolution = self.reader.resolution
-        return self.reader  # noqa
+        self.remove_paths(paths)
 
 
 class Transformation(BaseModel):
@@ -204,8 +112,8 @@ class Transformation(BaseModel):
     # Type of transformation
     transformation_type: str = ""
     # Path to the image
-    micro_model: ty.Optional[MicroscopyModel] = None
-    ims_model: ty.Optional[ImagingModel] = None
+    micro_model: ty.Optional[DataModel] = None
+    ims_model: ty.Optional[DataModel] = None
     # Date when the registration was created
     time_created: ty.Optional[datetime] = None
     # Arrays of fixed and moving points

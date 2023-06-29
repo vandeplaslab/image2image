@@ -1,16 +1,14 @@
-from koyo.typing import PathLike
 import typing as ty
-import numpy as np
-from tifffile import xml2dict
+
 import dask.array as da
+import numpy as np
 import zarr
-from ims2micro.readers.utilities import guess_rgb
-from ims2micro.readers.czi import CziFile
+from koyo.typing import PathLike
+from tifffile import xml2dict
+
 from ims2micro.readers.base import BaseImageReader
-
-from pathlib import Path
-
-CZI_EXTENSIONS = [".czi"]
+from ims2micro.readers.czi import CziFile
+from ims2micro.readers.utilities import guess_rgb
 
 
 class CziImageReader(BaseImageReader):
@@ -18,7 +16,7 @@ class CziImageReader(BaseImageReader):
 
     def __init__(self, path: PathLike, init_pyramid: bool = True):
         super().__init__(path)
-        self.czi = CziFile(self.path)
+        self.fh = CziFile(self.path)
 
         (
             self.ch_dim_idx,
@@ -32,7 +30,7 @@ class CziImageReader(BaseImageReader):
         self.is_rgb = guess_rgb(self.im_dims)
         self.n_ch = self.im_dims[2] if self.is_rgb else self.im_dims[0]
 
-        czi_meta = xml2dict(self.czi.metadata())
+        czi_meta = xml2dict(self.fh.metadata())
         pixel_scaling_str = czi_meta["ImageDocument"]["Metadata"]["Scaling"]["Items"]["Distance"][0]["Value"]
         pixel_scaling = float(pixel_scaling_str) * 1000000
         self.base_layer_pixel_res = pixel_scaling
@@ -65,30 +63,30 @@ class CziImageReader(BaseImageReader):
 
     def get_dask_pyr(self):
         """Get instance of Dask pyramid."""
-        return self.czi.zarr_pyramidalize_czi(zarr.storage.TempStore())
+        return self.fh.zarr_pyramidalize_czi(zarr.storage.TempStore())
 
     def _get_image_info(self):
         # if RGB need to get 0
-        if self.czi.shape[-1] > 1:
-            ch_dim_idx = self.czi.axes.index("0")
+        if self.fh.shape[-1] > 1:
+            ch_dim_idx = self.fh.axes.index("0")
         else:
-            ch_dim_idx = self.czi.axes.index("C")
-        y_dim_idx = self.czi.axes.index("Y")
-        x_dim_idx = self.czi.axes.index("X")
-        if self.czi.shape[-1] > 1:
-            im_dims = np.array(self.czi.shape)[[y_dim_idx, x_dim_idx, ch_dim_idx]]
+            ch_dim_idx = self.fh.axes.index("C")
+        y_dim_idx = self.fh.axes.index("Y")
+        x_dim_idx = self.fh.axes.index("X")
+        if self.fh.shape[-1] > 1:
+            im_dims = np.array(self.fh.shape)[[y_dim_idx, x_dim_idx, ch_dim_idx]]
         else:
-            im_dims = np.array(self.czi.shape)[[ch_dim_idx, y_dim_idx, x_dim_idx]]
-        return ch_dim_idx, y_dim_idx, x_dim_idx, im_dims, self.czi.dtype
+            im_dims = np.array(self.fh.shape)[[ch_dim_idx, y_dim_idx, x_dim_idx]]
+        return ch_dim_idx, y_dim_idx, x_dim_idx, im_dims, self.fh.dtype
 
     def read_single_channel(self, block_id: ty.Tuple[int, ...]):
         """Read a single channel from CZI file."""
         channel_idx = block_id[0]
         if self.is_rgb is False:
-            image = self.czi.sub_asarray(
+            image = self.fh.sub_asarray(
                 channel_idx=[channel_idx],
             )
         else:
-            image = self.czi.sub_asarray_rgb(channel_idx=[channel_idx], greyscale=False)
+            image = self.fh.sub_asarray_rgb(channel_idx=[channel_idx], greyscale=False)
 
         return np.expand_dims(np.squeeze(image), axis=0)

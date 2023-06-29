@@ -1,20 +1,15 @@
 """Microscopy reader."""
 import typing as ty
-from pathlib import Path
 
 import numpy as np
-from koyo.typing import PathLike
-
-from ims2micro.models import DataWrapper
 
 if ty.TYPE_CHECKING:
     from ims2micro.readers.base import BaseImageReader
-    from ims2micro.readers.tiff_reader import TiffImageReader
 
 IMAGE_EXTENSIONS = [".jpg", ".jpeg", ".png"]
 
 
-class MicroWrapper(DataWrapper):
+class MicroWrapper:
     """Wrapper around microscopy data."""
 
     def __init__(self, reader_or_array: ty.Dict[str, "BaseImageReader"]):
@@ -67,58 +62,3 @@ class MicroWrapper(DataWrapper):
                     channel_names = [f"C{index}"]
             names.extend([f"{name} | {key}" for name in channel_names])
         return names
-
-
-def read_microscopy(path: PathLike, wrapper: ty.Optional["MicroWrapper"] = None) -> "MicroWrapper":
-    """Read microscopy data."""
-    from ims2micro.readers.tiff_reader import TIFF_EXTENSIONS
-    from ims2micro.readers.czi_reader import CZI_EXTENSIONS
-
-    path = Path(path)
-    assert path.exists(), f"File does not exist: {path}"
-    assert (
-        path.suffix.lower() in TIFF_EXTENSIONS + IMAGE_EXTENSIONS + CZI_EXTENSIONS
-    ), f"Unsupported file format: {path.suffix}"
-
-    if path.suffix in TIFF_EXTENSIONS:
-        data = _read_tiff(path)
-    elif path.suffix in CZI_EXTENSIONS:
-        data = _read_czi(path)
-    elif path.suffix in IMAGE_EXTENSIONS:
-        data = _read_image(path)
-    else:
-        raise ValueError(f"Unsupported file format: {path.suffix}")
-    if wrapper is None:
-        wrapper = MicroWrapper(data)
-    else:
-        for key, value in data.items():
-            wrapper.add(key, value)
-    wrapper.add_path(path)
-    return wrapper
-
-
-def _read_czi(path: PathLike):
-    """Read CZI file."""
-    from ims2micro.readers.czi_reader import CziImageReader
-
-    path = Path(path)
-    assert path.exists(), f"File does not exist: {path}"
-    return {path.name: CziImageReader(path)}
-
-
-def _read_tiff(path: PathLike) -> ty.Dict[str, "TiffImageReader"]:
-    """Read TIFF file."""
-    from ims2micro.readers.tiff_reader import TiffImageReader
-
-    path = Path(path)
-    assert path.exists(), f"File does not exist: {path}"
-    return {path.name: TiffImageReader(path)}
-
-
-def _read_image(path: PathLike) -> ty.Dict[str, "TiffImageReader"]:
-    """Read image."""
-    from skimage.io import imread
-
-    path = Path(path)
-    assert path.exists(), f"File does not exist: {path}"
-    return {path.name: imread(path)}

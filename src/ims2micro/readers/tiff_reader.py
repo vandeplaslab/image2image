@@ -5,9 +5,11 @@ https://github.com/NHPatterson/napari-imsmicrolink/blob/master/src/napari_imsmic
 """
 import warnings
 from pathlib import Path
+
 from ome_types import from_xml
 from tifffile import TiffFile
 
+from ims2micro.readers.base import BaseImageReader
 from ims2micro.readers.tiff_meta import (
     ometiff_ch_names,
     ometiff_xy_pixel_sizes,
@@ -20,9 +22,6 @@ from ims2micro.readers.utilities import (
     tf_zarr_read_single_ch,
     tifffile_to_dask,
 )
-from ims2micro.readers.base import BaseImageReader
-
-TIFF_EXTENSIONS = [".scn", ".ome.tiff", ".tif", ".tiff", ".svs", ".ndpi"]
 
 
 class TiffImageReader(BaseImageReader):
@@ -30,7 +29,7 @@ class TiffImageReader(BaseImageReader):
 
     def __init__(self, path, init_pyramid: bool = True):
         super().__init__(path)
-        self.tf = TiffFile(self.path)
+        self.fh = TiffFile(self.path)
         self.reader = "tifffile"
 
         self.im_dims, self.im_dtype, self.largest_series = self._get_image_info()
@@ -60,25 +59,25 @@ class TiffImageReader(BaseImageReader):
     def _get_im_res(self):
         if Path(self.path).suffix.lower() in [".scn", ".ndpi"]:
             return tifftag_xy_pixel_sizes(
-                self.tf,
+                self.fh,
                 self.largest_series,
                 0,
             )[0]
         elif Path(self.path).suffix.lower() in [".svs"]:
             return svs_xy_pixel_sizes(
-                self.tf,
+                self.fh,
                 self.largest_series,
                 0,
             )[0]
-        elif self.tf.ome_metadata:
+        elif self.fh.ome_metadata:
             return ometiff_xy_pixel_sizes(
-                from_xml(self.tf.ome_metadata, parser="lxml"),
+                from_xml(self.fh.ome_metadata, parser="lxml"),
                 self.largest_series,
             )[0]
         else:
             try:
                 return tifftag_xy_pixel_sizes(
-                    self.tf,
+                    self.fh,
                     self.largest_series,
                     0,
                 )[0]
@@ -90,8 +89,8 @@ class TiffImageReader(BaseImageReader):
                 return 1.0
 
     def _get_channel_names(self):
-        if self.tf.ome_metadata:
-            channel_names = ometiff_ch_names(from_xml(self.tf.ome_metadata), self.largest_series)
+        if self.fh.ome_metadata:
+            channel_names = ometiff_ch_names(from_xml(self.fh.ome_metadata), self.largest_series)
         else:
             channel_names = []
             if self.is_rgb:
@@ -103,7 +102,7 @@ class TiffImageReader(BaseImageReader):
         return channel_names
 
     def _get_image_info(self):
-        if len(self.tf.series) > 1:
+        if len(self.fh.series) > 1:
             warnings.warn(
                 "The tiff contains multiple series, " "the largest series will be read by default",
                 stacklevel=2,

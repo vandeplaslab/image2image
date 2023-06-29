@@ -13,12 +13,11 @@ def run(level: int = 10, no_color: bool = False, dev: bool = False):
     from ims2micro.dialog_register import ImageRegistrationWindow
     from ims2micro.event_loop import get_app
 
-    set_loguru_log(USER_LOG_DIR / "log.txt", level=level, no_color=no_color, diagnose=True, catch=True)
+    log_path = USER_LOG_DIR / "log.txt"
+    set_loguru_log(log_path, level=level, no_color=True, diagnose=True, catch=True, logger=logger)
+    set_loguru_log(level=level, no_color=False, diagnose=True, catch=True, logger=logger, remove=False)
     logger.enable("ims2micro")
-    if dev:
-        # enable extra loggers
-        logger.enable("qtextra")
-        logger.enable("qtreload")
+    logger.info(f"Logging to '{log_path}' at level={level}")
 
     # make app
     app = get_app()
@@ -32,10 +31,12 @@ def run(level: int = 10, no_color: bool = False, dev: bool = False):
 
         from qtextra.utils.dev import qdev
 
-        segfault_filename = USER_LOG_DIR / "segfault.log"
-        segfault_file = open(segfault_filename, "w")
+        segfault_path = USER_LOG_DIR / "segfault.log"
+        segfault_file = open(segfault_path, "w")
         faulthandler.enable(segfault_file, all_threads=True)
-        logger.trace(f"Enabled fault handler to '{segfault_filename}'.")
+        logger.trace(f"Enabled fault handler - logging to '{segfault_path}'")
+        logger.enable("qtextra")
+        logger.enable("qtreload")
 
         dev = qdev(dlg, modules=["qtextra", "ims2micro"])
         dev.evt_theme.connect(lambda: THEMES.set_theme_stylesheet(dlg))

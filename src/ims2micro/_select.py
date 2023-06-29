@@ -13,12 +13,9 @@ from superqt.utils import thread_worker
 
 from ims2micro._dialogs import OverlayTableDialog, SelectChannelsTableDialog
 from ims2micro.config import CONFIG
-from ims2micro.enums import ALLOWED_IMAGING_FORMATS, ALLOWED_MICROSCOPY_FORMATS, VIEW_TYPE_TRANSLATIONS
-from ims2micro.models import ImagingModel, MicroscopyModel
+from ims2micro.enums import ALLOWED_FORMATS, VIEW_TYPE_TRANSLATIONS
+from ims2micro.models import DataModel
 from ims2micro.utilities import style_form_layout
-
-if ty.TYPE_CHECKING:
-    from ims2micro.models import DataModel
 
 
 class LoadWidget(QWidget):
@@ -30,16 +27,17 @@ class LoadWidget(QWidget):
     evt_toggle_channel = Signal(str, bool)
 
     IS_MICROSCOPY: bool
-    INFO_TEXT: str = ""
-    FILE_TITLE = "Select data file"
-    FILE_FORMATS: str
+    # INFO_TEXT = "Select data - permitted formats .tiff, .czi, .jpg, .png, .tdf, .tsf, .imzML, .h5, .npy"
+    INFO_TEXT = "Please select 'fixed' data..."
+    FILE_TITLE = "Select 'fixed' data..."
+    FILE_FORMATS = ALLOWED_FORMATS
 
     def __init__(self, parent, view):
         """Init."""
         super().__init__(parent=parent)
         self._setup_ui()
         self.view = view
-        self.model: DataModel = MicroscopyModel() if self.IS_MICROSCOPY else ImagingModel()
+        self.model = DataModel()
         self.table_dlg = OverlayTableDialog(self, self.model, self.view)
 
     def _setup_ui(self):
@@ -48,8 +46,8 @@ class LoadWidget(QWidget):
         self.close_btn = hp.make_btn(self, "Close", func=self._on_close_dataset)
 
         self.resolution_edit = hp.make_line_edit(self, placeholder="Enter spatial resolution...", text="1.0")
-        self.resolution_edit.setValidator(QRegExpValidator(QRegExp(r"^[0-9]+(\.[0-9]+)?$")))
-        self.resolution_edit.textChanged.connect(self._on_set_resolution)
+        self.resolution_edit.setValidator(QRegExpValidator(QRegExp(r"^[0-9]+(\.[0-9]+)?$")))  # noqa
+        self.resolution_edit.textChanged.connect(self._on_set_resolution)  # noqa
         self.channel_choice = hp.make_btn(self, "Select channels...", func=self._on_select_channels)
 
         layout = hp.make_form_layout()
@@ -86,7 +84,7 @@ class LoadWidget(QWidget):
             paths = [paths]
         self._on_load_dataset(paths)
 
-    def on_select_dataset(self, evt=None):
+    def on_select_dataset(self, _evt=None):
         """Load data."""
         path = hp.get_filename(
             self,
@@ -124,7 +122,12 @@ class LoadWidget(QWidget):
         channel_list = []
         if dlg.exec_():
             channel_list = dlg.channels
-        logger.debug(f"Selected channels: {channel_list}")
+        logger.info(f"Selected channels: {channel_list}")
+        if not channel_list:
+            model.remove_paths(model.just_added)
+            model, channel_list = None, None
+            logger.warning("No channels selected - dataset not loaded")
+
         # load data into an image
         self.evt_loaded.emit(model, channel_list)
 
@@ -133,7 +136,7 @@ class LoadWidget(QWidget):
         self.model.resolution = float(self.resolution_edit.text())
 
     def _on_select_channels(self):
-        """Select channels from list."""
+        """Select channels from the list."""
         self.table_dlg.show()
 
 
@@ -142,9 +145,8 @@ class IMSWidget(LoadWidget):
 
     # class attrs
     IS_MICROSCOPY = False
-    INFO_TEXT = "Select IMS dataset - supported formats: .imzML, .tdf/.tsf (Bruker), .data, .npy"
-    FILE_TITLE = "Select IMS dataset..."
-    FILE_FORMATS = ALLOWED_IMAGING_FORMATS
+    INFO_TEXT = "Please select 'moving' data..."
+    FILE_TITLE = "Select 'moving' data..."
 
     # events
     evt_show_transformed = Signal(str)
@@ -206,20 +208,3 @@ class MicroscopyWidget(LoadWidget):
 
     # class attrs
     IS_MICROSCOPY = True
-    INFO_TEXT = "Select microscopy data - supported formats: .tiff, .czi, .jpg, .png"
-    FILE_TITLE = "Select microscopy dataset..."
-    FILE_FORMATS = ALLOWED_MICROSCOPY_FORMATS
-
-    def _on_loaded_dataset(self, model: "DataModel"):
-        """Finished loading data."""
-        super()._on_loaded_dataset(model)
-
-    def _on_set_channels(self, model: "DataModel"):
-        """Specify channel names."""
-        wrapper = model.get_reader()
-        wrapper.channel_names()
-        # self.__on_set_channels(channel_names)
-
-    def _on_toggle_channel(self, state: bool, name: str):
-        """Toggle channel."""
-        self.evt_toggle_channel.emit(name, state)

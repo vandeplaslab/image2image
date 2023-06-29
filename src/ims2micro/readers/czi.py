@@ -1,20 +1,19 @@
 import multiprocessing
 import warnings
 from concurrent.futures import ThreadPoolExecutor
-import numpy as np
-from tifffile import create_output
-from czifile import CziFile as _CziFile
-import dask.array as da
-import zarr
+
 import cv2
+import dask.array as da
+import numpy as np
+import zarr
+from czifile import CziFile as _CziFile
+from tifffile import create_output
 
 from ims2micro.readers.utilities import compute_sub_res
 
 
 class CziFile(_CziFile):
-    """
-    Sub-class of CziFile with added functionality to only read certain channels
-    """
+    """Sub-class of CziFile with added functionality to only read certain channels."""
 
     def sub_asarray(
         self,
@@ -27,35 +26,36 @@ class CziFile(_CziFile):
         zarr_fp=None,
         ds_factor=1,
     ):
-
         """Return image data from file(s) as numpy array.
 
         Parameters
         ----------
-        resize : bool
+        resize: bool
             If True (default), resize sub/supersampled subblock data.
-        order : int
+        order: int
             The order of spline interpolation used to resize sub/supersampled
             subblock data. Default is 0 (nearest neighbor).
-        out : numpy.ndarray, str, or file-like object; optional
+        out: numpy.ndarray, str, or file-like object; optional
             Buffer where image data will be saved.
             If numpy.ndarray, a writable array of compatible dtype and shape.
             If str or open file, the file name or file object used to
             create a memory-map to an array stored in a binary file on disk.
-        max_workers : int
-            Maximum number of threads to read and decode subblock data.
-            By default up to half the CPU cores are used.
-        channel_idx : int or list of int
+        max_workers: int
+            Maximum number of threads to read and decode subblock data. By default up to half the CPU cores are used.
+        channel_idx: int or list of int
             The indices of the channels to extract
-        as_uint8 : bool
+        as_uint8: bool
             byte-scale image data to np.uint8 data type
+        zarr_fp: str
+            path to zarr file to save data to
+        ds_factor: int
+            Downsampling factor to apply to data
 
         Parameters
         ----------
         out:np.ndarray
             image read with selected parameters as np.ndarray
         """
-
         out_shape = list(self.shape)
         start = list(self.start)
 
@@ -155,7 +155,6 @@ class CziFile(_CziFile):
                 executor.map(func, self.filtered_subblock_directory)
             self._fh.lock = None
         else:
-
             for idx, directory_entry in enumerate(self.filtered_subblock_directory):
                 func(directory_entry)
 
@@ -173,8 +172,7 @@ class CziFile(_CziFile):
         as_uint8=False,
         greyscale=False,
     ):
-
-        """Return image data from file(s) as numpy array.
+        """Image data from file(s) as numpy array.
 
         Parameters
         ----------
@@ -195,13 +193,14 @@ class CziFile(_CziFile):
             The indices of the channels to extract
         as_uint8 : bool
             byte-scale image data to np.uint8 data type
+        greyscale : bool
+            return greyscale image data
 
         Parameters
         ----------
         out:np.ndarray
             image read with selected parameters as np.ndarray
         """
-
         out_shape = list(self.shape)
         start = list(self.start)
         ch_dim_idx = self.axes.index("0")
@@ -242,7 +241,7 @@ class CziFile(_CziFile):
             try:
                 out[index] = tile
             except ValueError as e:
-                warnings.warn(str(e))
+                warnings.warn(str(e), stacklevel=1)
 
         if max_workers > 1:
             self._fh.lock = True
@@ -258,6 +257,7 @@ class CziFile(_CziFile):
         return out
 
     def zarr_pyramidalize_czi(self, zarr_fp):
+        """Create a pyramidal zarr store from a CZI file."""
         dask_pyr = []
         root = zarr.open_group(zarr_fp, mode="a")
 
@@ -290,7 +290,7 @@ class CziFile(_CziFile):
 
 def czi_tile_grayscale(rgb_image):
     """
-    convert RGB image data to greyscale
+    convert RGB image data to greyscale.
 
     Parameters
     ----------

@@ -141,14 +141,14 @@ class ImageRegistrationWindow(QMainWindow, IndicatorMixin, ImageViewMixin):
             logger.warning("Failed to load microscopy data.")
         self.on_indicator("fixed", False)
 
-    def _on_load_fixed(self, model: DataModel, channel_list: ty.List[str] = None):
+    def _on_load_fixed(self, model: DataModel, channel_list: ty.Optional[ty.List[str]] = None):
         with MeasureTimer() as timer:
             logger.info(f"Loading microscopy data with {model.n_paths} paths...")
             self._plot_fixed_layers(channel_list)
             self.view_fixed.viewer.reset_view()
         logger.info(f"Loaded microscopy data in {timer()}")
 
-    def _plot_fixed_layers(self, channel_list: ty.List[str] = None):
+    def _plot_fixed_layers(self, channel_list: ty.Optional[ty.List[str]] = None):
         wrapper = self._micro_widget.model.get_reader()
         if channel_list is None:
             channel_list = wrapper.channel_names()
@@ -204,7 +204,7 @@ class ImageRegistrationWindow(QMainWindow, IndicatorMixin, ImageViewMixin):
             logger.warning("Failed to load microscopy data.")
         self.on_indicator("moving", False)
 
-    def _on_load_moving(self, model: DataModel, channel_list: ty.List[str] = None):
+    def _on_load_moving(self, model: DataModel, channel_list: ty.Optional[ty.List[str]] = None):
         with MeasureTimer() as timer:
             logger.info(f"Loading imaging data with {model.n_paths} paths...")
             self._plot_moving_layers(channel_list)
@@ -212,7 +212,7 @@ class ImageRegistrationWindow(QMainWindow, IndicatorMixin, ImageViewMixin):
             self.view_moving.viewer.reset_view()
         logger.info(f"Loaded imaging data in {timer()}")
 
-    def _plot_moving_layers(self, channel_list: ty.List[str] = None):
+    def _plot_moving_layers(self, channel_list: ty.Optional[ty.List[str]] = None):
         CONFIG.view_type = ViewType(CONFIG.view_type)
         is_overlay = CONFIG.view_type == ViewType.OVERLAY
         wrapper = self._ims_widget.model.get_reader()
