@@ -4,6 +4,7 @@ from pathlib import Path
 
 import numpy as np
 from koyo.typing import PathLike
+from napari._vispy.layers.points import VispyPointsLayer
 from napari.layers.points._points_mouse_bindings import select as _select
 from napari.layers.points.points import Mode, Points
 from napari.utils.events import Event
@@ -103,11 +104,14 @@ def select(layer, event):
     layer.events.move()
 
 
-def init_points_layer(layer: Points):
+def init_points_layer(layer: Points, visual: VispyPointsLayer):
     """Initialize points layer."""
     layer._drag_modes[Mode.ADD] = add
     layer._drag_modes[Mode.SELECT] = select
+    layer.edge_width = 0
     layer.events.add(move=Event, add_point=Event)
+
+    visual._highlight_color = (0, 0.6, 1, 0.3)
 
 
 def _get_text_format():
@@ -162,8 +166,9 @@ def transform_image(moving_image: np.ndarray, transform) -> np.ndarray:
 
 def write_xml_registration(output_path: PathLike, affine: np.ndarray):
     """Export affine matrix as XML file."""
-    from dicttoxml import dicttoxml
     from xml.dom.minidom import parseString
+
+    from dicttoxml import dicttoxml
 
     assert affine.ndim == 2, "Affine matrix must be 2D."
     assert affine.shape == (3, 3), "Affine matrix must be 3x3."

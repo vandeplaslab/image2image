@@ -9,6 +9,7 @@ from pathlib import Path
 from ome_types import from_xml
 from tifffile import TiffFile
 
+from ims2micro.readers.base import BaseImageReader
 from ims2micro.readers.tiff_meta import (
     ometiff_ch_names,
     ometiff_xy_pixel_sizes,
@@ -22,15 +23,13 @@ from ims2micro.readers.utilities import (
     tifffile_to_dask,
 )
 
-TIFF_EXTENSIONS = [".scn", ".ome.tiff", ".tif", ".tiff", ".svs", ".ndpi"]
 
-
-class TiffImageReader:
+class TiffImageReader(BaseImageReader):
     """TIFF image reader."""
 
-    def __init__(self, path, init_pyramid=True):
-        self.path = Path(path)
-        self.tf = TiffFile(self.path)
+    def __init__(self, path, init_pyramid: bool = True):
+        super().__init__(path)
+        self.fh = TiffFile(self.path)
         self.reader = "tifffile"
 
         self.im_dims, self.im_dtype, self.largest_series = self._get_image_info()
@@ -44,12 +43,7 @@ class TiffImageReader:
         self.channel_colors = None
 
         if init_pyramid:
-            d_image = self.get_dask_pyr()
-            if isinstance(d_image, list):
-                self.pyr_levels_dask = {1: d_image[0]}
-            else:
-                self.pyr_levels_dask = {1: d_image}
-        self.base_layer_idx = 0
+            self._pyramid = self.pyramid
 
     def get_dask_pyr(self):
         """Get instance of Dask pyramid."""
@@ -65,25 +59,25 @@ class TiffImageReader:
     def _get_im_res(self):
         if Path(self.path).suffix.lower() in [".scn", ".ndpi"]:
             return tifftag_xy_pixel_sizes(
-                self.tf,
+                self.fh,
                 self.largest_series,
                 0,
             )[0]
         elif Path(self.path).suffix.lower() in [".svs"]:
             return svs_xy_pixel_sizes(
-                self.tf,
+                self.fh,
                 self.largest_series,
                 0,
             )[0]
-        elif self.tf.ome_metadata:
+        elif self.fh.ome_metadata:
             return ometiff_xy_pixel_sizes(
-                from_xml(self.tf.ome_metadata, parser="lxml"),
+                from_xml(self.fh.ome_metadata, parser="lxml"),
                 self.largest_series,
             )[0]
         else:
             try:
                 return tifftag_xy_pixel_sizes(
-                    self.tf,
+                    self.fh,
                     self.largest_series,
                     0,
                 )[0]
@@ -95,8 +89,8 @@ class TiffImageReader:
                 return 1.0
 
     def _get_channel_names(self):
-        if self.tf.ome_metadata:
-            channel_names = ometiff_ch_names(from_xml(self.tf.ome_metadata), self.largest_series)
+        if self.fh.ome_metadata:
+            channel_names = ometiff_ch_names(from_xml(self.fh.ome_metadata), self.largest_series)
         else:
             channel_names = []
             if self.is_rgb:
@@ -108,7 +102,7 @@ class TiffImageReader:
         return channel_names
 
     def _get_image_info(self):
-        if len(self.tf.series) > 1:
+        if len(self.fh.series) > 1:
             warnings.warn(
                 "The tiff contains multiple series, " "the largest series will be read by default",
                 stacklevel=2,
@@ -119,7 +113,7 @@ class TiffImageReader:
         return im_dims, im_dtype, largest_series
 
     def read_single_channel(self, channel_idx: int):
-        """Read data from single channel."""
+        """Read data from a single channel."""
         if channel_idx > (self.n_channels - 1):
             warnings.warn(
                 "channel_idx exceeds number of channels, reading channel at channel_idx == 0",

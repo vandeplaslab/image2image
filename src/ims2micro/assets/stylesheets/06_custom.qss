@@ -240,15 +240,7 @@ QtReloadWidget QLabel {
    min-width: 22px;
 }
 
-/* ----------------- QtCheckableTableView ----------------- */
 
-QHeaderView::section {
-    color: {{ text }};
-    background-color: {{ background }};
-    border-width: 0px 0px 2px 0px;
-    border-style: dotted;
-    border-color: {{ foreground }};
-}
 
 QTableWidget {
   border-style: none;
