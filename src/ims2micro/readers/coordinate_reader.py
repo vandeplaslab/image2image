@@ -1,9 +1,8 @@
-"""Coordinate reader."""
+"""Coordinate wrapper."""
 import typing as ty
 
 import numpy as np
 from koyo.typing import PathLike
-from loguru import logger
 
 from ims2micro.config import CONFIG
 from ims2micro.readers.base import BaseImageReader
@@ -36,6 +35,7 @@ class CoordinateReader(BaseImageReader):
     ymin: int
     ymax: int
     image_shape: ty.Tuple[int, int]
+    is_fixed: bool = False
 
     def __init__(
         self,
@@ -56,7 +56,6 @@ class CoordinateReader(BaseImageReader):
         if self.name not in self.data:
             name = "tic" if self.reader is not None else self.name
             self.data[name] = get_image(array_or_reader)
-        print(self.data.keys())
         set_dimensions(self)
 
     @property
@@ -80,7 +79,7 @@ class CoordinateReader(BaseImageReader):
 
     def get_dask_pyr(self) -> ty.List[np.ndarray]:
         """Get dask representation of the pyramid."""
-        if CONFIG.view_type == "random":
+        if not self.is_fixed and CONFIG.view_type == "random":
             return [self.get_random_image()]
         return [self.get_image()]
 
@@ -93,5 +92,4 @@ class CoordinateReader(BaseImageReader):
     def get_image(self):
         """Return image as a stack."""
         array = np.dstack([self.data[key] for key in self.data])
-        print("dstack", array.shape)
         return array

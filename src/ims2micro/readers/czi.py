@@ -140,7 +140,6 @@ class CziFile(_CziFile):
             try:
                 out[index] = tile
             except ValueError as e:
-                print("error")
                 error = e
                 corr_shape = str(error).split("shape ")[1].split(", got")[0].strip("(").strip(")")
                 corr_shape.split(",")

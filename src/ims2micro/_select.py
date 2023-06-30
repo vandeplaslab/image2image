@@ -1,4 +1,4 @@
-"""Widget for loading IMS data."""
+"""Widget for loading data."""
 import typing as ty
 from pathlib import Path
 
@@ -15,18 +15,19 @@ from ims2micro._dialogs import OverlayTableDialog, SelectChannelsTableDialog
 from ims2micro.config import CONFIG
 from ims2micro.enums import ALLOWED_FORMATS, VIEW_TYPE_TRANSLATIONS
 from ims2micro.models import DataModel
-from ims2micro.utilities import style_form_layout
+from ims2micro.utilities import log_exception, style_form_layout
 
 
 class LoadWidget(QWidget):
-    """Widget for loading IMS data."""
+    """Widget for loading data."""
 
     evt_loading = Signal()
     evt_loaded = Signal(object, object)
     evt_closed = Signal(object)
     evt_toggle_channel = Signal(str, bool)
+    evt_toggle_all_channels = Signal(bool)
 
-    IS_MICROSCOPY: bool
+    IS_FIXED: bool
     INFO_TEXT = "Select 'fixed' data..."
     FILE_TITLE = "Select 'fixed' data..."
     FILE_FORMATS = ALLOWED_FORMATS
@@ -36,7 +37,7 @@ class LoadWidget(QWidget):
         super().__init__(parent=parent)
         self._setup_ui()
         self.view = view
-        self.model = DataModel()
+        self.model = DataModel(is_fixed=self.IS_FIXED)
         self.table_dlg = OverlayTableDialog(self, self.model, self.view)
 
     def _setup_ui(self):
@@ -70,8 +71,9 @@ class LoadWidget(QWidget):
                     paths = dlg.paths
             else:
                 paths = self.model.paths
-            self.model.remove_paths(paths)
-            self.evt_closed.emit(self.model)
+            if paths:
+                self.model.remove_paths(paths)
+                self.evt_closed.emit(self.model)
             if not self.model.n_paths:
                 self.resolution_edit.setText("1.0")
             return True
@@ -88,15 +90,15 @@ class LoadWidget(QWidget):
         path = hp.get_filename(
             self,
             title=self.FILE_TITLE,
-            base_dir=CONFIG.microscopy_dir if self.IS_MICROSCOPY else CONFIG.imaging_dir,
+            base_dir=CONFIG.fixed_dir if self.IS_FIXED else CONFIG.moving_dir,
             file_filter=self.FILE_FORMATS,
         )
         # path = self.FILENAME
         if path:
-            if self.IS_MICROSCOPY:
-                CONFIG.microscopy_dir = str(Path(path).parent)
+            if self.IS_FIXED:
+                CONFIG.fixed_dir = str(Path(path).parent)
             else:
-                CONFIG.imaging_dir = str(Path(path).parent)
+                CONFIG.moving_dir = str(Path(path).parent)
             self._on_load_dataset([path])
 
     def _on_load_dataset(self, paths: ty.List[PathLike]):
@@ -107,7 +109,7 @@ class LoadWidget(QWidget):
         func = thread_worker(
             model.load,
             start_thread=True,
-            connect={"returned": self._on_loaded_dataset, "errored": lambda: self.evt_loaded.emit(None, None)},
+            connect={"returned": self._on_loaded_dataset, "errored": self._on_failed_dataset},
         )
         func()
         logger.info(f"Started loading dataset - '{model.paths}'")
@@ -130,6 +132,12 @@ class LoadWidget(QWidget):
         # load data into an image
         self.evt_loaded.emit(model, channel_list)
 
+    def _on_failed_dataset(self, exception: Exception):
+        """Failed to load dataset."""
+        logger.error("Error occurred while loading dataset.")
+        log_exception(exception)
+        self.evt_loaded.emit(None, None)
+
     def _on_set_resolution(self, _evt=None):
         """Specify resolution."""
         self.model.resolution = float(self.resolution_edit.text())
@@ -140,10 +148,10 @@ class LoadWidget(QWidget):
 
 
 class MovingWidget(LoadWidget):
-    """Widget for loading IMS data."""
+    """Widget for loading moving data."""
 
     # class attrs
-    IS_MICROSCOPY = False
+    IS_FIXED = False
     INFO_TEXT = "Select 'moving' data..."
     FILE_TITLE = "Select 'moving' data..."
 
@@ -182,7 +190,7 @@ class MovingWidget(LoadWidget):
 
         self.transformed_choice = hp.make_combobox(
             self,
-            tooltip="Select which image should be displayed on the microscopy modality.",
+            tooltip="Select which image should be displayed on the fixed modality.",
             func=self._on_toggle_transformed,
         )
         layout.addRow(
@@ -203,7 +211,7 @@ class MovingWidget(LoadWidget):
 
 
 class FixedWidget(LoadWidget):
-    """Widget for loading Microscopy data."""
+    """Widget for loading fixed data."""
 
     # class attrs
-    IS_MICROSCOPY = True
+    IS_FIXED = True

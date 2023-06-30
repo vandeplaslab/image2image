@@ -10,7 +10,7 @@ from loguru import logger
 from pydantic import BaseModel, validator
 from skimage.transform import ProjectiveTransform
 
-from ims2micro._reader import ImageWrapper
+from ims2micro._reader import ImageWrapper, sanitize_path
 
 
 class DataModel(BaseModel):
@@ -19,7 +19,8 @@ class DataModel(BaseModel):
     paths: ty.Optional[ty.List[Path]] = None
     just_added: ty.Optional[ty.List[Path]] = None
     resolution: float = 1.0
-    reader: ty.Optional[ImageWrapper] = None
+    wrapper: ty.Optional[ImageWrapper] = None
+    is_fixed: bool = False
 
     class Config:
         """Config."""
@@ -52,11 +53,11 @@ class DataModel(BaseModel):
             self.paths = []
         just_added = []
         for path in path_or_paths:
-            path = Path(path)
+            path = sanitize_path(path)
             if path not in self.paths:
                 self.paths.append(path)
                 just_added.append(path)
-                logger.trace(f"Added {path} to paths.")
+                logger.trace(f"Added '{path}' to model paths.")
         self.just_added = just_added
 
     def remove_paths(self, path_or_paths: ty.Union[PathLike, ty.List[PathLike]]):
@@ -66,40 +67,48 @@ class DataModel(BaseModel):
         if isinstance(path_or_paths, (str, Path)):
             path_or_paths = [path_or_paths]
         for path in path_or_paths:
-            path = Path(path)
+            path = sanitize_path(path)
             if path in self.paths:
                 self.paths.remove(path)
-                logger.trace(f"Removed {path} from paths.")
-            if self.reader:
-                self.reader.remove_path(path)
-                logger.trace(f"Removed {path} from reader.")
+                logger.trace(f"Removed '{path}' from model paths.")
+            if self.wrapper:
+                self.wrapper.remove_path(path)
+                logger.trace(f"Removed '{path}' from reader.")
             if self.just_added and path in self.just_added:
                 self.just_added.remove(path)
-                logger.trace(f"Removed {path} from just_added.")
+                logger.trace(f"Removed '{path}' from just_added.")
+        # remove wrapper
         if not self.paths:
-            self.reader = None
+            self.wrapper = None
 
     def load(self):
         """Load data into memory."""
         with MeasureTimer() as timer:
-            self.get_reader()
+            self.get_wrapper()
             logger.info(f"Loaded data in {timer()}")
         return self
 
-    def get_reader(self) -> "ImageWrapper":
+    def get_wrapper(self) -> "ImageWrapper":
         """Read data from file."""
         from ims2micro._reader import read_image
 
+        just_added = []
         for path in self.paths:
-            if self.reader is None or not self.reader.is_loaded(path):
-                self.reader = read_image(path, self.reader)
-        if self.reader:
-            self.resolution = self.reader.resolution
-        return self.reader  # noqa
+            if self.wrapper is None or not self.wrapper.is_loaded(path):
+                self.wrapper = read_image(path, self.wrapper, self.is_fixed)
+                just_added.append(path)
+        if self.wrapper:
+            self.resolution = self.wrapper.resolution
+        if just_added:
+            self.just_added = just_added
+        return self.wrapper
 
     def channel_names(self) -> ty.List[str]:
         """Return list of channel names."""
-        return self.get_reader().channel_names()
+        wrapper = self.get_wrapper()
+        if wrapper:
+            return wrapper.channel_names()
+        return []
 
     @property
     def n_paths(self) -> int:
@@ -115,7 +124,7 @@ class Transformation(BaseModel):
     # Type of transformation
     transformation_type: str = ""
     # Path to the image
-    micro_model: ty.Optional[DataModel] = None
+    fixed_model: ty.Optional[DataModel] = None
     moving_model: ty.Optional[DataModel] = None
     # Date when the registration was created
     time_created: ty.Optional[datetime] = None
@@ -127,6 +136,10 @@ class Transformation(BaseModel):
         """Config."""
 
         arbitrary_types_allowed = True
+
+    def is_valid(self):
+        """Returns True if the transformation is valid."""
+        return self.transform is not None
 
     def __call__(self, coords: np.ndarray):
         """Transform coordinates."""
@@ -151,7 +164,7 @@ class Transformation(BaseModel):
             moving_points = moving_points[:, ::-1]
             fixed_points = fixed_points[:, ::-1]
         if not px:
-            moving_points = moving_points * self.micro_model.resolution
+            moving_points = moving_points * self.fixed_model.resolution
             fixed_points = fixed_points * self.moving_model.resolution
 
         transform = compute_transform(
@@ -191,17 +204,17 @@ class Transformation(BaseModel):
     def to_dict(self):
         """Convert to dict."""
         return {
-            "schema_version": "1.0",
+            "schema_version": "1.1",
             "time_created": self.time_created.strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
             "fixed_points_yx_px": self.fixed_points.tolist(),  # default
-            "fixed_points_yx_um": (self.micro_model.resolution * self.fixed_points).tolist(),
+            "fixed_points_yx_um": (self.fixed_model.resolution * self.fixed_points).tolist(),
             "moving_points_yx_px": self.moving_points.tolist(),  # default
             "moving_points_yx_um": (self.moving_model.resolution * self.moving_points).tolist(),
             "transformation_type": self.transformation_type,
-            "micro_paths": [str(path) for path in self.micro_model.paths],
-            "micro_resolution_um": self.micro_model.resolution,
-            "ims_paths": [str(path) for path in self.moving_model.paths],
-            "ims_resolution_um": self.moving_model.resolution,
+            "fixed_paths": [str(path) for path in self.fixed_model.paths],
+            "fixed_resolution_um": self.fixed_model.resolution,
+            "moving_paths": [str(path) for path in self.moving_model.paths],
+            "moving_resolution_um": self.moving_model.resolution,
             "matrix_yx_px": self.compute(yx=True, px=True).params.tolist(),
             "matrix_yx_um": self.compute(yx=True, px=False).params.tolist(),
             "matrix_xy_px": self.compute(yx=False, px=True).params.tolist(),
@@ -258,7 +271,7 @@ class Transformation(BaseModel):
             self.to_xml(path)
         else:
             raise ValueError(f"Unknown file format: {path.suffix}")
-        logger.info(f"Exported to {path}")
+        logger.info(f"Exported to '{path}'")
 
     def to_xml(self, path: PathLike):
         """Export dat aas fusion file."""
@@ -276,8 +289,7 @@ class Transformation(BaseModel):
             return cls.from_json(path)
         elif path.suffix == ".toml":
             return cls.from_toml(path)
-        else:
-            raise ValueError(f"Unknown file format: {path.suffix}")
+        raise ValueError(f"Unknown file format: '{path.suffix}'")
 
 
 def load_from_file(
@@ -309,39 +321,39 @@ def load_from_file(
     if "schema_version" in data:
         (
             transformation_type,
-            micro_paths,
-            micro_paths_missing,
+            fixed_paths,
+            fixed_missing_paths,
             fixed_points,
-            ims_paths,
-            ims_paths_missing,
+            moving_paths,
+            moving_missing_paths,
             moving_points,
         ) = _read_ims2micro_config(data)
     # imsmicrolink config
     elif "Project name" in data:
         (
             transformation_type,
-            micro_paths,
-            micro_paths_missing,
+            fixed_paths,
+            fixed_missing_paths,
             fixed_points,
-            ims_paths,
-            ims_paths_missing,
+            moving_paths,
+            moving_missing_paths,
             moving_points,
         ) = _read_imsmicrolink_config(data)
     else:
         raise ValueError(f"Unknown file format: {path.suffix}")
 
     # apply config
-    micro_paths, micro_paths_missing = (micro_paths, micro_paths_missing) if micro else (None, None)
-    ims_paths, ims_paths_missing = (ims_paths, ims_paths_missing) if ims else (None, None)
+    fixed_paths, fixed_missing_paths = (fixed_paths, fixed_missing_paths) if micro else (None, None)
+    moving_paths, moving_missing_paths = (moving_paths, moving_missing_paths) if ims else (None, None)
     fixed_points = fixed_points if fixed else None
     moving_points = moving_points if moving else None
     return (
         transformation_type,
-        micro_paths,
-        micro_paths_missing,
+        fixed_paths,
+        fixed_missing_paths,
         fixed_points,
-        ims_paths,
-        ims_paths_missing,
+        moving_paths,
+        moving_missing_paths,
         moving_points,
     )
 
@@ -361,27 +373,53 @@ def _get_paths(paths: ty.List[PathLike]):
 
 def _read_ims2micro_config(config: ty.Dict):
     """Read ims2micro configuration file."""
+    schema_version = config["schema_version"]
+    if schema_version == "1.0":
+        return _read_ims2micro_v1_0_config(config)
+    else:
+        return _read_ims2micro_latest_config(config)
+
+
+def _read_ims2micro_latest_config(config: ty.Dict):
     # read important fields
-    micro_paths, micro_paths_missing = _get_paths(config["micro_paths"])
-    ims_paths, ims_paths_missing = _get_paths(config["ims_paths"])
+    fixed_paths, fixed_missing_paths = _get_paths(config["fixed_paths"])
+    moving_paths, moving_missing_paths = _get_paths(config["moving_paths"])
     fixed_points = np.array(config["fixed_points_yx_px"])
     moving_points = np.array(config["moving_points_yx_px"])
     transformation_type = config["transformation_type"]
     return (
         transformation_type,
-        micro_paths,
-        micro_paths_missing,
+        fixed_paths,
+        fixed_missing_paths,
         fixed_points,
-        ims_paths,
-        ims_paths_missing,
+        moving_paths,
+        moving_missing_paths,
+        moving_points,
+    )
+
+
+def _read_ims2micro_v1_0_config(config: ty.Dict):
+    # read important fields
+    fixed_paths, fixed_missing_paths = _get_paths(config["micro_paths"])
+    moving_paths, moving_missing_paths = _get_paths(config["ims_paths"])
+    fixed_points = np.array(config["fixed_points_yx_px"])
+    moving_points = np.array(config["moving_points_yx_px"])
+    transformation_type = config["transformation_type"]
+    return (
+        transformation_type,
+        fixed_paths,
+        fixed_missing_paths,
+        fixed_points,
+        moving_paths,
+        moving_missing_paths,
         moving_points,
     )
 
 
 def _read_imsmicrolink_config(config: ty.Dict):
     """Read imsmicrolink configuration file."""
-    micro_paths, micro_paths_missing = _get_paths([config["PostIMS microscopy image"]])  # need to be a list
-    ims_paths, ims_paths_missing = _get_paths(config["Pixel Map Datasets Files"])
+    fixed_paths, fixed_missing_paths = _get_paths([config["PostIMS microscopy image"]])  # need to be a list
+    moving_paths, moving_missing_paths = _get_paths(config["Pixel Map Datasets Files"])
     fixed_points = np.array(config["PAQ microscopy points (xy, px)"])[:, ::-1]
     moving_points = np.array(config["IMS pixel map points (xy, px)"])[:, ::-1]
     padding = config["padding"]
@@ -392,10 +430,10 @@ def _read_imsmicrolink_config(config: ty.Dict):
     transformation_type = "Affine"
     return (
         transformation_type,
-        micro_paths,
-        micro_paths_missing,
+        fixed_paths,
+        fixed_missing_paths,
         fixed_points,
-        ims_paths,
-        ims_paths_missing,
+        moving_paths,
+        moving_missing_paths,
         moving_points,
     )

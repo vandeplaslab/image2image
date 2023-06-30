@@ -6,7 +6,7 @@ from koyo.typing import PathLike
 from loguru import logger
 from pydantic import BaseModel, Field, validator
 
-from ims2micro.appdirs import USER_CONFIG_DIR
+from ims2micro._appdirs import USER_CONFIG_DIR
 from ims2micro.enums import ViewerOrientation, ViewType
 
 
@@ -44,11 +44,11 @@ class Config(BaseModel):
     theme: str = Field("light", title="Theme", description="Theme of the application.")
 
     # paths
-    microscopy_dir: str = Field("", title="Microscopy directory", description="Directory with microscopy images.")
-    imaging_dir: str = Field("", title="Imaging directory", description="Directory with imaging images.")
-    output_dir: str = Field("", title="Output directory", description="Directory where output will be saved.")
+    fixed_dir: str = Field("", title="Fixed directory", description="Directory with fixed images.")
+    moving_dir: str = Field("", title="Moving directory", description="Directory with moving images.")
+    output_dir: str = Field("", title="Output directory", description="Directory where output should be saved.")
 
-    @validator("microscopy_dir", "imaging_dir", "output_dir", pre=True, allow_reuse=True)
+    @validator("fixed_dir", "moving_dir", "output_dir", pre=True, allow_reuse=True)
     def _validate_path(value: PathLike) -> str:
         """Validate path."""
         return str(value)
@@ -85,10 +85,11 @@ class Config(BaseModel):
             try:
                 data = read_json_data(self.output_path)
                 for key, value in data.items():
-                    try:
-                        setattr(self, key, value)
-                    except Exception as e:
-                        logger.warning(f"Failed to set {key}={value}: {e}")
+                    if hasattr(self, key):
+                        try:
+                            setattr(self, key, value)
+                        except Exception as e:
+                            logger.warning(f"Failed to set {key}={value}: {e}")
                 logger.info(f"Loaded configuration from {self.output_path}")
             except Exception as e:
                 logger.warning(f"Failed to load configuration from {self.output_path}: {e}")

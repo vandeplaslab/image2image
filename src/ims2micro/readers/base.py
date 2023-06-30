@@ -1,4 +1,4 @@
-"""Base image reader."""
+"""Base image wrapper."""
 import typing as ty
 from pathlib import Path
 

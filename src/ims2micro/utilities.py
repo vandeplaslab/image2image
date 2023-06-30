@@ -4,6 +4,7 @@ from pathlib import Path
 
 import numpy as np
 from koyo.typing import PathLike
+from loguru import logger
 from napari._vispy.layers.points import VispyPointsLayer
 from napari.layers.points._points_mouse_bindings import select as _select
 from napari.layers.points.points import Mode, Points
@@ -27,6 +28,21 @@ PREFERRED_COLORMAPS = [
     "yellow",
     "cyan",
 ]
+
+
+def is_debug() -> bool:
+    """Return whether in debug mode."""
+    import os
+
+    return os.environ.get("IMS2MICRO_DEV_MODE", "0") == "1"
+
+
+def log_exception(message_or_error):
+    """Log exception message. If in 'DEBUG mode' raise exception."""
+    if is_debug():
+        logger.exception(message_or_error)
+    else:
+        logger.warning(message_or_error)
 
 
 def open_link(url: str):

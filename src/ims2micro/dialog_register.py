@@ -28,7 +28,14 @@ from ims2micro._select import FixedWidget, MovingWidget
 from ims2micro.config import CONFIG
 from ims2micro.enums import ALLOWED_EXPORT_FORMATS, TRANSFORMATION_TRANSLATIONS, ViewType
 from ims2micro.models import DataModel, Transformation
-from ims2micro.utilities import _get_text_data, _get_text_format, get_colormap, init_points_layer, style_form_layout
+from ims2micro.utilities import (
+    _get_text_data,
+    _get_text_format,
+    get_colormap,
+    init_points_layer,
+    log_exception,
+    style_form_layout,
+)
 
 
 class ImageRegistrationWindow(QMainWindow, IndicatorMixin, ImageViewMixin):
@@ -109,11 +116,19 @@ class ImageRegistrationWindow(QMainWindow, IndicatorMixin, ImageViewMixin):
         connect(self._fixed_widget.evt_loading, partial(self.on_indicator, which="fixed"), state=state)
         connect(self._fixed_widget.evt_loaded, self.on_load_fixed, state=state)
         connect(self._fixed_widget.evt_toggle_channel, partial(self.on_toggle_channel, which="fixed"), state=state)
+        connect(
+            self._fixed_widget.evt_toggle_all_channels, partial(self.on_toggle_all_channels, which="fixed"), state=state
+        )
         connect(self._fixed_widget.evt_closed, self.on_close_fixed, state=state)
         # imaging widget
         connect(self._moving_widget.evt_show_transformed, self.on_toggle_transformed_moving, state=state)
         connect(self._moving_widget.evt_loading, partial(self.on_indicator, which="moving"), state=state)
         connect(self._moving_widget.evt_toggle_channel, partial(self.on_toggle_channel, which="moving"), state=state)
+        connect(
+            self._moving_widget.evt_toggle_all_channels,
+            partial(self.on_toggle_all_channels, which="moving"),
+            state=state,
+        )
         connect(self._moving_widget.evt_loaded, self.on_load_moving, state=state)
         connect(self._moving_widget.evt_closed, self.on_close_moving, state=state)
         connect(self._moving_widget.evt_view_type, self.on_change_view_type, state=state)
@@ -138,7 +153,7 @@ class ImageRegistrationWindow(QMainWindow, IndicatorMixin, ImageViewMixin):
             self._on_load_fixed(model, channel_list)
             hp.toast(self, "Loaded fixed data", f"Loaded fixed model with {model.n_paths} paths.")
         else:
-            logger.warning("Failed to load fixed data.")
+            logger.warning(f"Failed to load fixed data - model={model}")
         self.on_indicator("fixed", False)
 
     def _on_load_fixed(self, model: DataModel, channel_list: ty.Optional[ty.List[str]] = None):
@@ -149,13 +164,13 @@ class ImageRegistrationWindow(QMainWindow, IndicatorMixin, ImageViewMixin):
         logger.info(f"Loaded fixed data in {timer()}")
 
     def _plot_fixed_layers(self, channel_list: ty.Optional[ty.List[str]] = None):
-        wrapper = self._fixed_widget.model.get_reader()
+        wrapper = self._fixed_widget.model.get_wrapper()
         if channel_list is None:
             channel_list = wrapper.channel_names()
         fixed_image_layer = []
         used = [layer.colormap for layer in self.view_fixed.layers if isinstance(layer, Image)]
         for index, (name, array) in enumerate(wrapper.channel_image_iter()):
-            logger.debug(f"Adding '{name}' to fixed view...")
+            logger.trace(f"Adding '{name}' to fixed view...")
             with MeasureTimer() as timer:
                 if name in self.view_fixed.layers:
                     fixed_image_layer.append(self.view_fixed.layers[name])
@@ -169,7 +184,7 @@ class ImageRegistrationWindow(QMainWindow, IndicatorMixin, ImageViewMixin):
                         visible=name in channel_list,
                     )
                 )
-                logger.debug(f"Added '{name}' to fixed view in {timer()}.")
+                logger.trace(f"Added '{name}' to fixed view in {timer()}.")
         self.fixed_image_layer = fixed_image_layer
         if isinstance(self.fixed_image_layer, list) and len(self.fixed_image_layer) > 1:
             link_layers(self.fixed_image_layer, attributes=("opacity",))
@@ -182,9 +197,9 @@ class ImageRegistrationWindow(QMainWindow, IndicatorMixin, ImageViewMixin):
             for name in layer_names:
                 if name not in channel_names:
                     del self.view_fixed.layers[name]
-                    logger.debug(f"Removed {name} from fixed view.")
+                    logger.trace(f"Removed '{name}' from fixed view.")
         except Exception as e:
-            logger.exception(e)
+            log_exception(e)
 
     def on_toggle_channel(self, name: str, state: bool, which: str):
         """Toggle channel."""
@@ -194,6 +209,13 @@ class ImageRegistrationWindow(QMainWindow, IndicatorMixin, ImageViewMixin):
             return
         view.layers[name].visible = state
 
+    def on_toggle_all_channels(self, state: bool, which: str):
+        """Toggle channel."""
+        view = self.view_fixed if which == "fixed" else self.view_moving
+        for layer in view.layers:
+            if isinstance(layer, Image):
+                layer.visible = state
+
     @ensure_main_thread
     def on_load_moving(self, model: DataModel, channel_list: ty.List[str]):
         """Open modality."""
@@ -201,7 +223,7 @@ class ImageRegistrationWindow(QMainWindow, IndicatorMixin, ImageViewMixin):
             self._on_load_moving(model, channel_list)
             hp.toast(self, "Loaded moving data", f"Loaded moving model with {model.n_paths} paths.")
         else:
-            logger.warning("Failed to load moving data.")
+            logger.warning(f"Failed to load moving data - model={model}")
         self.on_indicator("moving", False)
 
     def _on_load_moving(self, model: DataModel, channel_list: ty.Optional[ty.List[str]] = None):
@@ -215,14 +237,14 @@ class ImageRegistrationWindow(QMainWindow, IndicatorMixin, ImageViewMixin):
     def _plot_moving_layers(self, channel_list: ty.Optional[ty.List[str]] = None):
         CONFIG.view_type = ViewType(CONFIG.view_type)
         is_overlay = CONFIG.view_type == ViewType.OVERLAY
-        wrapper = self._moving_widget.model.get_reader()
+        wrapper = self._moving_widget.model.get_wrapper()
         if channel_list is None:
             channel_list = wrapper.channel_names(CONFIG.view_type)
 
         moving_image_layer = []
         used = [layer.colormap for layer in self.view_moving.layers if isinstance(layer, Image)]
         for index, (name, array) in enumerate(wrapper.channel_image_iter(CONFIG.view_type)):
-            logger.debug(f"Adding '{name}' to moving view...")
+            logger.trace(f"Adding '{name}' to moving view...")
             with MeasureTimer() as timer:
                 colormap = get_colormap(index, used) if is_overlay else "turbo"
                 is_visible = True if (is_overlay and index == 0) else (not is_overlay)
@@ -244,7 +266,7 @@ class ImageRegistrationWindow(QMainWindow, IndicatorMixin, ImageViewMixin):
                         visible=is_visible and name in channel_list,
                     )
                 )
-            logger.debug(f"Added '{name}' to fixed view in {timer()}.")
+            logger.trace(f"Added '{name}' to fixed view in {timer()}.")
         # hide away other layers if user selected 'random' view
         if CONFIG.view_type == ViewType.RANDOM:
             for index, layer in enumerate(moving_image_layer):
@@ -260,9 +282,9 @@ class ImageRegistrationWindow(QMainWindow, IndicatorMixin, ImageViewMixin):
             for name in layer_names:
                 if name not in channel_names:
                     del self.view_moving.layers[name]
-                    logger.debug(f"Removed {name} from moving view.")
+                    logger.trace(f"Removed '{name}' from moving view.")
         except Exception as e:
-            logger.exception(e)
+            log_exception(e)
 
     def on_change_view_type(self, _view_type: str):
         """Change view type."""
@@ -407,7 +429,7 @@ class ImageRegistrationWindow(QMainWindow, IndicatorMixin, ImageViewMixin):
         if transform is None:
             logger.warning("Cannot save transformation - no transformation has been computed.")
             return
-        # get filename which is based on the IMS dataset
+        # get filename which is based on the moving dataset
         filename = transform.moving_model.get_filename() + "_transform.i2m.json"
         path = hp.get_save_filename(
             self,
@@ -442,7 +464,7 @@ class ImageRegistrationWindow(QMainWindow, IndicatorMixin, ImageViewMixin):
             dlg = ImportSelectDialog(self)
             if dlg.exec_():
                 config = dlg.config
-                logger.debug(f"Loaded configuration from {path}\n{config}")
+                logger.trace(f"Loaded configuration from {path}\n{config}")
 
                 # reset all widgets
                 if config["micro"]:
@@ -621,7 +643,7 @@ class ImageRegistrationWindow(QMainWindow, IndicatorMixin, ImageViewMixin):
             return
         self.view_fixed.viewer.camera.center = (0.0, self.y_center.value(), self.x_center.value())
         self.view_fixed.viewer.camera.zoom = self.zoom.value()
-        logger.debug(
+        logger.trace(
             f"Applied focus center=({self.y_center.value():.1f}, {self.x_center.value():.1f})"
             f" zoom={self.zoom.value():.3f}"
         )

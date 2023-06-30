@@ -159,3 +159,4 @@ _version.py
 
 # nuitka
 *.build/
+*.iml

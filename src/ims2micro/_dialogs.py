@@ -22,8 +22,8 @@ if ty.TYPE_CHECKING:
 OverlayConfig = (
     TableConfig()
     .add("", "check", "bool", 25, no_sort=True)
-    .add("channel name", "channel_name", "str", 125)
-    .add("dataset", "dataset", "str", 250)
+    .add("channel name", "channel_name", "str", 125, no_sort=True)
+    .add("dataset", "dataset", "str", 250, no_sort=True)
 )
 
 SelectConfig = (
@@ -223,7 +223,7 @@ class FiducialTableDialog(QtFramelessTool):
         """Zoom in."""
         row = index.row()
         y_micro, x_micro, y_ims, x_ims = self.points_data[row]
-        # zoom-in on microscopy data
+        # zoom-in on fixed data
         if not np.isnan(x_micro):
             view_fixed = self.parent().view_fixed
             view_fixed.viewer.camera.center = (0.0, y_micro, x_micro)
@@ -232,7 +232,7 @@ class FiducialTableDialog(QtFramelessTool):
                 f"Applied focus center=({y_micro:.1f}, {x_micro:.1f}) zoom={view_fixed.viewer.camera.zoom:.3f} on micro"
                 f" data"
             )
-        # zoom-in on IMS data
+        # zoom-in on moving data
         if not np.isnan(x_ims):
             view_moving = self.parent().view_moving
             view_moving.viewer.camera.center = (0.0, y_ims, x_ims)
@@ -300,10 +300,9 @@ class OverlayTableDialog(QtFramelessTool):
     evt_close = Signal()
 
     def __init__(self, parent: "LoadWidget", model: "DataModel", view):
-        super().__init__(parent)
         self.model = model
         self.view = view
-
+        super().__init__(parent)
         self.setMinimumWidth(400)
         self.setMinimumHeight(400)
 
@@ -318,9 +317,12 @@ class OverlayTableDialog(QtFramelessTool):
 
     def on_toggle_channel(self, index: int, state: bool):
         """Toggle channel."""
-        channel_name = self.table.get_value(OverlayConfig.channel_name, index)
-        dataset = self.table.get_value(OverlayConfig.dataset, index)
-        self.parent().evt_toggle_channel.emit(f"{channel_name} | {dataset}", state)
+        if index == -1:
+            self.parent().evt_toggle_all_channels.emit(state)
+        else:
+            channel_name = self.table.get_value(OverlayConfig.channel_name, index)
+            dataset = self.table.get_value(OverlayConfig.dataset, index)
+            self.parent().evt_toggle_channel.emit(f"{channel_name} | {dataset}", state)
 
     def on_load(self, model: "DataModel"):
         """On load."""
@@ -329,7 +331,7 @@ class OverlayTableDialog(QtFramelessTool):
 
         self.model = model
         data = []
-        reader = self.model.get_reader()
+        reader = self.model.get_wrapper()
         if reader:
             for name in reader.channel_names():
                 channel_name, dataset = name.split(" | ")
@@ -350,9 +352,10 @@ class OverlayTableDialog(QtFramelessTool):
     def make_panel(self) -> QFormLayout:
         """Make panel."""
         _, header_layout = self._make_hide_handle()
-        self._title_label.setText("Channel Selection")
+        which = "Fixed" if self.model.is_fixed else "Moving"
+        self._title_label.setText(f"'{which}' Channel Selection")
 
-        self.table = QtCheckableTableView(self, config=OverlayConfig, enable_all_check=False, sortable=False)
+        self.table = QtCheckableTableView(self, config=OverlayConfig, enable_all_check=True, sortable=True)
         self.table.setCornerButtonEnabled(False)
         hp.set_font(self.table)
         self.table.setup_model(OverlayConfig.header, OverlayConfig.no_sort_columns, OverlayConfig.hidden_columns)
@@ -530,11 +533,13 @@ class SelectChannelsTableDialog(QtDialog):
     def on_load(self):
         """On load."""
         data = []
-        reader = self.model.get_reader()
-        if reader:
-            for name in reader.channel_names_for_names(self.model.just_added):
+        wrapper = self.model.get_wrapper()
+        if wrapper:
+            for name in wrapper.channel_names_for_names(self.model.just_added):
                 channel_name, _ = name.split(" | ")
                 data.append([True, channel_name, name])
+        else:
+            logger.warning(f"Wrapper was not specified - {wrapper}")
         self.table.add_data(data)
 
     # noinspection PyAttributeOutsideInit

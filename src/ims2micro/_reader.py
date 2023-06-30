@@ -1,9 +1,10 @@
-"""Generic reader."""
+"""Generic wrapper."""
 import typing as ty
 from pathlib import Path
 
 import numpy as np
 from koyo.typing import PathLike
+from loguru import logger
 
 if ty.TYPE_CHECKING:
     from ims2micro.readers.base import BaseImageReader
@@ -14,25 +15,25 @@ if ty.TYPE_CHECKING:
 IMAGE_EXTENSIONS = [".jpg", ".jpeg", ".png"]
 TIFF_EXTENSIONS = [".scn", ".ome.tiff", ".tif", ".tiff", ".svs", ".ndpi"]
 CZI_EXTENSIONS = [".czi"]
-BRUKER_EXTENSIONS = [".tsf", ".tdf"]
+BRUKER_EXTENSIONS = [".tsf", ".tdf", ".d"]
 IMZML_EXTENSIONS = [".imzml"]
 H5_EXTENSIONS = [".h5", ".hdf5"]
 NPY_EXTENSIONS = [".npy"]
 
 
 class ImageWrapper:
-    """Wrapper around microscopy data."""
+    """Wrapper around image data."""
 
     data: ty.Dict[str, ty.Optional[ty.Union["BaseImageReader", np.ndarray]]]
     paths: ty.List[Path]
     resolution: float = 1.0
 
-    def __init__(self, reader_or_array: ty.Dict[str, ty.Union[np.ndarray, "BaseImageReader"]]):
+    def __init__(self, reader_or_array: ty.Optional[ty.Dict[str, ty.Union[np.ndarray, "BaseImageReader"]]] = None):
         self.data = reader_or_array or {}
         self.paths = []
 
         resolution = [1.0]
-        for _, _reader_or_array in reader_or_array.items():
+        for _, _reader_or_array in self.data.items():
             if hasattr(_reader_or_array, "base_layer_pixel_res"):
                 resolution.append(_reader_or_array.base_layer_pixel_res)
         self.resolution = np.min(resolution)
@@ -40,10 +41,12 @@ class ImageWrapper:
     def add(self, key: str, array: ty.Union[np.ndarray, ty.Any]):
         """Add data to wrapper."""
         self.data[key] = array
+        logger.trace(f"Added '{key}' to wrapper data.")
 
     def add_path(self, path: PathLike):
         """Add the path to wrapper."""
         self.paths.append(Path(path))
+        logger.trace(f"Added '{path}' to wrapper paths.")
 
     def remove_path(self, path: PathLike):
         """Remove the path from wrapper."""
@@ -67,7 +70,7 @@ class ImageWrapper:
         return len(self.channel_names())
 
     def channel_names_for_names(self, names: ty.List[PathLike]) -> ty.List[str]:
-        """Return list of channel names for a given reader/dataset."""
+        """Return list of channel names for a given wrapper/dataset."""
         clean_names = []
         for name in names:
             if isinstance(name, Path):
@@ -105,7 +108,7 @@ class ImageWrapper:
                     reader_or_array = np.atleast_3d(reader_or_array, axis=-1)
                     self.data[key] = reader_or_array  # replace to ensure it's 3d array
                 array = [reader_or_array]
-            # microscopy data reader
+            # microscopy or ims data wrapper
             elif hasattr(reader_or_array, "pyramid"):
                 temp = reader_or_array.pyramid
                 array = temp if isinstance(temp, list) else [temp]
@@ -160,8 +163,17 @@ class ImageWrapper:
         return names
 
 
-def read_image(path: PathLike, wrapper: ty.Optional["ImageWrapper"] = None) -> "ImageWrapper":
-    """Read microscopy data."""
+def sanitize_path(path: PathLike) -> Path:
+    """Sanitize a path, so it has a unified format across models."""
+    path = Path(path).resolve()
+    if path.is_file():
+        if path.suffix in [".tsf", ".tdf"]:
+            path = path.parent
+    return path
+
+
+def read_image(path: PathLike, wrapper: ty.Optional["ImageWrapper"] = None, is_fixed: bool = False) -> "ImageWrapper":
+    """Read image data."""
     path = Path(path)
     assert path.exists(), f"File does not exist: {path}"
     assert (
@@ -177,61 +189,64 @@ def read_image(path: PathLike, wrapper: ty.Optional["ImageWrapper"] = None) -> "
 
     suffix = path.suffix.lower()
     if suffix in TIFF_EXTENSIONS:
-        data = _read_tiff(path)
+        path, reader = _read_tiff(path)
     elif suffix in CZI_EXTENSIONS:
-        data = _read_czi(path)
+        path, reader = _read_czi(path)
     elif suffix in IMAGE_EXTENSIONS:
-        data = _read_image(path)
+        path, reader = _read_image(path)
     elif suffix in NPY_EXTENSIONS:
-        data = _read_npy_coordinates(path)
+        path, reader = _read_npy_coordinates(path)
     elif suffix in BRUKER_EXTENSIONS:
-        data = _read_tsf_tdf_reader(path)
+        path, reader = _read_tsf_tdf_reader(path)
     elif suffix in IMZML_EXTENSIONS:
-        data = _read_imzml_reader(path)
+        path, reader = _read_imzml_reader(path)
     elif suffix in H5_EXTENSIONS:
         if path.name.startswith("peaks_"):
-            data = _read_centroids_h5_coordinates(path)
+            path, reader = _read_centroids_h5_coordinates(path)
         else:
-            data = _read_metadata_h5_coordinates(path)
+            path, reader = _read_metadata_h5_coordinates(path)
     else:
         raise ValueError(f"Unsupported file format: {suffix}")
     if wrapper is None:
-        wrapper = ImageWrapper(data)
-    else:
-        for key, value in data.items():
-            wrapper.add(key, value)
+        wrapper = ImageWrapper(None)
+
+    # specify whether the model is fixed
+    if hasattr(reader, "is_fixed"):
+        reader.is_fixed = is_fixed
+
+    wrapper.add(path.name, reader)
     wrapper.add_path(path)
     return wrapper
 
 
-def _read_czi(path: PathLike) -> ty.Dict[str, "CziImageReader"]:
+def _read_czi(path: PathLike) -> ty.Tuple[Path, "CziImageReader"]:
     """Read CZI file."""
     from ims2micro.readers.czi_reader import CziImageReader
 
     path = Path(path)
     assert path.exists(), f"File does not exist: {path}"
-    return {path.name: CziImageReader(path)}
+    return path, CziImageReader(path)
 
 
-def _read_tiff(path: PathLike) -> ty.Dict[str, "TiffImageReader"]:
+def _read_tiff(path: PathLike) -> ty.Tuple[Path, "TiffImageReader"]:
     """Read TIFF file."""
     from ims2micro.readers.tiff_reader import TiffImageReader
 
     path = Path(path)
     assert path.exists(), f"File does not exist: {path}"
-    return {path.name: TiffImageReader(path)}
+    return path, TiffImageReader(path)
 
 
-def _read_image(path: PathLike) -> ty.Dict[str, np.ndarray]:
+def _read_image(path: PathLike) -> ty.Tuple[Path, np.ndarray]:
     """Read image."""
     from skimage.io import imread
 
     path = Path(path)
     assert path.exists(), f"File does not exist: {path}"
-    return {path.name: imread(path)}
+    return path, imread(path)
 
 
-def _read_npy_coordinates(path: PathLike) -> ty.Dict[str, "CoordinateReader"]:
+def _read_npy_coordinates(path: PathLike) -> ty.Tuple[Path, "CoordinateReader"]:
     """Read data from npz or npy file."""
     from ims2micro.readers.coordinate_reader import CoordinateReader
 
@@ -239,10 +254,10 @@ def _read_npy_coordinates(path: PathLike) -> ty.Dict[str, "CoordinateReader"]:
         image = np.load(f)  # noqa
     assert image.ndim == 2, "Only 2D images are supported"
     y, x = get_yx_coordinates_from_shape(image.shape)
-    return {path.name: CoordinateReader(path, x, y, array_or_reader=image)}
+    return path, CoordinateReader(path, x, y, array_or_reader=image)
 
 
-def _read_metadata_h5_coordinates(path: PathLike) -> ty.Dict[str, "CoordinateReader"]:
+def _read_metadata_h5_coordinates(path: PathLike) -> ty.Tuple[Path, "CoordinateReader"]:
     """Read coordinates from HDF5 file."""
     import h5py
     from koyo.json import read_json_data
@@ -263,10 +278,10 @@ def _read_metadata_h5_coordinates(path: PathLike) -> ty.Dict[str, "CoordinateRea
     if (path.parent / "metadata.json").exists():
         metadata = read_json_data(path.parent / "metadata.json")
         resolution = metadata["metadata.experimental"]["pixel_size"]
-    return {path.name: CoordinateReader(path, x, y, resolution, array_or_reader=tic)}
+    return path, CoordinateReader(path, x, y, resolution, array_or_reader=reshape(x, y, tic))
 
 
-def _read_centroids_h5_coordinates(path: PathLike) -> ty.Dict[str, "CoordinateReader"]:
+def _read_centroids_h5_coordinates(path: PathLike) -> ty.Tuple[Path, "CoordinateReader"]:
     """Read centroids data from HDF5 file."""
     import h5py
 
@@ -277,24 +292,24 @@ def _read_centroids_h5_coordinates(path: PathLike) -> ty.Dict[str, "CoordinateRe
     metadata_file = data_dir / "dataset.metadata.h5"
     assert metadata_file.exists(), f"File does not exist: {metadata_file}"
 
-    data = _read_metadata_h5_coordinates(metadata_file)
-    reader = data[metadata_file.name]
+    _, reader = _read_metadata_h5_coordinates(metadata_file)
     x = reader.x  # noqa
     y = reader.y  # noqa
 
     with h5py.File(path, "r") as f:
         ys = f["Array"]["ys"][:]
-        indices = np.argsort(ys)[:-20]
-        indices = np.sort(indices)
-        mzs = f["Array"]["xs"][indices]
-        centroids = f["Array"]["array"][:, indices]
-    centroids = reshape_batch(x, y, centroids)
-    mzs = [f"m/z {mz:.3f}" for mz in mzs]
-    reader.data.update({mz: centroid for mz, centroid in zip(mzs, centroids)})  # noqa
-    return {path.name: reader}
+        indices = np.argsort(ys)[::-1]
+        indices = indices[0:10]  # take the top 10 images
+        indices = np.sort(indices)  # sort so they are ordered otherwise h5py will throw an error
+        mzs = f["Array"]["xs"][indices]  # retrieve m/zs
+        centroids = f["Array"]["array"][:, indices]  # retrieve ion images
+    mzs = [f"m/z {mz:.3f}" for mz in mzs]  # generate labels
+    centroids = reshape_batch(x, y, centroids)  # reshape images
+    reader.data.update(dict(zip(mzs, centroids)))
+    return path, reader
 
 
-def _read_tsf_tdf_coordinates(path: PathLike) -> ty.Dict[str, "CoordinateReader"]:
+def _read_tsf_tdf_coordinates(path: PathLike) -> ty.Tuple[Path, "CoordinateReader"]:
     """Read coordinates from TSF file."""
     import sqlite3
 
@@ -303,7 +318,13 @@ def _read_tsf_tdf_coordinates(path: PathLike) -> ty.Dict[str, "CoordinateReader"
     path = Path(path)
     assert path.suffix in BRUKER_EXTENSIONS, "Only .tsf and .tdf files are supported"
 
-    # get reader
+    if path.suffix == ".d":
+        if (path / "analysis.tsf").exists():
+            path = path / "analysis.tsf"
+        else:
+            path = path / "analysis.tdf"
+
+    # get wrapper
     conn = sqlite3.connect(path)
 
     try:
@@ -326,18 +347,25 @@ def _read_tsf_tdf_coordinates(path: PathLike) -> ty.Dict[str, "CoordinateReader"
     cursor = conn.execute("SELECT SummedIntensities FROM Frames")  # noqa
     tic = np.array(cursor.fetchall())
     tic = tic[:, 0]
-    return {path.name: CoordinateReader(path, x, y, resolution, array_or_reader=reshape(x, y, tic))}
+    return path.parent, CoordinateReader(path, x, y, resolution, array_or_reader=reshape(x, y, tic))
 
 
-def _read_tsf_tdf_reader(path: PathLike) -> ty.Dict[str, "CoordinateReader"]:
+def _read_tsf_tdf_reader(path: PathLike) -> ty.Tuple[Path, "CoordinateReader"]:
     """Read coordinates from Bruker file."""
     import sqlite3
+
     from imzy import get_reader
 
     from ims2micro.readers.coordinate_reader import CoordinateReader
 
     path = Path(path)
     assert path.suffix in BRUKER_EXTENSIONS, "Only .tsf and .tdf files are supported"
+
+    if path.suffix == ".d":
+        if (path / "analysis.tsf").exists():
+            path = path / "analysis.tsf"
+        else:
+            path = path / "analysis.tdf"
 
     conn = sqlite3.connect(path)
     try:
@@ -347,15 +375,15 @@ def _read_tsf_tdf_reader(path: PathLike) -> ty.Dict[str, "CoordinateReader"]:
         resolution = 1.0
     conn.close()
 
-    # get reader
+    # get wrapper
     path = path.parent
     reader = get_reader(path)
     x = reader.x_coordinates
     y = reader.y_coordinates
-    return {path.name: CoordinateReader(path, x, y, resolution, array_or_reader=reader)}
+    return path, CoordinateReader(path.parent, x, y, resolution, array_or_reader=reader)
 
 
-def _read_imzml_coordinates(path: PathLike) -> ty.Dict[str, "CoordinateReader"]:
+def _read_imzml_coordinates(path: PathLike) -> ty.Tuple[Path, "CoordinateReader"]:
     """Read coordinates from imzML file."""
     from imzy import get_reader
 
@@ -364,17 +392,17 @@ def _read_imzml_coordinates(path: PathLike) -> ty.Dict[str, "CoordinateReader"]:
     path = Path(path)
     assert path.suffix.lower() in IMZML_EXTENSIONS, "Only .imzML files are supported"
 
-    # get reader
+    # get wrapper
     reader = get_reader(path)
     x = reader.x_coordinates
     x = x - np.min(x)  # minimized
     y = reader.y_coordinates
     y = y - np.min(y)  # minimized
     tic = reader.get_tic()
-    return {path.name: CoordinateReader(path, x, y, array_or_reader=reshape(x, y, tic))}
+    return path, CoordinateReader(path, x, y, array_or_reader=reshape(x, y, tic))
 
 
-def _read_imzml_reader(path: PathLike) -> ty.Dict[str, "CoordinateReader"]:
+def _read_imzml_reader(path: PathLike) -> ty.Tuple[Path, "CoordinateReader"]:
     """Read coordinates from imzML file."""
     from imzy import get_reader
 
@@ -383,13 +411,13 @@ def _read_imzml_reader(path: PathLike) -> ty.Dict[str, "CoordinateReader"]:
     path = Path(path)
     assert path.suffix.lower() in IMZML_EXTENSIONS, "Only .imzML files are supported"
 
-    # get reader
+    # get wrapper
     reader = get_reader(path)
     x = reader.x_coordinates
     x = x - np.min(x)  # minimized
     y = reader.y_coordinates
     y = y - np.min(y)  # minimized
-    return {path.name: CoordinateReader(path, x, y, array_or_reader=reader)}
+    return path, CoordinateReader(path, x, y, array_or_reader=reader)
 
 
 def reshape(x: np.ndarray, y: np.ndarray, array: np.ndarray, fill_value: float = 0) -> np.ndarray:

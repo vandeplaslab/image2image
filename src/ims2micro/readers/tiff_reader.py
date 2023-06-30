@@ -1,4 +1,4 @@
-"""Tiff file reader.
+"""Tiff file wrapper.
 
 Copied from:
 https://github.com/NHPatterson/napari-imsmicrolink/blob/master/src/napari_imsmicrolink/data/tifffile_reader.py
@@ -25,7 +25,7 @@ from ims2micro.readers.utilities import (
 
 
 class TiffImageReader(BaseImageReader):
-    """TIFF image reader."""
+    """TIFF image wrapper."""
 
     def __init__(self, path, init_pyramid: bool = True):
         super().__init__(path)

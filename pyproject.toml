@@ -43,9 +43,13 @@ dependencies = [
     "toml",
     "h5py",
     "dicttoxml",
-    "czifile"
+    "czifile",
+    "qtconsole>=4.5.1,!=4.7.6,!=5.4.2",
+    "ipykernel>=5.2.0",
     # "qtextra",
 ]
+
+
 
 # extras
 # https://peps.python.org/pep-0621/#dependencies-optional-dependencies

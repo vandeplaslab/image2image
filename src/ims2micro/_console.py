@@ -1,18 +1,19 @@
 import re
 import sys
 import typing as ty
+
+import qtextra.helpers as hp
 from ipykernel.inprocess.ipkernel import InProcessInteractiveShell
 from ipykernel.zmqshell import ZMQInteractiveShell
 from IPython import get_ipython
 from IPython.terminal.interactiveshell import TerminalInteractiveShell
 from qtconsole.inprocess import QtInProcessKernelManager
 from qtconsole.rich_jupyter_widget import RichJupyterWidget
+from qtextra.widgets.qt_dialog import QtFramelessTool
 from qtpy.QtGui import QColor
 from qtpy.QtWidgets import QFormLayout
-from qtextra.widgets.qt_dialog import QtFramelessTool
-import qtextra.helpers as hp
+
 from ims2micro.utilities import style_form_layout
-from ims2micro.config import CONFIG
 
 
 def str_to_rgb(arg):
@@ -69,7 +70,7 @@ class QtConsole(RichJupyterWidget):
         Shell for the kernel if it exists, None otherwise.
     """
 
-    def __init__(self, variables: ty.Dict[str, ty.Any] = None):
+    def __init__(self, variables: ty.Optional[ty.Dict[str, ty.Any]] = None):
         super().__init__()
         # Connect theme update
         if variables is None:

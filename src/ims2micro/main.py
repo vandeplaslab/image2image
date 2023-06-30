@@ -1,4 +1,5 @@
 """Main window."""
+import os
 import sys
 
 from loguru import logger
@@ -9,13 +10,13 @@ def run(level: int = 10, no_color: bool = False, dev: bool = False):
     from koyo.logging import set_loguru_log
     from qtextra.config import THEMES
 
-    from ims2micro.appdirs import USER_LOG_DIR
+    from ims2micro._appdirs import USER_LOG_DIR
     from ims2micro.dialog_register import ImageRegistrationWindow
     from ims2micro.event_loop import get_app
 
     log_path = USER_LOG_DIR / "log.txt"
     set_loguru_log(log_path, level=level, no_color=True, diagnose=True, catch=True, logger=logger)
-    set_loguru_log(level=level, no_color=False, diagnose=True, catch=True, logger=logger, remove=False)
+    set_loguru_log(level=level, no_color=no_color, diagnose=True, catch=True, logger=logger, remove=False)
     logger.enable("ims2micro")
     logger.info(f"Enabled logger - logging to '{log_path}' at level={level}")
 
@@ -29,6 +30,7 @@ def run(level: int = 10, no_color: bool = False, dev: bool = False):
     if dev:
         import faulthandler
 
+        from koyo.hooks import install_debugger_hook
         from qtextra.utils.dev import qdev
 
         segfault_path = USER_LOG_DIR / "segfault.log"
@@ -42,9 +44,14 @@ def run(level: int = 10, no_color: bool = False, dev: bool = False):
         dev.evt_theme.connect(lambda: THEMES.set_theme_stylesheet(dlg))
         dlg.centralWidget().layout().addWidget(dev)
 
+        install_debugger_hook()
+        os.environ["IMS2MICRO_DEV_MODE"] = "1"
+    else:
+        os.environ["IMS2MICRO_DEV_MODE"] = "0"
+
     dlg.show()
     sys.exit(app.exec_())
 
 
 if __name__ == "__main__":  # pragma: no cover
-    run()
+    run(dev=True)

@@ -12,7 +12,7 @@ from ims2micro.readers.utilities import guess_rgb
 
 
 class CziImageReader(BaseImageReader):
-    """CZI file reader."""
+    """CZI file wrapper."""
 
     def __init__(self, path: PathLike, init_pyramid: bool = True):
         super().__init__(path)
