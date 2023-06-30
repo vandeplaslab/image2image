@@ -1,5 +1,4 @@
 """Main window."""
-import os
 import sys
 
 from loguru import logger
@@ -30,7 +29,6 @@ def run(level: int = 10, no_color: bool = False, dev: bool = False):
     if dev:
         import faulthandler
 
-        from koyo.hooks import install_debugger_hook
         from qtextra.utils.dev import qdev
 
         segfault_path = USER_LOG_DIR / "segfault.log"
@@ -44,10 +42,10 @@ def run(level: int = 10, no_color: bool = False, dev: bool = False):
         dev.evt_theme.connect(lambda: THEMES.set_theme_stylesheet(dlg))
         dlg.centralWidget().layout().addWidget(dev)
 
-        install_debugger_hook()
-        os.environ["IMS2MICRO_DEV_MODE"] = "1"
-    else:
-        os.environ["IMS2MICRO_DEV_MODE"] = "0"
+        # install_debugger_hook()
+        # os.environ["IMS2MICRO_DEV_MODE"] = "1"
+    # else:
+    #     os.environ["IMS2MICRO_DEV_MODE"] = "0"
 
     dlg.show()
     sys.exit(app.exec_())

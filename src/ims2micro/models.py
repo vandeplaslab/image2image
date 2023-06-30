@@ -144,7 +144,7 @@ class Transformation(BaseModel):
     """Temporary object that holds transformation information."""
 
     # Transformation object
-    transform: ProjectiveTransform = None
+    transform: ty.Optional[ProjectiveTransform] = None
     # Type of transformation
     transformation_type: str = ""
     # Path to the image
@@ -164,6 +164,16 @@ class Transformation(BaseModel):
     def is_valid(self):
         """Returns True if the transformation is valid."""
         return self.transform is not None
+
+    def clear(self):
+        """Clear transformation."""
+        self.transform = None
+        self.transformation_type = ""
+        self.fixed_model = None
+        self.moving_model = None
+        self.time_created = None
+        self.fixed_points = None
+        self.moving_points = None
 
     def __call__(self, coords: np.ndarray):
         """Transform coordinates."""
@@ -197,6 +207,12 @@ class Transformation(BaseModel):
             self.transformation_type,
         )
         return transform
+
+    def update(self, **kwargs):
+        """Update transformation."""
+        for key, value in kwargs.items():
+            if hasattr(self, key):
+                setattr(self, key, value)
 
     def about(self) -> str:
         """Retrieve information about the model in textual format."""
@@ -400,8 +416,7 @@ def _read_ims2micro_config(config: ty.Dict):
     schema_version = config["schema_version"]
     if schema_version == "1.0":
         return _read_ims2micro_v1_0_config(config)
-    else:
-        return _read_ims2micro_latest_config(config)
+    return _read_ims2micro_latest_config(config)
 
 
 def _read_ims2micro_latest_config(config: ty.Dict):

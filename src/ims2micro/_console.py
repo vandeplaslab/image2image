@@ -183,10 +183,11 @@ class QtConsoleDialog(QtFramelessTool):
 
         self._console = QtConsole(
             variables={
-                "viewer_fixed": self.parent().view_fixed.viewer,
-                "model_fixed": self.parent()._fixed_widget.model,
-                "viewer_moving": self.parent().view_moving.viewer,
-                "model_moving": self.parent()._moving_widget.model,
+                "transform_model": self.parent().transform_model,
+                "fixed_viewer": self.parent().view_fixed.viewer,
+                "fixed_model": self.parent()._fixed_widget.model,
+                "moving_viewer": self.parent().view_moving.viewer,
+                "moving_model": self.parent()._moving_widget.model,
             }
         )
 

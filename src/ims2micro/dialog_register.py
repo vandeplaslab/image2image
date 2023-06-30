@@ -37,13 +37,15 @@ from ims2micro.utilities import (
     style_form_layout,
 )
 
+if ty.TYPE_CHECKING:
+    from skimage.transform import ProjectiveTransform
+
 
 class ImageRegistrationWindow(QMainWindow, IndicatorMixin, ImageViewMixin):
     """Image registration dialog."""
 
     fixed_image_layer: ty.Optional[ty.List["Image"]] = None
     moving_image_layer: ty.Optional[ty.List["Image"]] = None
-    temporary_transform: ty.Optional[Transformation] = None
     _table, _console = None, None
 
     # events
@@ -62,12 +64,18 @@ class ImageRegistrationWindow(QMainWindow, IndicatorMixin, ImageViewMixin):
 
         self._setup_ui()
         self.setup_events()
+        self.transform_model = Transformation(
+            fixed_model=self._fixed_widget.model,
+            moving_model=self._moving_widget.model,
+            fixed_points=self.fixed_points_layer.data,
+            moving_points=self.moving_points_layer.data,
+        )
 
     @property
-    def transform(self):
+    def transform(self) -> ty.Optional["ProjectiveTransform"]:
         """Retrieve transform."""
-        transform = self.temporary_transform
-        if transform:
+        transform = self.transform_model
+        if transform.is_valid():
             return transform.transform
         return None
 
@@ -306,10 +314,11 @@ class ImageRegistrationWindow(QMainWindow, IndicatorMixin, ImageViewMixin):
         self._move_layer(view, layer)
 
     @staticmethod
-    def _move_layer(view, layer):
+    def _move_layer(view, layer, new_index: int = -1, select: bool = True):
         """Move a layer and select it."""
-        view.layers.move(view.layers.index(layer), -1)
-        view.layers.selection.select_only(layer)
+        view.layers.move(view.layers.index(layer), new_index)
+        if select:
+            view.layers.selection.select_only(layer)
 
     def _get_mode_button(self, which: str, mode):
         if which == "fixed":
@@ -351,7 +360,7 @@ class ImageRegistrationWindow(QMainWindow, IndicatorMixin, ImageViewMixin):
         # extract button and layer based on the appropriate mode
         widget = self.fixed_add_btn if which == "fixed" else self.moving_add_btn
         layer = self.fixed_points_layer if which == "fixed" else self.moving_points_layer
-        # make sure the add mode is active
+        # make sure the 'add' mode is active
         layer.mode = "add" if widget.isChecked() else "pan_zoom"
 
     def on_remove(self, which: str, _evt=None):
@@ -381,8 +390,8 @@ class ImageRegistrationWindow(QMainWindow, IndicatorMixin, ImageViewMixin):
 
     def on_clear_transformation(self):
         """Clear transformation and remove image."""
-        if self.temporary_transform:
-            self.temporary_transform = None
+        if self.transform_model.is_valid():
+            self.transform_model.clear()
         if self.transformed_moving_image_layer:
             with suppress(ValueError):
                 self.view_fixed.layers.remove(self.transformed_moving_image_layer)
@@ -406,16 +415,14 @@ class ImageRegistrationWindow(QMainWindow, IndicatorMixin, ImageViewMixin):
                 self.fixed_points_layer.data,  # destination
                 method,
             )
-            self.temporary_transform = Transformation(
+            self.transform_model.update(
                 transform=transform,
                 transformation_type=method,
-                fixed_model=self._fixed_widget.model,
-                moving_model=self._moving_widget.model,
                 time_created=datetime.now(),
                 fixed_points=self.fixed_points_layer.data,
                 moving_points=self.moving_points_layer.data,
             )
-            logger.info(self.temporary_transform.about())
+            logger.info(self.transform_model.about())
             self.on_apply()
         else:
             if n_fixed <= 3 or n_moving <= 3:
@@ -425,8 +432,8 @@ class ImageRegistrationWindow(QMainWindow, IndicatorMixin, ImageViewMixin):
 
     def on_save(self, _evt=None):
         """Export transformation."""
-        transform = self.temporary_transform
-        if transform is None:
+        transform = self.transform_model
+        if transform.is_valid() is None:
             logger.warning("Cannot save transformation - no transformation has been computed.")
             return
         # get filename which is based on the moving dataset
@@ -478,12 +485,10 @@ class ImageRegistrationWindow(QMainWindow, IndicatorMixin, ImageViewMixin):
                     fixed_paths,
                     fixed_paths_missing,
                     fixed_points,
-                    fixed_paths,
+                    moving_paths,
                     moving_paths_missing,
                     moving_points,
                 ) = load_from_file(path, **config)
-                self.transform_choice.setCurrentText(transformation_type)
-
                 # locate paths that are missing
                 if fixed_paths_missing or moving_paths_missing:
                     from ims2micro._dialogs import LocateFilesDialog
@@ -493,20 +498,21 @@ class ImageRegistrationWindow(QMainWindow, IndicatorMixin, ImageViewMixin):
                         if fixed_paths_missing:
                             fixed_paths = dlg.fix_missing_paths(fixed_paths_missing, fixed_paths)
                         if moving_paths_missing:
-                            fixed_paths = dlg.fix_missing_paths(moving_paths_missing, fixed_paths)
+                            moving_paths = dlg.fix_missing_paths(moving_paths_missing, moving_paths)
 
                 # set new paths
                 if fixed_paths:
                     self._fixed_widget.on_set_path(fixed_paths)
-                if fixed_paths:
-                    self._moving_widget.on_set_path(fixed_paths)
+                if moving_paths:
+                    self._moving_widget.on_set_path(moving_paths)
 
                 # update points
                 if moving_points is not None:
                     self._update_layer_points(self.moving_points_layer, moving_points, block=False)
                 if fixed_points is not None:
                     self._update_layer_points(self.fixed_points_layer, fixed_points, block=False)
-                # force update of text
+                self.transform_choice.setCurrentText(transformation_type)
+                # force update of the text
                 self.on_update_text(block=False)
 
     def on_show_fiducials(self):
@@ -555,6 +561,7 @@ class ImageRegistrationWindow(QMainWindow, IndicatorMixin, ImageViewMixin):
                 colormap=moving_image_layer.colormap,
             )
         self.transformed_moving_image_layer.visible = CONFIG.show_transformed
+        self._move_layer(self.view_fixed, self.transformed_moving_image_layer, -1, False)
         self._select_layer("fixed")
 
     @ensure_main_thread
@@ -848,10 +855,6 @@ class ImageRegistrationWindow(QMainWindow, IndicatorMixin, ImageViewMixin):
         self.text_color.setSizePolicy(QSizePolicy.MinimumExpanding, QSizePolicy.Minimum)
         self.text_color.evt_color_changed.connect(self.on_update_text)
 
-        # self.viewer_orientation = hp.make_combobox(self, tooltip="Orientation of the viewer.")
-        # hp.set_combobox_data(self.viewer_orientation, ORIENTATION_TRANSLATIONS, str(CONFIG.viewer_orientation))
-        # self.viewer_orientation.currentTextChanged.connect(self.on_viewer_orientation_changed)
-
         layout = hp.make_form_layout()
         style_form_layout(layout)
         layout.addRow(hp.make_label(self, "Size (fixed)"), self.fixed_point_size)
@@ -860,7 +863,6 @@ class ImageRegistrationWindow(QMainWindow, IndicatorMixin, ImageViewMixin):
         layout.addRow(hp.make_label(self, "Opacity (moving)"), self.moving_opacity)
         layout.addRow(hp.make_label(self, "Label size"), self.text_size)
         layout.addRow(hp.make_label(self, "Label color"), self.text_color)
-        # layout.addRow(hp.make_label(self, "Viewer orientation"), self.viewer_orientation)
         return layout
 
     def _make_image_layout(self):
@@ -1009,6 +1011,6 @@ class ImageRegistrationWindow(QMainWindow, IndicatorMixin, ImageViewMixin):
     def closeEvent(self, evt):
         """Close."""
         CONFIG.save()
-        if self.temporary_transform:
+        if self.transform_model.is_valid():
             if hp.confirm(self, "There might be unsaved changes. Would you like to save it?"):
                 self.on_save()
