@@ -9,14 +9,14 @@ from pathlib import Path
 from ome_types import from_xml
 from tifffile import TiffFile
 
-from ims2micro.readers.base import BaseImageReader
-from ims2micro.readers.tiff_meta import (
+from image2image.readers.base import BaseImageReader
+from image2image.readers.tiff_meta import (
     ometiff_ch_names,
     ometiff_xy_pixel_sizes,
     svs_xy_pixel_sizes,
     tifftag_xy_pixel_sizes,
 )
-from ims2micro.readers.utilities import (
+from image2image.readers.utilities import (
     get_tifffile_info,
     guess_rgb,
     tf_zarr_read_single_ch,

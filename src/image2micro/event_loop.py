@@ -17,10 +17,10 @@ from qtpy.QtGui import QIcon
 from qtpy.QtWidgets import QApplication
 from superqt import QMessageHandler
 
-from ims2micro import __version__
-from ims2micro.assets import ICON_PNG
+from image2image import __version__
+from image2image.assets import ICON_PNG
 
-APP_ID = f"ims2micro.app.{__version__}"
+APP_ID = f"image2image.app.{__version__}"
 
 
 def set_app_id(app_id):
@@ -32,10 +32,10 @@ def set_app_id(app_id):
 
 
 _defaults = {
-    "app_name": "ims2micro",
+    "app_name": "image2image",
     "app_version": __version__,
     "icon": ICON_PNG,
-    "org_name": "ims2micro",
+    "org_name": "image2image",
     "org_domain": "",
     "app_id": APP_ID,
 }
@@ -63,7 +63,7 @@ def get_app(
     Parameters
     ----------
     app_name : str, optional
-        Set app name (if creating for the first time), by default 'ims2micro'
+        Set app name (if creating for the first time), by default 'image2image'
     app_version : str, optional
         Set app version (if creating for the first time), by default __version__
     icon : str, optional
@@ -162,15 +162,15 @@ def get_app(
 
 
 def quit_app():
-    """Close all windows and quit the QApplication if ims2micro started it."""
+    """Close all windows and quit the QApplication if image2image started it."""
     QApplication.closeAllWindows()
-    # if we started the application then the app will be named 'ims2micro'.
-    if QApplication.applicationName() == "ims2micro" and not _ipython_has_eventloop():
+    # if we started the application then the app will be named 'image2image'.
+    if QApplication.applicationName() == "image2image" and not _ipython_has_eventloop():
         QApplication.quit()
 
     # otherwise, something else created the QApp before us (such as
     # %gui qt IPython magic).  If we quit the app in this case, then
-    # *later* attempts to instantiate a ims2micro viewer won't work until
+    # *later* attempts to instantiate a image2image viewer won't work until
     # the event loop is restarted with app.exec_().  So rather than
     # quit just close all the windows (and clear our app icon).
     else:

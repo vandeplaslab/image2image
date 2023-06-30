@@ -9,14 +9,14 @@ def run(level: int = 10, no_color: bool = False, dev: bool = False):
     from koyo.logging import set_loguru_log
     from qtextra.config import THEMES
 
-    from ims2micro._appdirs import USER_LOG_DIR
-    from ims2micro.dialog_register import ImageRegistrationWindow
-    from ims2micro.event_loop import get_app
+    from image2image._appdirs import USER_LOG_DIR
+    from image2image.dialog_register import ImageRegistrationWindow
+    from image2image.event_loop import get_app
 
     log_path = USER_LOG_DIR / "log.txt"
     set_loguru_log(log_path, level=level, no_color=True, diagnose=True, catch=True, logger=logger)
     set_loguru_log(level=level, no_color=no_color, diagnose=True, catch=True, logger=logger, remove=False)
-    logger.enable("ims2micro")
+    logger.enable("image2image")
     logger.info(f"Enabled logger - logging to '{log_path}' at level={level}")
 
     # make app
@@ -38,7 +38,7 @@ def run(level: int = 10, no_color: bool = False, dev: bool = False):
         logger.enable("qtextra")
         logger.enable("qtreload")
 
-        dev = qdev(dlg, modules=["qtextra", "ims2micro"])
+        dev = qdev(dlg, modules=["qtextra", "image2image"])
         dev.evt_theme.connect(lambda: THEMES.set_theme_stylesheet(dlg))
         dlg.centralWidget().layout().addWidget(dev)
 

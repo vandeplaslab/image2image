@@ -9,7 +9,7 @@ import zarr
 from czifile import CziFile as _CziFile
 from tifffile import create_output
 
-from ims2micro.readers.utilities import compute_sub_res
+from image2image.readers.utilities import compute_sub_res
 
 
 class CziFile(_CziFile):

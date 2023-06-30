@@ -6,9 +6,9 @@ from koyo.timer import MeasureTimer
 from koyo.typing import PathLike
 from loguru import logger
 
-from ims2micro.config import CONFIG
-from ims2micro.readers.base import BaseImageReader
-from ims2micro.utilities import format_mz
+from image2image.config import CONFIG
+from image2image.readers.base import BaseImageReader
+from image2image.utilities import format_mz
 
 if ty.TYPE_CHECKING:
     from imzy._readers._base import BaseReader

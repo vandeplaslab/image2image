@@ -7,10 +7,10 @@ from koyo.typing import PathLike
 from loguru import logger
 
 if ty.TYPE_CHECKING:
-    from ims2micro.readers.base import BaseImageReader
-    from ims2micro.readers.coordinate_reader import CoordinateReader
-    from ims2micro.readers.czi_reader import CziImageReader
-    from ims2micro.readers.tiff_reader import TiffImageReader
+    from image2image.readers.base import BaseImageReader
+    from image2image.readers.coordinate_reader import CoordinateReader
+    from image2image.readers.czi_reader import CziImageReader
+    from image2image.readers.tiff_reader import TiffImageReader
 
 IMAGE_EXTENSIONS = [".jpg", ".jpeg", ".png"]
 TIFF_EXTENSIONS = [".scn", ".ome.tiff", ".tif", ".tiff", ".svs", ".ndpi"]
@@ -226,7 +226,7 @@ def read_image(path: PathLike, wrapper: ty.Optional["ImageWrapper"] = None, is_f
 
 def _read_czi(path: PathLike) -> ty.Tuple[Path, "CziImageReader"]:
     """Read CZI file."""
-    from ims2micro.readers.czi_reader import CziImageReader
+    from image2image.readers.czi_reader import CziImageReader
 
     path = Path(path)
     assert path.exists(), f"File does not exist: {path}"
@@ -235,7 +235,7 @@ def _read_czi(path: PathLike) -> ty.Tuple[Path, "CziImageReader"]:
 
 def _read_tiff(path: PathLike) -> ty.Tuple[Path, "TiffImageReader"]:
     """Read TIFF file."""
-    from ims2micro.readers.tiff_reader import TiffImageReader
+    from image2image.readers.tiff_reader import TiffImageReader
 
     path = Path(path)
     assert path.exists(), f"File does not exist: {path}"
@@ -253,7 +253,7 @@ def _read_image(path: PathLike) -> ty.Tuple[Path, np.ndarray]:
 
 def _read_npy_coordinates(path: PathLike) -> ty.Tuple[Path, "CoordinateReader"]:
     """Read data from npz or npy file."""
-    from ims2micro.readers.coordinate_reader import CoordinateReader
+    from image2image.readers.coordinate_reader import CoordinateReader
 
     with open(path, "rb") as f:
         image = np.load(f)  # noqa
@@ -267,7 +267,7 @@ def _read_metadata_h5_coordinates(path: PathLike) -> ty.Tuple[Path, "CoordinateR
     import h5py
     from koyo.json import read_json_data
 
-    from ims2micro.readers.coordinate_reader import CoordinateReader
+    from image2image.readers.coordinate_reader import CoordinateReader
 
     path = Path(path)
     assert path.suffix in H5_EXTENSIONS, "Only .h5 files are supported"
@@ -290,7 +290,7 @@ def _read_centroids_h5_coordinates(path: PathLike) -> ty.Tuple[Path, "Coordinate
     """Read centroids data from HDF5 file."""
     import h5py
 
-    from ims2micro.utilities import format_mz
+    from image2image.utilities import format_mz
 
     path = Path(path)
     assert path.suffix in H5_EXTENSIONS, "Only .h5 files are supported"
@@ -320,7 +320,7 @@ def _read_tsf_tdf_coordinates(path: PathLike) -> ty.Tuple[Path, "CoordinateReade
     """Read coordinates from TSF file."""
     import sqlite3
 
-    from ims2micro.readers.coordinate_reader import CoordinateReader
+    from image2image.readers.coordinate_reader import CoordinateReader
 
     path = Path(path)
     assert path.suffix in BRUKER_EXTENSIONS, "Only .tsf and .tdf files are supported"
@@ -363,7 +363,7 @@ def _read_tsf_tdf_reader(path: PathLike) -> ty.Tuple[Path, "CoordinateReader"]:
 
     from imzy import get_reader
 
-    from ims2micro.readers.coordinate_reader import CoordinateReader
+    from image2image.readers.coordinate_reader import CoordinateReader
 
     path = Path(path)
     assert path.suffix in BRUKER_EXTENSIONS, "Only .tsf and .tdf files are supported"
@@ -394,7 +394,7 @@ def _read_imzml_coordinates(path: PathLike) -> ty.Tuple[Path, "CoordinateReader"
     """Read coordinates from imzML file."""
     from imzy import get_reader
 
-    from ims2micro.readers.coordinate_reader import CoordinateReader
+    from image2image.readers.coordinate_reader import CoordinateReader
 
     path = Path(path)
     assert path.suffix.lower() in IMZML_EXTENSIONS, "Only .imzML files are supported"
@@ -413,7 +413,7 @@ def _read_imzml_reader(path: PathLike) -> ty.Tuple[Path, "CoordinateReader"]:
     """Read coordinates from imzML file."""
     from imzy import get_reader
 
-    from ims2micro.readers.coordinate_reader import CoordinateReader
+    from image2image.readers.coordinate_reader import CoordinateReader
 
     path = Path(path)
     assert path.suffix.lower() in IMZML_EXTENSIONS, "Only .imzML files are supported"

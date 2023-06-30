@@ -13,7 +13,7 @@ from qtextra.widgets.qt_dialog import QtFramelessTool
 from qtpy.QtGui import QColor
 from qtpy.QtWidgets import QFormLayout
 
-from ims2micro.utilities import style_form_layout
+from image2image.utilities import style_form_layout
 
 
 def str_to_rgb(arg):

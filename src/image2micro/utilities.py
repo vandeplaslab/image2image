@@ -10,7 +10,7 @@ from napari.layers.points._points_mouse_bindings import select as _select
 from napari.layers.points.points import Mode, Points
 from napari.utils.events import Event
 
-from ims2micro.config import CONFIG
+from image2image.config import CONFIG
 
 if ty.TYPE_CHECKING:
     from skimage.transform import ProjectiveTransform
@@ -59,22 +59,22 @@ def open_link(url: str):
 
 def open_docs():
     """Open documentation site."""
-    open_link("https://ims2micro.readthedocs.io/en/latest/")
+    open_link("https://image2image.readthedocs.io/en/latest/")
 
 
 def open_github():
     """Open GitHub website."""
-    open_link("https://github.com/vandeplaslab/ims2micro")
+    open_link("https://github.com/vandeplaslab/image2image")
 
 
 def open_request():
     """Open GitHub website."""
-    open_link("https://github.com/vandeplaslab/ims2micro/issues/new")
+    open_link("https://github.com/vandeplaslab/image2image/issues/new")
 
 
 def open_bug_report():
     """Open GitHub website."""
-    open_link("https://github.com/vandeplaslab/ims2micro/issues/new")
+    open_link("https://github.com/vandeplaslab/image2image/issues/new")
 
 
 def style_form_layout(layout):

@@ -6,9 +6,9 @@ import zarr
 from koyo.typing import PathLike
 from tifffile import xml2dict
 
-from ims2micro.readers.base import BaseImageReader
-from ims2micro.readers.czi import CziFile
-from ims2micro.readers.utilities import guess_rgb
+from image2image.readers.base import BaseImageReader
+from image2image.readers.czi import CziFile
+from image2image.readers.utilities import guess_rgb
 
 
 class CziImageReader(BaseImageReader):

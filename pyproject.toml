@@ -9,7 +9,7 @@ build-backend = "setuptools.build_meta"
 
 # https://peps.python.org/pep-0621/
 [project]
-name = "ims2micro"
+name = "image2image"
 description = "Utility tool to co-register IMS data with microscopy modality."
 readme = "README.md"
 requires-python = ">=3.8"
@@ -67,17 +67,17 @@ dev = [
     "pre-commit",
     "rich",
     "ruff",
-    "ims2micro[test]",
+    "image2image[test]",
     "qtreload"
 ]
 
 [project.urls]
-homepage = "https://github.com/vandeplaslab/ims2micro"
-repository = "https://github.com/vandeplaslab/ims2micro"
+homepage = "https://github.com/vandeplaslab/image2image"
+repository = "https://github.com/vandeplaslab/image2image"
 
  # same as console_scripts entry point
 [project.scripts]
-ims2micro = "ims2micro.cli:cli"
+image2image = "image2image.cli:cli"
 
 # Entry points
 # https://peps.python.org/pep-0621/#entry-points
@@ -85,7 +85,7 @@ ims2micro = "ims2micro.cli:cli"
 # tomatoes = "spam:main_tomatoes"
 
 [tool.setuptools_scm]
-write_to = "src/ims2micro/_version.py"
+write_to = "src/image2image/_version.py"
 
 # https://github.com/psf/black
 [tool.black]
@@ -131,7 +131,7 @@ extend-ignore = [
 ]
 
 [tool.ruff.per-file-ignores]
-"src/ims2micro/readers/czi.py" = ["B018", "B007", "D417"]
+"src/image2image/readers/czi.py" = ["B018", "B007", "D417"]
 "tests/*.py" = ["D", "S"]
 "setup.py" = ["D"]
 

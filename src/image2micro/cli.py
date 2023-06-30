@@ -2,7 +2,7 @@
 
 import click
 
-from ims2micro import __version__
+from image2image import __version__
 
 
 def dev_options(func):
@@ -18,7 +18,7 @@ def dev_options(func):
     return func
 
 
-@click.version_option(__version__, prog_name="ims2micro")
+@click.version_option(__version__, prog_name="image2image")
 @dev_options
 @click.option(
     "--no_color",
@@ -43,8 +43,8 @@ def dev_options(func):
 )
 @click.pass_context
 def cli(ctx, verbosity: int, no_color: bool, dev: bool = False, extras=None):
-    """Launch ims2micro app."""
-    from ims2micro.main import run
+    """Launch image2image app."""
+    from image2image.main import run
 
     if dev:
         verbosity = 0.5

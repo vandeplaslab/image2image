@@ -22,13 +22,13 @@ from qtpy.QtWidgets import QHBoxLayout, QMainWindow, QMenuBar, QSizePolicy, QVBo
 from superqt import ensure_main_thread
 
 # need to load to ensure all assets are loaded properly
-import ims2micro.assets  # noqa: F401
-from ims2micro import __version__
-from ims2micro._select import FixedWidget, MovingWidget
-from ims2micro.config import CONFIG
-from ims2micro.enums import ALLOWED_EXPORT_FORMATS, TRANSFORMATION_TRANSLATIONS, ViewType
-from ims2micro.models import DataModel, Transformation
-from ims2micro.utilities import (
+import image2image.assets  # noqa: F401
+from image2image import __version__
+from image2image._select import FixedWidget, MovingWidget
+from image2image.config import CONFIG
+from image2image.enums import ALLOWED_EXPORT_FORMATS, TRANSFORMATION_TRANSLATIONS, ViewType
+from image2image.models import DataModel, Transformation
+from image2image.utilities import (
     _get_text_data,
     _get_text_format,
     get_colormap,
@@ -54,7 +54,7 @@ class ImageRegistrationWindow(QMainWindow, IndicatorMixin, ImageViewMixin):
     def __init__(self, parent):
         super().__init__(parent)
         self.setAttribute(Qt.WA_DeleteOnClose)  # noqa
-        self.setWindowTitle(f"ims2micro: Simple image registration tool (v{__version__})")
+        self.setWindowTitle(f"image2image: Simple image registration tool (v{__version__})")
         self.setUnifiedTitleAndToolBarOnMac(True)
         self.setMouseTracking(True)
         self.setMinimumSize(1200, 800)
@@ -399,7 +399,7 @@ class ImageRegistrationWindow(QMainWindow, IndicatorMixin, ImageViewMixin):
     @ensure_main_thread
     def on_run(self, _evt=None):
         """Compute transformation."""
-        from ims2micro.utilities import compute_transform
+        from image2image.utilities import compute_transform
 
         if not self.fixed_points_layer or not self.moving_points_layer:
             self.on_notify_warning("There must be at least three points before we can compute the transformation.")
@@ -460,8 +460,8 @@ class ImageRegistrationWindow(QMainWindow, IndicatorMixin, ImageViewMixin):
             file_filter=ALLOWED_EXPORT_FORMATS,
         )
         if path:
-            from ims2micro._dialogs import ImportSelectDialog
-            from ims2micro.models import load_from_file
+            from image2image._dialogs import ImportSelectDialog
+            from image2image.models import load_from_file
 
             # load transformation
             path = Path(path)
@@ -491,7 +491,7 @@ class ImageRegistrationWindow(QMainWindow, IndicatorMixin, ImageViewMixin):
                 ) = load_from_file(path, **config)
                 # locate paths that are missing
                 if fixed_paths_missing or moving_paths_missing:
-                    from ims2micro._dialogs import LocateFilesDialog
+                    from image2image._dialogs import LocateFilesDialog
 
                     dlg = LocateFilesDialog(self, fixed_paths_missing, moving_paths_missing)
                     if dlg.exec_():
@@ -518,7 +518,7 @@ class ImageRegistrationWindow(QMainWindow, IndicatorMixin, ImageViewMixin):
     def on_show_fiducials(self):
         """View fiducials table."""
         if self._table is None:
-            from ims2micro._dialogs import FiducialTableDialog
+            from image2image._dialogs import FiducialTableDialog
 
             self._table = FiducialTableDialog(self)
         self._table.show()
@@ -526,7 +526,7 @@ class ImageRegistrationWindow(QMainWindow, IndicatorMixin, ImageViewMixin):
     def on_show_console(self):
         """View console."""
         if self._console is None:
-            from ims2micro._console import QtConsoleDialog
+            from image2image._console import QtConsoleDialog
 
             self._console = QtConsoleDialog(self)
         self._console.show()
@@ -724,14 +724,14 @@ class ImageRegistrationWindow(QMainWindow, IndicatorMixin, ImageViewMixin):
 
     def _make_icon(self):
         """Make icon."""
-        from ims2micro.assets import ICON_ICO
+        from image2image.assets import ICON_ICO
 
         self.setWindowIcon(hp.get_icon_from_img(ICON_ICO))
 
     def _make_menu(self):
         """Make menu items."""
-        from ims2micro._dialogs import open_about
-        from ims2micro.utilities import open_bug_report, open_docs, open_github, open_request
+        from image2image._dialogs import open_about
+        from image2image.utilities import open_bug_report, open_docs, open_github, open_request
 
         # File menu
         menu_file = hp.make_menu(self, "File")

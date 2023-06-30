@@ -5,7 +5,7 @@ from qtextra.assets import update_icon_mapping, update_icons, update_styles
 from qtextra.config import THEMES
 from qtextra.utils.utilities import IS_MAC, get_module_path
 
-HERE = Path(get_module_path("ims2micro.assets", "__init__.py")).parent.resolve()
+HERE = Path(get_module_path("image2image.assets", "__init__.py")).parent.resolve()
 
 ICON_SVG = str(HERE / "icon.svg")
 ICON_ICO = str(HERE / ("icon.icns" if IS_MAC else "icon.ico"))

@@ -6,8 +6,8 @@ from koyo.typing import PathLike
 from loguru import logger
 from pydantic import BaseModel, Field, validator
 
-from ims2micro._appdirs import USER_CONFIG_DIR
-from ims2micro.enums import ViewerOrientation, ViewType
+from image2image._appdirs import USER_CONFIG_DIR
+from image2image.enums import ViewerOrientation, ViewType
 
 
 class Config(BaseModel):

@@ -12,14 +12,14 @@ from qtpy.QtGui import QRegExpValidator
 from qtpy.QtWidgets import QWidget
 from superqt.utils import thread_worker
 
-from ims2micro._dialogs import OverlayTableDialog, SelectChannelsTableDialog
-from ims2micro.config import CONFIG
-from ims2micro.enums import ALLOWED_FORMATS, VIEW_TYPE_TRANSLATIONS
-from ims2micro.models import DataModel
-from ims2micro.utilities import log_exception, style_form_layout
+from image2image._dialogs import OverlayTableDialog, SelectChannelsTableDialog
+from image2image.config import CONFIG
+from image2image.enums import ALLOWED_FORMATS, VIEW_TYPE_TRANSLATIONS
+from image2image.models import DataModel
+from image2image.utilities import log_exception, style_form_layout
 
 if ty.TYPE_CHECKING:
-    from ims2micro.readers.coordinate_reader import CoordinateReader
+    from image2image.readers.coordinate_reader import CoordinateReader
 
 
 class LoadWidget(QWidget):
@@ -66,7 +66,7 @@ class LoadWidget(QWidget):
 
     def _on_close_dataset(self, force: bool = False) -> bool:
         """Close dataset."""
-        from ims2micro._dialogs import CloseDatasetDialog
+        from image2image._dialogs import CloseDatasetDialog
 
         if self.model.n_paths:
             paths = None
@@ -153,7 +153,7 @@ class LoadWidget(QWidget):
 
     def _on_extract_channels(self):
         """Extract channels from the list."""
-        from ims2micro._dialogs import ExtractChannelsDialog
+        from image2image._dialogs import ExtractChannelsDialog
 
         if not self.model.get_extractable_paths():
             logger.warning("No paths to extract data from.")

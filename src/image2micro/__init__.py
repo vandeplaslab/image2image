@@ -2,14 +2,14 @@
 from importlib.metadata import PackageNotFoundError, version
 
 try:
-    __version__ = version("ims2micro")
+    __version__ = version("image2image")
 except PackageNotFoundError:
     __version__ = "uninstalled"
 
 __author__ = "Lukasz G. Migas"
 __email__ = "lukas.migas@yahoo.com"
 
-from ims2micro.event_loop import get_app
+from image2image.event_loop import get_app
 
 # force application creation
 get_app()

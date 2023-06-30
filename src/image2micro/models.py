@@ -10,10 +10,10 @@ from loguru import logger
 from pydantic import BaseModel, validator
 from skimage.transform import ProjectiveTransform
 
-from ims2micro._reader import ImageWrapper, sanitize_path
+from image2image._reader import ImageWrapper, sanitize_path
 
 if ty.TYPE_CHECKING:
-    from ims2micro.readers.base import BaseImageReader
+    from image2image.readers.base import BaseImageReader
 
 
 class DataModel(BaseModel):
@@ -93,7 +93,7 @@ class DataModel(BaseModel):
 
     def get_wrapper(self) -> ty.Optional["ImageWrapper"]:
         """Read data from file."""
-        from ims2micro._reader import read_image
+        from image2image._reader import read_image
 
         if self.paths is None:
             return None
@@ -190,7 +190,7 @@ class Transformation(BaseModel):
 
     def compute(self, yx: bool = True, px: bool = True):
         """Compute transformation matrix."""
-        from ims2micro.utilities import compute_transform
+        from image2image.utilities import compute_transform
 
         moving_points = self.moving_points
         fixed_points = self.fixed_points
@@ -315,7 +315,7 @@ class Transformation(BaseModel):
 
     def to_xml(self, path: PathLike):
         """Export dat aas fusion file."""
-        from ims2micro.utilities import write_xml_registration
+        from image2image.utilities import write_xml_registration
 
         affine = self.compute(yx=False, px=True).params
         affine = affine.flatten("F").reshape(3, 3)
@@ -357,7 +357,7 @@ def load_from_file(
 
         data = read_toml_data(path)
 
-    # ims2micro config
+    # image2image config
     if "schema_version" in data:
         (
             transformation_type,
@@ -367,7 +367,7 @@ def load_from_file(
             moving_paths,
             moving_missing_paths,
             moving_points,
-        ) = _read_ims2micro_config(data)
+        ) = _read_image2image_config(data)
     # imsmicrolink config
     elif "Project name" in data:
         (
@@ -411,15 +411,15 @@ def _get_paths(paths: ty.List[PathLike]):
     return _paths_exist, _paths_missing
 
 
-def _read_ims2micro_config(config: ty.Dict):
-    """Read ims2micro configuration file."""
+def _read_image2image_config(config: ty.Dict):
+    """Read image2image configuration file."""
     schema_version = config["schema_version"]
     if schema_version == "1.0":
-        return _read_ims2micro_v1_0_config(config)
-    return _read_ims2micro_latest_config(config)
+        return _read_image2image_v1_0_config(config)
+    return _read_image2image_latest_config(config)
 
 
-def _read_ims2micro_latest_config(config: ty.Dict):
+def _read_image2image_latest_config(config: ty.Dict):
     # read important fields
     fixed_paths, fixed_missing_paths = _get_paths(config["fixed_paths"])
     moving_paths, moving_missing_paths = _get_paths(config["moving_paths"])
@@ -437,7 +437,7 @@ def _read_ims2micro_latest_config(config: ty.Dict):
     )
 
 
-def _read_ims2micro_v1_0_config(config: ty.Dict):
+def _read_image2image_v1_0_config(config: ty.Dict):
     # read important fields
     fixed_paths, fixed_missing_paths = _get_paths(config["micro_paths"])
     moving_paths, moving_missing_paths = _get_paths(config["ims_paths"])

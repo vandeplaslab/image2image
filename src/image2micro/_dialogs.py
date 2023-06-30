@@ -13,11 +13,11 @@ from qtextra.widgets.qt_table_view import QtCheckableTableView
 from qtpy.QtCore import Qt, Signal
 from qtpy.QtWidgets import QFormLayout
 
-from ims2micro.utilities import style_form_layout
+from image2image.utilities import style_form_layout
 
 if ty.TYPE_CHECKING:
-    from ims2micro._select import LoadWidget
-    from ims2micro.models import DataModel
+    from image2image._select import LoadWidget
+    from image2image.models import DataModel
 
 OverlayConfig = (
     TableConfig()
@@ -696,17 +696,17 @@ class DialogAbout(QtFramelessPopup):
         """Make panel."""
         from qtextra.widgets.qt_svg import QtColoredSVGIcon
 
-        from ims2micro import __version__
-        from ims2micro.assets import ICON_SVG
+        from image2image import __version__
+        from image2image.assets import ICON_SVG
 
         links = {
-            "project": "https://github.com/vandeplaslab/ims2micro",
+            "project": "https://github.com/vandeplaslab/image2image",
             "github": "https://github.com/lukasz-migas",
             "website": "https://lukasz-migas.com/",
         }
 
         text = f"""
-        <p><h2><strong>ims2micro</strong></h2></p>
+        <p><h2><strong>image2image</strong></h2></p>
         <p><strong>Version:</strong> {__version__}</p>
         <p><strong>Author:</strong> Lukasz G. Migas</p>
         <p><strong>Email:</strong> {hp.parse_link_to_link_tag("mailto:l.g.migas@tudelft.nl",
