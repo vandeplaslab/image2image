@@ -25,15 +25,12 @@ OverlayConfig = (
     .add("channel name", "channel_name", "str", 125, no_sort=True)
     .add("dataset", "dataset", "str", 250, no_sort=True)
 )
-
 SelectConfig = (
     TableConfig()
     .add("", "check", "bool", 25, no_sort=True)
     .add("channel name", "channel_name", "str", 200)
     .add("channel name (full)", "channel_name_full", "str", 0, hidden=True)
 )
-
-
 LocateConfig = (
     TableConfig()
     .add("", "check", "bool", 0, no_sort=True, hidden=True)
@@ -41,7 +38,6 @@ LocateConfig = (
     .add("new path", "new_path", "str", 250)
     .add("comment", "valid", "str", 100)
 )
-
 FiducialConfig = (
     TableConfig()
     .add("", "check", "bool", 0, no_sort=True, hidden=True)
@@ -51,6 +47,7 @@ FiducialConfig = (
     .add("y-i(px)", "y_px_ims", "float", 50)
     .add("x-i(px)", "x_px_ims", "float", 50)
 )
+ExtractConfig = TableConfig().add("", "check", "bool", 0, no_sort=True, hidden=True).add("m/z", "mz", "float", 100)
 
 
 class LocateFilesDialog(QtDialog):
@@ -281,8 +278,8 @@ class FiducialTableDialog(QtFramelessTool):
         layout.addRow(
             hp.make_label(
                 self,
-                "<b>Tip.</b> Double-click on a row to zoom in on the point.\nPress <Delete> or <Backspace> to delete a"
-                " point.",
+                "<b>Tip.</b> Double-click on a row to zoom in on the point."
+                "<b>Tip.</b> Press  <b>Delete</b> or <b>Backspace</b> to delete a point.",
                 alignment=Qt.AlignHCenter,
                 object_name="tip_label",
                 enable_url=True,
@@ -573,6 +570,113 @@ class SelectChannelsTableDialog(QtDialog):
             )
         )
         return layout
+
+
+class ExtractChannelsDialog(QtDialog):
+    """Dialog to extract ion images."""
+
+    def __init__(self, parent: "LoadWidget", model: "DataModel"):
+        self.model = model
+        super().__init__(parent, title="Extract Ion Images")
+        self.setFocus()
+        self.path_to_extract = None
+        self.mzs = None
+        self.ppm = None
+        self.on_select_path()
+
+    def get_paths(self) -> ty.List[str]:
+        """Get paths."""
+        paths = self.model.get_extractable_paths()
+        return [str(path) for path in paths]
+
+    def on_add(self):
+        """Add peak."""
+        value = self.mz_edit.value()
+        values = self.table.get_col_data(ExtractConfig.mz)
+        if value is not None and value not in values:
+            self.table.add_data([[True, value]])
+        self.mzs = self.table.get_col_data(ExtractConfig.mz)
+
+    def on_select_path(self, _value: str = None):
+        """Select path."""
+        self.path_to_extract = self.path_choice.currentText()
+        self.ppm = self.ppm_edit.value()
+
+    def on_delete_row(self):
+        """Delete row."""
+        sel_model = self.table.selectionModel()
+        if sel_model.hasSelection():
+            indices = [index.row() for index in sel_model.selectedRows()]
+            indices = sorted(indices, reverse=True)
+            for index in indices:
+                self.table.remove_row(index)
+                logger.trace(f"Deleted '{index}' from m/z table")
+
+    # noinspection PyAttributeOutsideInit
+    def make_panel(self) -> QFormLayout:
+        """Make panel."""
+        self.path_choice = hp.make_combobox(
+            self, self.get_paths(), "Dataset from which to extract data.", func=self.on_select_path
+        )
+        self.mz_edit = hp.make_double_spin_box(self, minimum=0, maximum=2500, step=0.1, n_decimals=3)
+        self.ppm_edit = hp.make_double_spin_box(
+            self, minimum=0.5, maximum=25, value=10, step=1, n_decimals=1, suffix=" ppm"
+        )
+
+        self.table = QtCheckableTableView(self, config=ExtractConfig, enable_all_check=False, sortable=False)
+        self.table.setCornerButtonEnabled(False)
+        hp.set_font(self.table)
+        self.table.setup_model(ExtractConfig.header, ExtractConfig.no_sort_columns, ExtractConfig.hidden_columns)
+
+        layout = hp.make_form_layout(self)
+        style_form_layout(layout)
+        layout.addRow(self.path_choice)
+        layout.addRow(
+            hp.make_h_layout(
+                hp.make_label(self, "m/z"),
+                self.mz_edit,
+                hp.make_qta_btn(self, "add", tooltip="Add peak", func=self.on_add, normal=True),
+                stretch_id=1,
+            )
+        )
+        layout.addRow(
+            hp.make_h_layout(
+                hp.make_label(self, "ppm"),
+                self.ppm_edit,
+                stretch_id=1,
+            )
+        )
+        layout.addRow(self.table)
+        layout.addRow(
+            hp.make_label(
+                self,
+                "<b>Tip.</b> Press <b>Delete</b> or <b>Backspace</b> to delete a peak.",
+                alignment=Qt.AlignHCenter,
+                object_name="tip_label",
+                enable_url=True,
+            )
+        )
+        layout.addRow(
+            hp.make_h_layout(
+                hp.make_btn(self, "OK", func=self.accept),
+                hp.make_btn(self, "Cancel", func=self.reject),
+            )
+        )
+        return layout
+
+    def keyPressEvent(self, evt):
+        """Key press event."""
+        key = evt.key()
+        if key == Qt.Key_Escape:
+            evt.ignore()
+        elif key == Qt.Key_Backspace or key == Qt.Key_Delete:
+            self.on_delete_row()
+            evt.accept()
+        elif key == Qt.Key_Plus or key == Qt.Key_A:
+            self.on_add()
+            evt.accept()
+        else:
+            super().keyPressEvent(evt)
 
 
 def open_about(parent):

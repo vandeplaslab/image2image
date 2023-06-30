@@ -30,6 +30,11 @@ PREFERRED_COLORMAPS = [
 ]
 
 
+def format_mz(mz: float) -> str:
+    """Format m/z value."""
+    return f"m/z {mz:.3f}"
+
+
 def is_debug() -> bool:
     """Return whether in debug mode."""
     import os

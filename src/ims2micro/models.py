@@ -12,6 +12,9 @@ from skimage.transform import ProjectiveTransform
 
 from ims2micro._reader import ImageWrapper, sanitize_path
 
+if ty.TYPE_CHECKING:
+    from ims2micro.readers.base import BaseImageReader
+
 
 class DataModel(BaseModel):
     """Base model."""
@@ -88,9 +91,12 @@ class DataModel(BaseModel):
             logger.info(f"Loaded data in {timer()}")
         return self
 
-    def get_wrapper(self) -> "ImageWrapper":
+    def get_wrapper(self) -> ty.Optional["ImageWrapper"]:
         """Read data from file."""
         from ims2micro._reader import read_image
+
+        if self.paths is None:
+            return None
 
         just_added = []
         for path in self.paths:
@@ -102,6 +108,24 @@ class DataModel(BaseModel):
         if just_added:
             self.just_added = just_added
         return self.wrapper
+
+    def get_reader(self, path: PathLike) -> ty.Optional["BaseImageReader"]:
+        """Get reader for the path."""
+        path = Path(path)
+        wrapper = self.get_wrapper()
+        if wrapper:
+            return wrapper.data[path.name]
+        return None
+
+    def get_extractable_paths(self) -> ty.List[Path]:
+        """Get a list of paths which are extractable."""
+        paths = []
+        wrapper = self.get_wrapper()
+        if wrapper:
+            for path, reader in wrapper.path_reader_iter():
+                if hasattr(reader, "allow_extraction") and reader.allow_extraction:
+                    paths.append(path)
+        return paths
 
     def channel_names(self) -> ty.List[str]:
         """Return list of channel names."""

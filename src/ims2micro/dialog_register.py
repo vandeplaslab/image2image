@@ -798,7 +798,7 @@ class ImageRegistrationWindow(QMainWindow, IndicatorMixin, ImageViewMixin):
         self.setMenuBar(self.menubar)
 
     def _make_focus_layout(self):
-        self.lock_btn = hp.make_lock_btn(self, func=self.on_lock, medium=True)
+        self.lock_btn = hp.make_lock_btn(self, func=self.on_lock, normal=True)
         # self.set_current_focus_btn = hp.make_btn(self, "Set current range", func=self.on_set_focus)
         self.x_center = hp.make_double_spin_box(self, -1e5, 1e5, step_size=500)
         self.y_center = hp.make_double_spin_box(self, -1e5, 1e5, step_size=500)

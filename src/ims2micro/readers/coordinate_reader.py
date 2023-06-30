@@ -3,9 +3,12 @@ import typing as ty
 
 import numpy as np
 from koyo.typing import PathLike
+from loguru import logger
+from koyo.timer import MeasureTimer
 
 from ims2micro.config import CONFIG
 from ims2micro.readers.base import BaseImageReader
+from ims2micro.utilities import format_mz
 
 if ty.TYPE_CHECKING:
     from imzy._readers._base import BaseReader
@@ -73,9 +76,18 @@ class CoordinateReader(BaseImageReader):
         if self.reader is None:
             raise ValueError("Cannot extract ion images from a numpy array.")
         mzs = np.atleast_1d(mzs)
-        images = self.reader.get_ion_images(mzs, ppm=ppm)
+        logger.trace(f"Extracting {len(mzs)} ion images from {self.path.name} ({self.name})")
+
+        with MeasureTimer() as timer:
+            images = self.reader.get_ion_images(mzs, ppm=ppm)
+        logger.trace(f"Extracted {len(mzs)} ion images in {timer}")
+
+        labels = []
         for i, mz in enumerate(mzs):
-            self.data[f"{mz:.4f}"] = images[i]
+            label = format_mz(mz)
+            self.data[label] = images[i]
+            labels.append(label)
+        return self.path, labels
 
     def get_dask_pyr(self) -> ty.List[np.ndarray]:
         """Get dask representation of the pyramid."""

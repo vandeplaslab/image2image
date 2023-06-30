@@ -97,6 +97,11 @@ class ImageWrapper:
         """Iterator of channel name + image."""
         yield from zip(self.channel_names(view_type), self.image_iter(view_type))
 
+    def path_reader_iter(self):
+        """Iterator of a path + reader."""
+        for path in self.paths:
+            yield path, self.data[path.name]
+
     def reader_image_iter(
         self, view_type: ty.Optional[str] = None
     ) -> ty.Iterator[ty.Tuple[str, ty.Any, np.ndarray, int]]:
@@ -284,6 +289,7 @@ def _read_metadata_h5_coordinates(path: PathLike) -> ty.Tuple[Path, "CoordinateR
 def _read_centroids_h5_coordinates(path: PathLike) -> ty.Tuple[Path, "CoordinateReader"]:
     """Read centroids data from HDF5 file."""
     import h5py
+    from ims2micro.utilities import format_mz
 
     path = Path(path)
     assert path.suffix in H5_EXTENSIONS, "Only .h5 files are supported"
@@ -303,7 +309,7 @@ def _read_centroids_h5_coordinates(path: PathLike) -> ty.Tuple[Path, "Coordinate
         indices = np.sort(indices)  # sort so they are ordered otherwise h5py will throw an error
         mzs = f["Array"]["xs"][indices]  # retrieve m/zs
         centroids = f["Array"]["array"][:, indices]  # retrieve ion images
-    mzs = [f"m/z {mz:.3f}" for mz in mzs]  # generate labels
+    mzs = [format_mz(mz) for mz in mzs]  # generate labels
     centroids = reshape_batch(x, y, centroids)  # reshape images
     reader.data.update(dict(zip(mzs, centroids)))
     return path, reader

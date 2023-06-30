@@ -1,4 +1,6 @@
 """Widget for loading data."""
+from functools import partial
+
 import typing as ty
 from pathlib import Path
 
@@ -49,12 +51,13 @@ class LoadWidget(QWidget):
         self.resolution_edit.setValidator(QRegExpValidator(QRegExp(r"^[0-9]+(\.[0-9]+)?$")))  # noqa
         self.resolution_edit.textChanged.connect(self._on_set_resolution)  # noqa
         self.channel_choice = hp.make_btn(self, "Select channels...", func=self._on_select_channels)
+        self.extract_btn = hp.make_qta_btn(self, "add", func=self._on_extract_channels, normal=True)
 
         layout = hp.make_form_layout()
         style_form_layout(layout)
         layout.addRow(hp.make_label(self, self.INFO_TEXT, bold=True, wrap=True, alignment=Qt.AlignCenter))
         layout.addRow(hp.make_h_layout(self.load_btn, self.close_btn))
-        layout.addRow(self.channel_choice)
+        layout.addRow(hp.make_h_layout(self.channel_choice, self.extract_btn, stretch_id=0))
         layout.addRow(hp.make_label(self, "Pixel size (μm)"), self.resolution_edit)
         self.setLayout(layout)
         return layout
@@ -145,6 +148,41 @@ class LoadWidget(QWidget):
     def _on_select_channels(self):
         """Select channels from the list."""
         self.table_dlg.show()
+
+    def _on_extract_channels(self):
+        """Extract channels from the list."""
+        from ims2micro._dialogs import ExtractChannelsDialog
+
+        if not self.model.get_extractable_paths():
+            logger.warning("No paths to extract data from.")
+            return
+
+        dlg = ExtractChannelsDialog(self, self.model)
+        if dlg.exec_():
+            path = dlg.path_to_extract
+            mzs = dlg.mzs
+            ppm = dlg.ppm
+            if path and mzs:
+                reader = self.model.get_reader(path)
+
+                func = thread_worker(  # noqa
+                    partial(reader.extract, mzs=mzs, ppm=ppm),
+                    start_thread=True,
+                    connect={"returned": self._on_update_dataset, "errored": self._on_failed_update_dataset},
+                )
+                func()
+
+    def _on_update_dataset(self, result: ty.Tuple[Path, ty.List[str]]):
+        """Finished loading data."""
+        path, channel_list = result
+        # load data into an image
+        self.evt_loaded.emit(self.model, channel_list)
+
+    @staticmethod
+    def _on_failed_update_dataset(exception: Exception):
+        """Failed to load dataset."""
+        logger.error("Error occurred while extracting images.", exception)
+        log_exception(exception)
 
 
 class MovingWidget(LoadWidget):

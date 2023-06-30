@@ -10,6 +10,7 @@ class BaseImageReader:
 
     _pyramid = None
     fh = None
+    allow_extraction: bool = False
     base_layer_pixel_res: float
     channel_names: ty.List[str]
     channel_colors: ty.Optional[ty.List[str]]
