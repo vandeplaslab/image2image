@@ -112,7 +112,7 @@ class LocateFilesDialog(QtDialog):
             self.on_load()
             logger.info(f"Located file - {new_path}")
 
-    def on_load(self, evt=None):
+    def on_load(self, _evt=None):
         """On load."""
         data = []
         for path_pair in self.paths:
@@ -238,7 +238,7 @@ class FiducialTableDialog(QtFramelessTool):
                 f"Applied focus center=({y_ims:.1f}, {x_ims:.1f}) zoom={view_moving.viewer.camera.zoom:.3f} on IMS data"
             )
 
-    def on_load(self, evt=None):
+    def on_load(self, _evt=None):
         """On load."""
 
         def _str_fmt(value):
@@ -516,7 +516,7 @@ class SelectChannelsTableDialog(QtDialog):
         """Connect events."""
         connect(self.table.evt_checked, self.on_select_channel, state=state)
 
-    def on_select_channel(self, index: int, state: bool):
+    def on_select_channel(self, _index: int, _state: bool):
         """Toggle channel."""
         self.channels = self.get_channels()
 
@@ -597,7 +597,7 @@ class ExtractChannelsDialog(QtDialog):
             self.table.add_data([[True, value]])
         self.mzs = self.table.get_col_data(ExtractConfig.mz)
 
-    def on_select_path(self, _value: str = None):
+    def on_select_path(self, _value: ty.Optional[str] = None):
         """Select path."""
         self.path_to_extract = self.path_choice.currentText()
         self.ppm = self.ppm_edit.value()
@@ -680,7 +680,7 @@ class ExtractChannelsDialog(QtDialog):
 
 
 def open_about(parent):
-    """Open dialog with information about the app."""
+    """Open a dialog with information about the app."""
     dlg = DialogAbout(parent)
     dlg.show()
 

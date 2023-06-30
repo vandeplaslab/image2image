@@ -1,7 +1,6 @@
 """Widget for loading data."""
-from functools import partial
-
 import typing as ty
+from functools import partial
 from pathlib import Path
 
 import qtextra.helpers as hp
@@ -18,6 +17,9 @@ from ims2micro.config import CONFIG
 from ims2micro.enums import ALLOWED_FORMATS, VIEW_TYPE_TRANSLATIONS
 from ims2micro.models import DataModel
 from ims2micro.utilities import log_exception, style_form_layout
+
+if ty.TYPE_CHECKING:
+    from ims2micro.readers.coordinate_reader import CoordinateReader
 
 
 class LoadWidget(QWidget):
@@ -158,14 +160,16 @@ class LoadWidget(QWidget):
             return
 
         dlg = ExtractChannelsDialog(self, self.model)
+        path, mzs, ppm = None, None, None
         if dlg.exec_():
             path = dlg.path_to_extract
             mzs = dlg.mzs
             ppm = dlg.ppm
-            if path and mzs:
-                reader = self.model.get_reader(path)
 
-                func = thread_worker(  # noqa
+        if path and mzs and ppm:
+            reader: "CoordinateReader" = self.model.get_reader(path)  # noqa
+            if reader:
+                func = thread_worker(
                     partial(reader.extract, mzs=mzs, ppm=ppm),
                     start_thread=True,
                     connect={"returned": self._on_update_dataset, "errored": self._on_failed_update_dataset},

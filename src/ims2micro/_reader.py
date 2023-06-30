@@ -289,6 +289,7 @@ def _read_metadata_h5_coordinates(path: PathLike) -> ty.Tuple[Path, "CoordinateR
 def _read_centroids_h5_coordinates(path: PathLike) -> ty.Tuple[Path, "CoordinateReader"]:
     """Read centroids data from HDF5 file."""
     import h5py
+
     from ims2micro.utilities import format_mz
 
     path = Path(path)

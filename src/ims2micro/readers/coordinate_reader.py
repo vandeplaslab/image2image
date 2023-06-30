@@ -2,9 +2,9 @@
 import typing as ty
 
 import numpy as np
+from koyo.timer import MeasureTimer
 from koyo.typing import PathLike
 from loguru import logger
-from koyo.timer import MeasureTimer
 
 from ims2micro.config import CONFIG
 from ims2micro.readers.base import BaseImageReader
