@@ -1,6 +1,6 @@
 """Main window."""
 import sys
-
+import os
 from loguru import logger
 
 
@@ -28,6 +28,7 @@ def run(level: int = 10, no_color: bool = False, dev: bool = False):
 
     if dev:
         import faulthandler
+        from koyo.hooks import install_debugger_hook
 
         from qtextra.utils.dev import qdev
 
@@ -42,10 +43,10 @@ def run(level: int = 10, no_color: bool = False, dev: bool = False):
         dev.evt_theme.connect(lambda: THEMES.set_theme_stylesheet(dlg))
         dlg.centralWidget().layout().addWidget(dev)
 
-        # install_debugger_hook()
-        # os.environ["IMS2MICRO_DEV_MODE"] = "1"
-    # else:
-    #     os.environ["IMS2MICRO_DEV_MODE"] = "0"
+        install_debugger_hook()
+        os.environ["IMAGE2IMAGE_DEV_MODE"] = "1"
+    else:
+        os.environ["IMAGE2IMAGE_DEV_MODE"] = "0"
 
     dlg.show()
     sys.exit(app.exec_())

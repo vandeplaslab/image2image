@@ -39,7 +39,7 @@ def is_debug() -> bool:
     """Return whether in debug mode."""
     import os
 
-    return os.environ.get("IMS2MICRO_DEV_MODE", "0") == "1"
+    return os.environ.get("IMAGE2IMAGE_DEV_MODE", "0") == "1"
 
 
 def log_exception(message_or_error):

@@ -437,7 +437,7 @@ class ImageRegistrationWindow(QMainWindow, IndicatorMixin, ImageViewMixin):
             logger.warning("Cannot save transformation - no transformation has been computed.")
             return
         # get filename which is based on the moving dataset
-        filename = transform.moving_model.get_filename() + "_transform.i2m.json"
+        filename = transform.moving_model.get_filename() + "_transform.i2i.json"
         path = hp.get_save_filename(
             self,
             "Save transformation",
@@ -676,7 +676,7 @@ class ImageRegistrationWindow(QMainWindow, IndicatorMixin, ImageViewMixin):
 
         self.transform_choice = hp.make_combobox(self)
         hp.set_combobox_data(self.transform_choice, TRANSFORMATION_TRANSLATIONS, "Affine")
-        self.transform_choice.currentTextChanged.connect(self.on_run)
+        self.transform_choice.currentTextChanged.connect(self.on_run)  # noqa
 
         self.save_btn = hp.make_btn(
             self,
@@ -824,17 +824,17 @@ class ImageRegistrationWindow(QMainWindow, IndicatorMixin, ImageViewMixin):
         self.fixed_point_size = hp.make_int_spin_box(
             self, value=CONFIG.size_fixed, tooltip="Size of the points shown in the fixed image."
         )
-        self.fixed_point_size.valueChanged.connect(partial(self.on_update_layer, "fixed"))
+        self.fixed_point_size.valueChanged.connect(partial(self.on_update_layer, "fixed"))  # noqa
 
         self.moving_point_size = hp.make_int_spin_box(
             self, value=CONFIG.size_moving, tooltip="Size of the points shown in the moving image."
         )
-        self.moving_point_size.valueChanged.connect(partial(self.on_update_layer, "moving"))
+        self.moving_point_size.valueChanged.connect(partial(self.on_update_layer, "moving"))  # noqa
 
         self.fixed_opacity = hp.make_int_spin_box(
             self, value=CONFIG.opacity_fixed, step_size=10, tooltip="Opacity of the fixed image"
         )
-        self.fixed_opacity.valueChanged.connect(partial(self.on_update_layer, "fixed"))
+        self.fixed_opacity.valueChanged.connect(partial(self.on_update_layer, "fixed"))  # noqa
 
         self.moving_opacity = hp.make_int_spin_box(
             self,
@@ -842,18 +842,18 @@ class ImageRegistrationWindow(QMainWindow, IndicatorMixin, ImageViewMixin):
             step_size=10,
             tooltip="Opacity of the moving image in the fixed view",
         )
-        self.moving_opacity.valueChanged.connect(partial(self.on_update_layer, "moving"))
+        self.moving_opacity.valueChanged.connect(partial(self.on_update_layer, "moving"))  # noqa
 
         self.text_size = hp.make_int_spin_box(
             self, value=CONFIG.label_size, minimum=4, maximum=60, tooltip="Size of the text associated with each label."
         )
-        self.text_size.valueChanged.connect(self.on_update_text)
+        self.text_size.valueChanged.connect(self.on_update_text)  # noqa
 
         self.text_color = hp.make_swatch(
             self, default=CONFIG.label_color, tooltip="Color of the text associated with each label."
         )
-        self.text_color.setSizePolicy(QSizePolicy.MinimumExpanding, QSizePolicy.Minimum)
-        self.text_color.evt_color_changed.connect(self.on_update_text)
+        self.text_color.setSizePolicy(QSizePolicy.MinimumExpanding, QSizePolicy.Minimum)  # noqa
+        self.text_color.evt_color_changed.connect(self.on_update_text)  # noqa
 
         layout = hp.make_form_layout()
         style_form_layout(layout)
