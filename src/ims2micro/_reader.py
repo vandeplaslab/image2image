@@ -7,6 +7,9 @@ from koyo.typing import PathLike
 
 if ty.TYPE_CHECKING:
     from ims2micro.readers.base import BaseImageReader
+    from ims2micro.readers.coordinate_reader import CoordinateReader
+    from ims2micro.readers.czi_reader import CziImageReader
+    from ims2micro.readers.tiff_reader import TiffImageReader
 
 IMAGE_EXTENSIONS = [".jpg", ".jpeg", ".png"]
 TIFF_EXTENSIONS = [".scn", ".ome.tiff", ".tif", ".tiff", ".svs", ".ndpi"]
@@ -102,22 +105,40 @@ class ImageWrapper:
                     reader_or_array = np.atleast_3d(reader_or_array, axis=-1)
                     self.data[key] = reader_or_array  # replace to ensure it's 3d array
                 array = [reader_or_array]
+            # microscopy data reader
             elif hasattr(reader_or_array, "pyramid"):
                 temp = reader_or_array.pyramid
                 array = temp if isinstance(temp, list) else [temp]
             else:
                 raise ValueError("Cannot read image")
 
+            # get the shape of the 'largest image in pyramid'
             shape = array[0].shape
-            channel_axis = int(np.argmin(shape))
-            n_channels = shape[channel_axis]
+            # get the number of dimensions, which determines how images are split into channels
+            ndim = len(shape)
+            # 2D images will be returned as they are
+            if ndim == 2:
+                channel_axis = None
+                n_channels = 1
+            # 3D images will be split into channels
+            else:
+                channel_axis = int(np.argmin(shape))
+                n_channels = shape[channel_axis]
             for ch in range(n_channels):
-                if channel_axis == 0:
-                    yield key, self.data[key], [a[ch] for a in array], ch
+                # 2D image
+                if channel_axis is None:
+                    yield key, reader_or_array, array, ch
+                # 3D image where the first axis corresponds to different channels
+                elif channel_axis == 0:
+                    yield key, reader_or_array, [a[ch] for a in array], ch
+                # 3D image where the second axis corresponds to different channels
                 elif channel_axis == 1:
-                    yield key, self.data[key], [a[:, ch] for a in array], ch
+                    yield key, reader_or_array, [a[:, ch] for a in array], ch
+                # 3D image where the last axis corresponds to different channels
+                elif channel_axis == 2:
+                    yield key, reader_or_array, [a[..., ch] for a in array], ch
                 else:
-                    yield key, self.data[key], [a[..., ch] for a in array], ch
+                    raise ValueError(f"Cannot read image with {ndim} dimensions")
 
     def image_iter(self, view_type: ty.Optional[str] = None) -> ty.Iterator[np.ndarray]:
         """Iterator to add channels."""
@@ -164,9 +185,9 @@ def read_image(path: PathLike, wrapper: ty.Optional["ImageWrapper"] = None) -> "
     elif suffix in NPY_EXTENSIONS:
         data = _read_npy_coordinates(path)
     elif suffix in BRUKER_EXTENSIONS:
-        data = _read_tsf_tdf_coordinates(path)
+        data = _read_tsf_tdf_reader(path)
     elif suffix in IMZML_EXTENSIONS:
-        data = _read_imzml_coordinates(path)
+        data = _read_imzml_reader(path)
     elif suffix in H5_EXTENSIONS:
         if path.name.startswith("peaks_"):
             data = _read_centroids_h5_coordinates(path)
@@ -183,7 +204,7 @@ def read_image(path: PathLike, wrapper: ty.Optional["ImageWrapper"] = None) -> "
     return wrapper
 
 
-def _read_czi(path: PathLike) -> ty.Dict[str, "BaseImageReader"]:
+def _read_czi(path: PathLike) -> ty.Dict[str, "CziImageReader"]:
     """Read CZI file."""
     from ims2micro.readers.czi_reader import CziImageReader
 
@@ -192,7 +213,7 @@ def _read_czi(path: PathLike) -> ty.Dict[str, "BaseImageReader"]:
     return {path.name: CziImageReader(path)}
 
 
-def _read_tiff(path: PathLike) -> ty.Dict[str, "BaseImageReader"]:
+def _read_tiff(path: PathLike) -> ty.Dict[str, "TiffImageReader"]:
     """Read TIFF file."""
     from ims2micro.readers.tiff_reader import TiffImageReader
 
@@ -210,7 +231,7 @@ def _read_image(path: PathLike) -> ty.Dict[str, np.ndarray]:
     return {path.name: imread(path)}
 
 
-def _read_npy_coordinates(path: PathLike) -> ty.Dict[str, "BaseImageReader"]:
+def _read_npy_coordinates(path: PathLike) -> ty.Dict[str, "CoordinateReader"]:
     """Read data from npz or npy file."""
     from ims2micro.readers.coordinate_reader import CoordinateReader
 
@@ -221,7 +242,7 @@ def _read_npy_coordinates(path: PathLike) -> ty.Dict[str, "BaseImageReader"]:
     return {path.name: CoordinateReader(path, x, y, array_or_reader=image)}
 
 
-def _read_metadata_h5_coordinates(path: PathLike) -> ty.Dict[str, "BaseImageReader"]:
+def _read_metadata_h5_coordinates(path: PathLike) -> ty.Dict[str, "CoordinateReader"]:
     """Read coordinates from HDF5 file."""
     import h5py
     from koyo.json import read_json_data
@@ -229,7 +250,7 @@ def _read_metadata_h5_coordinates(path: PathLike) -> ty.Dict[str, "BaseImageRead
     from ims2micro.readers.coordinate_reader import CoordinateReader
 
     path = Path(path)
-    assert path.suffix in [".h5"], "Only .h5 files are supported"
+    assert path.suffix in H5_EXTENSIONS, "Only .h5 files are supported"
 
     # read coordinates
     with h5py.File(path, "r") as f:
@@ -245,11 +266,35 @@ def _read_metadata_h5_coordinates(path: PathLike) -> ty.Dict[str, "BaseImageRead
     return {path.name: CoordinateReader(path, x, y, resolution, array_or_reader=tic)}
 
 
-def _read_centroids_h5_coordinates(path: PathLike):
+def _read_centroids_h5_coordinates(path: PathLike) -> ty.Dict[str, "CoordinateReader"]:
     """Read centroids data from HDF5 file."""
+    import h5py
+
+    path = Path(path)
+    assert path.suffix in H5_EXTENSIONS, "Only .h5 files are supported"
+
+    data_dir = path.parent.parent.with_suffix(".data")
+    metadata_file = data_dir / "dataset.metadata.h5"
+    assert metadata_file.exists(), f"File does not exist: {metadata_file}"
+
+    data = _read_metadata_h5_coordinates(metadata_file)
+    reader = data[metadata_file.name]
+    x = reader.x  # noqa
+    y = reader.y  # noqa
+
+    with h5py.File(path, "r") as f:
+        ys = f["Array"]["ys"][:]
+        indices = np.argsort(ys)[:-20]
+        indices = np.sort(indices)
+        mzs = f["Array"]["xs"][indices]
+        centroids = f["Array"]["array"][:, indices]
+    centroids = reshape_batch(x, y, centroids)
+    mzs = [f"m/z {mz:.3f}" for mz in mzs]
+    reader.data.update({mz: centroid for mz, centroid in zip(mzs, centroids)})  # noqa
+    return {path.name: reader}
 
 
-def _read_tsf_tdf_coordinates(path: PathLike) -> ty.Dict[str, "BaseImageReader"]:
+def _read_tsf_tdf_coordinates(path: PathLike) -> ty.Dict[str, "CoordinateReader"]:
     """Read coordinates from TSF file."""
     import sqlite3
 
@@ -284,8 +329,9 @@ def _read_tsf_tdf_coordinates(path: PathLike) -> ty.Dict[str, "BaseImageReader"]
     return {path.name: CoordinateReader(path, x, y, resolution, array_or_reader=reshape(x, y, tic))}
 
 
-def _read_tsf_tdf_reader(path: PathLike) -> ty.Dict[str, "BaseImageReader"]:
+def _read_tsf_tdf_reader(path: PathLike) -> ty.Dict[str, "CoordinateReader"]:
     """Read coordinates from Bruker file."""
+    import sqlite3
     from imzy import get_reader
 
     from ims2micro.readers.coordinate_reader import CoordinateReader
@@ -293,14 +339,23 @@ def _read_tsf_tdf_reader(path: PathLike) -> ty.Dict[str, "BaseImageReader"]:
     path = Path(path)
     assert path.suffix in BRUKER_EXTENSIONS, "Only .tsf and .tdf files are supported"
 
+    conn = sqlite3.connect(path)
+    try:
+        cursor = conn.execute("SELECT SpotSize FROM MaldiFrameLaserInfo")  # noqa
+        resolution = float(cursor.fetchone()[0])
+    except sqlite3.OperationalError:
+        resolution = 1.0
+    conn.close()
+
     # get reader
+    path = path.parent
     reader = get_reader(path)
     x = reader.x_coordinates
     y = reader.y_coordinates
-    return {path.name: CoordinateReader(path, x, y, array_or_reader=reader)}
+    return {path.name: CoordinateReader(path, x, y, resolution, array_or_reader=reader)}
 
 
-def _read_imzml_coordinates(path: PathLike) -> ty.Dict[str, "BaseImageReader"]:
+def _read_imzml_coordinates(path: PathLike) -> ty.Dict[str, "CoordinateReader"]:
     """Read coordinates from imzML file."""
     from imzy import get_reader
 
@@ -319,7 +374,7 @@ def _read_imzml_coordinates(path: PathLike) -> ty.Dict[str, "BaseImageReader"]:
     return {path.name: CoordinateReader(path, x, y, array_or_reader=reshape(x, y, tic))}
 
 
-def _read_imzml_reader(path: PathLike) -> ty.Dict[str, "BaseImageReader"]:
+def _read_imzml_reader(path: PathLike) -> ty.Dict[str, "CoordinateReader"]:
     """Read coordinates from imzML file."""
     from imzy import get_reader
 
@@ -337,14 +392,32 @@ def _read_imzml_reader(path: PathLike) -> ty.Dict[str, "BaseImageReader"]:
     return {path.name: CoordinateReader(path, x, y, array_or_reader=reader)}
 
 
-def reshape(x, y, array):
+def reshape(x: np.ndarray, y: np.ndarray, array: np.ndarray, fill_value: float = 0) -> np.ndarray:
     """Reshape array."""
     xmin, xmax = np.min(x), np.max(x)
     ymin, ymax = np.min(y), np.max(y)
     shape = (ymax - ymin + 1, xmax - xmin + 1)
-    new_array = np.full(shape, np.nan)
+    dtype = np.float32 if np.isnan(fill_value) else array.dtype
+    new_array = np.full(shape, fill_value=fill_value, dtype=dtype)
     new_array[y - ymin, x - xmin] = array
     return new_array
+
+
+def reshape_batch(x: np.ndarray, y: np.ndarray, array: np.ndarray, fill_value: float = 0) -> np.ndarray:
+    """Batch reshaping of images."""
+    if array.ndim != 2:
+        raise ValueError("Expected 2-D array.")
+    xmin, xmax = np.min(x), np.max(x)
+    ymin, ymax = np.min(y), np.max(y)
+    y = y - ymin
+    x = x - xmin
+    n = array.shape[1]
+    shape = (n, ymax - ymin + 1, xmax - xmin + 1)
+    dtype = np.float32 if np.isnan(fill_value) else array.dtype
+    im = np.full(shape, fill_value=fill_value, dtype=dtype)
+    for i in range(n):
+        im[i, y, x] = array[:, i]
+    return im
 
 
 def get_yx_coordinates_from_shape(shape: ty.Tuple[int, int]) -> ty.Tuple[np.ndarray, np.ndarray]:

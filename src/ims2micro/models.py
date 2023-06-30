@@ -56,20 +56,28 @@ class DataModel(BaseModel):
             if path not in self.paths:
                 self.paths.append(path)
                 just_added.append(path)
+                logger.trace(f"Added {path} to paths.")
         self.just_added = just_added
 
     def remove_paths(self, path_or_paths: ty.Union[PathLike, ty.List[PathLike]]):
         """Remove paths."""
+        if path_or_paths is None:
+            return
         if isinstance(path_or_paths, (str, Path)):
             path_or_paths = [path_or_paths]
         for path in path_or_paths:
             path = Path(path)
             if path in self.paths:
                 self.paths.remove(path)
+                logger.trace(f"Removed {path} from paths.")
             if self.reader:
                 self.reader.remove_path(path)
+                logger.trace(f"Removed {path} from reader.")
             if self.just_added and path in self.just_added:
                 self.just_added.remove(path)
+                logger.trace(f"Removed {path} from just_added.")
+        if not self.paths:
+            self.reader = None
 
     def load(self):
         """Load data into memory."""
@@ -85,7 +93,8 @@ class DataModel(BaseModel):
         for path in self.paths:
             if self.reader is None or not self.reader.is_loaded(path):
                 self.reader = read_image(path, self.reader)
-        self.resolution = self.reader.resolution
+        if self.reader:
+            self.resolution = self.reader.resolution
         return self.reader  # noqa
 
     def channel_names(self) -> ty.List[str]:
@@ -97,12 +106,6 @@ class DataModel(BaseModel):
         """Return number of paths."""
         return len(self.paths) if self.paths is not None else 0
 
-    def close(self, paths: ty.List[PathLike]):
-        """Close certain (or all) paths."""
-        if paths is None:
-            return
-        self.remove_paths(paths)
-
 
 class Transformation(BaseModel):
     """Temporary object that holds transformation information."""
@@ -113,7 +116,7 @@ class Transformation(BaseModel):
     transformation_type: str = ""
     # Path to the image
     micro_model: ty.Optional[DataModel] = None
-    ims_model: ty.Optional[DataModel] = None
+    moving_model: ty.Optional[DataModel] = None
     # Date when the registration was created
     time_created: ty.Optional[datetime] = None
     # Arrays of fixed and moving points
@@ -149,7 +152,7 @@ class Transformation(BaseModel):
             fixed_points = fixed_points[:, ::-1]
         if not px:
             moving_points = moving_points * self.micro_model.resolution
-            fixed_points = fixed_points * self.ims_model.resolution
+            fixed_points = fixed_points * self.moving_model.resolution
 
         transform = compute_transform(
             moving_points,  # source
@@ -193,12 +196,12 @@ class Transformation(BaseModel):
             "fixed_points_yx_px": self.fixed_points.tolist(),  # default
             "fixed_points_yx_um": (self.micro_model.resolution * self.fixed_points).tolist(),
             "moving_points_yx_px": self.moving_points.tolist(),  # default
-            "moving_points_yx_um": (self.ims_model.resolution * self.moving_points).tolist(),
+            "moving_points_yx_um": (self.moving_model.resolution * self.moving_points).tolist(),
             "transformation_type": self.transformation_type,
             "micro_paths": [str(path) for path in self.micro_model.paths],
             "micro_resolution_um": self.micro_model.resolution,
-            "ims_paths": [str(path) for path in self.ims_model.paths],
-            "ims_resolution_um": self.ims_model.resolution,
+            "ims_paths": [str(path) for path in self.moving_model.paths],
+            "ims_resolution_um": self.moving_model.resolution,
             "matrix_yx_px": self.compute(yx=True, px=True).params.tolist(),
             "matrix_yx_um": self.compute(yx=True, px=False).params.tolist(),
             "matrix_xy_px": self.compute(yx=False, px=True).params.tolist(),

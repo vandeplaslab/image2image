@@ -27,8 +27,7 @@ class LoadWidget(QWidget):
     evt_toggle_channel = Signal(str, bool)
 
     IS_MICROSCOPY: bool
-    # INFO_TEXT = "Select data - permitted formats .tiff, .czi, .jpg, .png, .tdf, .tsf, .imzML, .h5, .npy"
-    INFO_TEXT = "Please select 'fixed' data..."
+    INFO_TEXT = "Select 'fixed' data..."
     FILE_TITLE = "Select 'fixed' data..."
     FILE_FORMATS = ALLOWED_FORMATS
 
@@ -43,7 +42,7 @@ class LoadWidget(QWidget):
     def _setup_ui(self):
         """Setup UI."""
         self.load_btn = hp.make_btn(self, "Add image...", func=self.on_select_dataset)
-        self.close_btn = hp.make_btn(self, "Close", func=self._on_close_dataset)
+        self.close_btn = hp.make_btn(self, "Remove image...", func=self._on_close_dataset)
 
         self.resolution_edit = hp.make_line_edit(self, placeholder="Enter spatial resolution...", text="1.0")
         self.resolution_edit.setValidator(QRegExpValidator(QRegExp(r"^[0-9]+(\.[0-9]+)?$")))  # noqa
@@ -64,14 +63,14 @@ class LoadWidget(QWidget):
         from ims2micro._dialogs import CloseDatasetDialog
 
         if self.model.n_paths:
-            config = None
+            paths = None
             if not force:  # only ask user if not forced
                 dlg = CloseDatasetDialog(self, self.model)
                 if dlg.exec_():
-                    config = dlg.config
+                    paths = dlg.paths
             else:
-                config = self.model.paths
-            self.model.close(config)
+                paths = self.model.paths
+            self.model.remove_paths(paths)
             self.evt_closed.emit(self.model)
             if not self.model.n_paths:
                 self.resolution_edit.setText("1.0")
@@ -140,12 +139,12 @@ class LoadWidget(QWidget):
         self.table_dlg.show()
 
 
-class IMSWidget(LoadWidget):
+class MovingWidget(LoadWidget):
     """Widget for loading IMS data."""
 
     # class attrs
     IS_MICROSCOPY = False
-    INFO_TEXT = "Please select 'moving' data..."
+    INFO_TEXT = "Select 'moving' data..."
     FILE_TITLE = "Select 'moving' data..."
 
     # events
@@ -203,7 +202,7 @@ class IMSWidget(LoadWidget):
         self.evt_show_transformed.emit(value)
 
 
-class MicroscopyWidget(LoadWidget):
+class FixedWidget(LoadWidget):
     """Widget for loading Microscopy data."""
 
     # class attrs

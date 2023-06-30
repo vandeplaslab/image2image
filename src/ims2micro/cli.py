@@ -47,6 +47,6 @@ def cli(ctx, verbosity: int, no_color: bool, dev: bool = False, extras=None):
     from ims2micro.main import run
 
     if dev:
-        verbosity = 1
-    level = min(1, verbosity) * 10
-    run(level=level, no_color=no_color, dev=dev)
+        verbosity = 0.5
+    level = min(0.5, verbosity) * 10
+    run(level=int(level), no_color=no_color, dev=dev)

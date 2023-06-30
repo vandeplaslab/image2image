@@ -24,7 +24,7 @@ from superqt import ensure_main_thread
 # need to load to ensure all assets are loaded properly
 import ims2micro.assets  # noqa: F401
 from ims2micro import __version__
-from ims2micro._select import IMSWidget, MicroscopyWidget
+from ims2micro._select import FixedWidget, MovingWidget
 from ims2micro.config import CONFIG
 from ims2micro.enums import ALLOWED_EXPORT_FORMATS, TRANSFORMATION_TRANSLATIONS, ViewType
 from ims2micro.models import DataModel, Transformation
@@ -37,7 +37,7 @@ class ImageRegistrationWindow(QMainWindow, IndicatorMixin, ImageViewMixin):
     fixed_image_layer: ty.Optional[ty.List["Image"]] = None
     moving_image_layer: ty.Optional[ty.List["Image"]] = None
     temporary_transform: ty.Optional[Transformation] = None
-    _table = None
+    _table, _console = None, None
 
     # events
     evt_predicted = Signal()
@@ -105,19 +105,19 @@ class ImageRegistrationWindow(QMainWindow, IndicatorMixin, ImageViewMixin):
 
     def setup_events(self, state: bool = True):
         """Additional setup."""
-        # microscopy widget
-        connect(self._micro_widget.evt_loading, partial(self.on_indicator, which="fixed"), state=state)
-        connect(self._micro_widget.evt_loaded, self.on_load_fixed, state=state)
-        connect(self._micro_widget.evt_toggle_channel, partial(self.on_toggle_channel, which="fixed"), state=state)
-        connect(self._micro_widget.evt_closed, self.on_close_fixed, state=state)
+        # fixed widget
+        connect(self._fixed_widget.evt_loading, partial(self.on_indicator, which="fixed"), state=state)
+        connect(self._fixed_widget.evt_loaded, self.on_load_fixed, state=state)
+        connect(self._fixed_widget.evt_toggle_channel, partial(self.on_toggle_channel, which="fixed"), state=state)
+        connect(self._fixed_widget.evt_closed, self.on_close_fixed, state=state)
         # imaging widget
-        connect(self._ims_widget.evt_show_transformed, self.on_toggle_transformed_moving, state=state)
-        connect(self._ims_widget.evt_loading, partial(self.on_indicator, which="moving"), state=state)
-        connect(self._ims_widget.evt_toggle_channel, partial(self.on_toggle_channel, which="moving"), state=state)
-        connect(self._ims_widget.evt_loaded, self.on_load_moving, state=state)
-        connect(self._ims_widget.evt_closed, self.on_close_moving, state=state)
-        connect(self._ims_widget.evt_view_type, self.on_change_view_type, state=state)
-        # microscopy view
+        connect(self._moving_widget.evt_show_transformed, self.on_toggle_transformed_moving, state=state)
+        connect(self._moving_widget.evt_loading, partial(self.on_indicator, which="moving"), state=state)
+        connect(self._moving_widget.evt_toggle_channel, partial(self.on_toggle_channel, which="moving"), state=state)
+        connect(self._moving_widget.evt_loaded, self.on_load_moving, state=state)
+        connect(self._moving_widget.evt_closed, self.on_close_moving, state=state)
+        connect(self._moving_widget.evt_view_type, self.on_change_view_type, state=state)
+        # fixed view
         # connect(self.view_fixed.viewer.camera.events.zoom, self.on_auto_apply_focus, state=state)
         # fixed points layer
         connect(self.fixed_points_layer.events.data, self.on_run, state=state)
@@ -138,18 +138,18 @@ class ImageRegistrationWindow(QMainWindow, IndicatorMixin, ImageViewMixin):
             self._on_load_fixed(model, channel_list)
             hp.toast(self, "Loaded fixed data", f"Loaded fixed model with {model.n_paths} paths.")
         else:
-            logger.warning("Failed to load microscopy data.")
+            logger.warning("Failed to load fixed data.")
         self.on_indicator("fixed", False)
 
     def _on_load_fixed(self, model: DataModel, channel_list: ty.Optional[ty.List[str]] = None):
         with MeasureTimer() as timer:
-            logger.info(f"Loading microscopy data with {model.n_paths} paths...")
+            logger.info(f"Loading fixed data with {model.n_paths} paths...")
             self._plot_fixed_layers(channel_list)
             self.view_fixed.viewer.reset_view()
-        logger.info(f"Loaded microscopy data in {timer()}")
+        logger.info(f"Loaded fixed data in {timer()}")
 
     def _plot_fixed_layers(self, channel_list: ty.Optional[ty.List[str]] = None):
-        wrapper = self._micro_widget.model.get_reader()
+        wrapper = self._fixed_widget.model.get_reader()
         if channel_list is None:
             channel_list = wrapper.channel_names()
         fixed_image_layer = []
@@ -184,7 +184,7 @@ class ImageRegistrationWindow(QMainWindow, IndicatorMixin, ImageViewMixin):
                     del self.view_fixed.layers[name]
                     logger.debug(f"Removed {name} from fixed view.")
         except Exception as e:
-            logger.error(e)
+            logger.exception(e)
 
     def on_toggle_channel(self, name: str, state: bool, which: str):
         """Toggle channel."""
@@ -201,21 +201,21 @@ class ImageRegistrationWindow(QMainWindow, IndicatorMixin, ImageViewMixin):
             self._on_load_moving(model, channel_list)
             hp.toast(self, "Loaded moving data", f"Loaded moving model with {model.n_paths} paths.")
         else:
-            logger.warning("Failed to load microscopy data.")
+            logger.warning("Failed to load moving data.")
         self.on_indicator("moving", False)
 
     def _on_load_moving(self, model: DataModel, channel_list: ty.Optional[ty.List[str]] = None):
         with MeasureTimer() as timer:
-            logger.info(f"Loading imaging data with {model.n_paths} paths...")
+            logger.info(f"Loading moving data with {model.n_paths} paths...")
             self._plot_moving_layers(channel_list)
             self.on_apply(update_data=True)
             self.view_moving.viewer.reset_view()
-        logger.info(f"Loaded imaging data in {timer()}")
+        logger.info(f"Loaded moving data in {timer()}")
 
     def _plot_moving_layers(self, channel_list: ty.Optional[ty.List[str]] = None):
         CONFIG.view_type = ViewType(CONFIG.view_type)
         is_overlay = CONFIG.view_type == ViewType.OVERLAY
-        wrapper = self._ims_widget.model.get_reader()
+        wrapper = self._moving_widget.model.get_reader()
         if channel_list is None:
             channel_list = wrapper.channel_names(CONFIG.view_type)
 
@@ -227,13 +227,14 @@ class ImageRegistrationWindow(QMainWindow, IndicatorMixin, ImageViewMixin):
                 colormap = get_colormap(index, used) if is_overlay else "turbo"
                 is_visible = True if (is_overlay and index == 0) else (not is_overlay)
                 if name in self.view_moving.layers:
-                    layer = self.view_moving.layers[name]
-                    layer.data = array
-                    layer.colormap = colormap
-                    layer.reset_contrast_limits()
-                    layer.visible = is_visible
-                    moving_image_layer.append(layer)
-                    continue
+                    del self.view_moving.layers[name]
+                    # layer = self.view_moving.layers[name]
+                    # layer.data = array
+                    # layer.colormap = colormap
+                    # layer.reset_contrast_limits()
+                    # layer.visible = is_visible
+                    # moving_image_layer.append(layer)
+                    # continue
                 moving_image_layer.append(
                     self.view_moving.viewer.add_image(
                         array,
@@ -261,11 +262,11 @@ class ImageRegistrationWindow(QMainWindow, IndicatorMixin, ImageViewMixin):
                     del self.view_moving.layers[name]
                     logger.debug(f"Removed {name} from moving view.")
         except Exception as e:
-            logger.error(e)
+            logger.exception(e)
 
     def on_change_view_type(self, _view_type: str):
         """Change view type."""
-        if self._ims_widget.model.n_paths:
+        if self._moving_widget.model.n_paths:
             self._plot_moving_layers()
             self.on_apply(update_data=True)
 
@@ -386,8 +387,8 @@ class ImageRegistrationWindow(QMainWindow, IndicatorMixin, ImageViewMixin):
             self.temporary_transform = Transformation(
                 transform=transform,
                 transformation_type=method,
-                micro_model=self._micro_widget.model,
-                ims_model=self._ims_widget.model,
+                fixed_model=self._fixed_widget.model,
+                moving_model=self._moving_widget.model,
                 time_created=datetime.now(),
                 fixed_points=self.fixed_points_layer.data,
                 moving_points=self.moving_points_layer.data,
@@ -407,7 +408,7 @@ class ImageRegistrationWindow(QMainWindow, IndicatorMixin, ImageViewMixin):
             logger.warning("Cannot save transformation - no transformation has been computed.")
             return
         # get filename which is based on the IMS dataset
-        filename = transform.ims_model.get_filename() + "_transform.i2m.json"
+        filename = transform.moving_model.get_filename() + "_transform.i2m.json"
         path = hp.get_save_filename(
             self,
             "Save transformation",
@@ -445,38 +446,38 @@ class ImageRegistrationWindow(QMainWindow, IndicatorMixin, ImageViewMixin):
 
                 # reset all widgets
                 if config["micro"]:
-                    self._micro_widget._on_close_dataset(force=True)
+                    self._fixed_widget._on_close_dataset(force=True)
                 if config["ims"]:
-                    self._ims_widget._on_close_dataset(force=True)
+                    self._moving_widget._on_close_dataset(force=True)
 
                 # load data from config file
                 (
                     transformation_type,
-                    micro_paths,
-                    micro_paths_missing,
+                    fixed_paths,
+                    fixed_paths_missing,
                     fixed_points,
-                    ims_paths,
-                    ims_paths_missing,
+                    fixed_paths,
+                    moving_paths_missing,
                     moving_points,
                 ) = load_from_file(path, **config)
                 self.transform_choice.setCurrentText(transformation_type)
 
                 # locate paths that are missing
-                if micro_paths_missing or ims_paths_missing:
+                if fixed_paths_missing or moving_paths_missing:
                     from ims2micro._dialogs import LocateFilesDialog
 
-                    dlg = LocateFilesDialog(self, micro_paths_missing, ims_paths_missing)
+                    dlg = LocateFilesDialog(self, fixed_paths_missing, moving_paths_missing)
                     if dlg.exec_():
-                        if micro_paths_missing:
-                            micro_paths = dlg.fix_missing_paths(micro_paths_missing, micro_paths)
-                        if ims_paths_missing:
-                            ims_paths = dlg.fix_missing_paths(ims_paths_missing, ims_paths)
+                        if fixed_paths_missing:
+                            fixed_paths = dlg.fix_missing_paths(fixed_paths_missing, fixed_paths)
+                        if moving_paths_missing:
+                            fixed_paths = dlg.fix_missing_paths(moving_paths_missing, fixed_paths)
 
                 # set new paths
-                if micro_paths:
-                    self._micro_widget.on_set_path(micro_paths)
-                if ims_paths:
-                    self._ims_widget.on_set_path(ims_paths)
+                if fixed_paths:
+                    self._fixed_widget.on_set_path(fixed_paths)
+                if fixed_paths:
+                    self._moving_widget.on_set_path(fixed_paths)
 
                 # update points
                 if moving_points is not None:
@@ -486,13 +487,21 @@ class ImageRegistrationWindow(QMainWindow, IndicatorMixin, ImageViewMixin):
                 # force update of text
                 self.on_update_text(block=False)
 
-    def on_view_fiducials(self):
+    def on_show_fiducials(self):
         """View fiducials table."""
         if self._table is None:
             from ims2micro._dialogs import FiducialTableDialog
 
             self._table = FiducialTableDialog(self)
         self._table.show()
+
+    def on_show_console(self):
+        """View console."""
+        if self._console is None:
+            from ims2micro._console import QtConsoleDialog
+
+            self._console = QtConsoleDialog(self)
+        self._console.show()
 
     @ensure_main_thread
     def on_apply(self, update_data: bool = False, name: ty.Optional[str] = None):
@@ -633,8 +642,8 @@ class ImageRegistrationWindow(QMainWindow, IndicatorMixin, ImageViewMixin):
             func=self.on_load,
         )
 
-        self._micro_widget = MicroscopyWidget(self, self.view_fixed)
-        self._ims_widget = IMSWidget(self, self.view_moving)
+        self._fixed_widget = FixedWidget(self, self.view_fixed)
+        self._moving_widget = MovingWidget(self, self.view_moving)
 
         self.transform_choice = hp.make_combobox(self)
         hp.set_combobox_data(self.transform_choice, TRANSFORMATION_TRANSLATIONS, "Affine")
@@ -651,16 +660,16 @@ class ImageRegistrationWindow(QMainWindow, IndicatorMixin, ImageViewMixin):
             self,
             "Show fiducials table...",
             tooltip="Show fiducial markers table where you can view and edit the markers",
-            func=self.on_view_fiducials,
+            func=self.on_show_fiducials,
         )
 
         side_layout = hp.make_form_layout()
         style_form_layout(side_layout)
         side_layout.addRow(self.load_btn)
         side_layout.addRow(hp.make_h_line_with_text("or"))
-        side_layout.addRow(self._micro_widget)
+        side_layout.addRow(self._fixed_widget)
         side_layout.addRow(hp.make_h_line_with_text("+"))
-        side_layout.addRow(self._ims_widget)
+        side_layout.addRow(self._moving_widget)
         side_layout.addRow(hp.make_h_line_with_text("Area of interest"))
         side_layout.addRow(self._make_focus_layout())
         side_layout.addRow(hp.make_h_line_with_text("Transformation"))
@@ -702,30 +711,32 @@ class ImageRegistrationWindow(QMainWindow, IndicatorMixin, ImageViewMixin):
         )
         hp.make_menu_item(
             self,
-            "Add microscopy image (.tiff, .png, .jpg, + others)...",
+            "Add fixed image (.tiff, .png, .jpg, + others)...",
             "Ctrl+M",
             menu=menu_file,
-            func=self._micro_widget.on_select_dataset,
+            func=self._fixed_widget.on_select_dataset,
         )
         hp.make_menu_item(
             self,
-            "Add imaging image (.imzML, .tdf, .tsf, + others)...",
+            "Add moving image (.imzML, .tdf, .tsf, + others)...",
             "Ctrl+I",
             menu=menu_file,
-            func=self._ims_widget.on_select_dataset,
+            func=self._moving_widget.on_select_dataset,
         )
         menu_file.addSeparator()
         hp.make_menu_item(self, "Quit", menu=menu_file, func=self.close)
 
-        # Help menu
+        # Tools menu
         menu_tools = hp.make_menu(self, "Tools")
         hp.make_menu_item(
-            self, "Select microscopy channels...", menu=menu_tools, func=self._micro_widget._on_select_channels
+            self, "Select fixed channels...", menu=menu_tools, func=self._fixed_widget._on_select_channels
         )
         hp.make_menu_item(
-            self, "Select imaging channels...", menu=menu_tools, func=self._ims_widget._on_select_channels
+            self, "Select moving channels...", menu=menu_tools, func=self._moving_widget._on_select_channels
         )
-        hp.make_menu_item(self, "Show fiducials table...", menu=menu_tools, func=self.on_view_fiducials)
+        hp.make_menu_item(self, "Show fiducials table...", menu=menu_tools, func=self.on_show_fiducials)
+        menu_tools.addSeparator()
+        hp.make_menu_item(self, "Show IPython console...", menu=menu_tools, func=self.on_show_console)
 
         # Help menu
         menu_help = hp.make_menu(self, "Help")

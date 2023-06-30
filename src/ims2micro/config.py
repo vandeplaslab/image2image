@@ -40,6 +40,9 @@ class Config(BaseModel):
         True, title="Show transformed", description="If checked, transformed moving image will be shown."
     )
 
+    # visuals
+    theme: str = Field("light", title="Theme", description="Theme of the application.")
+
     # paths
     microscopy_dir: str = Field("", title="Microscopy directory", description="Directory with microscopy images.")
     imaging_dir: str = Field("", title="Imaging directory", description="Directory with imaging images.")

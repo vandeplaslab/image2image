@@ -173,8 +173,6 @@ class FiducialTableDialog(QtFramelessTool):
 
     HIDE_WHEN_CLOSE = True
 
-    shown_once = False
-
     # event emitted when the popup closes
     evt_close = Signal()
 
@@ -298,8 +296,6 @@ class OverlayTableDialog(QtFramelessTool):
 
     HIDE_WHEN_CLOSE = True
 
-    shown_once = False
-
     # event emitted when the popup closes
     evt_close = Signal()
 
@@ -333,9 +329,11 @@ class OverlayTableDialog(QtFramelessTool):
 
         self.model = model
         data = []
-        for name in self.model.get_reader().channel_names():
-            channel_name, dataset = name.split(" | ")
-            data.append([True, channel_name, dataset])
+        reader = self.model.get_reader()
+        if reader:
+            for name in reader.channel_names():
+                channel_name, dataset = name.split(" | ")
+                data.append([True, channel_name, dataset])
         existing_data = self.table.get_data()
         if existing_data:
             for exist_row in existing_data:
@@ -382,7 +380,7 @@ class CloseDatasetDialog(QtDialog):
         self.model = model
 
         super().__init__(parent)
-        self.config = self.get_config()
+        self.paths = self.get_paths()
 
     # noinspection PyAttributeOutsideInit
     def make_panel(self) -> QFormLayout:
@@ -431,17 +429,17 @@ class CloseDatasetDialog(QtDialog):
 
     def on_apply(self):
         """Apply."""
-        self.config = self.get_config()
+        self.paths = self.get_paths()
         all_checked = len(self.config) == len(self.checkboxes)
         self.all_check.setCheckState(Qt.Checked if all_checked else Qt.Unchecked)
 
-    def get_config(self) -> ty.List[Path]:
+    def get_paths(self) -> ty.List[Path]:
         """Return state."""
-        config = []
+        paths = []
         for checkbox in self.checkboxes:
             if checkbox.isChecked():
-                config.append(Path(checkbox.text()))
-        return config
+                paths.append(Path(checkbox.text()))
+        return paths
 
 
 class ImportSelectDialog(QtDialog):
@@ -455,10 +453,10 @@ class ImportSelectDialog(QtDialog):
     def make_panel(self) -> QFormLayout:
         """Make panel."""
         self.all_check = hp.make_checkbox(self, "Check all", clicked=self.on_check_all, value=True)
-        self.micro_check = hp.make_checkbox(self, "Microscopy images (if exist)", value=True, func=self.on_apply)
-        self.ims_check = hp.make_checkbox(self, "IMS images (if exist)", value=True, func=self.on_apply)
-        self.fixed_check = hp.make_checkbox(self, "Microscopy fiducials", value=True, func=self.on_apply)
-        self.moving_check = hp.make_checkbox(self, "Imaging fiducials", value=True, func=self.on_apply)
+        self.micro_check = hp.make_checkbox(self, "Fixed images (if exist)", value=True, func=self.on_apply)
+        self.ims_check = hp.make_checkbox(self, "Moving images (if exist)", value=True, func=self.on_apply)
+        self.fixed_check = hp.make_checkbox(self, "Fixed fiducials", value=True, func=self.on_apply)
+        self.moving_check = hp.make_checkbox(self, "Moving fiducials", value=True, func=self.on_apply)
 
         layout = hp.make_form_layout()
         style_form_layout(layout)
@@ -532,9 +530,11 @@ class SelectChannelsTableDialog(QtDialog):
     def on_load(self):
         """On load."""
         data = []
-        for name in self.model.get_reader().channel_names_for_names(self.model.just_added):
-            channel_name, _ = name.split(" | ")
-            data.append([True, channel_name, name])
+        reader = self.model.get_reader()
+        if reader:
+            for name in reader.channel_names_for_names(self.model.just_added):
+                channel_name, _ = name.split(" | ")
+                data.append([True, channel_name, name])
         self.table.add_data(data)
 
     # noinspection PyAttributeOutsideInit

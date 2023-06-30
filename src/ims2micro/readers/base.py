@@ -18,11 +18,17 @@ class BaseImageReader:
         self.path = Path(path)
         self.base_layer_idx = 0
 
+    @property
+    def name(self) -> str:
+        """Return name of the input path."""
+        return self.path.name
+
     def close(self):
         """Close the file handle."""
         if self.fh and hasattr(self.fh, "close"):
             self.fh.close()
-        del self.fh, self._pyramid
+        self.fh = None
+        self._pyramid = None
 
     @property
     def pyramid(self) -> ty.List:
@@ -31,6 +37,6 @@ class BaseImageReader:
             self._pyramid = self.get_dask_pyr()
         return self._pyramid
 
-    def get_dask_pyr(self):
+    def get_dask_pyr(self) -> ty.List[ty.Any]:
         """Get dask representation of the pyramid."""
         raise NotImplementedError("Must implement method")

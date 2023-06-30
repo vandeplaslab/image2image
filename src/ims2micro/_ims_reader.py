@@ -5,8 +5,6 @@ from pathlib import Path
 import numpy as np
 from koyo.typing import PathLike
 
-from ims2micro.models import DataWrapper
-
 
 def set_dimensions(reader: "IMSWrapper"):
     """Set dimension information."""
@@ -16,7 +14,7 @@ def set_dimensions(reader: "IMSWrapper"):
     reader.image_shape = (reader.ymax - reader.ymin + 1, reader.xmax - reader.xmin + 1)
 
 
-class IMSWrapper(DataWrapper):
+class IMSWrapper:
     """Wrapper around IMS data."""
 
     xmin: int

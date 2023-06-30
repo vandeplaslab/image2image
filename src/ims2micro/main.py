@@ -17,7 +17,7 @@ def run(level: int = 10, no_color: bool = False, dev: bool = False):
     set_loguru_log(log_path, level=level, no_color=True, diagnose=True, catch=True, logger=logger)
     set_loguru_log(level=level, no_color=False, diagnose=True, catch=True, logger=logger, remove=False)
     logger.enable("ims2micro")
-    logger.info(f"Logging to '{log_path}' at level={level}")
+    logger.info(f"Enabled logger - logging to '{log_path}' at level={level}")
 
     # make app
     app = get_app()
