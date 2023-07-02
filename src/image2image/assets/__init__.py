@@ -11,14 +11,14 @@ ICON_SVG = str(HERE / "icon.svg")
 ICON_ICO = str(HERE / ("icon.icns" if IS_MAC else "icon.ico"))
 ICON_PNG = str(HERE / "icon.png")
 
-icon_path = HERE / "icons"
-icon_path.mkdir(exist_ok=True)
-update_icons({x.stem: str(x) for x in icon_path.iterdir() if x.suffix == ".svg"})
+ICONS_PATH = HERE / "icons"
+ICONS_PATH.mkdir(exist_ok=True)
+update_icons({x.stem: str(x) for x in ICONS_PATH.iterdir() if x.suffix == ".svg"})
 
 
-styles_path = HERE / "stylesheets"
-styles_path.mkdir(exist_ok=True)
-update_styles({x.stem: str(x) for x in styles_path.iterdir() if x.suffix == ".qss"})
+STYLES_PATH = HERE / "stylesheets"
+STYLES_PATH.mkdir(exist_ok=True)
+update_styles({x.stem: str(x) for x in STYLES_PATH.iterdir() if x.suffix == ".qss"})
 
 
 update_icon_mapping(
