@@ -380,7 +380,7 @@ def load_from_file(
             moving_points,
         ) = _read_imsmicrolink_config(data)
     else:
-        raise ValueError(f"Unknown file format: {path.suffix}")
+        raise ValueError(f"Unknown file format: {path.suffix}.")
 
     # apply config
     fixed_paths, fixed_missing_paths = (fixed_paths, fixed_missing_paths) if micro else (None, None)

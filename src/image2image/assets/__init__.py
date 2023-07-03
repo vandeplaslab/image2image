@@ -38,6 +38,8 @@ update_icon_mapping(
         "info": "fa5s.info-circle",
         "lock_closed": "fa5s.lock",
         "lock_open": "fa5s.lock-open",
+        "telemetry": "mdi.telegram",
+        "feedback": "msc.feedback",
     }
 )
 THEMES.register_themes()

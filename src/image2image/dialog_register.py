@@ -1,5 +1,4 @@
 """Registration dialog."""
-
 import typing as ty
 from contextlib import suppress
 from datetime import datetime
@@ -72,7 +71,7 @@ class ImageRegistrationWindow(QMainWindow, IndicatorMixin, ImageViewMixin):
             moving_points=self.moving_points_layer.data,
         )
         # delay asking for telemetry opt-in by 10s
-        hp.call_later(self, install_error_monitor, 10_000)
+        hp.call_later(self, install_error_monitor, 5_000)
 
     @property
     def transform(self) -> ty.Optional["ProjectiveTransform"]:
@@ -483,15 +482,20 @@ class ImageRegistrationWindow(QMainWindow, IndicatorMixin, ImageViewMixin):
                     self._moving_widget._on_close_dataset(force=True)
 
                 # load data from config file
-                (
-                    transformation_type,
-                    fixed_paths,
-                    fixed_paths_missing,
-                    fixed_points,
-                    moving_paths,
-                    moving_paths_missing,
-                    moving_points,
-                ) = load_from_file(path, **config)
+                try:
+                    (
+                        transformation_type,
+                        fixed_paths,
+                        fixed_paths_missing,
+                        fixed_points,
+                        moving_paths,
+                        moving_paths_missing,
+                        moving_points,
+                    ) = load_from_file(path, **config)
+                except ValueError as e:
+                    hp.warn(self, f"Failed to load transformation from {path}\n{e}", "Failed to load transformation")
+                    return
+
                 # locate paths that are missing
                 if fixed_paths_missing or moving_paths_missing:
                     from image2image._dialogs import LocateFilesDialog
@@ -735,6 +739,7 @@ class ImageRegistrationWindow(QMainWindow, IndicatorMixin, ImageViewMixin):
         """Make menu items."""
         from image2image._dialogs import open_about
         from image2image.utilities import open_bug_report, open_docs, open_github, open_request
+        from image2image._sentry import ask_opt_in, send_feedback
 
         # File menu
         menu_file = hp.make_menu(self, "File")
@@ -743,14 +748,14 @@ class ImageRegistrationWindow(QMainWindow, IndicatorMixin, ImageViewMixin):
         )
         hp.make_menu_item(
             self,
-            "Add fixed image (.tiff, .png, .jpg, + others)...",
+            "Add fixed image (.tiff, .png, .jpg, .imzML, .tdf, .tsf, + others)...",
             "Ctrl+M",
             menu=menu_file,
             func=self._fixed_widget.on_select_dataset,
         )
         hp.make_menu_item(
             self,
-            "Add moving image (.imzML, .tdf, .tsf, + others)...",
+            "Add moving image (.tiff, .png, .jpg, .imzML, .tdf, .tsf, + others)...",
             "Ctrl+I",
             menu=menu_file,
             func=self._moving_widget.on_select_dataset,
@@ -798,6 +803,10 @@ class ImageRegistrationWindow(QMainWindow, IndicatorMixin, ImageViewMixin):
             func=open_bug_report,
         )
         menu_help.addSeparator()
+        hp.make_menu_item(
+            self, "Send feedback...", menu=menu_help, func=partial(send_feedback, parent=self), icon="feedback"
+        )
+        hp.make_menu_item(self, "Telemetry...", menu=menu_help, func=partial(ask_opt_in, parent=self), icon="telemetry")
         hp.make_menu_item(self, "About...", menu=menu_help, func=partial(open_about, parent=self), icon="info")
 
         # set actions

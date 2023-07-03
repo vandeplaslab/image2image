@@ -4,13 +4,15 @@ import os
 from loguru import logger
 
 
-def run(level: int = 10, no_color: bool = False, dev: bool = False):
+def run(level: int = 10, no_color: bool = False, dev: bool = False, tool: str = "register"):
     """Execute command."""
     from koyo.logging import set_loguru_log
     from qtextra.config import THEMES
 
     from image2image._appdirs import USER_LOG_DIR
     from image2image.dialog_register import ImageRegistrationWindow
+    from image2image.dialog_viewer import ImageViewerWindow
+    from image2image.dialog_crop import ImageCropWindow
     from image2image.event_loop import get_app
 
     log_path = USER_LOG_DIR / "log.txt"
@@ -21,7 +23,12 @@ def run(level: int = 10, no_color: bool = False, dev: bool = False):
 
     # make app
     app = get_app()
-    dlg = ImageRegistrationWindow(None)
+    if tool == "register":
+        dlg = ImageRegistrationWindow(None)
+    elif tool == "viewer":
+        dlg = ImageViewerWindow(None)
+    elif tool == "crop":
+        dlg = ImageCropWindow(None)
     dlg.setMinimumSize(1200, 500)
     THEMES[THEMES.theme].font_size = "9pt"
     THEMES.set_theme_stylesheet(dlg)

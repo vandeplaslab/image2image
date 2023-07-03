@@ -320,6 +320,16 @@ class OverlayTableDialog(QtFramelessTool):
             channel_name = self.table.get_value(OverlayConfig.channel_name, index)
             dataset = self.table.get_value(OverlayConfig.dataset, index)
             self.parent().evt_toggle_channel.emit(f"{channel_name} | {dataset}", state)
+        self.on_update_info()
+
+    def on_update_info(self):
+        """Update information about selected/total channels."""
+        n_total = self.table.n_rows
+        n_selected = len(self.table.get_all_checked())
+        verb = "is" if n_selected == 1 else "are"
+        self.info.setText(
+            f"Total number of channels: <b>{n_total}</b> out of which <b>{n_selected}</b> {verb} selected."
+        )
 
     def on_load(self, model: "DataModel"):
         """On load."""
@@ -344,6 +354,7 @@ class OverlayTableDialog(QtFramelessTool):
                         new_row[OverlayConfig.check] = exist_row[OverlayConfig.check]
         self.table.reset_data()
         self.table.add_data(data)
+        self.on_update_info()
 
     # noinspection PyAttributeOutsideInit
     def make_panel(self) -> QFormLayout:
@@ -357,10 +368,13 @@ class OverlayTableDialog(QtFramelessTool):
         hp.set_font(self.table)
         self.table.setup_model(OverlayConfig.header, OverlayConfig.no_sort_columns, OverlayConfig.hidden_columns)
 
+        self.info = hp.make_label(self, "", enable_url=True)
+
         layout = hp.make_form_layout(self)
         style_form_layout(layout)
         layout.addRow(header_layout)
         layout.addRow(self.table)
+        layout.addRow(self.info)
         layout.addRow(
             hp.make_label(
                 self,
