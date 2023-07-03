@@ -48,6 +48,10 @@ class Config(BaseModel):
     moving_dir: str = Field("", title="Moving directory", description="Directory with moving images.")
     output_dir: str = Field("", title="Output directory", description="Directory where output should be saved.")
 
+    # telemetry
+    telemetry_enabled: bool = Field(True, title="Enable telemetry", description="Enable telemetry.")
+    telemetry_with_locals: bool = Field(True, title="Send locals", description="Send locals with telemetry.")
+
     @validator("fixed_dir", "moving_dir", "output_dir", pre=True, allow_reuse=True)
     def _validate_path(value: PathLike) -> str:
         """Validate path."""
