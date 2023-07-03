@@ -3,11 +3,17 @@ from enum import auto
 
 from napari.utils.misc import StringEnum
 
+ALLOWED_IMPORT_FORMATS = (
+    "Any transformation (*.json *.toml);; " "Transformation (*.json);; " "Transformation (*.toml);;"
+)
 ALLOWED_EXPORT_FORMATS = (
     "Any transformation (*.json *.toml);; "
     "Transformation (*.json);; "
     "Transformation (*.toml);;"
     "MATLAB fusion format (*.xml);;"
+)
+ALLOWED_PROJECT_FORMATS = (
+    "Any projects (*.i2v.json *.i2v.toml);; " "Transformation (*.i2v.json);; " "Transformation (*.i2v.toml);;"
 )
 ALLOWED_FORMATS = (
     "Any imaging (*.tsf *.tdf *.imzML *.metadata.h5 peaks_*.h5 *.npy *.czi *.ome.tiff *.tiff *.scn *.tif *.svs *.ndpi"

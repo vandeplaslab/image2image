@@ -181,18 +181,14 @@ class QtConsoleDialog(QtFramelessTool):
         _, header_layout = self._make_hide_handle()
         self._title_label.setText("IPython Console")
 
-        self._console = QtConsole(
-            variables={
-                "transform_model": self.parent().transform_model,
-                "fixed_viewer": self.parent().view_fixed.viewer,
-                "fixed_model": self.parent()._fixed_widget.model,
-                "moving_viewer": self.parent().view_moving.viewer,
-                "moving_model": self.parent()._moving_widget.model,
-            }
-        )
+        self._console = QtConsole()
 
         layout = hp.make_form_layout(self)
         style_form_layout(layout)
         layout.addRow(header_layout)
         layout.addRow(self._console)
         return layout
+
+    def push_variables(self, variables: ty.Dict[str, ty.Any]):
+        """Push variables to console."""
+        self._console.push(variables)

@@ -1,6 +1,7 @@
 """Main window."""
-import sys
 import os
+import sys
+
 from loguru import logger
 
 
@@ -10,12 +11,12 @@ def run(level: int = 10, no_color: bool = False, dev: bool = False, tool: str = 
     from qtextra.config import THEMES
 
     from image2image._appdirs import USER_LOG_DIR
+    from image2image.dialog_crop import ImageCropWindow
     from image2image.dialog_register import ImageRegistrationWindow
     from image2image.dialog_viewer import ImageViewerWindow
-    from image2image.dialog_crop import ImageCropWindow
     from image2image.event_loop import get_app
 
-    log_path = USER_LOG_DIR / "log.txt"
+    log_path = USER_LOG_DIR / f"log_tool={tool}.txt"
     set_loguru_log(log_path, level=level, no_color=True, diagnose=True, catch=True, logger=logger)
     set_loguru_log(level=level, no_color=no_color, diagnose=True, catch=True, logger=logger, remove=False)
     logger.enable("image2image")
@@ -35,8 +36,8 @@ def run(level: int = 10, no_color: bool = False, dev: bool = False, tool: str = 
 
     if dev:
         import faulthandler
-        from koyo.hooks import install_debugger_hook
 
+        from koyo.hooks import install_debugger_hook
         from qtextra.utils.dev import qdev
 
         segfault_path = USER_LOG_DIR / "segfault.log"

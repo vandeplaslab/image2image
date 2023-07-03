@@ -16,9 +16,16 @@ from qtpy.QtWidgets import QFormLayout
 from image2image.utilities import style_form_layout
 
 if ty.TYPE_CHECKING:
-    from image2image._select import LoadWidget
-    from image2image.models import DataModel
+    from image2image._select import LoadWidget, LoadWithTransformWidget
+    from image2image.models import DataModel, TransformModel
 
+TransformConfig = (
+    TableConfig()
+    .add("", "check", "bool", 25, no_sort=True)
+    .add("dataset", "dataset", "str", 250)
+    .add("dataset_path", "dataset_path", "str", 0, no_sort=True, hidden=True)
+    .add("transform", "transform", "str", 250)
+)
 OverlayConfig = (
     TableConfig()
     .add("", "check", "bool", 25, no_sort=True)
@@ -62,7 +69,7 @@ class LocateFilesDialog(QtDialog):
         self.setWindowTitle("Locate files...")
         self.setMinimumWidth(600)
         self.setMinimumHeight(400)
-        self.on_load()
+        self.on_update_data_list()
 
     def connect_events(self, state: bool = True):
         """Connect events."""
@@ -109,10 +116,10 @@ class LocateFilesDialog(QtDialog):
                 logger.warning("No file selected.")
                 return
             self.paths[row]["new_path"] = Path(new_path)
-            self.on_load()
+            self.on_update_data_list()
             logger.info(f"Located file - {new_path}")
 
-    def on_load(self, _evt=None):
+    def on_update_data_list(self, _evt=None):
         """On load."""
         data = []
         for path_pair in self.paths:
@@ -288,6 +295,146 @@ class FiducialTableDialog(QtFramelessTool):
         return layout
 
 
+class SelectTransformTableDialog(QtFramelessTool):
+    """Dialog to enable creation of overlays."""
+
+    HIDE_WHEN_CLOSE = True
+
+    def __init__(self, parent: "LoadWithTransformWidget", model: "DataModel", transform_model: "TransformModel", view):
+        self.model = model
+        self.transform_model = transform_model
+        self.view = view
+        super().__init__(parent)
+        self.setMinimumWidth(400)
+        self.setMinimumHeight(400)
+
+        # update
+        self.on_update_transform_list()
+        self.on_update_data_list()
+
+    def connect_events(self, state: bool = True):
+        """Connect events."""
+        # TODO: connect event that updates checkbox state when user changes visibility in layer list
+        # change of model events
+        connect(self.parent().evt_loaded, self.on_update_data_list, state=state)
+        connect(self.parent().evt_closed, self.on_update_data_list, state=state)
+
+    def on_apply_transform(self):
+        """On transform choice."""
+        indices = reversed(self.table.get_all_checked())
+        if indices:
+            transform = self.transform_choice.currentText()
+            matrix = self.transform_model.get_matrix(transform)
+            for index in indices:
+                self.table.set_value(TransformConfig.transform, index, transform)
+                reader_path = self.table.get_value(TransformConfig.dataset_path, index)
+                # get reader appropriate for the path
+                reader = self.model.get_reader(reader_path)
+                if reader:
+                    # transform information need to be updated
+                    reader.transform_name = transform
+                    reader.transform = matrix
+                    self.table.update_value(index, TransformConfig.transform, transform)
+                    self.parent().evt_transform_changed.emit(reader_path)
+                    logger.trace(f"Updated transformation matrix for '{reader_path}'")
+                else:
+                    logger.warning(f"Could not update transformation matrix for '{reader_path}'")
+
+    def on_update_transform_list(self):
+        """Update list of transforms."""
+        transforms = [t.name for t in self.transform_model.transforms] if self.transform_model.transforms else []
+        hp.combobox_setter(self.transform_choice, items=transforms, set_item=self.transform_choice.currentText())
+
+    def on_update_data_list(self):
+        """Update the list of datasets."""
+        data = []
+        wrapper = self.model.get_wrapper()
+        if wrapper:
+            for path, reader in wrapper.path_reader_iter():
+                data.append([False, path.name, path, reader.transform_name])
+        self.table.reset_data()
+        self.table.add_data(data)
+
+    def on_load_transform(self):
+        """Load transformation matrix."""
+        from image2image.config import CONFIG
+        from image2image.enums import ALLOWED_EXPORT_FORMATS
+        from image2image.models import load_transform_from_file
+        from image2image.utilities import compute_transform
+
+        path = hp.get_filename(
+            self,
+            "Load transformation",
+            base_dir=CONFIG.output_dir,
+            file_filter=ALLOWED_EXPORT_FORMATS,
+        )
+        if path:
+            # load transformation
+            path = Path(path)
+            CONFIG.output_dir = str(path.parent)
+
+            # get info on which settings should be imported
+
+            # load data from config file
+            try:
+                (
+                    transformation_type,
+                    _fixed_paths,
+                    _fixed_paths_missing,
+                    fixed_points,
+                    _moving_paths,
+                    _moving_paths_missing,
+                    moving_points,
+                ) = load_transform_from_file(path)
+            except ValueError as e:
+                hp.warn(self, f"Failed to load transformation from {path}\n{e}", "Failed to load transformation")
+                return
+            affine = compute_transform(moving_points, fixed_points, transformation_type)
+            self.transform_model.add_transform(path, affine.params)
+            self.on_update_transform_list()
+
+    # noinspection PyAttributeOutsideInit
+    def make_panel(self) -> QFormLayout:
+        """Make panel."""
+        _, header_layout = self._make_hide_handle()
+        self._title_label.setText("Transformation Selection")
+
+        self.transform_choice = hp.make_combobox(self, ["Identity matrix"])  # , func=self.on_transform_choice)
+        self.add_btn = hp.make_qta_btn(self, "add", func=self.on_load_transform, normal=True)
+
+        self.table = QtCheckableTableView(self, config=TransformConfig, enable_all_check=True, sortable=True)
+        self.table.setCornerButtonEnabled(False)
+        hp.set_font(self.table)
+        self.table.setup_model(TransformConfig.header, TransformConfig.no_sort_columns, TransformConfig.hidden_columns)
+
+        self.info = hp.make_label(self, "", enable_url=True)
+
+        layout = hp.make_form_layout(self)
+        style_form_layout(layout)
+        layout.addRow(header_layout)
+        layout.addRow(
+            hp.make_label(self, "Transformation name"),
+            hp.make_h_layout(
+                self.transform_choice,
+                self.add_btn,
+                stretch_id=0,
+            ),
+        )
+        layout.addRow(hp.make_btn(self, "Apply to selected", func=self.on_apply_transform))
+        layout.addRow(self.table)
+        layout.addRow(
+            hp.make_label(
+                self,
+                "<b>Tip.</b> Check/uncheck images to select where the current transformation matrix should be applied."
+                "<br><b>Tip.</b> You can quickly check/uncheck row by double-clicking on a row.",
+                alignment=Qt.AlignHCenter,
+                object_name="tip_label",
+                enable_url=True,
+            )
+        )
+        return layout
+
+
 class OverlayTableDialog(QtFramelessTool):
     """Dialog to enable creation of overlays."""
 
@@ -307,8 +454,8 @@ class OverlayTableDialog(QtFramelessTool):
         """Connect events."""
         # TODO: connect event that updates checkbox state when user changes visibility in layer list
         # change of model events
-        connect(self.parent().evt_loaded, self.on_load, state=state)
-        connect(self.parent().evt_closed, self.on_load, state=state)
+        connect(self.parent().evt_loaded, self.on_update_data_list, state=state)
+        connect(self.parent().evt_closed, self.on_update_data_list, state=state)
         # table events
         connect(self.table.evt_checked, self.on_toggle_channel, state=state)
 
@@ -331,7 +478,7 @@ class OverlayTableDialog(QtFramelessTool):
             f"Total number of channels: <b>{n_total}</b> out of which <b>{n_selected}</b> {verb} selected."
         )
 
-    def on_load(self, model: "DataModel"):
+    def on_update_data_list(self, model: "DataModel"):
         """On load."""
         if not model:
             return
@@ -459,7 +606,8 @@ class CloseDatasetDialog(QtDialog):
 class ImportSelectDialog(QtDialog):
     """Dialog that lets you select what should be imported."""
 
-    def __init__(self, parent):
+    def __init__(self, parent, disable: ty.Tuple[str, ...] = ()):
+        self.disable = disable
         super().__init__(parent)
         self.config = self.get_config()
 
@@ -468,9 +616,13 @@ class ImportSelectDialog(QtDialog):
         """Make panel."""
         self.all_check = hp.make_checkbox(self, "Check all", clicked=self.on_check_all, value=True)
         self.micro_check = hp.make_checkbox(self, "Fixed images (if exist)", value=True, func=self.on_apply)
+        self.micro_check.setHidden("fixed_image" in self.disable)
         self.ims_check = hp.make_checkbox(self, "Moving images (if exist)", value=True, func=self.on_apply)
+        self.ims_check.setHidden("moving_image" in self.disable)
         self.fixed_check = hp.make_checkbox(self, "Fixed fiducials", value=True, func=self.on_apply)
+        self.fixed_check.setHidden("fixed_points" in self.disable)
         self.moving_check = hp.make_checkbox(self, "Moving fiducials", value=True, func=self.on_apply)
+        self.moving_check.setHidden("moving_points" in self.disable)
 
         layout = hp.make_form_layout()
         style_form_layout(layout)
@@ -507,10 +659,10 @@ class ImportSelectDialog(QtDialog):
     def get_config(self) -> ty.Dict[str, bool]:
         """Return state."""
         return {
-            "micro": self.micro_check.isChecked(),
-            "ims": self.ims_check.isChecked(),
-            "fixed": self.fixed_check.isChecked(),
-            "moving": self.moving_check.isChecked(),
+            "fixed_image": self.micro_check.isChecked() and not self.micro_check.isHidden(),
+            "moving_image": self.ims_check.isChecked() and not self.ims_check.isHidden(),
+            "fixed_points": self.fixed_check.isChecked() and not self.fixed_check.isHidden(),
+            "moving_points": self.moving_check.isChecked() and not self.moving_check.isHidden(),
         }
 
 

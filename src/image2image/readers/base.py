@@ -2,6 +2,7 @@
 import typing as ty
 from pathlib import Path
 
+import numpy as np
 from koyo.typing import PathLike
 
 
@@ -18,6 +19,8 @@ class BaseImageReader:
     def __init__(self, path: PathLike):
         self.path = Path(path)
         self.base_layer_idx = 0
+        self.transform: np.ndarray = np.eye(3)
+        self.transform_name = "Identity matrix"
 
     @property
     def name(self) -> str:

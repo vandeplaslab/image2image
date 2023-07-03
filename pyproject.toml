@@ -133,6 +133,7 @@ extend-ignore = [
 
 [tool.ruff.per-file-ignores]
 "src/image2image/readers/czi.py" = ["B018", "B007", "D417"]
+"src/image2image/_sentry.py" = ["E401"]
 "tests/*.py" = ["D", "S"]
 "setup.py" = ["D"]
 

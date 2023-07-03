@@ -5,15 +5,77 @@ from pathlib import Path
 
 import numpy as np
 from koyo.timer import MeasureTimer
-from koyo.typing import PathLike
+from koyo.typing import ArrayLike, PathLike
 from loguru import logger
-from pydantic import BaseModel, validator
+from pydantic import BaseModel as _BaseModel, validator
 from skimage.transform import ProjectiveTransform
 
 from image2image._reader import ImageWrapper, sanitize_path
 
 if ty.TYPE_CHECKING:
     from image2image.readers.base import BaseImageReader
+
+
+class BaseModel(_BaseModel):
+    class Config:
+        """Config."""
+
+        arbitrary_types_allowed = True
+
+    def update(self, **kwargs):
+        """Update transformation."""
+        for key, value in kwargs.items():
+            if hasattr(self, key):
+                setattr(self, key, value)
+
+    def to_dict(self):
+        """Convert to dict."""
+        raise NotImplementedError("Must implement method")
+
+    def to_json(self, path: PathLike):
+        """Export data as JSON."""
+        from koyo.json import write_json_data
+
+        path = Path(path)
+        write_json_data(path, self.to_dict())
+
+    @classmethod
+    def from_json(cls, path: PathLike):
+        """Create from JSON."""
+        from koyo.json import read_json_data
+
+        path = Path(path)
+        return cls.from_dict(read_json_data(path))
+
+    def to_toml(self, path: PathLike):
+        """Export data as TOML."""
+        from koyo.toml import write_toml_data
+
+        path = Path(path)
+        write_toml_data(path, self.to_dict())
+
+    @classmethod
+    def from_toml(cls, path: PathLike):
+        """Create from TOML."""
+        from koyo.toml import read_toml_data
+
+        path = Path(path)
+        return cls.from_dict(read_toml_data(path))
+
+    @classmethod
+    def from_dict(cls, data: dict):
+        """Create from dict."""
+        raise NotImplementedError("Must implement method")
+
+    @classmethod
+    def from_file(cls, path: PathLike):
+        """Create from file."""
+        path = Path(path)
+        if path.suffix == ".json":
+            return cls.from_json(path)
+        elif path.suffix == ".toml":
+            return cls.from_toml(path)
+        raise ValueError(f"Unknown file format: '{path.suffix}'")
 
 
 class DataModel(BaseModel):
@@ -24,11 +86,6 @@ class DataModel(BaseModel):
     resolution: float = 1.0
     wrapper: ty.Optional[ImageWrapper] = None
     is_fixed: bool = False
-
-    class Config:
-        """Config."""
-
-        arbitrary_types_allowed = True
 
     # noinspection PyMethodFirstArgAssignment,PyMethodParameters
     @validator("paths", pre=True, allow_reuse=True)
@@ -139,6 +196,24 @@ class DataModel(BaseModel):
         """Return number of paths."""
         return len(self.paths) if self.paths is not None else 0
 
+    def to_file(self, path: PathLike):
+        """Save model to file."""
+        path = Path(path)
+        if path.suffix == ".json":
+            self.to_json(path)
+        elif path.suffix == ".toml":
+            self.to_toml(path)
+        else:
+            raise ValueError(f"Unknown file format: {path.suffix}")
+        logger.info(f"Exported to '{path}'")
+
+    def to_dict(self) -> ty.List:
+        """Return dictionary of values to export."""
+        return [
+            {"path": str(path), "matrix_yx_px": reader.transform.tolist()}
+            for path, reader in self.get_wrapper().path_reader_iter()
+        ]
+
 
 class Transformation(BaseModel):
     """Temporary object that holds transformation information."""
@@ -155,11 +230,6 @@ class Transformation(BaseModel):
     # Arrays of fixed and moving points
     fixed_points: ty.Optional[np.ndarray] = None
     moving_points: ty.Optional[np.ndarray] = None
-
-    class Config:
-        """Config."""
-
-        arbitrary_types_allowed = True
 
     def is_valid(self):
         """Returns True if the transformation is valid."""
@@ -207,12 +277,6 @@ class Transformation(BaseModel):
             self.transformation_type,
         )
         return transform
-
-    def update(self, **kwargs):
-        """Update transformation."""
-        for key, value in kwargs.items():
-            if hasattr(self, key):
-                setattr(self, key, value)
 
     def about(self) -> str:
         """Retrieve information about the model in textual format."""
@@ -265,41 +329,6 @@ class Transformation(BaseModel):
             "matrix_xy_um_inv": self.compute(yx=False, px=False)._inv_matrix.tolist(),
         }
 
-    @classmethod
-    def from_dict(cls, data: dict):
-        """Create from dict."""
-        raise NotImplementedError("Must implement method")
-
-    def to_json(self, path: PathLike):
-        """Export data as JSON."""
-        from koyo.json import write_json_data
-
-        path = Path(path)
-        write_json_data(path, self.to_dict())
-
-    @classmethod
-    def from_json(cls, path: PathLike):
-        """Create from JSON."""
-        from koyo.json import read_json_data
-
-        path = Path(path)
-        return cls.from_dict(read_json_data(path))
-
-    def to_toml(self, path: PathLike):
-        """Export data as TOML."""
-        from koyo.toml import write_toml_data
-
-        path = Path(path)
-        write_toml_data(path, self.to_dict())
-
-    @classmethod
-    def from_toml(cls, path: PathLike):
-        """Create from TOML."""
-        from koyo.toml import read_toml_data
-
-        path = Path(path)
-        return cls.from_dict(read_toml_data(path))
-
     def to_file(self, path: PathLike):
         """Export data as any supported format."""
         path = Path(path)
@@ -321,19 +350,68 @@ class Transformation(BaseModel):
         affine = affine.flatten("F").reshape(3, 3)
         write_xml_registration(path, affine)
 
-    @classmethod
-    def from_file(cls, path: PathLike):
-        """Create from file."""
-        path = Path(path)
-        if path.suffix == ".json":
-            return cls.from_json(path)
-        elif path.suffix == ".toml":
-            return cls.from_toml(path)
-        raise ValueError(f"Unknown file format: '{path.suffix}'")
+
+class TransformModel(BaseModel):
+    """Model containing transformation data."""
+
+    transforms: ty.Optional[ty.Dict[Path, np.ndarray]] = None
+
+    class Config:
+        """Config."""
+
+        arbitrary_types_allowed = True
+
+    @property
+    def name_to_path_map(self):
+        """Returns dictionary that maps transform name to path."""
+        if self.transforms is None:
+            return {}
+
+        mapping = {}
+        for name in self.transforms:
+            mapping[name.name] = name
+            mapping[Path(name.name)] = name
+            mapping[name] = name
+        return mapping
+
+    def add_transform(self, name_or_path: PathLike, matrix: ArrayLike):
+        """Add transformation matrix."""
+        if self.transforms is None:
+            self.transforms = {}
+
+        path = Path(name_or_path)
+        matrix = np.asarray(matrix)
+        assert matrix.shape == (3, 3), "Expected (3, 3) matrix"
+        self.transforms[path] = matrix
+        logger.info(f"Added '{path.name}' to list of transformations")
+
+    def remove_transform(self, name_or_path: PathLike):
+        """Remove transformation matrix."""
+        if self.transforms is None:
+            return
+
+        name_or_path = Path(name_or_path)
+        if name_or_path in self.transforms:
+            del self.transforms[name_or_path]
+
+    def get_matrix(self, name_or_path: PathLike):
+        """Get transformation matrix."""
+        if self.transforms is None:
+            return None
+
+        name_or_path = Path(name_or_path)
+        name_or_path = self.name_to_path_map.get(name_or_path, None)
+        if name_or_path in self.transforms:
+            return self.transforms[name_or_path]
+        return None
 
 
-def load_from_file(
-    path: PathLike, micro: bool = True, ims: bool = True, fixed: bool = True, moving: bool = True
+def load_transform_from_file(
+    path: PathLike,
+    fixed_image: bool = True,
+    moving_image: bool = True,
+    fixed_points: bool = True,
+    moving_points: bool = True,
 ) -> ty.Tuple[
     str,
     ty.Optional[ty.List[Path]],
@@ -363,10 +441,10 @@ def load_from_file(
             transformation_type,
             fixed_paths,
             fixed_missing_paths,
-            fixed_points,
+            _fixed_points,
             moving_paths,
             moving_missing_paths,
-            moving_points,
+            _moving_points,
         ) = _read_image2image_config(data)
     # imsmicrolink config
     elif "Project name" in data:
@@ -374,27 +452,27 @@ def load_from_file(
             transformation_type,
             fixed_paths,
             fixed_missing_paths,
-            fixed_points,
+            _fixed_points,
             moving_paths,
             moving_missing_paths,
-            moving_points,
+            _moving_points,
         ) = _read_imsmicrolink_config(data)
     else:
         raise ValueError(f"Unknown file format: {path.suffix}.")
 
     # apply config
-    fixed_paths, fixed_missing_paths = (fixed_paths, fixed_missing_paths) if micro else (None, None)
-    moving_paths, moving_missing_paths = (moving_paths, moving_missing_paths) if ims else (None, None)
-    fixed_points = fixed_points if fixed else None
-    moving_points = moving_points if moving else None
+    fixed_paths, fixed_missing_paths = (fixed_paths, fixed_missing_paths) if fixed_image else (None, None)
+    moving_paths, moving_missing_paths = (moving_paths, moving_missing_paths) if moving_image else (None, None)
+    _fixed_points = _fixed_points if fixed_points else None
+    _moving_points = _moving_points if moving_points else None
     return (
         transformation_type,
         fixed_paths,
         fixed_missing_paths,
-        fixed_points,
+        _fixed_points,
         moving_paths,
         moving_missing_paths,
-        moving_points,
+        _moving_points,
     )
 
 

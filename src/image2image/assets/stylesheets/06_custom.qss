@@ -298,3 +298,12 @@ QtConsole > QTextEdit {
 .out-prompt-number { font-weight: bold; }
 .in-prompt { color: #6ab825; }
 .out-prompt { color: #b72121; }
+
+/* ----------------- QtFramelessPopup ----------------- */
+QtFramelessPopup {
+    border: 2px solid {{ highlight }};
+}
+
+QtFramelessPopup #move_handle:hover {
+    background-color: {{ darken(background, 10) }};
+}

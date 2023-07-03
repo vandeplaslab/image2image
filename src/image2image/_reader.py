@@ -7,6 +7,7 @@ from koyo.typing import PathLike
 from loguru import logger
 
 if ty.TYPE_CHECKING:
+    from image2image.readers.array_reader import ArrayReader
     from image2image.readers.base import BaseImageReader
     from image2image.readers.coordinate_reader import CoordinateReader
     from image2image.readers.czi_reader import CziImageReader
@@ -24,11 +25,11 @@ NPY_EXTENSIONS = [".npy"]
 class ImageWrapper:
     """Wrapper around image data."""
 
-    data: ty.Dict[str, ty.Optional[ty.Union["BaseImageReader", np.ndarray]]]
+    data: ty.Dict[str, ty.Optional["BaseImageReader"]]
     paths: ty.List[Path]
     resolution: float = 1.0
 
-    def __init__(self, reader_or_array: ty.Optional[ty.Dict[str, ty.Union[np.ndarray, "BaseImageReader"]]] = None):
+    def __init__(self, reader_or_array: ty.Optional[ty.Dict[str, "BaseImageReader"]] = None):
         self.data = reader_or_array or {}
         self.paths = []
 
@@ -78,6 +79,7 @@ class ImageWrapper:
             if "| " not in name:
                 name = f"| {name}"
             clean_names.append(name)
+
         channel_names = []
         for channel_name in self.channel_names():
             for name in clean_names:
@@ -93,9 +95,18 @@ class ImageWrapper:
             dataset_to_channel_map.setdefault(dataset, []).append(channel)
         return dataset_to_channel_map[dataset].index(channel_name)
 
-    def channel_image_iter(self, view_type: ty.Optional[str] = None) -> ty.Iterator[ty.Tuple[str, np.ndarray]]:
+    def channel_image_iter(self, view_type: ty.Optional[str] = None) -> ty.Iterator[ty.Tuple[str, ty.List[np.ndarray]]]:
         """Iterator of channel name + image."""
         yield from zip(self.channel_names(view_type), self.image_iter(view_type))
+
+    def channel_image_transform_iter(
+        self, view_type: ty.Optional[str] = None
+    ) -> ty.Iterator[ty.Tuple[str, ty.List[np.ndarray], np.ndarray]]:
+        """Iterator of channel name + image."""
+        for channel_name, (_, reader_or_array, image, _) in zip(
+            self.channel_names(view_type), self.reader_image_iter(view_type)
+        ):
+            yield channel_name, image, reader_or_array.transform
 
     def path_reader_iter(self):
         """Iterator of a path + reader."""
@@ -104,14 +115,14 @@ class ImageWrapper:
 
     def reader_image_iter(
         self, view_type: ty.Optional[str] = None
-    ) -> ty.Iterator[ty.Tuple[str, ty.Any, np.ndarray, int]]:
+    ) -> ty.Iterator[ty.Tuple[str, "BaseImageReader", ty.List[np.ndarray], int]]:
         """Iterator to add channels."""
-        for key, reader_or_array in self.data.items():
+        for reader_name, reader_or_array in self.data.items():
             # image is a numpy array
             if isinstance(reader_or_array, np.ndarray):
                 if reader_or_array.ndim == 2:
                     reader_or_array = np.atleast_3d(reader_or_array, axis=-1)
-                    self.data[key] = reader_or_array  # replace to ensure it's 3d array
+                    self.data[reader_name] = reader_or_array  # replace to ensure it's 3d array
                 array = [reader_or_array]
             # microscopy or ims data wrapper
             elif hasattr(reader_or_array, "pyramid"):
@@ -132,23 +143,23 @@ class ImageWrapper:
             else:
                 channel_axis = int(np.argmin(shape))
                 n_channels = shape[channel_axis]
-            for ch in range(n_channels):
+            for channel_index in range(n_channels):
                 # 2D image
                 if channel_axis is None:
-                    yield key, reader_or_array, array, ch
+                    yield reader_name, reader_or_array, array, channel_index
                 # 3D image where the first axis corresponds to different channels
                 elif channel_axis == 0:
-                    yield key, reader_or_array, [a[ch] for a in array], ch
+                    yield reader_name, reader_or_array, [a[channel_index] for a in array], channel_index
                 # 3D image where the second axis corresponds to different channels
                 elif channel_axis == 1:
-                    yield key, reader_or_array, [a[:, ch] for a in array], ch
+                    yield reader_name, reader_or_array, [a[:, channel_index] for a in array], channel_index
                 # 3D image where the last axis corresponds to different channels
                 elif channel_axis == 2:
-                    yield key, reader_or_array, [a[..., ch] for a in array], ch
+                    yield reader_name, reader_or_array, [a[..., channel_index] for a in array], channel_index
                 else:
                     raise ValueError(f"Cannot read image with {ndim} dimensions")
 
-    def image_iter(self, view_type: ty.Optional[str] = None) -> ty.Iterator[np.ndarray]:
+    def image_iter(self, view_type: ty.Optional[str] = None) -> ty.Iterator[ty.List[np.ndarray]]:
         """Iterator to add channels."""
         for _, _, image, _ in self.reader_image_iter():
             yield image
@@ -242,13 +253,14 @@ def _read_tiff(path: PathLike) -> ty.Tuple[Path, "TiffImageReader"]:
     return path, TiffImageReader(path)
 
 
-def _read_image(path: PathLike) -> ty.Tuple[Path, np.ndarray]:
+def _read_image(path: PathLike) -> ty.Tuple[Path, "ArrayReader"]:
     """Read image."""
     from skimage.io import imread
+    from image2image.readers.array_reader import ArrayReader
 
     path = Path(path)
     assert path.exists(), f"File does not exist: {path}"
-    return path, imread(path)
+    return path, ArrayReader(path, imread(path))
 
 
 def _read_npy_coordinates(path: PathLike) -> ty.Tuple[Path, "CoordinateReader"]:

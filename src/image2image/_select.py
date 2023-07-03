@@ -12,28 +12,26 @@ from qtpy.QtGui import QRegExpValidator
 from qtpy.QtWidgets import QWidget
 from superqt.utils import thread_worker
 
-from image2image._dialogs import OverlayTableDialog, SelectChannelsTableDialog
+from image2image._dialogs import OverlayTableDialog, SelectChannelsTableDialog, SelectTransformTableDialog
 from image2image.config import CONFIG
 from image2image.enums import ALLOWED_FORMATS, VIEW_TYPE_TRANSLATIONS
-from image2image.models import DataModel
+from image2image.models import DataModel, TransformModel
 from image2image.utilities import log_exception, style_form_layout
 
 if ty.TYPE_CHECKING:
     from image2image.readers.coordinate_reader import CoordinateReader
 
 
-class LoadWidget(QWidget):
-    """Widget for loading data."""
+class LoadMixin(QWidget):
+    """Load data mixin."""
 
     evt_loading = Signal()
     evt_loaded = Signal(object, object)
     evt_closed = Signal(object)
-    evt_toggle_channel = Signal(str, bool)
-    evt_toggle_all_channels = Signal(bool)
 
     IS_FIXED: bool
-    INFO_TEXT = "Select 'fixed' data..."
-    FILE_TITLE = "Select 'fixed' data..."
+    INFO_TEXT = "Select data..."
+    FILE_TITLE = "Select data..."
     FILE_FORMATS = ALLOWED_FORMATS
 
     def __init__(self, parent, view):
@@ -42,27 +40,15 @@ class LoadWidget(QWidget):
         self._setup_ui()
         self.view = view
         self.model = DataModel(is_fixed=self.IS_FIXED)
-        self.table_dlg = OverlayTableDialog(self, self.model, self.view)
 
-    def _setup_ui(self):
-        """Setup UI."""
-        self.load_btn = hp.make_btn(self, "Add image...", func=self.on_select_dataset)
-        self.close_btn = hp.make_btn(self, "Remove image...", func=self._on_close_dataset)
+    @property
+    def resolution(self) -> float:
+        """Get resolution."""
+        return 1.0
 
-        self.resolution_edit = hp.make_line_edit(self, placeholder="Enter spatial resolution...", text="1.0")
-        self.resolution_edit.setValidator(QRegExpValidator(QRegExp(r"^[0-9]+(\.[0-9]+)?$")))  # noqa
-        self.resolution_edit.textChanged.connect(self._on_set_resolution)  # noqa
-        self.channel_choice = hp.make_btn(self, "Select channels...", func=self._on_select_channels)
-        self.extract_btn = hp.make_qta_btn(self, "add", func=self._on_extract_channels, normal=True)
-
-        layout = hp.make_form_layout()
-        style_form_layout(layout)
-        layout.addRow(hp.make_label(self, self.INFO_TEXT, bold=True, wrap=True, alignment=Qt.AlignCenter))
-        layout.addRow(hp.make_h_layout(self.load_btn, self.close_btn))
-        layout.addRow(hp.make_h_layout(self.channel_choice, self.extract_btn, stretch_id=0))
-        layout.addRow(hp.make_label(self, "Pixel size (μm)"), self.resolution_edit)
-        self.setLayout(layout)
-        return layout
+    @resolution.setter
+    def resolution(self, value: str):
+        """Set resolution."""
 
     def _on_close_dataset(self, force: bool = False) -> bool:
         """Close dataset."""
@@ -80,7 +66,7 @@ class LoadWidget(QWidget):
                 self.model.remove_paths(paths)
                 self.evt_closed.emit(self.model)
             if not self.model.n_paths:
-                self.resolution_edit.setText("1.0")
+                self.resolution = "1.0"
             return True
         return False
 
@@ -122,7 +108,7 @@ class LoadWidget(QWidget):
     def _on_loaded_dataset(self, model: "DataModel"):
         """Finished loading data."""
         # setup resolution
-        self.resolution_edit.setText(str(model.resolution))
+        self.resolution = str(model.resolution)
         # select what should be loaded
         dlg = SelectChannelsTableDialog(self, model)
         channel_list = []
@@ -143,20 +129,17 @@ class LoadWidget(QWidget):
         log_exception(exception)
         self.evt_loaded.emit(None, None)
 
-    def _on_set_resolution(self, _evt=None):
-        """Specify resolution."""
-        self.model.resolution = float(self.resolution_edit.text())
-
-    def _on_select_channels(self):
-        """Select channels from the list."""
-        self.table_dlg.show()
-
     def _on_extract_channels(self):
         """Extract channels from the list."""
         from image2image._dialogs import ExtractChannelsDialog
 
         if not self.model.get_extractable_paths():
             logger.warning("No paths to extract data from.")
+            hp.warn(
+                self,
+                "No paths to extract data from. Only <b>.imzML</b>, <b>.tdf</b> and <b>.tsf</b> files support data"
+                " extraction.",
+            )
             return
 
         dlg = ExtractChannelsDialog(self, self.model)
@@ -187,6 +170,59 @@ class LoadWidget(QWidget):
         """Failed to load dataset."""
         logger.error("Error occurred while extracting images.", exception)
         log_exception(exception)
+
+
+class LoadWidget(LoadMixin):
+    """Widget for loading data."""
+
+    evt_toggle_channel = Signal(str, bool)
+    evt_toggle_all_channels = Signal(bool)
+
+    IS_FIXED: bool = True
+
+    def __init__(self, parent, view):
+        """Init."""
+        super().__init__(parent, view)
+        self.table_dlg = OverlayTableDialog(self, self.model, self.view)
+
+    @property
+    def resolution(self):
+        """Get resolution."""
+        return float(self.resolution_edit.text())
+
+    @resolution.setter
+    def resolution(self, value: str):
+        self.resolution_edit.setText(value)
+
+    def _setup_ui(self):
+        """Setup UI."""
+        self.resolution_edit = hp.make_line_edit(self, placeholder="Enter spatial resolution...", text="1.0")
+        self.resolution_edit.setValidator(QRegExpValidator(QRegExp(r"^[0-9]+(\.[0-9]+)?$")))  # noqa
+        self.resolution_edit.textChanged.connect(self._on_set_resolution)  # noqa
+
+        layout = hp.make_form_layout()
+        style_form_layout(layout)
+        layout.addRow(hp.make_label(self, self.INFO_TEXT, bold=True, wrap=True, alignment=Qt.AlignCenter))
+        layout.addRow(
+            hp.make_h_layout(
+                hp.make_btn(self, "Add image...", func=self.on_select_dataset),
+                hp.make_qta_btn(self, "add", func=self._on_extract_channels, normal=True),
+                hp.make_btn(self, "Remove image...", func=self._on_close_dataset),
+                stretch_id=(0, 2),
+            )
+        )
+        layout.addRow(hp.make_btn(self, "Select channels...", func=self._on_select_channels))
+        layout.addRow(hp.make_label(self, "Pixel size (μm)"), self.resolution_edit)
+        self.setLayout(layout)
+        return layout
+
+    def _on_set_resolution(self, _evt=None):
+        """Specify resolution."""
+        self.model.resolution = float(self.resolution_edit.text())
+
+    def _on_select_channels(self):
+        """Select channels from the list."""
+        self.table_dlg.show()
 
 
 class MovingWidget(LoadWidget):
@@ -257,3 +293,40 @@ class FixedWidget(LoadWidget):
 
     # class attrs
     IS_FIXED = True
+    INFO_TEXT = "Select 'fixed' data..."
+    FILE_TITLE = "Select 'fixed' data..."
+
+
+class LoadWithTransformWidget(LoadMixin):
+    """Widget for loading data."""
+
+    IS_FIXED = True
+
+    evt_transform_changed = Signal(Path)
+
+    def __init__(self, parent, view):
+        """Init."""
+        super().__init__(parent, view)
+        self.transform_model = TransformModel()
+        self.transform_model.add_transform("Identity matrix", [[1, 0, 0], [0, 1, 0], [0, 0, 1]])
+        self.table_dlg = SelectTransformTableDialog(self, self.model, self.transform_model, self.view)
+
+    def _setup_ui(self):
+        """Setup UI."""
+        layout = hp.make_form_layout(self)
+        style_form_layout(layout)
+        layout.addRow(hp.make_label(self, self.INFO_TEXT, bold=True, wrap=True, alignment=Qt.AlignCenter))
+        layout.addRow(
+            hp.make_h_layout(
+                hp.make_btn(self, "Add image(s)...", func=self.on_select_dataset),
+                hp.make_qta_btn(self, "add", func=self._on_extract_channels, normal=True),
+                hp.make_btn(self, "Remove...", func=self._on_close_dataset),
+                stretch_id=(0, 2),
+            )
+        )
+        layout.addRow(hp.make_btn(self, "Select transformation...", func=self._on_select_transform))
+        return layout
+
+    def _on_select_transform(self):
+        """Select transformation data."""
+        self.table_dlg.show()

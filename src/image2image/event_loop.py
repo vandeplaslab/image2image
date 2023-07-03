@@ -11,11 +11,11 @@ from napari._qt.utils import _maybe_allow_interrupt
 from napari.plugins import plugin_manager
 from napari.resources._icons import _theme_path
 from napari.utils.notifications import notification_manager, show_console_notification
+from qtextra.config import THEMES
 from qtpy.QtCore import QDir, Qt
 from qtpy.QtGui import QIcon
 from qtpy.QtWidgets import QApplication
 from superqt import QMessageHandler
-from qtextra.config import THEMES
 
 from image2image import __version__
 from image2image.assets import ICON_PNG

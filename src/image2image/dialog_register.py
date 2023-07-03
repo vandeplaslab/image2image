@@ -24,8 +24,9 @@ from superqt import ensure_main_thread
 import image2image.assets  # noqa: F401
 from image2image import __version__
 from image2image._select import FixedWidget, MovingWidget
+from image2image._sentry import install_error_monitor
 from image2image.config import CONFIG
-from image2image.enums import ALLOWED_EXPORT_FORMATS, TRANSFORMATION_TRANSLATIONS, ViewType
+from image2image.enums import ALLOWED_EXPORT_FORMATS, ALLOWED_IMPORT_FORMATS, TRANSFORMATION_TRANSLATIONS, ViewType
 from image2image.models import DataModel, Transformation
 from image2image.utilities import (
     _get_text_data,
@@ -35,7 +36,6 @@ from image2image.utilities import (
     log_exception,
     style_form_layout,
 )
-from image2image._sentry import install_error_monitor
 
 if ty.TYPE_CHECKING:
     from skimage.transform import ProjectiveTransform
@@ -260,13 +260,6 @@ class ImageRegistrationWindow(QMainWindow, IndicatorMixin, ImageViewMixin):
                 is_visible = True if (is_overlay and index == 0) else (not is_overlay)
                 if name in self.view_moving.layers:
                     del self.view_moving.layers[name]
-                    # layer = self.view_moving.layers[name]
-                    # layer.data = array
-                    # layer.colormap = colormap
-                    # layer.reset_contrast_limits()
-                    # layer.visible = is_visible
-                    # moving_image_layer.append(layer)
-                    # continue
                 moving_image_layer.append(
                     self.view_moving.viewer.add_image(
                         array,
@@ -437,6 +430,7 @@ class ImageRegistrationWindow(QMainWindow, IndicatorMixin, ImageViewMixin):
         transform = self.transform_model
         if transform.is_valid() is None:
             logger.warning("Cannot save transformation - no transformation has been computed.")
+            hp.warn(self, "Cannot save transformation - no transformation has been computed.")
             return
         # get filename which is based on the moving dataset
         filename = transform.moving_model.get_filename() + "_transform.i2i.json"
@@ -451,19 +445,16 @@ class ImageRegistrationWindow(QMainWindow, IndicatorMixin, ImageViewMixin):
             path = Path(path)
             CONFIG.output_dir = str(path.parent)
             transform.to_file(path)
-            hp.toast(self, "Exported transformation", f"Saved transformation to<br<<b>{path}</b>")
+            hp.toast(self, "Exported transformation", f"Saved transformation to<br><b>{path}</b>")
 
     def on_load(self, _evt=None):
         """Import transformation."""
         path = hp.get_filename(
-            self,
-            "Load transformation",
-            base_dir=CONFIG.output_dir,
-            file_filter=ALLOWED_EXPORT_FORMATS,
+            self, "Load transformation", base_dir=CONFIG.output_dir, file_filter=ALLOWED_IMPORT_FORMATS
         )
         if path:
             from image2image._dialogs import ImportSelectDialog
-            from image2image.models import load_from_file
+            from image2image.models import load_transform_from_file
 
             # load transformation
             path = Path(path)
@@ -476,9 +467,9 @@ class ImageRegistrationWindow(QMainWindow, IndicatorMixin, ImageViewMixin):
                 logger.trace(f"Loaded configuration from {path}\n{config}")
 
                 # reset all widgets
-                if config["micro"]:
+                if config["fixed_image"]:
                     self._fixed_widget._on_close_dataset(force=True)
-                if config["ims"]:
+                if config["moving_image"]:
                     self._moving_widget._on_close_dataset(force=True)
 
                 # load data from config file
@@ -491,7 +482,7 @@ class ImageRegistrationWindow(QMainWindow, IndicatorMixin, ImageViewMixin):
                         moving_paths,
                         moving_paths_missing,
                         moving_points,
-                    ) = load_from_file(path, **config)
+                    ) = load_transform_from_file(path, **config)
                 except ValueError as e:
                     hp.warn(self, f"Failed to load transformation from {path}\n{e}", "Failed to load transformation")
                     return
@@ -536,6 +527,15 @@ class ImageRegistrationWindow(QMainWindow, IndicatorMixin, ImageViewMixin):
             from image2image._console import QtConsoleDialog
 
             self._console = QtConsoleDialog(self)
+            self._console.push_variables(
+                {
+                    "transform_model": self.transform_model,
+                    "fixed_viewer": self.view_fixed.viewer,
+                    "fixed_model": self._fixed_widget.model,
+                    "moving_viewer": self.view_moving.viewer,
+                    "moving_model": self._moving_widget.model,
+                }
+            )
         self._console.show()
 
     @ensure_main_thread
@@ -671,13 +671,6 @@ class ImageRegistrationWindow(QMainWindow, IndicatorMixin, ImageViewMixin):
         """Create panel."""
         view_layout = self._make_image_layout()
 
-        self.load_btn = hp.make_btn(
-            self,
-            "Import from file",
-            tooltip="Import previously computed transformation.",
-            func=self.on_load,
-        )
-
         self._fixed_widget = FixedWidget(self, self.view_fixed)
         self._moving_widget = MovingWidget(self, self.view_moving)
 
@@ -685,23 +678,11 @@ class ImageRegistrationWindow(QMainWindow, IndicatorMixin, ImageViewMixin):
         hp.set_combobox_data(self.transform_choice, TRANSFORMATION_TRANSLATIONS, "Affine")
         self.transform_choice.currentTextChanged.connect(self.on_run)  # noqa
 
-        self.save_btn = hp.make_btn(
-            self,
-            "Export to file...",
-            tooltip="Export transformation to file. XML format is usable by MATLAB fusion.",
-            func=self.on_save,
-        )
-
-        self.view_btn = hp.make_btn(
-            self,
-            "Show fiducials table...",
-            tooltip="Show fiducial markers table where you can view and edit the markers",
-            func=self.on_show_fiducials,
-        )
-
         side_layout = hp.make_form_layout()
         style_form_layout(side_layout)
-        side_layout.addRow(self.load_btn)
+        side_layout.addRow(
+            hp.make_btn(self, "Import project", tooltip="Import previously computed transformation.", func=self.on_load)
+        )
         side_layout.addRow(hp.make_h_line_with_text("or"))
         side_layout.addRow(self._fixed_widget)
         side_layout.addRow(hp.make_h_line_with_text("+"))
@@ -710,8 +691,22 @@ class ImageRegistrationWindow(QMainWindow, IndicatorMixin, ImageViewMixin):
         side_layout.addRow(self._make_focus_layout())
         side_layout.addRow(hp.make_h_line_with_text("Transformation"))
         side_layout.addRow(hp.make_label(self, "Type of transformation"), self.transform_choice)
-        side_layout.addRow(self.view_btn)
-        side_layout.addRow(self.save_btn)
+        side_layout.addRow(
+            hp.make_btn(
+                self,
+                "Show fiducials table...",
+                tooltip="Show fiducial markers table where you can view and edit the markers",
+                func=self.on_show_fiducials,
+            )
+        )
+        side_layout.addRow(
+            hp.make_btn(
+                self,
+                "Export to file...",
+                tooltip="Export transformation to file. XML format is usable by MATLAB fusion.",
+                func=self.on_save,
+            )
+        )
         side_layout.addRow(hp.make_spacer_widget())
         side_layout.addRow(hp.make_h_line_with_text("Settings"))
         side_layout.addRow(self._make_settings_layout())
@@ -738,8 +733,8 @@ class ImageRegistrationWindow(QMainWindow, IndicatorMixin, ImageViewMixin):
     def _make_menu(self):
         """Make menu items."""
         from image2image._dialogs import open_about
-        from image2image.utilities import open_bug_report, open_docs, open_github, open_request
         from image2image._sentry import ask_opt_in, send_feedback
+        from image2image.utilities import open_bug_report, open_docs, open_github, open_request
 
         # File menu
         menu_file = hp.make_menu(self, "File")
@@ -773,7 +768,7 @@ class ImageRegistrationWindow(QMainWindow, IndicatorMixin, ImageViewMixin):
         )
         hp.make_menu_item(self, "Show fiducials table...", menu=menu_tools, func=self.on_show_fiducials)
         menu_tools.addSeparator()
-        hp.make_menu_item(self, "Show IPython console...", menu=menu_tools, func=self.on_show_console)
+        hp.make_menu_item(self, "Show IPython console...", "Ctrl+T", menu=menu_tools, func=self.on_show_console)
 
         # Help menu
         menu_help = hp.make_menu(self, "Help")
@@ -1026,3 +1021,9 @@ class ImageRegistrationWindow(QMainWindow, IndicatorMixin, ImageViewMixin):
         if self.transform_model.is_valid():
             if hp.confirm(self, "There might be unsaved changes. Would you like to save it?"):
                 self.on_save()
+
+
+if __name__ == "__main__":  # pragma: no cover
+    from image2image.main import run
+
+    run(dev=True, tool="register", level=0)

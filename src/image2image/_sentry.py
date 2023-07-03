@@ -1,7 +1,9 @@
 """Sentry widget."""
 import os
-from image2image import __version__
+
 from loguru import logger
+
+from image2image import __version__
 
 # setup environment variables
 SENTRY_DSN = "https://5473ad03e64c4a2988b9ec143f6181c5@o1133843.ingest.sentry.io/4505464740708352"
@@ -22,10 +24,14 @@ QTEXTRA_TELEMETRY_PROJECT = "image2image"
 os.environ["QTEXTRA_TELEMETRY_PROJECT"] = QTEXTRA_TELEMETRY_PROJECT
 
 # important that this is imported AFTER we setup the environment variables
+from qtextra.dialogs.sentry import (
+    FeedbackDialog,
+)
+from qtextra.dialogs.sentry import (
+    ask_opt_in as _ask_opt_in,
+)
 from qtextra.dialogs.sentry import (  # noqa: E402
     install_error_monitor as _install_error_monitor,
-    ask_opt_in as _ask_opt_in,
-    FeedbackDialog,
 )
 
 
