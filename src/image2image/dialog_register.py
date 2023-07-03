@@ -36,6 +36,7 @@ from image2image.utilities import (
     log_exception,
     style_form_layout,
 )
+from image2image._sentry import install_error_monitor
 
 if ty.TYPE_CHECKING:
     from skimage.transform import ProjectiveTransform
@@ -70,6 +71,8 @@ class ImageRegistrationWindow(QMainWindow, IndicatorMixin, ImageViewMixin):
             fixed_points=self.fixed_points_layer.data,
             moving_points=self.moving_points_layer.data,
         )
+        # delay asking for telemetry opt-in by 10s
+        hp.call_later(self, install_error_monitor, 10_000)
 
     @property
     def transform(self) -> ty.Optional["ProjectiveTransform"]:
