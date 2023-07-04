@@ -12,9 +12,10 @@ class ArrayReader(BaseImageReader):
 
     is_fixed: bool = False
 
-    def __init__(self, path: PathLike, array: np.ndarray):
+    def __init__(self, path: PathLike, array: np.ndarray, resolution: float = 1.0):
         super().__init__(path)
         self.array = array
+        self.resolution = resolution
 
     @property
     def channel_names(self) -> ty.List[str]:

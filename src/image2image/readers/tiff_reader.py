@@ -45,6 +45,11 @@ class TiffImageReader(BaseImageReader):
         if init_pyramid:
             self._pyramid = self.pyramid
 
+    @property
+    def resolution(self):
+        """Return resolution."""
+        return self.base_layer_pixel_res
+
     def get_dask_pyr(self):
         """Get instance of Dask pyramid."""
         d_pyr = tifffile_to_dask(self.path, self.largest_series)

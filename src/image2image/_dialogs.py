@@ -1,5 +1,7 @@
 """Various dialogs."""
 import typing as ty
+from contextlib import contextmanager
+from functools import partial
 from pathlib import Path
 
 import numpy as np
@@ -11,7 +13,7 @@ from qtextra.utils.utilities import connect
 from qtextra.widgets.qt_dialog import QtDialog, QtFramelessPopup, QtFramelessTool
 from qtextra.widgets.qt_table_view import QtCheckableTableView
 from qtpy.QtCore import Qt, Signal
-from qtpy.QtWidgets import QFormLayout
+from qtpy.QtWidgets import QFormLayout, QHeaderView, QTableWidget, QTableWidgetItem
 
 from image2image.utilities import style_form_layout
 
@@ -55,6 +57,148 @@ FiducialConfig = (
     .add("x-i(px)", "x_px_ims", "float", 50)
 )
 ExtractConfig = TableConfig().add("", "check", "bool", 0, no_sort=True, hidden=True).add("m/z", "mz", "float", 100)
+SelectImageConfig = (
+    TableConfig()
+    .add("name", "name", "str", 0)
+    .add("resolution", "resolution", "str", 0)
+    .add("extract", "extract", "str", 0)
+    .add("remove", "remove", "str", 0)
+)
+
+
+class SelectImagesDialog(QtDialog):
+    """Dialog window to select images and specify some parameters."""
+
+    _editing = False
+    evt_delete = Signal(Path)
+
+    def __init__(self, parent, model: "DataModel"):
+        super().__init__(parent)
+        self.model = model
+        self.setMinimumWidth(400)
+        self.setMinimumHeight(400)
+
+        self.on_load()
+
+    def on_extract(self, path: str):
+        """Extract images."""
+        print("extract", path)
+
+    def on_remove(self, name: str, path: str):
+        """Remove path."""
+        for row in range(self.table.rowCount()):
+            item = self.table.item(row, SelectImageConfig.name)
+            if item.text() == name:
+                break
+        # remove from model
+        self.evt_delete.emit(Path(path))
+        # remove from table
+        self.table.removeRow(row)
+        print("remove", path, name, row)
+
+    def on_table_item_changed(self, row, column):
+        """Table item changed."""
+        if self._editing:
+            return
+        print("changed", row, column)
+
+    def on_load(self):
+        """Load data."""
+        wrapper = self.model.get_wrapper()
+        if wrapper:
+            with self._editing_table():
+                for path, reader in wrapper.path_reader_iter():
+                    # get model information
+                    index = self.table.rowCount()
+                    name = reader.name
+                    resolution = reader.resolution
+
+                    self.table.insertRow(index)
+                    # add name item
+                    item = QTableWidgetItem(name)
+                    item.setFlags(item.flags() & ~Qt.ItemIsEditable)
+                    item.setTextAlignment(Qt.AlignCenter)
+                    self.table.setItem(index, SelectImageConfig.name, item)
+                    # add resolution item
+                    item = QTableWidgetItem(f"{resolution:.2f}")
+                    item.setTextAlignment(Qt.AlignCenter)
+                    self.table.setItem(index, SelectImageConfig.resolution, item)
+                    # # add extract button
+                    if reader.allow_extraction:
+                        self.table.setCellWidget(
+                            index,
+                            SelectImageConfig.extract,
+                            hp.make_qta_btn(self, "add", normal=True, func=partial(self.on_extract, path=path)),
+                        )
+                    else:
+                        item = QTableWidgetItem("N/A")
+                        item.setFlags(item.flags() & ~Qt.ItemIsEditable)
+                        item.setTextAlignment(Qt.AlignCenter)
+                        self.table.setItem(index, SelectImageConfig.extract, item)
+                    # add remove button
+                    self.table.setCellWidget(
+                        index,
+                        SelectImageConfig.remove,
+                        hp.make_qta_btn(
+                            self, "remove_all", normal=True, func=partial(self.on_remove, name=name, path=path)
+                        ),
+                    )
+
+    # def on_add_row(self):
+    #     """Add row to the table."""
+    #     with self._editing_table():
+    #         index = self.table.rowCount()
+    #         path = "asdasd"
+    #         name = f"image_{index!s}"
+    #         self.table.insertRow(index)
+    #         # add name item
+    #         item = QTableWidgetItem(name)
+    #         item.setFlags(item.flags() & ~Qt.ItemIsEditable)
+    #         item.setTextAlignment(Qt.AlignHCenter)
+    #         self.table.setItem(index, SelectImageConfig.name, item)
+    #         # add resolution item
+    #         item = QTableWidgetItem("0.65")
+    #         item.setTextAlignment(Qt.AlignHCenter)
+    #         self.table.setItem(index, SelectImageConfig.resolution, item)
+    #         # self.table.setCellWidget(index, SelectImageConfig.resolution, hp.make_double_spin_box(self,
+    #         minimum=0, maximum=100, n_decimals=2))
+    #         # # add extract button
+    #         self.table.setCellWidget(index, SelectImageConfig.extract, hp.make_qta_btn(self, "add", normal=True,
+    #         func=partial(self.on_extract, path=path)))
+    #         # add remove button
+    #         self.table.setCellWidget(index, SelectImageConfig.remove, hp.make_qta_btn(self, "remove_all",
+    #         normal=True, func=partial(self.on_remove, name=name, path=path)))
+
+    # noinspection PyAttributeOutsideInit
+    def make_panel(self) -> QFormLayout:
+        """Make panel."""
+        # _, header_layout = self._make_close_handle()
+        # self._title_label.setText("Images")
+
+        self.table = QTableWidget(self)
+        self.table.setColumnCount(4)  # name, resolution, extract, delete
+        self.table.setHorizontalHeaderLabels(["name", "resolution", "", ""])
+        self.table.cellChanged.connect(self.on_table_item_changed)
+
+        header = self.table.horizontalHeader()
+        header.setSectionResizeMode(SelectImageConfig.name, QHeaderView.Stretch)
+        header.setSectionResizeMode(SelectImageConfig.resolution, QHeaderView.ResizeToContents)
+        header.setSectionResizeMode(SelectImageConfig.extract, QHeaderView.ResizeToContents)
+        header.setSectionResizeMode(SelectImageConfig.remove, QHeaderView.ResizeToContents)
+
+        layout = hp.make_form_layout()
+        style_form_layout(layout)
+        # layout.addRow(header_layout)
+        layout.addRow(hp.make_btn(self, "Add image...")) #, func=self.on_add_row))
+        layout.addRow(self.table)
+        return layout
+
+    # noinspection PyAttributeOutsideInit
+    @contextmanager
+    def _editing_table(self):
+        self._editing = True
+        yield
+        self._editing = False
 
 
 class LocateFilesDialog(QtDialog):
@@ -898,3 +1042,24 @@ class DialogAbout(QtFramelessPopup):
         vertical_layout.addWidget(self._image, alignment=Qt.AlignHCenter)
         vertical_layout.addWidget(self.about_label)
         return vertical_layout
+
+
+if __name__ == "__main__":  # pragma: no cover
+    import sys
+
+    from qtextra.utils.dev import apply_style, qapplication, qdev
+
+    import image2image.assets  # noqa: F401
+    from image2image.models import DataModel
+
+    model = DataModel()
+    model.add_paths([
+        r"/Users/lgmigas/Downloads/ims2micro-1.png"
+    ])
+
+    app = qapplication()
+    dlg = SelectImagesDialog(None, model)
+    apply_style(dlg)
+    dlg.show()
+    qdev(dlg, ("qtextra", "image2image"))
+    sys.exit(app.exec_())

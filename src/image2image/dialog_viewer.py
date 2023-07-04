@@ -1,22 +1,18 @@
 """Viewer dialog."""
-from pathlib import Path
-
-from functools import partial
-
 import typing as ty
+from functools import partial
+from pathlib import Path
 
 import numpy as np
 import qtextra.helpers as hp
 from koyo.timer import MeasureTimer
 from loguru import logger
 from napari.layers import Image
-
-from image2image.enums import ALLOWED_PROJECT_FORMATS
 from qtextra._napari.mixins import ImageViewMixin
 from qtextra.mixins import IndicatorMixin
 from qtextra.utils.utilities import connect
 from qtpy.QtCore import Qt
-from qtpy.QtWidgets import QHBoxLayout, QMainWindow, QVBoxLayout, QWidget, QMenuBar
+from qtpy.QtWidgets import QHBoxLayout, QMainWindow, QMenuBar, QVBoxLayout, QWidget
 from superqt import ensure_main_thread
 
 import image2image.assets  # noqa: F401
@@ -25,6 +21,7 @@ from image2image._select import LoadWithTransformWidget
 
 # need to load to ensure all assets are loaded properly
 from image2image.config import CONFIG
+from image2image.enums import ALLOWED_PROJECT_FORMATS
 from image2image.models import DataModel
 from image2image.utilities import (
     get_colormap,

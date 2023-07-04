@@ -7,8 +7,7 @@ import qtextra.helpers as hp
 from koyo.typing import PathLike
 from loguru import logger
 from qtextra.utils.utilities import connect
-from qtpy.QtCore import QRegExp, Qt, Signal
-from qtpy.QtGui import QRegExpValidator
+from qtpy.QtCore import Qt, Signal
 from qtpy.QtWidgets import QWidget
 from superqt.utils import thread_worker
 
@@ -186,19 +185,19 @@ class LoadWidget(LoadMixin):
         self.table_dlg = OverlayTableDialog(self, self.model, self.view)
 
     @property
-    def resolution(self):
+    def resolution(self) -> float:
         """Get resolution."""
-        return float(self.resolution_edit.text())
+        return self.resolution_edit.value()
 
     @resolution.setter
     def resolution(self, value: str):
-        self.resolution_edit.setText(value)
+        self.resolution_edit.setValue(float(value))
 
     def _setup_ui(self):
         """Setup UI."""
-        self.resolution_edit = hp.make_line_edit(self, placeholder="Enter spatial resolution...", text="1.0")
-        self.resolution_edit.setValidator(QRegExpValidator(QRegExp(r"^[0-9]+(\.[0-9]+)?$")))  # noqa
-        self.resolution_edit.textChanged.connect(self._on_set_resolution)  # noqa
+        self.resolution_edit = hp.make_double_spin_box(
+            self, minimum=0, maximum=100, n_decimals=2, func=self._on_set_resolution
+        )
 
         layout = hp.make_form_layout()
         style_form_layout(layout)
@@ -218,7 +217,7 @@ class LoadWidget(LoadMixin):
 
     def _on_set_resolution(self, _evt=None):
         """Specify resolution."""
-        self.model.resolution = float(self.resolution_edit.text())
+        self.model.resolution = self.resolution_edit.value()
 
     def _on_select_channels(self):
         """Select channels from the list."""

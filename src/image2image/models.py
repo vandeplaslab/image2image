@@ -7,7 +7,8 @@ import numpy as np
 from koyo.timer import MeasureTimer
 from koyo.typing import ArrayLike, PathLike
 from loguru import logger
-from pydantic import BaseModel as _BaseModel, validator
+from pydantic import BaseModel as _BaseModel
+from pydantic import validator
 from skimage.transform import ProjectiveTransform
 
 from image2image._reader import ImageWrapper, sanitize_path

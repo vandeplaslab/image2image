@@ -3,9 +3,12 @@
 #echo 'Activated Rosetta...'
 
 # Create macOS environment
-python3 -m virtualenv venv
+#python3.9 -m virtualenv venv
 source venv/bin/activate
 echo 'Created venv...'
+
+# Install PyQt5
+#pip install PyQt5
 
 # Install dependencies
 pip install -e ".[dev]"
@@ -23,6 +26,3 @@ echo 'Installed qtextra...'
 cd ../napari-plot
 pip install -e .
 echo 'Installed napari-plot...'
-
-# Install PyQt5
-pip install PyQt5

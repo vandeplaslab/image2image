@@ -50,6 +50,11 @@ class CziImageReader(BaseImageReader):
         if init_pyramid:
             self._pyramid = self.pyramid
 
+    @property
+    def resolution(self):
+        """Return resolution."""
+        return self.base_layer_pixel_res
+
     def _prepare_dask_image(self):
         ch_dim = self.im_dims[1:] if not self.is_rgb else self.im_dims[:2]
         chunks = ((1,) * self.n_ch, (ch_dim[0],), (ch_dim[1],))

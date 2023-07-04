@@ -256,6 +256,7 @@ def _read_tiff(path: PathLike) -> ty.Tuple[Path, "TiffImageReader"]:
 def _read_image(path: PathLike) -> ty.Tuple[Path, "ArrayReader"]:
     """Read image."""
     from skimage.io import imread
+
     from image2image.readers.array_reader import ArrayReader
 
     path = Path(path)
