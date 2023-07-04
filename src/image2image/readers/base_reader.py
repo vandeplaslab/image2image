@@ -12,7 +12,7 @@ class BaseImageReader:
     _pyramid = None
     fh = None
     allow_extraction: bool = False
-    base_layer_pixel_res: float
+    base_layer_pixel_res: float = 1.0
     channel_names: ty.List[str]
     channel_colors: ty.Optional[ty.List[str]]
 
@@ -21,6 +21,15 @@ class BaseImageReader:
         self.base_layer_idx = 0
         self.transform: np.ndarray = np.eye(3)
         self.transform_name = "Identity matrix"
+
+    @property
+    def resolution(self) -> float:
+        """Return resolution."""
+        return self.base_layer_pixel_res
+
+    @resolution.setter
+    def resolution(self, value: float):
+        self.base_layer_pixel_res = value
 
     @property
     def name(self) -> str:

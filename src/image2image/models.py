@@ -14,10 +14,12 @@ from skimage.transform import ProjectiveTransform
 from image2image._reader import ImageWrapper, sanitize_path
 
 if ty.TYPE_CHECKING:
-    from image2image.readers.base import BaseImageReader
+    from image2image.readers.base_reader import BaseImageReader
 
 
 class BaseModel(_BaseModel):
+    """Base model."""
+
     class Config:
         """Config."""
 
@@ -208,12 +210,15 @@ class DataModel(BaseModel):
             raise ValueError(f"Unknown file format: {path.suffix}")
         logger.info(f"Exported to '{path}'")
 
-    def to_dict(self) -> ty.List:
+    def to_dict(self) -> ty.Dict:
         """Return dictionary of values to export."""
-        return [
-            {"path": str(path), "matrix_yx_px": reader.transform.tolist()}
-            for path, reader in self.get_wrapper().path_reader_iter()
-        ]
+        return {
+            "schema_version": "1.0",
+            "images": [
+                {"path": str(path), "matrix_yx_px": reader.transform.tolist()}
+                for path, reader in self.get_wrapper().path_reader_iter()
+            ],
+        }
 
 
 class Transformation(BaseModel):
@@ -309,17 +314,27 @@ class Transformation(BaseModel):
     def to_dict(self):
         """Convert to dict."""
         return {
-            "schema_version": "1.1",
+            "schema_version": "1.2",
             "time_created": self.time_created.strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
             "fixed_points_yx_px": self.fixed_points.tolist(),  # default
             "fixed_points_yx_um": (self.fixed_model.resolution * self.fixed_points).tolist(),
             "moving_points_yx_px": self.moving_points.tolist(),  # default
             "moving_points_yx_um": (self.moving_model.resolution * self.moving_points).tolist(),
             "transformation_type": self.transformation_type,
-            "fixed_paths": [str(path) for path in self.fixed_model.paths],
-            "fixed_resolution_um": self.fixed_model.resolution,
-            "moving_paths": [str(path) for path in self.moving_model.paths],
-            "moving_resolution_um": self.moving_model.resolution,
+            "fixed_paths": [
+                {
+                    "path": str(path),
+                    "resolution_um": resolution,
+                }
+                for (path, resolution) in self.fixed_model.path_resolution_iter()
+            ],
+            "moving_paths": [
+                {
+                    "path": str(path),
+                    "resolution_um": resolution,
+                }
+                for (path, resolution) in self.moving_model.path_resolution_iter()
+            ],
             "matrix_yx_px": self.compute(yx=True, px=True).params.tolist(),
             "matrix_yx_um": self.compute(yx=True, px=False).params.tolist(),
             "matrix_xy_px": self.compute(yx=False, px=True).params.tolist(),
@@ -495,10 +510,32 @@ def _read_image2image_config(config: ty.Dict):
     schema_version = config["schema_version"]
     if schema_version == "1.0":
         return _read_image2image_v1_0_config(config)
+    elif schema_version == "1.1":
+        return _read_image2image_v1_1_config(config)
     return _read_image2image_latest_config(config)
 
 
 def _read_image2image_latest_config(config: ty.Dict):
+    # read important fields
+    paths = [temp["path"] for temp in config["fixed_paths"]]
+    fixed_paths, fixed_missing_paths = _get_paths(paths)
+    paths = [temp["path"] for temp in config["moving_paths"]]
+    moving_paths, moving_missing_paths = _get_paths(paths)
+    fixed_points = np.array(config["fixed_points_yx_px"])
+    moving_points = np.array(config["moving_points_yx_px"])
+    transformation_type = config["transformation_type"]
+    return (
+        transformation_type,
+        fixed_paths,
+        fixed_missing_paths,
+        fixed_points,
+        moving_paths,
+        moving_missing_paths,
+        moving_points,
+    )
+
+
+def _read_image2image_v1_1_config(config: ty.Dict):
     # read important fields
     fixed_paths, fixed_missing_paths = _get_paths(config["fixed_paths"])
     moving_paths, moving_missing_paths = _get_paths(config["moving_paths"])

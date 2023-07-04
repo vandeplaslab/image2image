@@ -24,10 +24,10 @@ QTEXTRA_TELEMETRY_PROJECT = "image2image"
 os.environ["QTEXTRA_TELEMETRY_PROJECT"] = QTEXTRA_TELEMETRY_PROJECT
 
 # important that this is imported AFTER we setup the environment variables
-from qtextra.dialogs.sentry import (
+from qtextra.dialogs.sentry import (  # noqa: E402
     FeedbackDialog,
 )
-from qtextra.dialogs.sentry import (
+from qtextra.dialogs.sentry import (  # noqa: E402
     ask_opt_in as _ask_opt_in,
 )
 from qtextra.dialogs.sentry import (  # noqa: E402

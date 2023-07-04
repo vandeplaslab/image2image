@@ -6,7 +6,7 @@ import zarr
 from koyo.typing import PathLike
 from tifffile import xml2dict
 
-from image2image.readers.base import BaseImageReader
+from image2image.readers.base_reader import BaseImageReader
 from image2image.readers.czi import CziFile
 from image2image.readers.utilities import guess_rgb
 
@@ -33,7 +33,7 @@ class CziImageReader(BaseImageReader):
         czi_meta = xml2dict(self.fh.metadata())
         pixel_scaling_str = czi_meta["ImageDocument"]["Metadata"]["Scaling"]["Items"]["Distance"][0]["Value"]
         pixel_scaling = float(pixel_scaling_str) * 1000000
-        self.base_layer_pixel_res = pixel_scaling
+        self.resolution = pixel_scaling
         channels_meta = czi_meta["ImageDocument"]["Metadata"]["DisplaySetting"]["Channels"]["Channel"]
 
         channel_names = []
@@ -49,11 +49,6 @@ class CziImageReader(BaseImageReader):
         self.base_layer_idx = 0
         if init_pyramid:
             self._pyramid = self.pyramid
-
-    @property
-    def resolution(self):
-        """Return resolution."""
-        return self.base_layer_pixel_res
 
     def _prepare_dask_image(self):
         ch_dim = self.im_dims[1:] if not self.is_rgb else self.im_dims[:2]

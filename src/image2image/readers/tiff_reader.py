@@ -9,7 +9,7 @@ from pathlib import Path
 from ome_types import from_xml
 from tifffile import TiffFile
 
-from image2image.readers.base import BaseImageReader
+from image2image.readers.base_reader import BaseImageReader
 from image2image.readers.tiff_meta import (
     ometiff_ch_names,
     ometiff_xy_pixel_sizes,
@@ -38,17 +38,12 @@ class TiffImageReader(BaseImageReader):
         self.is_rgb = guess_rgb(self.im_dims)
         self.n_channels = self.im_dims[2] if self.is_rgb else self.im_dims[0]
 
-        self.base_layer_pixel_res = self._get_im_res()
+        self.resolution = self._get_im_res()
         self.channel_names = self._get_channel_names()
         self.channel_colors = None
 
         if init_pyramid:
             self._pyramid = self.pyramid
-
-    @property
-    def resolution(self):
-        """Return resolution."""
-        return self.base_layer_pixel_res
 
     def get_dask_pyr(self):
         """Get instance of Dask pyramid."""

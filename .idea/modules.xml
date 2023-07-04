@@ -3,6 +3,7 @@
   <component name="ProjectModuleManager">
     <modules>
       <module fileurl="file://$PROJECT_DIR$/.idea/ims2micro.iml" filepath="$PROJECT_DIR$/.idea/ims2micro.iml" />
+      <module fileurl="file://$PROJECT_DIR$/../koyo/.idea/koyo.iml" filepath="$PROJECT_DIR$/../koyo/.idea/koyo.iml" />
       <module fileurl="file://$PROJECT_DIR$/../qtextra/.idea/qtextra.iml" filepath="$PROJECT_DIR$/../qtextra/.idea/qtextra.iml" />
     </modules>
   </component>

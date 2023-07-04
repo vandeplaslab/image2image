@@ -123,24 +123,24 @@ class ImageRegistrationWindow(QMainWindow, IndicatorMixin, ImageViewMixin):
     def setup_events(self, state: bool = True):
         """Additional setup."""
         # fixed widget
-        connect(self._fixed_widget.evt_loading, partial(self.on_indicator, which="fixed"), state=state)
-        connect(self._fixed_widget.evt_loaded, self.on_load_fixed, state=state)
+        connect(self._fixed_widget.dataset_dlg.evt_loading, partial(self.on_indicator, which="fixed"), state=state)
+        connect(self._fixed_widget.dataset_dlg.evt_loaded, self.on_load_fixed, state=state)
+        connect(self._fixed_widget.dataset_dlg.evt_closed, self.on_close_fixed, state=state)
         connect(self._fixed_widget.evt_toggle_channel, partial(self.on_toggle_channel, which="fixed"), state=state)
         connect(
             self._fixed_widget.evt_toggle_all_channels, partial(self.on_toggle_all_channels, which="fixed"), state=state
         )
-        connect(self._fixed_widget.evt_closed, self.on_close_fixed, state=state)
         # imaging widget
-        connect(self._moving_widget.evt_show_transformed, self.on_toggle_transformed_moving, state=state)
-        connect(self._moving_widget.evt_loading, partial(self.on_indicator, which="moving"), state=state)
+        connect(self._moving_widget.dataset_dlg.evt_loading, partial(self.on_indicator, which="moving"), state=state)
+        connect(self._moving_widget.dataset_dlg.evt_loaded, self.on_load_moving, state=state)
+        connect(self._moving_widget.dataset_dlg.evt_closed, self.on_close_moving, state=state)
         connect(self._moving_widget.evt_toggle_channel, partial(self.on_toggle_channel, which="moving"), state=state)
+        connect(self._moving_widget.evt_show_transformed, self.on_toggle_transformed_moving, state=state)
         connect(
             self._moving_widget.evt_toggle_all_channels,
             partial(self.on_toggle_all_channels, which="moving"),
             state=state,
         )
-        connect(self._moving_widget.evt_loaded, self.on_load_moving, state=state)
-        connect(self._moving_widget.evt_closed, self.on_close_moving, state=state)
         connect(self._moving_widget.evt_view_type, self.on_change_view_type, state=state)
         # fixed view
         # connect(self.view_fixed.viewer.camera.events.zoom, self.on_auto_apply_focus, state=state)
@@ -516,9 +516,9 @@ class ImageRegistrationWindow(QMainWindow, IndicatorMixin, ImageViewMixin):
     def on_show_fiducials(self):
         """View fiducials table."""
         if self._table is None:
-            from image2image._dialogs import FiducialTableDialog
+            from image2image._dialogs import FiducialsDialog
 
-            self._table = FiducialTableDialog(self)
+            self._table = FiducialsDialog(self)
         self._table.show()
 
     def on_show_console(self):

@@ -4,7 +4,7 @@ import typing as ty
 import numpy as np
 from koyo.typing import PathLike
 
-from image2image.readers.base import BaseImageReader
+from image2image.readers.base_reader import BaseImageReader
 
 
 class ArrayReader(BaseImageReader):

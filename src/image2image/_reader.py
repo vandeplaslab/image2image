@@ -8,7 +8,7 @@ from loguru import logger
 
 if ty.TYPE_CHECKING:
     from image2image.readers.array_reader import ArrayReader
-    from image2image.readers.base import BaseImageReader
+    from image2image.readers.base_reader import BaseImageReader
     from image2image.readers.coordinate_reader import CoordinateReader
     from image2image.readers.czi_reader import CziImageReader
     from image2image.readers.tiff_reader import TiffImageReader

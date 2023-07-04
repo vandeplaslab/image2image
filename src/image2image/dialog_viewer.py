@@ -54,8 +54,8 @@ class ImageViewerWindow(QMainWindow, IndicatorMixin, ImageViewMixin):
     def setup_events(self, state: bool = True):
         """Setup events."""
         # connect(self._fixed_widget.evt_loading, self.on_indicator, state=state)
-        connect(self._image_widget.evt_loaded, self.on_load_image, state=state)
-        connect(self._image_widget.evt_closed, self.on_close_image, state=state)
+        connect(self._image_widget.dataset_dlg.evt_loaded, self.on_load_image, state=state)
+        connect(self._image_widget.dataset_dlg.evt_closed, self.on_close_image, state=state)
         connect(self._image_widget.evt_transform_changed, self.on_update_transform, state=state)
 
     @ensure_main_thread
