@@ -57,21 +57,21 @@ class SelectTransformDialog(QtFramelessTool):
         """On transform choice."""
         indices = reversed(self.table.get_all_checked())
         if indices:
-            transform = self.transform_choice.currentText()
-            matrix = self.transform_model.get_matrix(transform)
+            transform_name = self.transform_choice.currentText()
+            matrix = self.transform_model.get_matrix(transform_name)
             for index in indices:
-                self.table.set_value(self.TABLE_CONFIG.transform, index, transform)
+                self.table.set_value(self.TABLE_CONFIG.transform, index, transform_name)
                 reader_path = self.table.get_value(self.TABLE_CONFIG.dataset_path, index)
                 # get reader appropriate for the path
                 reader = self.model.get_reader(reader_path)
                 if reader:
-                    if reader.transform_name != transform:
+                    # if reader.transform_name != transform_name:
                         # transform information need to be updated
-                        reader.transform_name = transform
-                        reader.transform = matrix
-                        self.table.update_value(index, self.TABLE_CONFIG.transform, transform)
-                        self.evt_transform.emit(reader_path)
-                        logger.trace(f"Updated transformation matrix for '{reader_path}'")
+                    reader.transform_name = transform_name
+                    reader.transform = matrix
+                    self.table.update_value(index, self.TABLE_CONFIG.transform, transform_name)
+                    self.evt_transform.emit(reader_path)
+                    logger.trace(f"Updated transformation matrix for '{reader_path}'")
                 else:
                     logger.warning(f"Could not update transformation matrix for '{reader_path}'")
 

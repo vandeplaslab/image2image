@@ -30,12 +30,16 @@ PREFERRED_COLORMAPS = [
 ]
 
 
-def update_affine(affine: np.ndarray, min_resolution: float, resolution: float) -> np.ndarray:
+def update_affine(matrix: np.ndarray, min_resolution: float, resolution: float) -> np.ndarray:
     """Update affine transformation."""
     from napari.utils.transforms import Affine
 
-    affine = Affine(affine_matrix=affine)
-    affine.scale = affine.scale / (resolution / min_resolution)
+    # create copy
+    matrix = np.asarray(matrix).copy().astype(np.float64)
+    if resolution == min_resolution or resolution == 1 or min_resolution == 1:
+        return matrix
+    affine = Affine(affine_matrix=matrix)
+    affine.scale = affine.scale.astype(np.float64) / (resolution / min_resolution)
     affine.translate = affine.translate * min_resolution
     return affine.affine_matrix
 

@@ -328,7 +328,6 @@ class SelectImagesDialog(QtFramelessTool):
         reader = self.model.get_reader(path)
         if reader:
             reader.resolution = value
-            # reader.resolution = float(self.table.item(row, column).text())
             self.evt_resolution.emit(reader.path)
             logger.trace(f"Updated resolution of '{path.name}' to {value:.2f}.")
 
@@ -400,7 +399,7 @@ class SelectImagesDialog(QtFramelessTool):
                 CONFIG.fixed_dir = str(Path(path).parent)
             else:
                 CONFIG.moving_dir = str(Path(path).parent)
-        self._on_load_dataset(path)
+            self._on_load_dataset(path)
 
     def _on_close_dataset(self, force: bool = False) -> bool:
         """Close dataset."""

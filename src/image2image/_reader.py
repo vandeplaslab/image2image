@@ -208,7 +208,6 @@ def read_image(
     """Read image data."""
     path = Path(path)
     assert path.exists(), f"File does not exist: {path}"
-    assert path.is_file(), f"Expected file, got directory: {path}"
     assert (
         path.suffix.lower()
         in TIFF_EXTENSIONS

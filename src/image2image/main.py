@@ -65,7 +65,7 @@ def run(
         dev.evt_theme.connect(lambda: THEMES.set_theme_stylesheet(dlg))
         dlg.centralWidget().layout().addWidget(dev)
 
-        install_debugger_hook()
+        # install_debugger_hook()
         os.environ["IMAGE2IMAGE_DEV_MODE"] = "1"
     else:
         os.environ["IMAGE2IMAGE_DEV_MODE"] = "0"
@@ -75,4 +75,4 @@ def run(
 
 
 if __name__ == "__main__":  # pragma: no cover
-    run(dev=True)
+    run(dev=True, tool="viewer")

@@ -19,7 +19,7 @@ class BaseImageReader:
     def __init__(self, path: PathLike):
         self.path = Path(path)
         self.base_layer_idx = 0
-        self.transform: np.ndarray = np.eye(3)
+        self.transform: np.ndarray = np.eye(3, dtype=np.float64)
         self.transform_name = "Identity matrix"
 
     @property

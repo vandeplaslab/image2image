@@ -165,7 +165,7 @@ class LoadWithTransformWidget(LoadMixin):
         """Init."""
         super().__init__(parent, view)
         self.transform_model = TransformModel()
-        self.transform_model.add_transform("Identity matrix", [[1, 0, 0], [0, 1, 0], [0, 0, 1]])
+        self.transform_model.add_transform("Identity matrix", np.eye(3, dtype=np.float64))
         self.transform_dlg = SelectTransformDialog(self, self.model, self.transform_model, self.view)
 
     def _setup_ui(self):

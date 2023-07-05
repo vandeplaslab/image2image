@@ -239,6 +239,8 @@ class ImageViewerWindow(Window):
 
     def closeEvent(self, evt):
         """Close."""
+        if self._console:
+            self._console.close()
         CONFIG.save()
         if self.data_model.is_valid():
             if hp.confirm(self, "There might be unsaved changes. Would you like to save them?"):
