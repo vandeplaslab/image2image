@@ -144,24 +144,28 @@ class DataModel(BaseModel):
         if not self.paths:
             self.wrapper = None
 
-    def load(self):
+    def load(self, affine: ty.Optional[ty.Dict[str, np.ndarray]] = None):
         """Load data into memory."""
         with MeasureTimer() as timer:
-            self.get_wrapper()
+            self.get_wrapper(affine)
             logger.info(f"Loaded data in {timer()}")
         return self
 
-    def get_wrapper(self) -> ty.Optional["ImageWrapper"]:
+    def get_wrapper(self, affine: ty.Optional[ty.Dict[str, np.ndarray]] = None) -> ty.Optional["ImageWrapper"]:
         """Read data from file."""
         from image2image._reader import read_image
 
         if self.paths is None:
             return None
 
+        if affine is None:
+            affine = {}
+
         just_added = []
         for path in self.paths:
+            matrix = affine.get(path.name, None)
             if self.wrapper is None or not self.wrapper.is_loaded(path):
-                self.wrapper = read_image(path, self.wrapper, self.is_fixed)
+                self.wrapper = read_image(path, self.wrapper, self.is_fixed, affine=matrix)
                 just_added.append(path)
         if self.wrapper:
             self.resolution = self.wrapper.resolution
@@ -429,6 +433,23 @@ class TransformModel(BaseModel):
         return None
 
 
+def _read_config_from_file(path: PathLike):
+    """Read config data from file."""
+    path = Path(path)
+    if path.suffix not in [".json", ".toml"]:
+        raise ValueError(f"Unknown file format: {path.suffix}")
+
+    if path.suffix == ".json":
+        from koyo.json import read_json_data
+
+        data = read_json_data(path)
+    else:
+        from koyo.toml import read_toml_data
+
+        data = read_toml_data(path)
+    return data
+
+
 def load_transform_from_file(
     path: PathLike,
     fixed_image: bool = True,
@@ -445,18 +466,7 @@ def load_transform_from_file(
     ty.Optional[np.ndarray],
 ]:
     """Load registration from file."""
-    path = Path(path)
-    if path.suffix not in [".json", ".toml"]:
-        raise ValueError(f"Unknown file format: {path.suffix}")
-
-    if path.suffix == ".json":
-        from koyo.json import read_json_data
-
-        data = read_json_data(path)
-    else:
-        from koyo.toml import read_toml_data
-
-        data = read_toml_data(path)
+    data = _read_config_from_file(path)
 
     # image2image config
     if "schema_version" in data:
@@ -599,3 +609,30 @@ def _read_imsmicrolink_config(config: ty.Dict):
         moving_missing_paths,
         moving_points,
     )
+
+
+def load_viewer_setup_from_file(path: PathLike) -> ty.Tuple[ty.List[Path], ty.List[Path], ty.Dict[str, np.ndarray]]:
+    """Load configuration from config file."""
+    data = _read_config_from_file(path)
+
+    if "schema_version" in data:
+        return _read_image2viewer_latest_config(data)
+    raise ValueError("Cannot read config file.")
+
+
+def _read_image2viewer_latest_config(config: ty.Dict):
+    # read important fields
+    paths = [temp["path"] for temp in config["images"]]
+    affine = {Path(temp["path"]).name: np.asarray(temp["matrix_yx_px"]) for temp in config["images"]}
+    paths, paths_missing = _get_paths(paths)
+    return paths, paths_missing, affine
+
+
+def _clean_up_affine_matrices(affine: ty.Dict[str, np.ndarray], paths: ty.List[Path]) -> ty.Dict[str, np.ndarray]:
+    """Clean-up affine matrices by removing those for which there is not path."""
+    names = [path.name for path in paths]
+    for name in list(affine.keys()):
+        if name not in names:
+            del affine[name]
+            logger.trace(f"Removed '{name}' from affine matrices.")
+    return affine

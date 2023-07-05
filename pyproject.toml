@@ -129,6 +129,7 @@ extend-ignore = [
     "D416", # Section name should end with a colon
     "RUF100", # Do not remove NOQA lines
     "C901", # Function is too complex
+    "D301" # Use r""" if any backslashes in a docstring
 ]
 
 [tool.ruff.per-file-ignores]

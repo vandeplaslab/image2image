@@ -38,16 +38,18 @@ class SelectTransformDialog(QtFramelessTool):
         self.setMinimumWidth(400)
         self.setMinimumHeight(400)
 
-        # update
-        self.on_update_transform_list()
-        self.on_update_data_list()
-
     def connect_events(self, state: bool = True):
         """Connect events."""
         # TODO: connect event that updates checkbox state when user changes visibility in layer list
         # change of model events
-        connect(self.parent().evt_loaded, self.on_update_data_list, state=state)
-        connect(self.parent().evt_closed, self.on_update_data_list, state=state)
+        connect(self.parent().dataset_dlg.evt_loaded, self.on_update_data_list, state=state)
+        connect(self.parent().dataset_dlg.evt_closed, self.on_update_data_list, state=state)
+
+    def show(self) -> None:
+        """Force update of the data/transform list."""
+        self.on_update_transform_list()
+        self.on_update_data_list()
+        super().show()
 
     def on_apply_transform(self):
         """On transform choice."""
@@ -61,12 +63,13 @@ class SelectTransformDialog(QtFramelessTool):
                 # get reader appropriate for the path
                 reader = self.model.get_reader(reader_path)
                 if reader:
-                    # transform information need to be updated
-                    reader.transform_name = transform
-                    reader.transform = matrix
-                    self.table.update_value(index, self.TABLE_CONFIG.transform, transform)
-                    self.parent().evt_transform_changed.emit(reader_path)
-                    logger.trace(f"Updated transformation matrix for '{reader_path}'")
+                    if reader.transform_name != transform:
+                        # transform information need to be updated
+                        reader.transform_name = transform
+                        reader.transform = matrix
+                        self.table.update_value(index, self.TABLE_CONFIG.transform, transform)
+                        self.parent().evt_transform_changed.emit(reader_path)
+                        logger.trace(f"Updated transformation matrix for '{reader_path}'")
                 else:
                     logger.warning(f"Could not update transformation matrix for '{reader_path}'")
 
@@ -132,7 +135,9 @@ class SelectTransformDialog(QtFramelessTool):
         self.transform_choice = hp.make_combobox(self, ["Identity matrix"])  # , func=self.on_transform_choice)
         self.add_btn = hp.make_qta_btn(self, "add", func=self.on_load_transform, normal=True)
 
-        self.table = QtCheckableTableView(self, config=self.TABLE_CONFIG, enable_all_check=True, sortable=True)
+        self.table = QtCheckableTableView(
+            self, config=self.TABLE_CONFIG, enable_all_check=True, sortable=True, double_click_to_check=True
+        )
         self.table.setCornerButtonEnabled(False)
         hp.set_font(self.table)
         self.table.setup_model(

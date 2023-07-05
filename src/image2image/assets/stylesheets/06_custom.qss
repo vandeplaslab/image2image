@@ -314,3 +314,7 @@ QLineEdit#table_cell {
 QLineEdit#table_cell:focus {
     background-color: {{ darken(background, 15) }};
 }
+
+QDialog#confirm_dialog > QLabel {
+    font-size: {{ increase(font_size, 3) }};
+}

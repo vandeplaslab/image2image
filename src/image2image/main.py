@@ -1,19 +1,22 @@
 """Main window."""
 import os
 import sys
+import typing as ty
 
 from loguru import logger
 
 
-def run(level: int = 10, no_color: bool = False, dev: bool = False, tool: str = "register"):
+def run(
+    level: int = 10,
+    no_color: bool = False,
+    dev: bool = False,
+    tool: ty.Literal["launcher", "register", "viewer"] = "register",
+):
     """Execute command."""
     from koyo.logging import set_loguru_log
     from qtextra.config import THEMES
 
     from image2image._appdirs import USER_LOG_DIR
-    from image2image.dialog_crop import ImageCropWindow
-    from image2image.dialog_register import ImageRegistrationWindow
-    from image2image.dialog_viewer import ImageViewerWindow
     from image2image.event_loop import get_app
 
     log_path = USER_LOG_DIR / f"log_tool={tool}.txt"
@@ -25,12 +28,23 @@ def run(level: int = 10, no_color: bool = False, dev: bool = False, tool: str = 
     # make app
     app = get_app()
     if tool == "register":
+        from image2image.dialog_register import ImageRegistrationWindow
+
         dlg = ImageRegistrationWindow(None)
+        dlg.setMinimumSize(1200, 500)
     elif tool == "viewer":
+        from image2image.dialog_viewer import ImageViewerWindow
+
         dlg = ImageViewerWindow(None)
+        dlg.setMinimumSize(1200, 500)
     elif tool == "crop":
+        from image2image.dialog_crop import ImageCropWindow
+
         dlg = ImageCropWindow(None)
-    dlg.setMinimumSize(1200, 500)
+        dlg.setMinimumSize(1200, 500)
+    else:
+        raise ValueError("Launcher is not implemented yet.")
+
     THEMES[THEMES.theme].font_size = "9pt"
     THEMES.set_theme_stylesheet(dlg)
 
@@ -41,7 +55,7 @@ def run(level: int = 10, no_color: bool = False, dev: bool = False, tool: str = 
         from qtextra.utils.dev import qdev
 
         segfault_path = USER_LOG_DIR / "segfault.log"
-        segfault_file = open(segfault_path, "w")
+        segfault_file = open(segfault_path, "w+")
         faulthandler.enable(segfault_file, all_threads=True)
         logger.trace(f"Enabled fault handler - logging to '{segfault_path}'")
         logger.enable("qtextra")

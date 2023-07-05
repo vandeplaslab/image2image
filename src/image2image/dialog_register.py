@@ -12,20 +12,18 @@ from loguru import logger
 from napari.layers import Image
 from napari.layers.points.points import Mode, Points
 from napari.layers.utils._link_layers import link_layers
-from qtextra._napari.mixins import ImageViewMixin
-from qtextra.mixins import IndicatorMixin
 from qtextra.utils.utilities import connect
 from qtextra.widgets.qt_mini_toolbar import QtMiniToolbar
 from qtpy.QtCore import Qt, Signal
-from qtpy.QtWidgets import QHBoxLayout, QMainWindow, QMenuBar, QSizePolicy, QVBoxLayout, QWidget
+from qtpy.QtWidgets import QHBoxLayout, QMenuBar, QSizePolicy, QVBoxLayout, QWidget
 from superqt import ensure_main_thread
 
 # need to load to ensure all assets are loaded properly
 import image2image.assets  # noqa: F401
 from image2image import __version__
 from image2image._select import FixedWidget, MovingWidget
-from image2image._sentry import install_error_monitor
 from image2image.config import CONFIG
+from image2image.dialog_base import Window
 from image2image.enums import ALLOWED_EXPORT_FORMATS, ALLOWED_IMPORT_FORMATS, TRANSFORMATION_TRANSLATIONS, ViewType
 from image2image.models import DataModel, Transformation
 from image2image.utilities import (
@@ -33,7 +31,6 @@ from image2image.utilities import (
     _get_text_format,
     get_colormap,
     init_points_layer,
-    log_exception,
     style_form_layout,
 )
 
@@ -41,7 +38,7 @@ if ty.TYPE_CHECKING:
     from skimage.transform import ProjectiveTransform
 
 
-class ImageRegistrationWindow(QMainWindow, IndicatorMixin, ImageViewMixin):
+class ImageRegistrationWindow(Window):
     """Image registration dialog."""
 
     fixed_image_layer: ty.Optional[ty.List["Image"]] = None
@@ -52,26 +49,13 @@ class ImageRegistrationWindow(QMainWindow, IndicatorMixin, ImageViewMixin):
     evt_predicted = Signal()
 
     def __init__(self, parent):
-        super().__init__(parent)
-        self.setAttribute(Qt.WA_DeleteOnClose)  # noqa
-        self.setWindowTitle(f"image2image: Simple image registration tool (v{__version__})")
-        self.setUnifiedTitleAndToolBarOnMac(True)
-        self.setMouseTracking(True)
-        self.setMinimumSize(1200, 800)
-
-        # load configuration
-        CONFIG.load()
-
-        self._setup_ui()
-        self.setup_events()
+        super().__init__(parent, f"image2image: Simple image registration tool (v{__version__})")
         self.transform_model = Transformation(
             fixed_model=self._fixed_widget.model,
             moving_model=self._moving_widget.model,
             fixed_points=self.fixed_points_layer.data,
             moving_points=self.moving_points_layer.data,
         )
-        # delay asking for telemetry opt-in by 10s
-        hp.call_later(self, install_error_monitor, 5_000)
 
     @property
     def transform(self) -> ty.Optional["ProjectiveTransform"]:
@@ -156,12 +140,22 @@ class ImageRegistrationWindow(QMainWindow, IndicatorMixin, ImageViewMixin):
         indicator = self.moving_indicator if which == "moving" else self.fixed_indicator
         indicator.setVisible(state)
 
+    def on_close_fixed(self, model: DataModel):
+        """Close fixed image."""
+        self._close_model(model, self.view_fixed, "fixed view")
+
     @ensure_main_thread
     def on_load_fixed(self, model: DataModel, channel_list: ty.List[str]):
         """Load fixed image."""
         if model and model.n_paths:
             self._on_load_fixed(model, channel_list)
-            hp.toast(self, "Loaded fixed data", f"Loaded fixed model with {model.n_paths} paths.")
+            hp.toast(
+                self,
+                "Loaded fixed data",
+                f"Loaded fixed model with {model.n_paths} paths.",
+                icon="success",
+                position="top_left",
+            )
         else:
             logger.warning(f"Failed to load fixed data - model={model}")
         self.on_indicator("fixed", False)
@@ -174,42 +168,11 @@ class ImageRegistrationWindow(QMainWindow, IndicatorMixin, ImageViewMixin):
         logger.info(f"Loaded fixed data in {timer()}")
 
     def _plot_fixed_layers(self, channel_list: ty.Optional[ty.List[str]] = None):
-        wrapper = self._fixed_widget.model.get_wrapper()
-        if channel_list is None:
-            channel_list = wrapper.channel_names()
-        fixed_image_layer = []
-        used = [layer.colormap for layer in self.view_fixed.layers if isinstance(layer, Image)]
-        for index, (name, array) in enumerate(wrapper.channel_image_iter()):
-            logger.trace(f"Adding '{name}' to fixed view...")
-            with MeasureTimer() as timer:
-                if name in self.view_fixed.layers:
-                    fixed_image_layer.append(self.view_fixed.layers[name])
-                    continue
-                fixed_image_layer.append(
-                    self.view_fixed.viewer.add_image(
-                        array,
-                        name=name,
-                        blending="additive",
-                        colormap=get_colormap(index, used),
-                        visible=name in channel_list,
-                    )
-                )
-                logger.trace(f"Added '{name}' to fixed view in {timer()}.")
-        self.fixed_image_layer = fixed_image_layer
+        self.fixed_image_layer = self._plot_image_layers(
+            self._fixed_widget.model, self.view_fixed, channel_list, "fixed view"
+        )
         if isinstance(self.fixed_image_layer, list) and len(self.fixed_image_layer) > 1:
             link_layers(self.fixed_image_layer, attributes=("opacity",))
-
-    def on_close_fixed(self, model: DataModel):
-        """Close fixed image."""
-        try:
-            channel_names = model.channel_names()
-            layer_names = [layer.name for layer in self.view_fixed.layers if isinstance(layer, Image)]
-            for name in layer_names:
-                if name not in channel_names:
-                    del self.view_fixed.layers[name]
-                    logger.trace(f"Removed '{name}' from fixed view.")
-        except Exception as e:
-            log_exception(e)
 
     def on_toggle_channel(self, name: str, state: bool, which: str):
         """Toggle channel."""
@@ -226,12 +189,22 @@ class ImageRegistrationWindow(QMainWindow, IndicatorMixin, ImageViewMixin):
             if isinstance(layer, Image):
                 layer.visible = state
 
+    def on_close_moving(self, model: DataModel):
+        """Close moving image."""
+        self._close_model(model, self.view_moving, "moving view")
+
     @ensure_main_thread
     def on_load_moving(self, model: DataModel, channel_list: ty.List[str]):
         """Open modality."""
         if model and model.n_paths:
             self._on_load_moving(model, channel_list)
-            hp.toast(self, "Loaded moving data", f"Loaded moving model with {model.n_paths} paths.")
+            hp.toast(
+                self,
+                "Loaded moving data",
+                f"Loaded moving model with {model.n_paths} paths.",
+                icon="success",
+                position="top_left",
+            )
         else:
             logger.warning(f"Failed to load moving data - model={model}")
         self.on_indicator("moving", False)
@@ -252,9 +225,9 @@ class ImageRegistrationWindow(QMainWindow, IndicatorMixin, ImageViewMixin):
             channel_list = wrapper.channel_names(CONFIG.view_type)
 
         moving_image_layer = []
-        used = [layer.colormap for layer in self.view_moving.layers if isinstance(layer, Image)]
         for index, (name, array) in enumerate(wrapper.channel_image_iter()):
             logger.trace(f"Adding '{name}' to moving view...")
+            used = [layer.colormap for layer in self.view_moving.layers if isinstance(layer, Image)]
             with MeasureTimer() as timer:
                 colormap = get_colormap(index, used) if is_overlay else "turbo"
                 is_visible = True if (is_overlay and index == 0) else (not is_overlay)
@@ -277,18 +250,6 @@ class ImageRegistrationWindow(QMainWindow, IndicatorMixin, ImageViewMixin):
                     layer.visible = False
         self.moving_image_layer = moving_image_layer
 
-    def on_close_moving(self, model: DataModel):
-        """Close moving image."""
-        try:
-            channel_names = model.channel_names()
-            layer_names = [layer.name for layer in self.view_moving.layers if isinstance(layer, Image)]
-            for name in layer_names:
-                if name not in channel_names:
-                    del self.view_moving.layers[name]
-                    logger.trace(f"Removed '{name}' from moving view.")
-        except Exception as e:
-            log_exception(e)
-
     def on_change_view_type(self, _view_type: str):
         """Change view type."""
         if self._moving_widget.model.n_paths:
@@ -307,13 +268,6 @@ class ImageRegistrationWindow(QMainWindow, IndicatorMixin, ImageViewMixin):
             else (self.view_moving, self.moving_points_layer)
         )
         self._move_layer(view, layer)
-
-    @staticmethod
-    def _move_layer(view, layer, new_index: int = -1, select: bool = True):
-        """Move a layer and select it."""
-        view.layers.move(view.layers.index(layer), new_index)
-        if select:
-            view.layers.selection.select_only(layer)
 
     def _get_mode_button(self, which: str, mode):
         if which == "fixed":
@@ -445,7 +399,13 @@ class ImageRegistrationWindow(QMainWindow, IndicatorMixin, ImageViewMixin):
             path = Path(path)
             CONFIG.output_dir = str(path.parent)
             transform.to_file(path)
-            hp.toast(self, "Exported transformation", f"Saved transformation to<br><b>{path}</b>")
+            hp.toast(
+                self,
+                "Exported transformation",
+                f"Saved transformation to<br><b>{path}</b>",
+                icon="success",
+                position="top_left",
+            )
 
     def on_load(self, _evt=None):
         """Import transformation."""
@@ -521,22 +481,14 @@ class ImageRegistrationWindow(QMainWindow, IndicatorMixin, ImageViewMixin):
             self._table = FiducialsDialog(self)
         self._table.show()
 
-    def on_show_console(self):
-        """View console."""
-        if self._console is None:
-            from image2image._console import QtConsoleDialog
-
-            self._console = QtConsoleDialog(self)
-            self._console.push_variables(
-                {
-                    "transform_model": self.transform_model,
-                    "fixed_viewer": self.view_fixed.viewer,
-                    "fixed_model": self._fixed_widget.model,
-                    "moving_viewer": self.view_moving.viewer,
-                    "moving_model": self._moving_widget.model,
-                }
-            )
-        self._console.show()
+    def _get_console_variables(self) -> ty.Dict:
+        return {
+            "transform_model": self.transform_model,
+            "fixed_viewer": self.view_fixed.viewer,
+            "fixed_model": self._fixed_widget.model,
+            "moving_viewer": self.view_moving.viewer,
+            "moving_model": self._moving_widget.model,
+        }
 
     @ensure_main_thread
     def on_apply(self, update_data: bool = False, name: ty.Optional[str] = None):
@@ -720,18 +672,8 @@ class ImageRegistrationWindow(QMainWindow, IndicatorMixin, ImageViewMixin):
         self._make_menu()
         self._make_icon()
 
-    def _make_icon(self):
-        """Make icon."""
-        from image2image.assets import ICON_ICO
-
-        self.setWindowIcon(hp.get_icon_from_img(ICON_ICO))
-
     def _make_menu(self):
         """Make menu items."""
-        from image2image._dialogs import open_about
-        from image2image._sentry import ask_opt_in, send_feedback
-        from image2image.utilities import open_bug_report, open_docs, open_github, open_request
-
         # File menu
         menu_file = hp.make_menu(self, "File")
         hp.make_menu_item(
@@ -767,38 +709,7 @@ class ImageRegistrationWindow(QMainWindow, IndicatorMixin, ImageViewMixin):
         hp.make_menu_item(self, "Show IPython console...", "Ctrl+T", menu=menu_tools, func=self.on_show_console)
 
         # Help menu
-        menu_help = hp.make_menu(self, "Help")
-        hp.make_menu_item(self, "Documentation (in browser)", menu=menu_help, icon="web", func=open_docs)
-        hp.make_menu_item(
-            self,
-            "GitHub (online)",
-            menu=menu_help,
-            status_tip="Open project's GitHub page.",
-            icon="github",
-            func=open_github,
-        )
-        hp.make_menu_item(
-            self,
-            "Request Feature (online)",
-            menu=menu_help,
-            status_tip="Open project's GitHub feature request page.",
-            icon="request",
-            func=open_request,
-        )
-        hp.make_menu_item(
-            self,
-            "Report Bug (online)",
-            menu=menu_help,
-            status_tip="Open project's GitHub bug report page.",
-            icon="bug",
-            func=open_bug_report,
-        )
-        menu_help.addSeparator()
-        hp.make_menu_item(
-            self, "Send feedback...", menu=menu_help, func=partial(send_feedback, parent=self), icon="feedback"
-        )
-        hp.make_menu_item(self, "Telemetry...", menu=menu_help, func=partial(ask_opt_in, parent=self), icon="telemetry")
-        hp.make_menu_item(self, "About...", menu=menu_help, func=partial(open_about, parent=self), icon="info")
+        menu_help = self._make_help_menu()
 
         # set actions
         self.menubar = QMenuBar(self)

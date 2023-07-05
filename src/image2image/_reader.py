@@ -182,7 +182,12 @@ def sanitize_path(path: PathLike) -> Path:
     return path
 
 
-def read_image(path: PathLike, wrapper: ty.Optional["ImageWrapper"] = None, is_fixed: bool = False) -> "ImageWrapper":
+def read_image(
+    path: PathLike,
+    wrapper: ty.Optional["ImageWrapper"] = None,
+    is_fixed: bool = False,
+    affine: ty.Optional[np.ndarray] = None,
+) -> "ImageWrapper":
     """Read image data."""
     path = Path(path)
     assert path.exists(), f"File does not exist: {path}"
@@ -217,6 +222,11 @@ def read_image(path: PathLike, wrapper: ty.Optional["ImageWrapper"] = None, is_f
             path, reader = _read_metadata_h5_coordinates(path)
     else:
         raise ValueError(f"Unsupported file format: {suffix}")
+
+    if affine is not None:
+        reader.transform = affine
+        reader.transform_name = path.name
+
     if wrapper is None:
         wrapper = ImageWrapper(None)
 

@@ -1,4 +1,5 @@
 """CLI."""
+import typing as ty
 
 import click
 
@@ -38,15 +39,37 @@ def dev_options(func):
     help="Verbose output. This is additive flag so `-vvv` will print `INFO` messages and -vvvv will print `DEBUG`"
     " information.",
 )
+@click.option(
+    "-t",
+    "--tool",
+    type=click.Choice(["launcher", "register", "viewer", "crop"]),
+    default="register",
+    show_default=True,
+)
 @click.command(
     context_settings={"help_option_names": ["-h", "--help"], "max_content_width": 120, "ignore_unknown_options": True},
 )
 @click.pass_context
-def cli(ctx, verbosity: int, no_color: bool, dev: bool = False, extras=None):
-    """Launch image2image app."""
+def cli(
+    ctx,
+    tool: ty.Literal["launcher", "register", "viewer"],
+    verbosity: int,
+    no_color: bool,
+    dev: bool = False,
+    extras=None,
+):
+    """Launch image2image app.
+
+    \b
+    Available tools:
+    launcher - opens dialog where you can launch any of the tools.
+    register - opens dialog where you can co-register images.
+    viewer - opens dialog where you can view images.
+    crop - opens dialog where you can crop images (not implemented yet)
+    """
     from image2image.main import run
 
     if dev:
         verbosity = 0.5
     level = min(0.5, verbosity) * 10
-    run(level=int(level), no_color=no_color, dev=dev)
+    run(level=int(level), no_color=no_color, dev=dev, tool=tool)

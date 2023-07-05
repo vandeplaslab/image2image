@@ -163,3 +163,4 @@ _version.py
 .idea/modules.xml
 .idea/misc.xml
 .idea/workspace.xml
+.idea/watcherTasks.xml

@@ -4,6 +4,7 @@ from contextlib import contextmanager
 from functools import partial
 from pathlib import Path
 
+import numpy as np
 from koyo.typing import PathLike
 from loguru import logger
 from qtextra import helpers as hp
@@ -420,14 +421,16 @@ class SelectImagesDialog(QtFramelessTool):
             return True
         return False
 
-    def _on_load_dataset(self, path_or_paths: ty.Union[PathLike, ty.List[PathLike]]):
+    def _on_load_dataset(
+        self, path_or_paths: ty.Union[PathLike, ty.List[PathLike]], affine: ty.Optional[ty.Dict[str, np.ndarray]] = None
+    ):
         """Load data."""
         self.evt_loading.emit()  # noqa
         if not isinstance(path_or_paths, list):
             path_or_paths = [path_or_paths]
         self.model.add_paths(path_or_paths)
         func = thread_worker(
-            self.model.load,
+            partial(self.model.load, affine=affine),
             start_thread=True,
             connect={"returned": self._on_loaded_dataset, "errored": self._on_failed_dataset},
         )

@@ -2,6 +2,7 @@
 import typing as ty
 from pathlib import Path
 
+import numpy as np
 import qtextra.helpers as hp
 from koyo.typing import PathLike
 from qtextra.utils.utilities import connect
@@ -37,11 +38,13 @@ class LoadMixin(QWidget):
         """Setup UI."""
         raise NotImplementedError("Must implement method")
 
-    def on_set_path(self, paths: ty.Union[PathLike, ty.List[PathLike]]):
+    def on_set_path(
+        self, paths: ty.Union[PathLike, ty.List[PathLike]], affine: ty.Optional[ty.Dict[str, np.ndarray]] = None
+    ):
         """Set the path and immediately load it."""
         if isinstance(paths, (str, Path)):
             paths = [paths]
-        self.dataset_dlg._on_load_dataset(paths)
+        self.dataset_dlg._on_load_dataset(paths, affine)
 
     def on_select_dataset(self, _evt=None):
         """Load data."""

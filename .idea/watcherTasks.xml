@@ -2,6 +2,7 @@
 <project version="4">
   <component name="ProjectTasksOptions">
     <enabled-global>
+      <option value="black" />
       <option value="ruff" />
     </enabled-global>
   </component>

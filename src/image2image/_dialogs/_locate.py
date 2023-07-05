@@ -25,8 +25,10 @@ class LocateFilesDialog(QtDialog):
         .add("comment", "valid", "str", 100)
     )
 
-    def __init__(self, parent, micro_paths: ty.List[PathLike], ims_paths: ty.List[PathLike]):
-        paths = ims_paths + micro_paths
+    def __init__(self, parent, fixed_paths: ty.List[PathLike], moving_paths: ty.Optional[ty.List[PathLike]] = None):
+        paths = fixed_paths
+        if moving_paths:
+            paths.extend(moving_paths)
         self.paths: ty.List[ty.Dict[str, ty.Optional[PathLike]]] = [
             {"old_path": Path(path), "new_path": None} for path in paths
         ]

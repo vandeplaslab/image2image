@@ -1,55 +1,32 @@
 """Viewer dialog."""
 import typing as ty
-from functools import partial
 from pathlib import Path
 
-import numpy as np
 import qtextra.helpers as hp
 from koyo.timer import MeasureTimer
 from loguru import logger
 from napari.layers import Image
-from qtextra._napari.mixins import ImageViewMixin
-from qtextra.mixins import IndicatorMixin
 from qtextra.utils.utilities import connect
-from qtpy.QtCore import Qt
-from qtpy.QtWidgets import QHBoxLayout, QMainWindow, QMenuBar, QVBoxLayout, QWidget
+from qtpy.QtWidgets import QHBoxLayout, QMenuBar, QVBoxLayout, QWidget
 from superqt import ensure_main_thread
 
-import image2image.assets  # noqa: F401
 from image2image import __version__
 from image2image._select import LoadWithTransformWidget
-
-# need to load to ensure all assets are loaded properly
 from image2image.config import CONFIG
+from image2image.dialog_base import Window
 from image2image.enums import ALLOWED_PROJECT_FORMATS
 from image2image.models import DataModel
-from image2image.utilities import (
-    get_colormap,
-    log_exception,
-    style_form_layout,
-)
+from image2image.utilities import style_form_layout
 
 
-class ImageViewerWindow(QMainWindow, IndicatorMixin, ImageViewMixin):
+class ImageViewerWindow(Window):
     """Image viewer dialog."""
 
+    image_layer: ty.Optional[ty.List["Image"]] = None
     _console = None
 
     def __init__(self, parent):
-        super().__init__(parent)
-        self.setAttribute(Qt.WA_DeleteOnClose)  # noqa
-        self.setWindowTitle(f"image2viewer: Simple viewer app (v{__version__})")
-        self.setUnifiedTitleAndToolBarOnMac(True)
-        self.setMouseTracking(True)
-        self.setMinimumSize(1200, 800)
-
-        # load configuration
-        CONFIG.load()
-
-        self._setup_ui()
-        self.setup_events()
-        # delay asking for telemetry opt-in by 10s
-        # hp.call_later(self, install_error_monitor, 5_000)
+        super().__init__(parent, f"image2viewer: Simple viewer app (v{__version__})")
 
     def setup_events(self, state: bool = True):
         """Setup events."""
@@ -63,7 +40,9 @@ class ImageViewerWindow(QMainWindow, IndicatorMixin, ImageViewMixin):
         """Load fixed image."""
         if model and model.n_paths:
             self._on_load_image(model, channel_list)
-            hp.toast(self, "Loaded data", f"Loaded model with {model.n_paths} paths.")
+            hp.toast(
+                self, "Loaded data", f"Loaded model with {model.n_paths} paths.", icon="success", position="top_left"
+            )
         else:
             logger.warning(f"Failed to load data - model={model}")
         # self.on_indicator("fixed", False)
@@ -71,46 +50,17 @@ class ImageViewerWindow(QMainWindow, IndicatorMixin, ImageViewMixin):
     def _on_load_image(self, model: DataModel, channel_list: ty.Optional[ty.List[str]] = None):
         with MeasureTimer() as timer:
             logger.info(f"Loading fixed data with {model.n_paths} paths...")
-            self._plot_image_layers(channel_list)
+            self.plot_image_layers(channel_list)
             self.view.viewer.reset_view()
         logger.info(f"Loaded data in {timer()}")
 
-    def _plot_image_layers(self, channel_list: ty.Optional[ty.List[str]] = None):
-        wrapper = self._image_widget.model.get_wrapper()
-        if channel_list is None:
-            channel_list = wrapper.channel_names()
-        fixed_image_layer = []
-        used = [layer.colormap for layer in self.view.layers if isinstance(layer, Image)]
-        for index, (name, array) in enumerate(wrapper.channel_image_iter()):
-            logger.trace(f"Adding '{name}' to view...")
-            with MeasureTimer() as timer:
-                if name in self.view.layers:
-                    fixed_image_layer.append(self.view.layers[name])
-                    continue
-                fixed_image_layer.append(
-                    self.view.viewer.add_image(
-                        array,
-                        name=name,
-                        blending="additive",
-                        colormap=get_colormap(index, used),
-                        visible=name in channel_list,
-                        affine=np.eye(3),  # TODO: need to fix this
-                    )
-                )
-                logger.trace(f"Added '{name}' to view in {timer()}.")
-        self.fixed_image_layer = fixed_image_layer
+    def plot_image_layers(self, channel_list: ty.Optional[ty.List[str]] = None):
+        """Plot image layers."""
+        self.image_layer = self._plot_image_layers(self._image_widget.model, self.view, channel_list, "view")
 
     def on_close_image(self, model: DataModel):
         """Close fixed image."""
-        try:
-            channel_names = model.channel_names()
-            layer_names = [layer.name for layer in self.view.layers if isinstance(layer, Image)]
-            for name in layer_names:
-                if name not in channel_names:
-                    del self.view.layers[name]
-                    logger.trace(f"Removed '{name}' from view.")
-        except Exception as e:
-            log_exception(e)
+        self._close_model(model, self.view, "view")
 
     def on_update_transform(self, path):
         """Update affine transformation."""
@@ -123,29 +73,48 @@ class ImageViewerWindow(QMainWindow, IndicatorMixin, ImageViewMixin):
                 layer.affine = reader.transform
                 logger.trace(f"Updated affine for '{name}' to {reader.transform}.")
 
-    def on_show_console(self):
-        """View console."""
-        if self._console is None:
-            from image2image._console import QtConsoleDialog
+    def on_show_scalebar(self):
+        """Show scale bar controls for the viewer."""
+        from qtextra._napari.image.component_controls.qt_scalebar_controls import QtScaleBarControls
 
-            self._console = QtConsoleDialog(self)
-            self._console.push_variables(
-                {
-                    "transforms_model": self._image_widget.table_dlg.transform_model,
-                    "viewer": self.view.viewer,
-                    "image_model": self._image_widget.model,
-                }
-            )
-        self._console.show()
+        dlg = QtScaleBarControls(self.view.viewer, self.view.widget)
+        dlg.show_below_widget(self._image_widget)
 
-    def on_load(self):
+    def on_load(self, _evt=None):
         """Load a previous project."""
         path = hp.get_filename(
             self, "Load i2v project", base_dir=CONFIG.output_dir, file_filter=ALLOWED_PROJECT_FORMATS
         )
         if path:
+            from image2image.models import _clean_up_affine_matrices, load_viewer_setup_from_file
+
             path = Path(path)
             CONFIG.output_dir = str(path.parent)
+
+            # load data from config file
+            try:
+                paths, paths_missing, affine = load_viewer_setup_from_file(path)
+            except ValueError as e:
+                hp.warn(self, f"Failed to load transformation from {path}\n{e}", "Failed to load transformation")
+                return
+
+            # locate paths that are missing
+            if paths_missing:
+                from image2image._dialogs import LocateFilesDialog
+
+                dlg = LocateFilesDialog(self, paths_missing)
+                if dlg.exec_():  # noqa
+                    paths = dlg.fix_missing_paths(paths_missing, paths)
+
+            # clean-up affine matrices
+            affine = _clean_up_affine_matrices(affine, paths)
+            # add paths
+            if paths:
+                self._image_widget.on_set_path(paths, affine)
+
+            # add affine matrices to transform object
+            for name, matrix in affine.items():
+                self._image_widget.transform_model.add_transform(name, matrix)
 
     def on_save(self):
         """Export project."""
@@ -166,9 +135,10 @@ class ImageViewerWindow(QMainWindow, IndicatorMixin, ImageViewMixin):
             path = Path(path)
             CONFIG.output_dir = str(path.parent)
             model.to_file(path)
-            hp.toast(self, "Exported i2v project", f"Saved project to <br><b>{path}</b>")
+            hp.toast(
+                self, "Exported i2v project", f"Saved project to <br><b>{path}</b>", icon="success", position="top_left"
+            )
 
-    # noinspection PyAttributeOutsideInit
     def _setup_ui(self):
         """Create panel."""
         self.view = self._make_image_view(self, add_toolbars=False, allow_extraction=False, disable_controls=True)
@@ -208,6 +178,7 @@ class ImageViewerWindow(QMainWindow, IndicatorMixin, ImageViewMixin):
         self._make_menu()
         self._make_icon()
 
+    # noinspection PyAttributeOutsideInit
     def _make_icon(self):
         """Make icon."""
         from image2image.assets import ICON_ICO
@@ -216,10 +187,6 @@ class ImageViewerWindow(QMainWindow, IndicatorMixin, ImageViewMixin):
 
     def _make_menu(self):
         """Make menu items."""
-        from image2image._dialogs import open_about
-        from image2image._sentry import ask_opt_in, send_feedback
-        from image2image.utilities import open_bug_report, open_docs, open_github, open_request
-
         # File menu
         menu_file = hp.make_menu(self, "File")
         hp.make_menu_item(
@@ -234,41 +201,12 @@ class ImageViewerWindow(QMainWindow, IndicatorMixin, ImageViewMixin):
 
         # Tools menu
         menu_tools = hp.make_menu(self, "Tools")
+        hp.make_menu_item(self, "Show scale bar controls...", "Ctrl+S", menu=menu_tools, func=self.on_show_scalebar)
+        menu_tools.addSeparator()
         hp.make_menu_item(self, "Show IPython console...", "Ctrl+T", menu=menu_tools, func=self.on_show_console)
 
         # Help menu
-        menu_help = hp.make_menu(self, "Help")
-        hp.make_menu_item(self, "Documentation (in browser)", menu=menu_help, icon="web", func=open_docs)
-        hp.make_menu_item(
-            self,
-            "GitHub (online)",
-            menu=menu_help,
-            status_tip="Open project's GitHub page.",
-            icon="github",
-            func=open_github,
-        )
-        hp.make_menu_item(
-            self,
-            "Request Feature (online)",
-            menu=menu_help,
-            status_tip="Open project's GitHub feature request page.",
-            icon="request",
-            func=open_request,
-        )
-        hp.make_menu_item(
-            self,
-            "Report Bug (online)",
-            menu=menu_help,
-            status_tip="Open project's GitHub bug report page.",
-            icon="bug",
-            func=open_bug_report,
-        )
-        menu_help.addSeparator()
-        hp.make_menu_item(
-            self, "Send feedback...", menu=menu_help, func=partial(send_feedback, parent=self), icon="feedback"
-        )
-        hp.make_menu_item(self, "Telemetry...", menu=menu_help, func=partial(ask_opt_in, parent=self), icon="telemetry")
-        hp.make_menu_item(self, "About...", menu=menu_help, func=partial(open_about, parent=self), icon="info")
+        menu_help = self._make_help_menu()
 
         # set actions
         self.menubar = QMenuBar(self)
@@ -276,6 +214,13 @@ class ImageViewerWindow(QMainWindow, IndicatorMixin, ImageViewMixin):
         self.menubar.addAction(menu_tools.menuAction())
         self.menubar.addAction(menu_help.menuAction())
         self.setMenuBar(self.menubar)
+
+    def _get_console_variables(self) -> ty.Dict:
+        return {
+            "transforms_model": self._image_widget.table_dlg.transform_model,
+            "viewer": self.view.viewer,
+            "image_model": self._image_widget.model,
+        }
 
 
 if __name__ == "__main__":  # pragma: no cover
