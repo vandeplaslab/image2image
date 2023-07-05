@@ -45,6 +45,8 @@ update_icon_mapping(
         "lock_open": "fa5s.lock-open",
         "telemetry": "mdi.telegram",
         "feedback": "msc.feedback",
+        "viewer": "fa5.images",
+        "register": "fa5s.layer-group",
     }
 )
 THEMES.register_themes()

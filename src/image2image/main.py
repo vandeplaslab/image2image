@@ -37,11 +37,16 @@ def run(
 
         dlg = ImageViewerWindow(None)
         dlg.setMinimumSize(1200, 500)
-    elif tool == "crop":
-        from image2image.dialog_crop import ImageCropWindow
+    elif tool == "launcher":
+        from image2image.launcher import Launcher
 
-        dlg = ImageCropWindow(None)
+        dlg = Launcher(None)
         dlg.setMinimumSize(1200, 500)
+    # elif tool == "crop":
+    #     from image2image.dialog_crop import ImageCropWindow
+    #
+    #     dlg = ImageCropWindow(None)
+    #     dlg.setMinimumSize(1200, 500)
     else:
         raise ValueError("Launcher is not implemented yet.")
 
@@ -63,7 +68,10 @@ def run(
 
         dev = qdev(dlg, modules=["qtextra", "image2image"])
         dev.evt_theme.connect(lambda: THEMES.set_theme_stylesheet(dlg))
-        dlg.centralWidget().layout().addWidget(dev)
+        if hasattr(dlg, "centralWidget"):
+            dlg.centralWidget().layout().addWidget(dev)
+        else:
+            dlg.layout().addWidget(dev)
 
         # install_debugger_hook()
         os.environ["IMAGE2IMAGE_DEV_MODE"] = "1"

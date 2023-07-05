@@ -43,7 +43,7 @@ def dev_options(func):
     "-t",
     "--tool",
     type=click.Choice(["launcher", "register", "viewer", "crop"]),
-    default="register",
+    default="launcher",
     show_default=True,
 )
 @click.command(

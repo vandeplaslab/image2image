@@ -45,13 +45,13 @@ QtQtaLabel#xlarge_icon{
     min-height : 60px;
     max-height : 60px;
 }
-QtQtaLabel#xxlarge_icon{
+QtQtaLabel#xxlarge_icon, QtImagePushButton#xxlarge_icon{
     min-width : 80px;
     max-width : 80px;
     min-height : 80px;
     max-height : 80px;
 }
-QtQtaLabel#xxxlarge_icon{
+QtQtaLabel#xxxlarge_icon, QtImagePushButton#xxxlarge_icon{
     min-width : 120px;
     max-width : 120px;
     min-height : 120px;
