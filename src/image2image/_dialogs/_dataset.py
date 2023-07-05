@@ -1,3 +1,4 @@
+"""Windows for dataset management."""
 import typing as ty
 from contextlib import contextmanager
 from functools import partial
@@ -11,7 +12,8 @@ from qtextra.utils.utilities import connect
 from qtextra.widgets.qt_dialog import QtDialog, QtFramelessTool
 from qtextra.widgets.qt_table_view import QtCheckableTableView
 from qtpy.QtCore import Qt, Signal
-from qtpy.QtWidgets import QFormLayout, QHeaderView, QTableWidget, QTableWidgetItem
+from qtpy.QtGui import QDoubleValidator
+from qtpy.QtWidgets import QFormLayout, QHeaderView, QLineEdit, QTableWidget, QTableWidgetItem
 from superqt.utils import thread_worker
 
 from image2image.config import CONFIG
@@ -19,7 +21,6 @@ from image2image.enums import ALLOWED_FORMATS
 from image2image.utilities import log_exception, style_form_layout
 
 if ty.TYPE_CHECKING:
-    from image2image._select import LoadWidget
     from image2image.models import DataModel
 
 
@@ -55,7 +56,7 @@ class CloseDatasetDialog(QtDialog):
                 self,
                 "Please select which images should be <b>removed</b> from the project."
                 " Fiducial markers will be unaffected.",
-                alignment=Qt.AlignHCenter,
+                alignment=Qt.AlignHCenter,  # noqa
                 enable_url=True,
                 wrap=True,
             )
@@ -80,8 +81,8 @@ class CloseDatasetDialog(QtDialog):
     def on_apply(self):
         """Apply."""
         self.paths = self.get_paths()
-        all_checked = len(self.config) == len(self.checkboxes)
-        self.all_check.setCheckState(Qt.Checked if all_checked else Qt.Unchecked)
+        all_checked = len(self.paths) == len(self.checkboxes)
+        self.all_check.setCheckState(Qt.Checked if all_checked else Qt.Unchecked)  # noqa
 
     def get_paths(self) -> ty.List[Path]:
         """Return state."""
@@ -102,7 +103,7 @@ class SelectChannelsToLoadDialog(QtDialog):
         .add("channel name (full)", "channel_name_full", "str", 0, hidden=True)
     )
 
-    def __init__(self, parent: "LoadWidget", model: "DataModel"):
+    def __init__(self, parent: "SelectImagesDialog", model: "DataModel"):
         super().__init__(parent, title="Select Channels to Load")
         self.model = model
 
@@ -159,7 +160,7 @@ class SelectChannelsToLoadDialog(QtDialog):
                 "<b>Tip.</b> You can quickly check/uncheck row by double-clicking on a row.<br>"
                 "<b>Tip.</b> Check/uncheck a row to select which channels should be immediately loaded.<br>"
                 "<b>Tip.</b> You can quickly check/uncheck all rows by clicking on the first column header.",
-                alignment=Qt.AlignHCenter,
+                alignment=Qt.AlignHCenter,  # noqa
                 object_name="tip_label",
                 enable_url=True,
             )
@@ -178,7 +179,7 @@ class ExtractChannelsDialog(QtDialog):
 
     TABLE_CONFIG = TableConfig().add("", "check", "bool", 0, no_sort=True, hidden=True).add("m/z", "mz", "float", 100)
 
-    def __init__(self, parent: "LoadWidget", path_to_extract):
+    def __init__(self, parent: "SelectImagesDialog", path_to_extract):
         super().__init__(parent, title="Extract Ion Images")
         self.setFocus()
         self.path_to_extract = path_to_extract
@@ -241,7 +242,7 @@ class ExtractChannelsDialog(QtDialog):
             hp.make_label(
                 self,
                 "<b>Tip.</b> Press <b>Delete</b> or <b>Backspace</b> to delete a peak.",
-                alignment=Qt.AlignHCenter,
+                alignment=Qt.AlignHCenter,  # noqa
                 object_name="tip_label",
                 enable_url=True,
             )
@@ -257,12 +258,12 @@ class ExtractChannelsDialog(QtDialog):
     def keyPressEvent(self, evt):
         """Key press event."""
         key = evt.key()
-        if key == Qt.Key_Escape:
+        if key == Qt.Key_Escape:  # noqa
             evt.ignore()
-        elif key == Qt.Key_Backspace or key == Qt.Key_Delete:
+        elif key == Qt.Key_Backspace or key == Qt.Key_Delete:  # noqa
             self.on_delete_row()
             evt.accept()
-        elif key == Qt.Key_Plus or key == Qt.Key_A:
+        elif key == Qt.Key_Plus or key == Qt.Key_A:  # noqa
             self.on_add()
             evt.accept()
         else:
@@ -291,23 +292,31 @@ class SelectImagesDialog(QtFramelessTool):
         self.is_fixed = is_fixed
         super().__init__(parent)
         self.model = model
-        self.setMinimumWidth(400)
+        self.setMinimumWidth(600)
         self.setMinimumHeight(400)
 
         self.on_load()
 
     def on_remove(self, name: str, path: str):
         """Remove path."""
+        row = None
         for row in range(self.table.rowCount()):
             item = self.table.item(row, self.TABLE_CONFIG.name)
             if item.text() == name:
                 break
+
+        if row is None:
+            logger.warning("Could not find row to remove.")
+            return
+        if not hp.confirm(self, f"Are  you sure you wish to remove <b>{name}</b>?", title="Remove?"):
+            return
+
         # remove from table
         self.table.removeRow(row)
 
         # remove from model
         self.model.remove_paths(Path(path))
-        self.evt_closed.emit(self.model)
+        self.evt_closed.emit(self.model)  # noqa
 
     def on_table_item_changed(self, row, column):
         """Table item changed."""
@@ -341,13 +350,18 @@ class SelectImagesDialog(QtFramelessTool):
                     self.table.insertRow(index)
                     # add name item
                     item = QTableWidgetItem(name)
-                    item.setFlags(item.flags() & ~Qt.ItemIsEditable)
-                    item.setTextAlignment(Qt.AlignCenter)
+                    item.setFlags(item.flags() & ~Qt.ItemIsEditable)  # noqa
+                    item.setTextAlignment(Qt.AlignCenter)  # noqa
                     self.table.setItem(index, self.TABLE_CONFIG.name, item)
                     # add resolution item
-                    item = QTableWidgetItem(f"{resolution:.2f}")
-                    item.setTextAlignment(Qt.AlignCenter)
-                    self.table.setItem(index, self.TABLE_CONFIG.resolution, item)
+                    item = QLineEdit(f"{resolution:.2f}")
+                    item.setObjectName("table_cell")
+                    item.setAlignment(Qt.AlignCenter)  # noqa
+                    item.setValidator(QDoubleValidator(0, 100, 2))
+                    self.table.setCellWidget(index, self.TABLE_CONFIG.resolution, item)
+                    # item = QTableWidgetItem(f"{resolution:.2f}")
+                    # item.setTextAlignment(Qt.AlignCenter)
+                    # self.table.setItem(index, self.TABLE_CONFIG.resolution, item)
                     # # add extract button
                     if reader.allow_extraction:
                         self.table.setCellWidget(
@@ -359,8 +373,8 @@ class SelectImagesDialog(QtFramelessTool):
                         )
                     else:
                         item = QTableWidgetItem("N/A")
-                        item.setFlags(item.flags() & ~Qt.ItemIsEditable)
-                        item.setTextAlignment(Qt.AlignCenter)
+                        item.setFlags(item.flags() & ~Qt.ItemIsEditable)  # noqa
+                        item.setTextAlignment(Qt.AlignCenter)  # noqa
                         self.table.setItem(index, self.TABLE_CONFIG.extract, item)
                     # add remove button
                     self.table.setCellWidget(
@@ -395,20 +409,20 @@ class SelectImagesDialog(QtFramelessTool):
             paths = None
             if not force:  # only ask user if not forced
                 dlg = CloseDatasetDialog(self, self.model)
-                if dlg.exec_():
+                if dlg.exec_():  # noqa
                     paths = dlg.paths
             else:
                 paths = self.model.paths
             if paths:
                 self.model.remove_paths(paths)
-                self.evt_closed.emit(self.model)
+                self.evt_closed.emit(self.model)  # noqa
             self.on_load()
             return True
         return False
 
     def _on_load_dataset(self, path_or_paths: ty.Union[PathLike, ty.List[PathLike]]):
         """Load data."""
-        self.evt_loading.emit()
+        self.evt_loading.emit()  # noqa
         if not isinstance(path_or_paths, list):
             path_or_paths = [path_or_paths]
         self.model.add_paths(path_or_paths)
@@ -425,7 +439,7 @@ class SelectImagesDialog(QtFramelessTool):
         # select what should be loaded
         dlg = SelectChannelsToLoadDialog(self, model)
         channel_list = []
-        if dlg.exec_():
+        if dlg.exec_():  # noqa
             channel_list = dlg.channels
         logger.info(f"Selected channels: {channel_list}")
         if not channel_list:
@@ -433,14 +447,14 @@ class SelectImagesDialog(QtFramelessTool):
             model, channel_list = None, None
             logger.warning("No channels selected - dataset not loaded")
         # load data into an image
-        self.evt_loaded.emit(model, channel_list)
+        self.evt_loaded.emit(model, channel_list)  # noqa
         self.on_load()
 
     def _on_failed_dataset(self, exception: Exception):
         """Failed to load dataset."""
         logger.error("Error occurred while loading dataset.")
         log_exception(exception)
-        self.evt_loaded.emit(None, None)
+        self.evt_loaded.emit(None, None)  # noqa
 
     def _on_extract_channels(self, path: PathLike):
         """Extract channels from the list."""
@@ -455,7 +469,7 @@ class SelectImagesDialog(QtFramelessTool):
 
         dlg = ExtractChannelsDialog(self, path)
         path, mzs, ppm = None, None, None
-        if dlg.exec_():
+        if dlg.exec_():  # noqa
             path = dlg.path_to_extract
             mzs = dlg.mzs
             ppm = dlg.ppm
@@ -464,7 +478,7 @@ class SelectImagesDialog(QtFramelessTool):
             reader: "CoordinateReader" = self.model.get_reader(path)  # noqa
             if reader:
                 func = thread_worker(
-                    partial(reader.extract, mzs=mzs, ppm=ppm),
+                    partial(reader.extract, mzs=mzs, ppm=ppm),  # noqa
                     start_thread=True,
                     connect={"returned": self._on_update_dataset, "errored": self._on_failed_update_dataset},
                 )
@@ -474,7 +488,7 @@ class SelectImagesDialog(QtFramelessTool):
         """Finished loading data."""
         path, channel_list = result
         # load data into an image
-        self.evt_loaded.emit(self.model, channel_list)
+        self.evt_loaded.emit(self.model, channel_list)  # noqa
 
     @staticmethod
     def _on_failed_update_dataset(exception: Exception):
@@ -491,7 +505,7 @@ class SelectImagesDialog(QtFramelessTool):
         self.table = QTableWidget(self)
         self.table.setColumnCount(4)  # name, resolution, extract, delete
         self.table.setHorizontalHeaderLabels(["name", "pixel size (μm)", "", ""])
-        self.table.cellChanged.connect(self.on_table_item_changed)
+        self.table.cellChanged.connect(self.on_table_item_changed)  # noqa
 
         header = self.table.horizontalHeader()
         header.setSectionResizeMode(self.TABLE_CONFIG.name, QHeaderView.Stretch)  # noqa
@@ -499,11 +513,23 @@ class SelectImagesDialog(QtFramelessTool):
         header.setSectionResizeMode(self.TABLE_CONFIG.extract, QHeaderView.ResizeToContents)  # noqa
         header.setSectionResizeMode(self.TABLE_CONFIG.remove, QHeaderView.ResizeToContents)  # noqa
 
+        # add delegate
+        # self.table.setItemDelegateForColumn(self.TABLE_CONFIG.resolution, NumericDelegate(self.table))
+
         layout = hp.make_form_layout()
         style_form_layout(layout)
         layout.addRow(header_layout)
         layout.addRow(hp.make_btn(self, "Add image...", func=self.on_select_dataset))
         layout.addRow(self.table)
+        layout.addRow(
+            hp.make_label(
+                self,
+                "<b>Tip.</b> You can edit pixel size by double-clicking on the cell.",
+                alignment=Qt.AlignHCenter,  # noqa
+                object_name="tip_label",
+                enable_url=True,
+            )
+        )
         return layout
 
     # noinspection PyAttributeOutsideInit

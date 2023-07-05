@@ -53,4 +53,4 @@ def ask_opt_in(parent):
 def send_feedback(parent):
     """Send feedback."""
     dlg = FeedbackDialog(parent=parent)
-    dlg.exec_()
+    dlg.exec_()  # noqa

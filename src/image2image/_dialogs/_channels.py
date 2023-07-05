@@ -1,3 +1,4 @@
+"""Select channels."""
 import typing as ty
 
 from qtextra import helpers as hp
@@ -41,20 +42,20 @@ class OverlayChannelsDialog(QtFramelessTool):
         """Connect events."""
         # TODO: connect event that updates checkbox state when user changes visibility in layer list
         # change of model events
-        connect(self.parent().dataset_dlg.evt_loaded, self.on_update_data_list, state=state)
-        connect(self.parent().dataset_dlg.evt_closed, self.on_update_data_list, state=state)
+        connect(self.parent().dataset_dlg.evt_loaded, self.on_update_data_list, state=state)  # noqa
+        connect(self.parent().dataset_dlg.evt_closed, self.on_update_data_list, state=state)  # noqa
         # table events
         connect(self.table.evt_checked, self.on_toggle_channel, state=state)
 
     def on_toggle_channel(self, index: int, state: bool):
         """Toggle channel."""
-        print(index)
+        print("toggle", index, state)
         if index == -1:
-            self.parent().evt_toggle_all_channels.emit(state)
+            self.parent().evt_toggle_all_channels.emit(state)  # noqa
         else:
             channel_name = self.table.get_value(self.TABLE_CONFIG.channel_name, index)
             dataset = self.table.get_value(self.TABLE_CONFIG.dataset, index)
-            self.parent().evt_toggle_channel.emit(f"{channel_name} | {dataset}", state)
+            self.parent().evt_toggle_channel.emit(f"{channel_name} | {dataset}", state)  # noqa
         self.on_update_info()
 
     def on_update_info(self):
@@ -116,7 +117,7 @@ class OverlayChannelsDialog(QtFramelessTool):
             hp.make_label(
                 self,
                 "<b>Tip.</b> Check/uncheck a row to toggle visibility of the channel.",
-                alignment=Qt.AlignHCenter,
+                alignment=Qt.AlignHCenter,  # noqa
                 object_name="tip_label",
                 enable_url=True,
             )

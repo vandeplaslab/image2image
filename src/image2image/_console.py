@@ -39,8 +39,8 @@ if sys.platform.startswith("win"):
 
     try:
         from asyncio import (
-            WindowsProactorEventLoopPolicy,
-            WindowsSelectorEventLoopPolicy,
+            WindowsProactorEventLoopPolicy,  # noqa
+            WindowsSelectorEventLoopPolicy,  # noqa
         )
     except ImportError:
         pass
@@ -57,8 +57,8 @@ class QtConsole(RichJupyterWidget):
 
     Parameters
     ----------
-    user_variables : dict
-        Dictionary of user variables to declare in console name space.
+    variables : dict, optional
+        Dictionary of variables to add to the console namespace.
 
     Attributes
     ----------

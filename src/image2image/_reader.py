@@ -95,17 +95,13 @@ class ImageWrapper:
             dataset_to_channel_map.setdefault(dataset, []).append(channel)
         return dataset_to_channel_map[dataset].index(channel_name)
 
-    def channel_image_iter(self, view_type: ty.Optional[str] = None) -> ty.Iterator[ty.Tuple[str, ty.List[np.ndarray]]]:
+    def channel_image_iter(self) -> ty.Iterator[ty.Tuple[str, ty.List[np.ndarray]]]:
         """Iterator of channel name + image."""
-        yield from zip(self.channel_names(view_type), self.image_iter(view_type))
+        yield from zip(self.channel_names(), self.image_iter())
 
-    def channel_image_transform_iter(
-        self, view_type: ty.Optional[str] = None
-    ) -> ty.Iterator[ty.Tuple[str, ty.List[np.ndarray], np.ndarray]]:
+    def channel_image_transform_iter(self) -> ty.Iterator[ty.Tuple[str, ty.List[np.ndarray], np.ndarray]]:
         """Iterator of channel name + image."""
-        for channel_name, (_, reader_or_array, image, _) in zip(
-            self.channel_names(view_type), self.reader_image_iter(view_type)
-        ):
+        for channel_name, (_, reader_or_array, image, _) in zip(self.channel_names(), self.reader_image_iter()):
             yield channel_name, image, reader_or_array.transform
 
     def path_reader_iter(self):
@@ -113,9 +109,7 @@ class ImageWrapper:
         for path in self.paths:
             yield path, self.data[path.name]
 
-    def reader_image_iter(
-        self, view_type: ty.Optional[str] = None
-    ) -> ty.Iterator[ty.Tuple[str, "BaseImageReader", ty.List[np.ndarray], int]]:
+    def reader_image_iter(self) -> ty.Iterator[ty.Tuple[str, "BaseImageReader", ty.List[np.ndarray], int]]:
         """Iterator to add channels."""
         for reader_name, reader_or_array in self.data.items():
             # image is a numpy array
@@ -159,12 +153,12 @@ class ImageWrapper:
                 else:
                     raise ValueError(f"Cannot read image with {ndim} dimensions")
 
-    def image_iter(self, view_type: ty.Optional[str] = None) -> ty.Iterator[ty.List[np.ndarray]]:
+    def image_iter(self) -> ty.Iterator[ty.List[np.ndarray]]:
         """Iterator to add channels."""
         for _, _, image, _ in self.reader_image_iter():
             yield image
 
-    def channel_names(self, view_type: ty.Optional[str] = None) -> ty.List[str]:
+    def channel_names(self) -> ty.List[str]:
         """Return list of channel names."""
         names = []
         for key, reader_or_array, _, index in self.reader_image_iter():

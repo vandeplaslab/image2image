@@ -187,6 +187,12 @@ class DataModel(BaseModel):
                     paths.append(path)
         return paths
 
+    def path_resolution_iter(self) -> ty.Iterator[ty.Tuple[Path, float]]:
+        """Iterator of path and pixel size."""
+        for path in self.paths:
+            reader = self.get_reader(path)
+            yield path, reader.resolution
+
     def channel_names(self) -> ty.List[str]:
         """Return list of channel names."""
         wrapper = self.get_wrapper()
@@ -324,14 +330,14 @@ class Transformation(BaseModel):
             "fixed_paths": [
                 {
                     "path": str(path),
-                    "resolution_um": resolution,
+                    "pixel_size_um": resolution,
                 }
                 for (path, resolution) in self.fixed_model.path_resolution_iter()
             ],
             "moving_paths": [
                 {
                     "path": str(path),
-                    "resolution_um": resolution,
+                    "pixel_size_um": resolution,
                 }
                 for (path, resolution) in self.moving_model.path_resolution_iter()
             ],
@@ -345,7 +351,7 @@ class Transformation(BaseModel):
             "matrix_xy_um_inv": self.compute(yx=False, px=False)._inv_matrix.tolist(),
         }
 
-    def to_file(self, path: PathLike):
+    def to_file(self, path: PathLike) -> Path:
         """Export data as any supported format."""
         path = Path(path)
         if path.suffix == ".json":
@@ -357,6 +363,7 @@ class Transformation(BaseModel):
         else:
             raise ValueError(f"Unknown file format: {path.suffix}")
         logger.info(f"Exported to '{path}'")
+        return path
 
     def to_xml(self, path: PathLike):
         """Export dat aas fusion file."""

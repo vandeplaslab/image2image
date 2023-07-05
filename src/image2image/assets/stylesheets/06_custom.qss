@@ -304,6 +304,13 @@ QtFramelessPopup {
     border: 2px solid {{ highlight }};
 }
 
-QtFramelessPopup #move_handle:hover {
+QtFramelessPopup #move_handle:focus {
     background-color: {{ darken(background, 10) }};
+}
+
+QLineEdit#table_cell {
+    background-color: {{ background }};
+}
+QLineEdit#table_cell:focus {
+    background-color: {{ darken(background, 15) }};
 }

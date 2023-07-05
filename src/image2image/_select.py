@@ -69,7 +69,7 @@ class LoadWidget(LoadMixin):
         """Setup UI."""
         layout = hp.make_form_layout()
         style_form_layout(layout)
-        layout.addRow(hp.make_label(self, self.INFO_TEXT, bold=True, wrap=True, alignment=Qt.AlignCenter))
+        layout.addRow(hp.make_label(self, self.INFO_TEXT, bold=True, wrap=True, alignment=Qt.AlignCenter))  # noqa
         layout.addRow(hp.make_btn(self, "Add/remove dataset...", func=self._on_add_dataset))
         layout.addRow(hp.make_btn(self, "Select channels...", func=self._on_select_channels))
         self.setLayout(layout)
@@ -134,12 +134,12 @@ class MovingWidget(LoadWidget):
     def _on_update_view_type(self, value: str):
         """Update view type."""
         CONFIG.view_type = value
-        self.evt_view_type.emit(value)
+        self.evt_view_type.emit(value)  # noqa
 
     def _on_toggle_transformed(self, value: str):
         """Toggle visibility of transformed."""
         CONFIG.show_transformed = value != "None"
-        self.evt_show_transformed.emit(value)
+        self.evt_show_transformed.emit(value)  # noqa
 
 
 class FixedWidget(LoadWidget):
@@ -168,7 +168,7 @@ class LoadWithTransformWidget(LoadMixin):
         """Setup UI."""
         layout = hp.make_form_layout(self)
         style_form_layout(layout)
-        layout.addRow(hp.make_label(self, self.INFO_TEXT, bold=True, wrap=True, alignment=Qt.AlignCenter))
+        layout.addRow(hp.make_label(self, self.INFO_TEXT, bold=True, wrap=True, alignment=Qt.AlignCenter))  # noqa
         layout.addRow(hp.make_btn(self, "Add/remove dataset...", func=self._on_add_dataset))
         layout.addRow(hp.make_btn(self, "Select transformation...", func=self._on_select_transform))
         return layout

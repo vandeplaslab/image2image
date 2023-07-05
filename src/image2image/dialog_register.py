@@ -253,7 +253,7 @@ class ImageRegistrationWindow(QMainWindow, IndicatorMixin, ImageViewMixin):
 
         moving_image_layer = []
         used = [layer.colormap for layer in self.view_moving.layers if isinstance(layer, Image)]
-        for index, (name, array) in enumerate(wrapper.channel_image_iter(CONFIG.view_type)):
+        for index, (name, array) in enumerate(wrapper.channel_image_iter()):
             logger.trace(f"Adding '{name}' to moving view...")
             with MeasureTimer() as timer:
                 colormap = get_colormap(index, used) if is_overlay else "turbo"
@@ -462,15 +462,15 @@ class ImageRegistrationWindow(QMainWindow, IndicatorMixin, ImageViewMixin):
 
             # get info on which settings should be imported
             dlg = ImportSelectDialog(self)
-            if dlg.exec_():
+            if dlg.exec_():  # noqa
                 config = dlg.config
                 logger.trace(f"Loaded configuration from {path}\n{config}")
 
                 # reset all widgets
                 if config["fixed_image"]:
-                    self._fixed_widget._on_close_dataset(force=True)
+                    self._fixed_widget.dataset_dlg._on_close_dataset(force=True)
                 if config["moving_image"]:
-                    self._moving_widget._on_close_dataset(force=True)
+                    self._moving_widget.dataset_dlg._on_close_dataset(force=True)
 
                 # load data from config file
                 try:
@@ -492,7 +492,7 @@ class ImageRegistrationWindow(QMainWindow, IndicatorMixin, ImageViewMixin):
                     from image2image._dialogs import LocateFilesDialog
 
                     dlg = LocateFilesDialog(self, fixed_paths_missing, moving_paths_missing)
-                    if dlg.exec_():
+                    if dlg.exec_():  # noqa
                         if fixed_paths_missing:
                             fixed_paths = dlg.fix_missing_paths(fixed_paths_missing, fixed_paths)
                         if moving_paths_missing:
@@ -593,7 +593,7 @@ class ImageRegistrationWindow(QMainWindow, IndicatorMixin, ImageViewMixin):
             return
 
         self._update_layer_points(layer, transformed_data)
-        self.evt_predicted.emit()
+        self.evt_predicted.emit()  # noqa
 
     @staticmethod
     def _update_layer_points(layer: Points, data: np.ndarray, block: bool = True):
@@ -661,10 +661,6 @@ class ImageRegistrationWindow(QMainWindow, IndicatorMixin, ImageViewMixin):
             f"Applied focus center=({self.y_center.value():.1f}, {self.x_center.value():.1f})"
             f" zoom={self.zoom.value():.3f}"
         )
-
-    def on_viewer_orientation_changed(self, _value=None):
-        """Change viewer orientation."""
-        self.viewer_orientation.currentText()
 
     # noinspection PyAttributeOutsideInit
     def _setup_ui(self):
