@@ -123,3 +123,11 @@ class OverlayChannelsDialog(QtFramelessTool):
             )
         )
         return layout
+
+    def keyPressEvent(self, evt):
+        """Key press event."""
+        key = evt.key()
+        if key == Qt.Key_Escape:  # noqa
+            evt.ignore()
+        else:
+            super().keyPressEvent(evt)

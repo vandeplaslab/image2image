@@ -280,6 +280,7 @@ class SelectImagesDialog(QtFramelessTool):
     evt_loading = Signal()
     evt_loaded = Signal(object, object)
     evt_closed = Signal(object)
+    evt_resolution = Signal(Path)
 
     TABLE_CONFIG = (
         TableConfig()
@@ -319,15 +320,17 @@ class SelectImagesDialog(QtFramelessTool):
         self.model.remove_paths(Path(path))
         self.evt_closed.emit(self.model)  # noqa
 
-    def on_table_item_changed(self, row, column):
+    def on_resolution(self, item, path: Path):
         """Table item changed."""
         if self._editing:
             return
-        if column == self.TABLE_CONFIG.resolution:
-            name = self.table.item(row, self.TABLE_CONFIG.name).text()
-            reader = self.model.get_reader(name)
-            reader.resolution = float(self.table.item(row, column).text())
-            logger.trace(f"Updated resolution of '{name}'.")
+        value = float(item.text())
+        reader = self.model.get_reader(path)
+        if reader:
+            reader.resolution = value
+            # reader.resolution = float(self.table.item(row, column).text())
+            self.evt_resolution.emit(reader.path)
+            logger.trace(f"Updated resolution of '{path.name}' to {value:.2f}.")
 
     def _clear_table(self):
         """Remove all rows."""
@@ -359,10 +362,8 @@ class SelectImagesDialog(QtFramelessTool):
                     item.setObjectName("table_cell")
                     item.setAlignment(Qt.AlignCenter)  # noqa
                     item.setValidator(QDoubleValidator(0, 100, 2))
+                    item.editingFinished.connect(partial(self.on_resolution, path=path, item=item))
                     self.table.setCellWidget(index, self.TABLE_CONFIG.resolution, item)
-                    # item = QTableWidgetItem(f"{resolution:.2f}")
-                    # item.setTextAlignment(Qt.AlignCenter)
-                    # self.table.setItem(index, self.TABLE_CONFIG.resolution, item)
                     # # add extract button
                     if reader.allow_extraction:
                         self.table.setCellWidget(
@@ -394,7 +395,6 @@ class SelectImagesDialog(QtFramelessTool):
             base_dir=CONFIG.fixed_dir if self.is_fixed else CONFIG.moving_dir,
             file_filter=ALLOWED_FORMATS,
         )
-        # path = self.FILENAME
         if path:
             if self.is_fixed:
                 CONFIG.fixed_dir = str(Path(path).parent)
@@ -422,7 +422,10 @@ class SelectImagesDialog(QtFramelessTool):
         return False
 
     def _on_load_dataset(
-        self, path_or_paths: ty.Union[PathLike, ty.List[PathLike]], affine: ty.Optional[ty.Dict[str, np.ndarray]] = None
+        self,
+        path_or_paths: ty.Union[PathLike, ty.List[PathLike]],
+        affine: ty.Optional[ty.Dict[str, np.ndarray]] = None,
+        resolution: ty.Optional[ty.Dict[str, float]] = None,
     ):
         """Load data."""
         self.evt_loading.emit()  # noqa
@@ -430,7 +433,7 @@ class SelectImagesDialog(QtFramelessTool):
             path_or_paths = [path_or_paths]
         self.model.add_paths(path_or_paths)
         func = thread_worker(
-            partial(self.model.load, affine=affine),
+            partial(self.model.load, affine=affine, resolution=resolution),
             start_thread=True,
             connect={"returned": self._on_loaded_dataset, "errored": self._on_failed_dataset},
         )
@@ -508,7 +511,7 @@ class SelectImagesDialog(QtFramelessTool):
         self.table = QTableWidget(self)
         self.table.setColumnCount(4)  # name, resolution, extract, delete
         self.table.setHorizontalHeaderLabels(["name", "pixel size (μm)", "", ""])
-        self.table.cellChanged.connect(self.on_table_item_changed)  # noqa
+        self.table.setCornerButtonEnabled(False)
 
         header = self.table.horizontalHeader()
         header.setSectionResizeMode(self.TABLE_CONFIG.name, QHeaderView.Stretch)  # noqa
@@ -522,7 +525,14 @@ class SelectImagesDialog(QtFramelessTool):
         layout = hp.make_form_layout()
         style_form_layout(layout)
         layout.addRow(header_layout)
-        layout.addRow(hp.make_btn(self, "Add image...", func=self.on_select_dataset))
+        layout.addRow(
+            hp.make_h_layout(
+                hp.make_btn(self, "Add image...", func=self.on_select_dataset),
+                hp.make_btn(self, "Remove image...", func=self._on_close_dataset),
+                stretch_id=0,
+            )
+        )
+        layout.addRow(hp.make_h_line())
         layout.addRow(self.table)
         layout.addRow(
             hp.make_label(
@@ -541,3 +551,11 @@ class SelectImagesDialog(QtFramelessTool):
         self._editing = True
         yield
         self._editing = False
+
+    def keyPressEvent(self, evt):
+        """Key press event."""
+        key = evt.key()
+        if key == Qt.Key_Escape:  # noqa
+            evt.ignore()
+        else:
+            super().keyPressEvent(evt)

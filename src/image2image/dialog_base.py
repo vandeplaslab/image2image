@@ -56,12 +56,13 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
         view_wrapper: "NapariImageView",
         channel_list: ty.Optional[ty.List[str]] = None,
         view_kind: str = "view",
+        scale: bool = False,
     ):
         wrapper = model.get_wrapper()
         if channel_list is None:
             channel_list = wrapper.channel_names()
         image_layer = []
-        for index, (name, array, affine) in enumerate(wrapper.channel_image_transform_iter()):
+        for index, (name, array, reader) in enumerate(wrapper.channel_image_reader_iter()):
             used = [layer.colormap for layer in view_wrapper.layers if isinstance(layer, Image)]
             logger.trace(f"Adding '{name}' to view...")
             with MeasureTimer() as timer:
@@ -75,7 +76,10 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
                         blending="additive",
                         colormap=get_colormap(index, used),
                         visible=name in channel_list,
-                        affine=affine,
+                        affine=wrapper.update_affine(reader.transform, reader.resolution)
+                        if scale
+                        else reader.transform,
+                        scale=reader.scale if scale else (1, 1),
                     )
                 )
                 logger.trace(f"Added '{name}' to {view_kind} in {timer()}.")

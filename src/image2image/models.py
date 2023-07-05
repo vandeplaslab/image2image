@@ -144,28 +144,35 @@ class DataModel(BaseModel):
         if not self.paths:
             self.wrapper = None
 
-    def load(self, affine: ty.Optional[ty.Dict[str, np.ndarray]] = None):
+    def load(
+        self, affine: ty.Optional[ty.Dict[str, np.ndarray]] = None, resolution: ty.Optional[ty.Dict[str, float]] = None
+    ):
         """Load data into memory."""
         with MeasureTimer() as timer:
-            self.get_wrapper(affine)
+            self.get_wrapper(affine, resolution)
             logger.info(f"Loaded data in {timer()}")
         return self
 
-    def get_wrapper(self, affine: ty.Optional[ty.Dict[str, np.ndarray]] = None) -> ty.Optional["ImageWrapper"]:
+    def get_wrapper(
+        self,
+        affine: ty.Optional[ty.Dict[str, np.ndarray]] = None,
+        resolution: ty.Optional[ty.Dict[str, float]] = None,
+    ) -> ty.Optional["ImageWrapper"]:
         """Read data from file."""
         from image2image._reader import read_image
 
-        if self.paths is None:
+        if not self.paths:
             return None
 
-        if affine is None:
-            affine = {}
+        affine = affine or {}
+        resolution = resolution or {}
 
         just_added = []
         for path in self.paths:
             matrix = affine.get(path.name, None)
+            pixel_size = resolution.get(path.name, None)
             if self.wrapper is None or not self.wrapper.is_loaded(path):
-                self.wrapper = read_image(path, self.wrapper, self.is_fixed, affine=matrix)
+                self.wrapper = read_image(path, self.wrapper, self.is_fixed, affine=matrix, resolution=pixel_size)
                 just_added.append(path)
         if self.wrapper:
             self.resolution = self.wrapper.resolution
@@ -220,15 +227,30 @@ class DataModel(BaseModel):
             raise ValueError(f"Unknown file format: {path.suffix}")
         logger.info(f"Exported to '{path}'")
 
+    @property
+    def min_resolution(self) -> float:
+        """Return minimum resolution."""
+        wrapper = self.get_wrapper()
+        if wrapper:
+            return wrapper.min_resolution
+        return 1.0
+
     def to_dict(self) -> ty.Dict:
         """Return dictionary of values to export."""
+        wrapper = self.get_wrapper()
+        if not wrapper:
+            raise ValueError("No wrapper found.")
         return {
             "schema_version": "1.0",
             "images": [
-                {"path": str(path), "matrix_yx_px": reader.transform.tolist()}
-                for path, reader in self.get_wrapper().path_reader_iter()
+                {"path": str(path), "matrix_yx_px": reader.transform.tolist(), "pixel_size_um": reader.resolution}
+                for path, reader in wrapper.path_reader_iter()
             ],
         }
+
+    def is_valid(self):
+        """Returns True if there is some data on the model."""
+        return self.n_paths > 0
 
 
 class Transformation(BaseModel):
@@ -611,7 +633,9 @@ def _read_imsmicrolink_config(config: ty.Dict):
     )
 
 
-def load_viewer_setup_from_file(path: PathLike) -> ty.Tuple[ty.List[Path], ty.List[Path], ty.Dict[str, np.ndarray]]:
+def load_viewer_setup_from_file(
+    path: PathLike,
+) -> ty.Tuple[ty.List[Path], ty.List[Path], ty.Dict[str, np.ndarray], ty.Dict[str, float]]:
     """Load configuration from config file."""
     data = _read_config_from_file(path)
 
@@ -624,15 +648,15 @@ def _read_image2viewer_latest_config(config: ty.Dict):
     # read important fields
     paths = [temp["path"] for temp in config["images"]]
     affine = {Path(temp["path"]).name: np.asarray(temp["matrix_yx_px"]) for temp in config["images"]}
+    resolution = {Path(temp["path"]).name: temp["pixel_size_um"] for temp in config["images"]}
     paths, paths_missing = _get_paths(paths)
-    return paths, paths_missing, affine
+    return paths, paths_missing, affine, resolution
 
 
-def _clean_up_affine_matrices(affine: ty.Dict[str, np.ndarray], paths: ty.List[Path]) -> ty.Dict[str, np.ndarray]:
-    """Clean-up affine matrices by removing those for which there is not path."""
-    names = [path.name for path in paths]
+def _remove_missing_from_dict(affine: ty.Dict[str, ty.Any], paths: ty.List[PathLike]) -> ty.Dict[str, ty.Any]:
+    """Remove elements that are not present in the list of paths from the dictionary."""
+    names = [Path(path).name for path in paths]
     for name in list(affine.keys()):
         if name not in names:
             del affine[name]
-            logger.trace(f"Removed '{name}' from affine matrices.")
     return affine

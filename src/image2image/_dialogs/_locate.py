@@ -3,13 +3,13 @@ from pathlib import Path
 
 from koyo.typing import PathLike
 from loguru import logger
-from PyQt6.QtCore import Qt
-from PyQt6.QtWidgets import QFormLayout
 from qtextra import helpers as hp
 from qtextra.utils.table_config import TableConfig
 from qtextra.utils.utilities import connect
 from qtextra.widgets.qt_dialog import QtDialog
 from qtextra.widgets.qt_table_view import QtCheckableTableView
+from qtpy.QtCore import Qt
+from qtpy.QtWidgets import QFormLayout
 
 from image2image.utilities import style_form_layout
 

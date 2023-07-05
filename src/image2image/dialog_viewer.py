@@ -15,8 +15,10 @@ from image2image._select import LoadWithTransformWidget
 from image2image.config import CONFIG
 from image2image.dialog_base import Window
 from image2image.enums import ALLOWED_PROJECT_FORMATS
-from image2image.models import DataModel
 from image2image.utilities import style_form_layout
+
+if ty.TYPE_CHECKING:
+    from image2image.models import DataModel, TransformModel
 
 
 class ImageViewerWindow(Window):
@@ -33,10 +35,21 @@ class ImageViewerWindow(Window):
         # connect(self._fixed_widget.evt_loading, self.on_indicator, state=state)
         connect(self._image_widget.dataset_dlg.evt_loaded, self.on_load_image, state=state)
         connect(self._image_widget.dataset_dlg.evt_closed, self.on_close_image, state=state)
-        connect(self._image_widget.evt_transform_changed, self.on_update_transform, state=state)
+        connect(self._image_widget.dataset_dlg.evt_resolution, self.on_update_transform, state=state)
+        connect(self._image_widget.transform_dlg.evt_transform, self.on_update_transform, state=state)
+
+    @property
+    def data_model(self) -> "DataModel":
+        """Return transform model."""
+        return self._image_widget.model
+
+    @property
+    def transform_model(self) -> "TransformModel":
+        """Return transform model."""
+        return self._image_widget.transform_model
 
     @ensure_main_thread
-    def on_load_image(self, model: DataModel, channel_list: ty.List[str]):
+    def on_load_image(self, model: "DataModel", channel_list: ty.List[str]):
         """Load fixed image."""
         if model and model.n_paths:
             self._on_load_image(model, channel_list)
@@ -47,7 +60,7 @@ class ImageViewerWindow(Window):
             logger.warning(f"Failed to load data - model={model}")
         # self.on_indicator("fixed", False)
 
-    def _on_load_image(self, model: DataModel, channel_list: ty.Optional[ty.List[str]] = None):
+    def _on_load_image(self, model: "DataModel", channel_list: ty.Optional[ty.List[str]] = None):
         with MeasureTimer() as timer:
             logger.info(f"Loading fixed data with {model.n_paths} paths...")
             self.plot_image_layers(channel_list)
@@ -56,22 +69,23 @@ class ImageViewerWindow(Window):
 
     def plot_image_layers(self, channel_list: ty.Optional[ty.List[str]] = None):
         """Plot image layers."""
-        self.image_layer = self._plot_image_layers(self._image_widget.model, self.view, channel_list, "view")
+        self.image_layer = self._plot_image_layers(self.data_model, self.view, channel_list, "view", True)
 
-    def on_close_image(self, model: DataModel):
+    def on_close_image(self, model: "DataModel"):
         """Close fixed image."""
         self._close_model(model, self.view, "view")
 
-    def on_update_transform(self, path):
+    def on_update_transform(self, path: Path):
         """Update affine transformation."""
-        wrapper = self._image_widget.model.get_wrapper()
-        reader = self._image_widget.model.get_reader(path)
+        wrapper = self.data_model.get_wrapper()
+        reader = self.data_model.get_reader(path)
         if wrapper and reader:
             channel_names = wrapper.channel_names_for_names([path])
             for name in channel_names:
                 layer = self.view.layers[name]
-                layer.affine = reader.transform
-                logger.trace(f"Updated affine for '{name}' to {reader.transform}.")
+                layer.scale = reader.scale
+                layer.affine = wrapper.update_affine(reader.transform, reader.resolution)
+                logger.trace(f"Updated affine for '{name}'.")
 
     def on_show_scalebar(self):
         """Show scale bar controls for the viewer."""
@@ -86,14 +100,14 @@ class ImageViewerWindow(Window):
             self, "Load i2v project", base_dir=CONFIG.output_dir, file_filter=ALLOWED_PROJECT_FORMATS
         )
         if path:
-            from image2image.models import _clean_up_affine_matrices, load_viewer_setup_from_file
+            from image2image.models import _remove_missing_from_dict, load_viewer_setup_from_file
 
             path = Path(path)
             CONFIG.output_dir = str(path.parent)
 
             # load data from config file
             try:
-                paths, paths_missing, affine = load_viewer_setup_from_file(path)
+                paths, paths_missing, affine, resolution = load_viewer_setup_from_file(path)
             except ValueError as e:
                 hp.warn(self, f"Failed to load transformation from {path}\n{e}", "Failed to load transformation")
                 return
@@ -107,18 +121,19 @@ class ImageViewerWindow(Window):
                     paths = dlg.fix_missing_paths(paths_missing, paths)
 
             # clean-up affine matrices
-            affine = _clean_up_affine_matrices(affine, paths)
+            affine = _remove_missing_from_dict(affine, paths)
+            resolution = _remove_missing_from_dict(resolution, paths)
             # add paths
             if paths:
-                self._image_widget.on_set_path(paths, affine)
+                self._image_widget.on_set_path(paths, affine, resolution)
 
             # add affine matrices to transform object
             for name, matrix in affine.items():
-                self._image_widget.transform_model.add_transform(name, matrix)
+                self.transform_model.add_transform(name, matrix)
 
     def on_save(self):
         """Export project."""
-        model = self._image_widget.model
+        model = self.data_model
         if model.n_paths == 0:
             logger.warning("Cannot save project - there are no images loaded.")
             return
@@ -217,10 +232,17 @@ class ImageViewerWindow(Window):
 
     def _get_console_variables(self) -> ty.Dict:
         return {
-            "transforms_model": self._image_widget.table_dlg.transform_model,
+            "transforms_model": self.transform_model,
             "viewer": self.view.viewer,
-            "image_model": self._image_widget.model,
+            "data_model": self.data_model,
         }
+
+    def closeEvent(self, evt):
+        """Close."""
+        CONFIG.save()
+        if self.data_model.is_valid():
+            if hp.confirm(self, "There might be unsaved changes. Would you like to save them?"):
+                self.on_save()
 
 
 if __name__ == "__main__":  # pragma: no cover

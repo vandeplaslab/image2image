@@ -2,13 +2,13 @@ import typing as ty
 from pathlib import Path
 
 from loguru import logger
-from PyQt6.QtCore import Qt
-from PyQt6.QtWidgets import QFormLayout
 from qtextra import helpers as hp
 from qtextra.utils.table_config import TableConfig
 from qtextra.utils.utilities import connect
 from qtextra.widgets.qt_dialog import QtFramelessTool
 from qtextra.widgets.qt_table_view import QtCheckableTableView
+from qtpy.QtCore import Qt, Signal
+from qtpy.QtWidgets import QFormLayout
 
 from image2image.utilities import style_form_layout
 
@@ -19,6 +19,8 @@ if ty.TYPE_CHECKING:
 
 class SelectTransformDialog(QtFramelessTool):
     """Dialog to enable creation of overlays."""
+
+    evt_transform = Signal(Path)
 
     HIDE_WHEN_CLOSE = True
 
@@ -68,7 +70,7 @@ class SelectTransformDialog(QtFramelessTool):
                         reader.transform_name = transform
                         reader.transform = matrix
                         self.table.update_value(index, self.TABLE_CONFIG.transform, transform)
-                        self.parent().evt_transform_changed.emit(reader_path)
+                        self.evt_transform.emit(reader_path)
                         logger.trace(f"Updated transformation matrix for '{reader_path}'")
                 else:
                     logger.warning(f"Could not update transformation matrix for '{reader_path}'")

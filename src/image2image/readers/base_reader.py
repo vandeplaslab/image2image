@@ -23,6 +23,11 @@ class BaseImageReader:
         self.transform_name = "Identity matrix"
 
     @property
+    def scale(self) -> ty.Tuple[float, float]:
+        """Return scale."""
+        return self.resolution, self.resolution
+
+    @property
     def resolution(self) -> float:
         """Return resolution."""
         return self.base_layer_pixel_res

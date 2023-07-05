@@ -30,6 +30,16 @@ PREFERRED_COLORMAPS = [
 ]
 
 
+def update_affine(affine: np.ndarray, min_resolution: float, resolution: float) -> np.ndarray:
+    """Update affine transformation."""
+    from napari.utils.transforms import Affine
+
+    affine = Affine(affine_matrix=affine)
+    affine.scale = affine.scale / (resolution / min_resolution)
+    affine.translate = affine.translate * min_resolution
+    return affine.affine_matrix
+
+
 def format_mz(mz: float) -> str:
     """Format m/z value."""
     return f"m/z {mz:.3f}"

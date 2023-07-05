@@ -39,12 +39,15 @@ class LoadMixin(QWidget):
         raise NotImplementedError("Must implement method")
 
     def on_set_path(
-        self, paths: ty.Union[PathLike, ty.List[PathLike]], affine: ty.Optional[ty.Dict[str, np.ndarray]] = None
+        self,
+        paths: ty.Union[PathLike, ty.List[PathLike]],
+        affine: ty.Optional[ty.Dict[str, np.ndarray]] = None,
+        resolution: ty.Optional[ty.Dict[str, float]] = None,
     ):
         """Set the path and immediately load it."""
         if isinstance(paths, (str, Path)):
             paths = [paths]
-        self.dataset_dlg._on_load_dataset(paths, affine)
+        self.dataset_dlg._on_load_dataset(paths, affine, resolution)
 
     def on_select_dataset(self, _evt=None):
         """Load data."""
@@ -66,7 +69,7 @@ class LoadWidget(LoadMixin):
     def __init__(self, parent, view):
         """Init."""
         super().__init__(parent, view)
-        self.table_dlg = OverlayChannelsDialog(self, self.model, self.view)
+        self.channel_dlg = OverlayChannelsDialog(self, self.model, self.view)
 
     def _setup_ui(self):
         """Setup UI."""
@@ -80,7 +83,7 @@ class LoadWidget(LoadMixin):
 
     def _on_select_channels(self):
         """Select channels from the list."""
-        self.table_dlg.show()
+        self.channel_dlg.show()
 
 
 class MovingWidget(LoadWidget):
@@ -158,14 +161,12 @@ class LoadWithTransformWidget(LoadMixin):
 
     IS_FIXED = True
 
-    evt_transform_changed = Signal(Path)
-
     def __init__(self, parent, view):
         """Init."""
         super().__init__(parent, view)
         self.transform_model = TransformModel()
         self.transform_model.add_transform("Identity matrix", [[1, 0, 0], [0, 1, 0], [0, 0, 1]])
-        self.table_dlg = SelectTransformDialog(self, self.model, self.transform_model, self.view)
+        self.transform_dlg = SelectTransformDialog(self, self.model, self.transform_model, self.view)
 
     def _setup_ui(self):
         """Setup UI."""
@@ -178,4 +179,4 @@ class LoadWithTransformWidget(LoadMixin):
 
     def _on_select_transform(self):
         """Select transformation data."""
-        self.table_dlg.show()
+        self.transform_dlg.show()

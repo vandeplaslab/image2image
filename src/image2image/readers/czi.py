@@ -267,7 +267,7 @@ class CziFile(_CziFile):
         yx_shape = np.array(self.shape[slice(yx_dims[0], yx_dims[1] + 1)])
 
         ds = 1
-        while np.min(yx_shape) // 2**ds >= 512:
+        while np.min(yx_shape) // 2 ** ds >= 512:
             ds += 1
 
         self.sub_asarray(zarr_fp=zarr_fp, resize=True, order=0, ds_factor=1, max_workers=4)

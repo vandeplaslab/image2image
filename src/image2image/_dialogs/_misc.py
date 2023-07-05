@@ -1,9 +1,9 @@
 import typing as ty
 
-from PyQt6.QtCore import Qt
-from PyQt6.QtWidgets import QFormLayout
 from qtextra import helpers as hp
 from qtextra.widgets.qt_dialog import QtDialog
+from qtpy.QtCore import Qt
+from qtpy.QtWidgets import QFormLayout
 
 from image2image.utilities import style_form_layout
 

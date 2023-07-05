@@ -99,10 +99,10 @@ class ImageWrapper:
         """Iterator of channel name + image."""
         yield from zip(self.channel_names(), self.image_iter())
 
-    def channel_image_transform_iter(self) -> ty.Iterator[ty.Tuple[str, ty.List[np.ndarray], np.ndarray]]:
+    def channel_image_reader_iter(self) -> ty.Iterator[ty.Tuple[str, ty.List[np.ndarray], np.ndarray]]:
         """Iterator of channel name + image."""
         for channel_name, (_, reader_or_array, image, _) in zip(self.channel_names(), self.reader_image_iter()):
-            yield channel_name, image, reader_or_array.transform
+            yield channel_name, image, reader_or_array
 
     def path_reader_iter(self):
         """Iterator of a path + reader."""
@@ -158,6 +158,11 @@ class ImageWrapper:
         for _, _, image, _ in self.reader_image_iter():
             yield image
 
+    def reader_iter(self) -> ty.Iterator["BaseImageReader"]:
+        """Iterator of readers."""
+        for _, reader_or_array in self.data.items():
+            yield reader_or_array
+
     def channel_names(self) -> ty.List[str]:
         """Return list of channel names."""
         names = []
@@ -171,6 +176,17 @@ class ImageWrapper:
                     channel_names = [f"C{index}"]
             names.extend([f"{name} | {key}" for name in channel_names])
         return names
+
+    @property
+    def min_resolution(self) -> float:
+        """Return minimum resolution."""
+        return min([reader.resolution for reader in self.reader_iter()])
+
+    def update_affine(self, affine: np.ndarray, resolution: float) -> np.ndarray:
+        """Update affine matrix."""
+        from image2image.utilities import update_affine
+
+        return update_affine(affine, self.min_resolution, resolution)
 
 
 def sanitize_path(path: PathLike) -> Path:
@@ -187,10 +203,12 @@ def read_image(
     wrapper: ty.Optional["ImageWrapper"] = None,
     is_fixed: bool = False,
     affine: ty.Optional[np.ndarray] = None,
+    resolution: ty.Optional[float] = None,
 ) -> "ImageWrapper":
     """Read image data."""
     path = Path(path)
     assert path.exists(), f"File does not exist: {path}"
+    assert path.is_file(), f"Expected file, got directory: {path}"
     assert (
         path.suffix.lower()
         in TIFF_EXTENSIONS
@@ -200,7 +218,7 @@ def read_image(
         + BRUKER_EXTENSIONS
         + IMZML_EXTENSIONS
         + H5_EXTENSIONS
-    ), f"Unsupported file format: {path.suffix}"
+    ), f"Unsupported file format: {path.suffix} ({path})"
 
     suffix = path.suffix.lower()
     if suffix in TIFF_EXTENSIONS:
@@ -226,6 +244,8 @@ def read_image(
     if affine is not None:
         reader.transform = affine
         reader.transform_name = path.name
+    if resolution is not None:
+        reader.base_layer_pixel_res = resolution
 
     if wrapper is None:
         wrapper = ImageWrapper(None)
