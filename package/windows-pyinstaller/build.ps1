@@ -25,18 +25,41 @@ conda activate image2image_package
 $python_ver = &{python -V} 2>&1
 echo "Python version "$python_ver
 
-if ($update) {
-    # Re-install pyinstaller
-    echo "Re-installing pyinstaller..."
-    pip install -U pyinstaller
-    echo "Reinstalled pyinstaller"
+$start_dir = $pwd
+echo "Current directory: " $start_dir.Path
+$github_dir = $start_dir | Split-Path | Split-Path | Split-Path
+echo "Github directory: " $github_dir
 
+if ($update) {
     # Re-install qtextra
     echo "Re-installing qtextra..."
-    cd ..\..\..\qtextra
+    $new_dir = Join-Path -Path $github_dir -ChildPath "qtextra" -Resolve
+    cd $new_dir
     pip install .
-    cd ..\
     echo "Reinstalled qtextra"
+
+    # Re-install koyo
+    echo "Re-installing koyo..."
+    $new_dir = Join-Path -Path $github_dir -ChildPath "koyo" -Resolve
+    cd $new_dir
+    pip install .
+    echo "Reinstalled koyo"
+
+    # Re-install image2image
+    echo "Re-installing image2image..."
+    $new_dir = Join-Path $github_dir -ChildPath "image2image" -Resolve
+    cd $new_dir
+    pip install -U .
+    cd $start_dir
+    echo "Reinstalled image2image"
+
+    # Re-install image2image
+    echo "Re-installing napari-plot..."
+    $new_dir = Join-Path $github_dir -ChildPath "napari-1d" -Resolve
+    cd $new_dir
+    pip install -U .
+    cd $start_dir
+    echo "Reinstalled napari-plot"
 
     # Re-install napari (latest)
     echo "Re-installing napari..."
@@ -48,20 +71,19 @@ if ($update) {
     pip install -U pyside2
     echo "Reinstalled PySide2"
 
-    # Re-install image2image
-    echo "Re-installing image2image..."
-    cd ../image2image
-    pip install -U .
-    cd package/windows-pyinstaller
-    echo "Reinstalled image2image"
+    # Re-install pyinstaller
+    echo "Re-installing pyinstaller..."
+    pip install -U pyinstaller
+    echo "Reinstalled pyinstaller"
 }
 
 # only update ionglow
 if ($update_i2i) {
     echo "Re-installing image2image..."
-    cd ../../
+    $new_dir = Join-Path -Path $github_dir -ChildPath "image2image" -Resolve
+    cd $new_dir
     pip install -U .
-    cd package/windows-pyinstaller
+    cd $start_dir
     echo "Reinstalled image2image"
 }
 
@@ -71,9 +93,9 @@ $filename = "image2image.spec"
 # Build bundle
 Write-Output "Debugging: $debug; Filename: $filename"
 if ($debug) {
-    pyinstaller.exe --onedir --noconfirm --clean --debug=all $filename
+    pyinstaller.exe --noconfirm --clean --debug=all $filename
 } else {
-    pyinstaller.exe --onedir --noconfirm --clean $filename
+    pyinstaller.exe --noconfirm --clean $filename
 }
 
 conda deactivate imimsui_package
