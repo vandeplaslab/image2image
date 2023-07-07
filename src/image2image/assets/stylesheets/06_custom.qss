@@ -1,13 +1,13 @@
 /* ------------- QtVertLine / QtHorzLine --------- */
 
 QtVertLine{
-    border: 1px solid {{ primary }};
-    background-color: {{ primary }};
+    border: 1px solid {{ secondary }};
+    background-color: {{ secondary }};
 }
 
 QtHorzLine{
-    border: 1px solid {{ primary }};
-    background-color: {{ primary }};
+    border: 1px solid {{ secondary }};
+    background-color: {{ secondary }};
 }
 
 /* ------------- Narrow scrollbar for qtlayer list --------- */
@@ -135,7 +135,7 @@ QtLayerControlsContainer {
 QtLayerControlsContainer > QFrame {
   padding: 5px;
   padding-right: 8px;
-  border-radius: 2px;
+  border-radius: 0px;
 }
 
 QtLayerControlsContainer QWidget {

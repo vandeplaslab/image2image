@@ -331,8 +331,10 @@ def _read_centroids_h5_coordinates(path: PathLike) -> ty.Tuple[Path, "Coordinate
     path = Path(path)
     assert path.suffix in H5_EXTENSIONS, "Only .h5 files are supported"
 
-    data_dir = path.parent.parent.with_suffix(".data")
-    metadata_file = data_dir / "dataset.metadata.h5"
+    metadata_file = path.parent / "dataset.metadata.h5"
+    if not metadata_file.exists():
+        data_dir = path.parent.parent.with_suffix(".data")
+        metadata_file = data_dir / "dataset.metadata.h5"
     assert metadata_file.exists(), f"File does not exist: {metadata_file}"
 
     _, reader = _read_metadata_h5_coordinates(metadata_file)

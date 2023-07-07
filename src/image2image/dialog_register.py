@@ -222,7 +222,7 @@ class ImageRegistrationWindow(Window):
         is_overlay = CONFIG.view_type == ViewType.OVERLAY
         wrapper = self._moving_widget.model.get_wrapper()
         if channel_list is None:
-            channel_list = wrapper.channel_names(CONFIG.view_type)
+            channel_list = wrapper.channel_names()
 
         moving_image_layer = []
         for index, (name, array) in enumerate(wrapper.channel_image_iter()):
@@ -284,9 +284,9 @@ class ImageRegistrationWindow(Window):
             }
         return widgets.get(mode, None)
 
-    def on_mode(self, which: str, evt=None):
+    def on_mode(self, which: str, evt=None, mode=None):
         """Update mode."""
-        widget = self._get_mode_button(which, evt.mode)
+        widget = self._get_mode_button(which, mode or evt.mode)
         if widget is not None:
             widget.setChecked(True)
 
@@ -801,6 +801,7 @@ class ImageRegistrationWindow(Window):
         self.view_fixed.viewer.text_overlay.text = "Fixed"
         self.view_fixed.viewer.text_overlay.font_size = 8
         self.view_fixed.viewer.text_overlay.visible = True
+        self.view_fixed.widget.canvas.events.key_press.connect(self.keyPressEvent)
 
         toolbar = QtMiniToolbar(self, Qt.Vertical, add_spacer=True)  # noqa
         _fixed_clear_btn = toolbar.insert_qta_tool(
@@ -821,19 +822,19 @@ class ImageRegistrationWindow(Window):
         self.fixed_move_btn = toolbar.insert_qta_tool(
             "move",
             func=lambda *args: self.on_move("fixed"),
-            tooltip="Move points in the fixed image...",
+            tooltip="Move points in the fixed image. Press <b>3</b> on your keyboard to activate...",
             checkable=True,
         )
         self.fixed_add_btn = toolbar.insert_qta_tool(
             "add",
             func=lambda *args: self.on_add("fixed"),
-            tooltip="Add new point to the fixed image...",
+            tooltip="Add new point to the fixed image. Press <b>2</b> on your keyboard to activate...",
             checkable=True,
         )
         self.fixed_zoom_btn = toolbar.insert_qta_tool(
             "zoom",
             func=lambda *args: self.on_panzoom("fixed"),
-            tooltip="Switch to zoom-only mode...",
+            tooltip="Switch to zoom-only mode. Press <b>1</b> on your keyboard to activate...",
             checkable=True,
         )
         hp.make_radio_btn_group(self, [self.fixed_zoom_btn, self.fixed_add_btn, self.fixed_move_btn])
@@ -864,6 +865,7 @@ class ImageRegistrationWindow(Window):
         self.view_moving.viewer.text_overlay.text = "Moving"
         self.view_moving.viewer.text_overlay.font_size = 8
         self.view_moving.viewer.text_overlay.visible = True
+        self.view_moving.widget.canvas.events.key_press.connect(self.keyPressEvent)
 
         toolbar = QtMiniToolbar(self, Qt.Vertical, add_spacer=True)  # noqa
         _moving_clear_btn = toolbar.insert_qta_tool(
@@ -884,19 +886,19 @@ class ImageRegistrationWindow(Window):
         self.moving_move_btn = toolbar.insert_qta_tool(
             "move",
             func=lambda *args: self.on_move("moving"),
-            tooltip="Move points in the fixed image...",
+            tooltip="Move points in the fixed image. Press <b>3</b> on your keyboard to activate...",
             checkable=True,
         )
         self.moving_add_btn = toolbar.insert_qta_tool(
             "add",
             func=lambda *args: self.on_add("moving"),
-            tooltip="Add new point to the moving image...",
+            tooltip="Add new point to the moving image. Press <b>2</b> on your keyboard to activate..",
             checkable=True,
         )
         self.moving_zoom_btn = toolbar.insert_qta_tool(
             "zoom",
             func=lambda *args: self.on_panzoom("moving"),
-            tooltip="Switch to zoom-only mode...",
+            tooltip="Switch to zoom-only mode. Press <b>1</b> on your keyboard to activate...",
             checkable=True,
         )
         hp.make_radio_btn_group(self, [self.moving_zoom_btn, self.moving_add_btn, self.moving_move_btn])
@@ -928,6 +930,28 @@ class ImageRegistrationWindow(Window):
         if self.transform_model.is_valid():
             if hp.confirm(self, "There might be unsaved changes. Would you like to save it?"):
                 self.on_save()
+
+    def keyPressEvent(self, evt):
+        """Key press event."""
+        if hasattr(evt, "native"):
+            evt = evt.native
+        key = evt.key()
+        if key == Qt.Key_Escape:  # noqa
+            evt.ignore()
+        elif key == Qt.Key_1:
+            self.on_mode("fixed", mode=Mode.PAN_ZOOM)
+            self.on_mode("moving", mode=Mode.PAN_ZOOM)
+            evt.ignore()
+        elif key == Qt.Key_2:
+            self.on_mode("fixed", mode=Mode.ADD)
+            self.on_mode("moving", mode=Mode.ADD)
+            evt.ignore()
+        elif key == Qt.Key_3:
+            self.on_mode("fixed", mode=Mode.SELECT)
+            self.on_mode("moving", mode=Mode.SELECT)
+            evt.ignore()
+        else:
+            super().keyPressEvent(evt)
 
 
 if __name__ == "__main__":  # pragma: no cover

@@ -136,7 +136,7 @@ class FiducialsDialog(QtFramelessTool):
         layout.addRow(
             hp.make_label(
                 self,
-                "<b>Tip.</b> Double-click on a row to zoom in on the point."
+                "<b>Tip.</b> Double-click on a row to zoom in on the point.<br>"
                 "<b>Tip.</b> Press  <b>Delete</b> or <b>Backspace</b> to delete a point.",
                 alignment=Qt.AlignHCenter,
                 object_name="tip_label",
