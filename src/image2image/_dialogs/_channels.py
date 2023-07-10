@@ -49,7 +49,6 @@ class OverlayChannelsDialog(QtFramelessTool):
 
     def on_toggle_channel(self, index: int, state: bool):
         """Toggle channel."""
-        print("toggle", index, state)
         if index == -1:
             self.parent().evt_toggle_all_channels.emit(state)  # noqa
         else:
@@ -127,6 +126,7 @@ class OverlayChannelsDialog(QtFramelessTool):
     def keyPressEvent(self, evt):
         """Key press event."""
         key = evt.key()
+        print(key)
         if key == Qt.Key_Escape:  # noqa
             evt.ignore()
         else:
