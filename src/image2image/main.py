@@ -41,7 +41,7 @@ def run(
         from image2image.launcher import Launcher
 
         dlg = Launcher(None)
-        dlg.setMinimumSize(1200, 500)
+        dlg.setMinimumSize(300, 150)
     # elif tool == "crop":
     #     from image2image.dialog_crop import ImageCropWindow
     #
