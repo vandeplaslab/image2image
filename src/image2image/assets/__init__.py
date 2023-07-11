@@ -47,6 +47,8 @@ update_icon_mapping(
         "feedback": "msc.feedback",
         "viewer": "fa5.images",
         "register": "fa5s.layer-group",
+        "sync": "fa5s.sync-alt",
+        "crop": "fa5s.crop-alt",
     }
 )
 THEMES.register_themes()

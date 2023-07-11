@@ -482,6 +482,7 @@ class SelectImagesDialog(QtFramelessTool):
         if path and mzs and ppm:
             reader: "CoordinateReader" = self.model.get_reader(path)  # noqa
             if reader:
+                self.evt_loading.emit()  # noqa
                 func = thread_worker(
                     partial(reader.extract, mzs=mzs, ppm=ppm),  # noqa
                     start_thread=True,

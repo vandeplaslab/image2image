@@ -56,7 +56,6 @@ def run(
     if dev:
         import faulthandler
 
-        from koyo.hooks import install_debugger_hook
         from qtextra.utils.dev import qdev
 
         segfault_path = USER_LOG_DIR / "segfault.log"

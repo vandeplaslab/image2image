@@ -1,17 +1,21 @@
 """Launcher application for image2image."""
 import qtextra.helpers as hp
-from qtextra.widgets.qt_dialog import QtDialog
-from qtpy.QtWidgets import QHBoxLayout
-from qtpy.QtCore import Qt
 from qtextra.config import THEMES
+from qtextra.widgets.qt_dialog import QtDialog
+from qtpy.QtCore import Qt
+from qtpy.QtWidgets import QHBoxLayout
 
 
 class Launcher(QtDialog):
     """General launcher application."""
 
+    def __init__(self, parent=None):
+        super().__init__(parent, title="Image2Image Launcher")
+
     def make_panel(self) -> QHBoxLayout:
         """Make panel."""
         layout = QHBoxLayout()
+        # register app
         btn = hp.make_qta_btn(self, "register", tooltip="Open registration application.", func=self.on_register)
         btn.set_xxlarge()
         layout.addLayout(
@@ -21,12 +25,35 @@ class Launcher(QtDialog):
                 stretch_id=0,
             )
         )
+        # viewer app
         btn = hp.make_qta_btn(self, "viewer", tooltip="Open viewer application.", func=self.on_viewer)
         btn.set_xxlarge()
         layout.addLayout(
             hp.make_v_layout(
                 btn,
                 hp.make_label(self, "<b>Viewer App</b>", alignment=Qt.AlignHCenter),
+                stretch_id=0,
+            )
+        )
+        # sync app
+        btn = hp.make_qta_btn(self, "sync", tooltip="Open sync application (coming).", func=self.on_viewer)
+        hp.disable_widgets(btn, disabled=True)
+        btn.set_xxlarge()
+        layout.addLayout(
+            hp.make_v_layout(
+                btn,
+                hp.make_label(self, "<b>Sync App</b><br>(coming)", alignment=Qt.AlignHCenter),
+                stretch_id=0,
+            )
+        )
+        # crop app
+        btn = hp.make_qta_btn(self, "crop", tooltip="Open crop application.", func=self.on_viewer)
+        hp.disable_widgets(btn, disabled=True)
+        btn.set_xxlarge()
+        layout.addLayout(
+            hp.make_v_layout(
+                btn,
+                hp.make_label(self, "<b>Crop App</b><br>(coming)", alignment=Qt.AlignHCenter),
                 stretch_id=0,
             )
         )

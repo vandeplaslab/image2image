@@ -24,7 +24,12 @@ from image2image import __version__
 from image2image._select import FixedWidget, MovingWidget
 from image2image.config import CONFIG
 from image2image.dialog_base import Window
-from image2image.enums import ALLOWED_EXPORT_FORMATS, ALLOWED_IMPORT_FORMATS, TRANSFORMATION_TRANSLATIONS, ViewType
+from image2image.enums import (
+    ALLOWED_EXPORT_REGISTER_FORMATS,
+    ALLOWED_IMPORT_REGISTER_FORMATS,
+    TRANSFORMATION_TRANSLATIONS,
+    ViewType,
+)
 from image2image.models import DataModel, Transformation
 from image2image.utilities import (
     _get_text_data,
@@ -51,8 +56,8 @@ class ImageRegistrationWindow(Window):
     def __init__(self, parent):
         super().__init__(parent, f"image2image: Simple image registration tool (v{__version__})")
         self.transform_model = Transformation(
-            fixed_model=self._fixed_widget.model,
-            moving_model=self._moving_widget.model,
+            fixed_model=self.fixed_model,
+            moving_model=self.moving_model,
             fixed_points=self.fixed_points_layer.data,
             moving_points=self.moving_points_layer.data,
         )
@@ -144,6 +149,16 @@ class ImageRegistrationWindow(Window):
         """Close fixed image."""
         self._close_model(model, self.view_fixed, "fixed view")
 
+    @property
+    def fixed_model(self) -> "DataModel":
+        """Return transform model."""
+        return self._fixed_widget.model
+
+    @property
+    def moving_model(self) -> "DataModel":
+        """Return transform model."""
+        return self._moving_widget.model
+
     @ensure_main_thread
     def on_load_fixed(self, model: DataModel, channel_list: ty.List[str]):
         """Load fixed image."""
@@ -168,9 +183,7 @@ class ImageRegistrationWindow(Window):
         logger.info(f"Loaded fixed data in {timer()}")
 
     def _plot_fixed_layers(self, channel_list: ty.Optional[ty.List[str]] = None):
-        self.fixed_image_layer = self._plot_image_layers(
-            self._fixed_widget.model, self.view_fixed, channel_list, "fixed view"
-        )
+        self.fixed_image_layer = self._plot_image_layers(self.fixed_model, self.view_fixed, channel_list, "fixed view")
         if isinstance(self.fixed_image_layer, list) and len(self.fixed_image_layer) > 1:
             link_layers(self.fixed_image_layer, attributes=("opacity",))
 
@@ -220,7 +233,7 @@ class ImageRegistrationWindow(Window):
     def _plot_moving_layers(self, channel_list: ty.Optional[ty.List[str]] = None):
         CONFIG.view_type = ViewType(CONFIG.view_type)
         is_overlay = CONFIG.view_type == ViewType.OVERLAY
-        wrapper = self._moving_widget.model.get_wrapper()
+        wrapper = self.moving_model.get_wrapper()
         if channel_list is None:
             channel_list = wrapper.channel_names()
 
@@ -252,7 +265,7 @@ class ImageRegistrationWindow(Window):
 
     def on_change_view_type(self, _view_type: str):
         """Change view type."""
-        if self._moving_widget.model.n_paths:
+        if self.moving_model.n_paths:
             self._plot_moving_layers()
             self.on_apply(update_data=True)
 
@@ -330,6 +343,14 @@ class ImageRegistrationWindow(Window):
             return
         layer.remove_selected()
 
+    def on_clear_all(self):
+        """Clear arr data."""
+        if hp.confirm(self, "Are you sure you want to remove all images and data points?"):
+            self.on_clear("fixed", force=True)
+            self.on_clear("moving", force=True)
+            self._moving_widget.dataset_dlg._on_close_dataset(force=True)
+            self._fixed_widget.dataset_dlg._on_close_dataset(force=True)
+
     def on_clear(self, which: str, force: bool = True):
         """Remove point to the image."""
         if force or hp.confirm(self, "Are you sure you want to remove all data points from the points layer?"):
@@ -387,12 +408,12 @@ class ImageRegistrationWindow(Window):
             hp.warn(self, "Cannot save transformation - no transformation has been computed.")
             return
         # get filename which is based on the moving dataset
-        filename = transform.moving_model.get_filename() + "_transform.i2i.json"
+        filename = transform.moving_model.get_filename() + "_transform.i2r.json"
         path = hp.get_save_filename(
             self,
             "Save transformation",
             base_dir=CONFIG.output_dir,
-            file_filter=ALLOWED_EXPORT_FORMATS,
+            file_filter=ALLOWED_EXPORT_REGISTER_FORMATS,
             base_filename=filename,
         )
         if path:
@@ -410,7 +431,7 @@ class ImageRegistrationWindow(Window):
     def on_load(self, _evt=None):
         """Import transformation."""
         path = hp.get_filename(
-            self, "Load transformation", base_dir=CONFIG.output_dir, file_filter=ALLOWED_IMPORT_FORMATS
+            self, "Load transformation", base_dir=CONFIG.output_dir, file_filter=ALLOWED_IMPORT_REGISTER_FORMATS
         )
         if path:
             from image2image._dialogs import ImportSelectDialog
@@ -485,9 +506,9 @@ class ImageRegistrationWindow(Window):
         return {
             "transform_model": self.transform_model,
             "fixed_viewer": self.view_fixed.viewer,
-            "fixed_model": self._fixed_widget.model,
+            "fixed_model": self.fixed_model,
             "moving_viewer": self.view_moving.viewer,
-            "moving_model": self._moving_widget.model,
+            "moving_model": self.moving_model,
         }
 
     @ensure_main_thread
@@ -692,6 +713,13 @@ class ImageRegistrationWindow(Window):
             "Ctrl+I",
             menu=menu_file,
             func=self._moving_widget.on_select_dataset,
+        )
+        menu_file.addSeparator()
+        hp.make_menu_item(
+            self,
+            "Clear all data...",
+            menu=menu_file,
+            func=self.on_clear_all,
         )
         menu_file.addSeparator()
         hp.make_menu_item(self, "Quit", menu=menu_file, func=self.close)

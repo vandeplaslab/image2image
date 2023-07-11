@@ -2,6 +2,7 @@
 import typing as ty
 
 import click
+from koyo.utilities import running_as_pyinstaller_app
 
 from image2image import __version__
 
@@ -65,11 +66,16 @@ def cli(
     launcher - opens dialog where you can launch any of the tools.
     register - opens dialog where you can co-register images.
     viewer - opens dialog where you can view images.
-    crop - opens dialog where you can crop images (not implemented yet)
+    sync - opens dialog where you can sync images (not yet implemented)
+    crop - opens dialog where you can crop images (not yet implemented)
     """
     from image2image.main import run
 
     if dev:
-        verbosity = 0.5
+        if running_as_pyinstaller_app():
+            click.echo("Developer mode is disabled in bundled app.")
+            dev = False
+        else:
+            verbosity = 0.5
     level = min(0.5, verbosity) * 10
     run(level=int(level), no_color=no_color, dev=dev, tool=tool)

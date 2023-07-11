@@ -130,7 +130,7 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
         from image2image.utilities import open_bug_report, open_docs, open_github, open_request
 
         menu_help = hp.make_menu(self, "Help")
-        hp.make_menu_item(self, "Documentation (in browser)", menu=menu_help, icon="web", func=open_docs)
+        hp.make_menu_item(self, "Documentation (in browser)", menu=menu_help, icon="web", func=open_docs, disabled=True)
         hp.make_menu_item(
             self,
             "GitHub (online)",
@@ -138,6 +138,7 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
             status_tip="Open project's GitHub page.",
             icon="github",
             func=open_github,
+            disabled=True,
         )
         hp.make_menu_item(
             self,
@@ -146,6 +147,7 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
             status_tip="Open project's GitHub feature request page.",
             icon="request",
             func=open_request,
+            disabled=True,
         )
         hp.make_menu_item(
             self,
@@ -154,6 +156,7 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
             status_tip="Open project's GitHub bug report page.",
             icon="bug",
             func=open_bug_report,
+            disabled=True,
         )
         menu_help.addSeparator()
         hp.make_menu_item(

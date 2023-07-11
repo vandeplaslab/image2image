@@ -66,7 +66,7 @@ class SelectTransformDialog(QtFramelessTool):
                 reader = self.model.get_reader(reader_path)
                 if reader:
                     # if reader.transform_name != transform_name:
-                        # transform information need to be updated
+                    # transform information need to be updated
                     reader.transform_name = transform_name
                     reader.transform = matrix
                     self.table.update_value(index, self.TABLE_CONFIG.transform, transform_name)
@@ -93,7 +93,7 @@ class SelectTransformDialog(QtFramelessTool):
     def on_load_transform(self):
         """Load transformation matrix."""
         from image2image.config import CONFIG
-        from image2image.enums import ALLOWED_EXPORT_FORMATS
+        from image2image.enums import ALLOWED_EXPORT_REGISTER_FORMATS
         from image2image.models import load_transform_from_file
         from image2image.utilities import compute_transform
 
@@ -101,7 +101,7 @@ class SelectTransformDialog(QtFramelessTool):
             self,
             "Load transformation",
             base_dir=CONFIG.output_dir,
-            file_filter=ALLOWED_EXPORT_FORMATS,
+            file_filter=ALLOWED_EXPORT_REGISTER_FORMATS,
         )
         if path:
             # load transformation
