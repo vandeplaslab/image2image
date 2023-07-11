@@ -15,7 +15,7 @@ ALLOWED_EXPORT_REGISTER_FORMATS = (
     "Transformation (*.i2r.toml);;"
     "MATLAB fusion format (*.xml);;"
 )
-ALLOWED_PROJECT_FORMATS = (
+ALLOWED_VIEWER_FORMATS = (
     "Any projects (*.i2v.json *.i2v.toml);; " "Transformation (*.i2v.json);; " "Transformation (*.i2v.toml);;"
 )
 ALLOWED_FORMATS = (

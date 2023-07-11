@@ -26,13 +26,14 @@ class LoadMixin(QWidget):
     IS_FIXED: bool
     INFO_TEXT = "Select data..."
 
-    def __init__(self, parent, view):
+    def __init__(self, parent, view, n_max: int = 0):
         """Init."""
         super().__init__(parent=parent)
         self._setup_ui()
         self.view = view
+        self.n_max = n_max
         self.model = DataModel(is_fixed=self.IS_FIXED)
-        self.dataset_dlg = SelectImagesDialog(self, self.model, self.IS_FIXED)
+        self.dataset_dlg = SelectImagesDialog(self, self.model, self.IS_FIXED, self.n_max)
 
     def _setup_ui(self):
         """Setup UI."""
@@ -66,9 +67,9 @@ class LoadWidget(LoadMixin):
 
     IS_FIXED: bool = True
 
-    def __init__(self, parent, view):
+    def __init__(self, parent, view, n_max: int = 0):
         """Init."""
-        super().__init__(parent, view)
+        super().__init__(parent, view, n_max)
         self.channel_dlg = OverlayChannelsDialog(self, self.model, self.view)
 
     def _setup_ui(self):

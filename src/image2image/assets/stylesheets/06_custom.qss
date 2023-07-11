@@ -124,9 +124,7 @@ QtLayerControlsContainer {
     padding: 0px;
     margin: 10px;
     min-height: 265px;
-    max-height: 265px;
     min-width: 240px;
-    max-width: 240px;
     margin-left: 10px;
     margin-right: 8px;
     margin-bottom: 4px;

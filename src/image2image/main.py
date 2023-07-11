@@ -10,7 +10,7 @@ def run(
     level: int = 10,
     no_color: bool = False,
     dev: bool = False,
-    tool: ty.Literal["launcher", "register", "viewer"] = "register",
+    tool: ty.Literal["launcher", "register", "viewer", "crop"] = "launcher",
 ):
     """Execute command."""
     from koyo.logging import set_loguru_log
@@ -41,12 +41,12 @@ def run(
         from image2image.launcher import Launcher
 
         dlg = Launcher(None)
+        dlg.setMinimumSize(300, 500)
+    elif tool == "crop":
+        from image2image.dialog_crop import ImageCropWindow
+
+        dlg = ImageCropWindow(None)
         dlg.setMinimumSize(1200, 500)
-    # elif tool == "crop":
-    #     from image2image.dialog_crop import ImageCropWindow
-    #
-    #     dlg = ImageCropWindow(None)
-    #     dlg.setMinimumSize(1200, 500)
     else:
         raise ValueError("Launcher is not implemented yet.")
 

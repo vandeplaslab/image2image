@@ -91,6 +91,8 @@ class ImageRegistrationWindow(Window):
             )
             visual = self.view_fixed.widget.layer_to_visual[layer]
             init_points_layer(layer, visual)
+            connect(self.fixed_points_layer.events.data, self.on_run, state=True)
+            connect(self.fixed_points_layer.events.add_point, partial(self.on_predict, "fixed"), state=True)
         return self.view_fixed.layers["Fixed (points)"]
 
     @property
@@ -107,6 +109,8 @@ class ImageRegistrationWindow(Window):
             )
             visual = self.view_moving.widget.layer_to_visual[layer]
             init_points_layer(layer, visual)
+            connect(self.moving_points_layer.events.data, self.on_run, state=True)
+            connect(self.moving_points_layer.events.add_point, partial(self.on_predict, "moving"), state=True)
         return self.view_moving.layers["Moving (points)"]
 
     def setup_events(self, state: bool = True):
@@ -131,14 +135,6 @@ class ImageRegistrationWindow(Window):
             state=state,
         )
         connect(self._moving_widget.evt_view_type, self.on_change_view_type, state=state)
-        # fixed view
-        # connect(self.view_fixed.viewer.camera.events.zoom, self.on_auto_apply_focus, state=state)
-        # fixed points layer
-        connect(self.fixed_points_layer.events.data, self.on_run, state=state)
-        connect(self.fixed_points_layer.events.add_point, partial(self.on_predict, "fixed"), state=state)
-        # moving points layer
-        connect(self.moving_points_layer.events.data, self.on_run, state=state)
-        connect(self.moving_points_layer.events.add_point, partial(self.on_predict, "moving"), state=state)
 
     def on_indicator(self, which: str, state: bool = True):
         """Set indicator."""

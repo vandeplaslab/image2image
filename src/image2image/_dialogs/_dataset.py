@@ -290,9 +290,10 @@ class SelectImagesDialog(QtFramelessTool):
         .add("remove", "remove", "str", 0)
     )
 
-    def __init__(self, parent, model: "DataModel", is_fixed: bool = False):
+    def __init__(self, parent, model: "DataModel", is_fixed: bool = False, n_max: int = 0):
         self.is_fixed = is_fixed
         super().__init__(parent)
+        self.n_max = n_max
         self.model = model
         self.setMinimumWidth(600)
         self.setMinimumHeight(400)
@@ -399,6 +400,15 @@ class SelectImagesDialog(QtFramelessTool):
                 CONFIG.fixed_dir = str(Path(path).parent)
             else:
                 CONFIG.moving_dir = str(Path(path).parent)
+
+            if self.n_max and self.model.n_paths >= self.n_max:
+                verb = "image" if self.n_max == 1 else "images"
+                hp.warn(
+                    self,
+                    f"Maximum number of images reached. You can only have {self.n_max} {verb} loaded at at time. Please"
+                    f" remove other images first.",
+                )
+                return
             self._on_load_dataset(path)
 
     def _on_close_dataset(self, force: bool = False) -> bool:
