@@ -340,15 +340,19 @@ class SelectImagesDialog(QtFramelessTool):
 
     def on_load(self):
         """Load data."""
-        self._clear_table()
+        # self._clear_table()
 
         wrapper = self.model.get_wrapper()
         if wrapper:
             with self._editing_table():
                 for path, reader in wrapper.path_reader_iter():
+                    name = reader.name
+                    index = hp.find_in_table(self.table, self.TABLE_CONFIG.name, name)
+                    if index is not None:
+                        continue
+
                     # get model information
                     index = self.table.rowCount()
-                    name = reader.name
                     resolution = reader.resolution
 
                     self.table.insertRow(index)

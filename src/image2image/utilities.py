@@ -18,6 +18,7 @@ from image2image.config import CONFIG
 
 if ty.TYPE_CHECKING:
     from skimage.transform import ProjectiveTransform
+    from image2image.readers.base_reader import BaseImageReader
 
 
 DRAG_DIST_THRESHOLD = 5
@@ -231,7 +232,7 @@ def write_xml_registration(output_path: PathLike, affine: np.ndarray):
         f.write(parseString(xml).toprettyxml())
 
 
-def write_xml_micro_metadata(path_or_tiff: PathLike, xml_output_path: Path):
+def write_reader_to_xml(path_or_tiff: ty.Union[PathLike, "BaseImageReader"], filename: PathLike):
     """Get filename."""
     from xml.dom.minidom import parseString
 
@@ -244,8 +245,8 @@ def write_xml_micro_metadata(path_or_tiff: PathLike, xml_output_path: Path):
     else:
         reader = path_or_tiff
 
-    image_shape = reader.im_dims[0:2]
-    shape = reader.pyramid[0].reshape(-1, 3).shape
+    image_shape = reader.pyramid[0].shape
+    shape = reader.flat_array().shape
 
     meta = {
         "modality": "microscopy",
@@ -259,9 +260,11 @@ def write_xml_micro_metadata(path_or_tiff: PathLike, xml_output_path: Path):
     }
     xml = dicttoxml(meta, custom_root="data_source", attr_type=False)
 
-    filename = xml_output_path.parent / (reader.path.stem + ".xml")
+    # filename = xml_output_path.parent / (reader.path.stem + ".xml")
+    filename = Path(filename).with_suffix(".xml")
     with open(filename, "w") as f:
         f.write(parseString(xml).toprettyxml())
+    logger.debug(f"Saved XML file to {filename}")
 
 
 def reshape_fortran(x, shape):
@@ -270,12 +273,25 @@ def reshape_fortran(x, shape):
 
 
 @numba.njit()
-def micro_format_to_row(row: np.ndarray) -> str:
+def rgb_format_to_row(row: np.ndarray) -> str:
     """Format string to row."""
     return ",".join([str(v) for v in row]) + ",\n"
 
 
-def prepare_micro_to_fusion(path_or_tiff: PathLike, output_dir: PathLike, get_minimal: bool = False):
+def float_format_to_row(row: np.ndarray) -> str:
+    """Format string to row."""
+    return ",".join(
+        [
+            ",".join([str(int(v)) for v in row[0:2]]),
+            ",".join([f"{v:.2f}" for v in row[2:]]),
+            "\n",
+        ]
+    )
+
+
+def prepare_micro_to_fusion(
+    path_or_tiff: ty.Union[PathLike, "BaseImageReader"], output_dir: PathLike, get_minimal: bool = False
+):
     """Export microscopy data to text."""
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -289,9 +305,9 @@ def prepare_micro_to_fusion(path_or_tiff: PathLike, output_dir: PathLike, get_mi
         return None, micro_path
 
     if isinstance(path_or_tiff, (str, Path)):
-        from image2image._reader import TiffImageReader
+        from image2image._reader import read_image
 
-        reader = TiffImageReader(path_or_tiff)
+        reader = next(read_image(path_or_tiff).reader_iter())
     else:
         reader = path_or_tiff
     image = reader.pyramid[0]
@@ -309,10 +325,40 @@ def prepare_micro_to_fusion(path_or_tiff: PathLike, output_dir: PathLike, get_mi
     return res, micro_path
 
 
-def write_micro_to_txt(path: PathLike, array: np.ndarray, chunk_size: int = 5000):
+def _insert_indices(array, shape: ty.Tuple[int, int]):
+    n = array.shape[1]
+    y, x = np.indices(shape)
+    y = y.ravel(order="F")
+    x = x.ravel(order="F")
+    res = np.zeros((x.size, n + 2), dtype=np.uint16)
+    res[:, 0] = y + 1
+    res[:, 1] = x + 1
+    res[:, 2:] = reshape_fortran(array, (-1, n))
+    return res
+
+
+def write_reader_to_txt(reader: "BaseImageReader", path: PathLike, update_freq: int = 100000):
+    """Write image data to text."""
+    array = reader.flat_array()
+    print(array.shape, reader.pyramid[0].shape, reader.pyramid)
+    array = _insert_indices(array, reader.pyramid[0].shape[0:2])
+
+    if reader.n_channels == 3 and reader.dtype == np.uint8:
+        yield from write_rgb_to_txt(path, array, update_freq=update_freq)
+    else:
+        yield from write_any_to_txt(path, array, reader.channel_names, update_freq=update_freq)
+
+
+def write_rgb_to_txt(path: PathLike, array: np.ndarray, update_freq: int = 100000):
     """Write IMS data to text."""
     columns = ["row", "col", "Red (R)", "Green (G)", "Blue (B)"]
-    _write_txt(path, columns, array, micro_format_to_row, chunk_size=chunk_size)
+    yield from _write_txt(path, columns, array, rgb_format_to_row, update_freq=update_freq)
+
+
+def write_any_to_txt(path: PathLike, array: np.ndarray, channel_names: ty.List[str], update_freq: int = 100000):
+    """Write IMS data to text."""
+    columns = ["row", "col", *channel_names]
+    yield from _write_txt(path, columns, array, float_format_to_row, update_freq=update_freq)
 
 
 def _write_txt(
@@ -320,11 +366,9 @@ def _write_txt(
     columns: ty.List[str],
     array: np.ndarray,
     str_func: ty.Callable,
-    chunk_size: int = 5000,
-    in_chunks: bool = False,
+    update_freq: int = 100000,
 ):
     """Write data to csv file."""
-    from koyo.utilities import chunks
     from tqdm.auto import tqdm
 
     columns = ",".join(columns) + ",\n"
@@ -332,18 +376,19 @@ def _write_txt(
     path = Path(path)
     assert path.suffix == ".txt", "Path must have .txt extension."
 
+    n = array.shape[0]
     logger.debug(f"Exporting array with {array.shape[0]:,} observations and {array.shape[1]:,} features to '{path}'")
     with open(path, "w", newline="\n", encoding="cp1252") as f:
         f.write(columns)
-        if not in_chunks:
-            for row in tqdm(array, total=array.shape[0], mininterval=1):
+        with tqdm(array, total=n, mininterval=1) as pbar:
+            for i, row in enumerate(pbar):
                 f.write(str_func(row))
-        else:
-            write_chunks = chunks(array, n_items=chunk_size)
-            with tqdm(total=array.shape[0], mininterval=1) as pbar:
-                for chunk in write_chunks:
-                    temp = []
-                    for row in chunk:
-                        temp.append(str_func(row))
-                    f.write("".join(temp))
-                    pbar.update(chunk.shape[0])
+                if i % update_freq == 0:
+                    if i != 0:
+                        d = pbar.format_dict
+                        if d["rate"]:
+                            eta = pbar.format_interval((d["total"] - d["n"]) / d["rate"])
+                        else:
+                            eta = ""
+                        yield i, n, eta
+        yield n, n, ""

@@ -36,7 +36,6 @@ class TiffImageReader(BaseImageReader):
 
         self.im_dims = tuple(self.im_dims)
         self.is_rgb = guess_rgb(self.im_dims)
-        self.n_channels = self.im_dims[2] if self.is_rgb else self.im_dims[0]
 
         self.resolution = self._get_im_res()
         self.channel_names = self._get_channel_names()
@@ -44,6 +43,11 @@ class TiffImageReader(BaseImageReader):
 
         if init_pyramid:
             self._pyramid = self.pyramid
+
+    @property
+    def n_channels(self):
+        """Return number of channels."""
+        return self.im_dims[2] if self.is_rgb else self.im_dims[0]
 
     def get_dask_pyr(self):
         """Get instance of Dask pyramid."""

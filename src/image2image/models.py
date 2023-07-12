@@ -144,6 +144,21 @@ class DataModel(BaseModel):
         if not self.paths:
             self.wrapper = None
 
+    def get_path(self, path: PathLike) -> ty.Optional[Path]:
+        """Get path."""
+        path = sanitize_path(path)
+        if path not in self.paths:
+            for path_ in self.paths:
+                if path_.name == path.name:
+                    return path_
+        if path.exists():
+            return path
+
+    def has_path(self, path: PathLike) -> bool:
+        """Check if path is in model."""
+        path = self.get_path(path)
+        return path is not None
+
     def load(
         self, affine: ty.Optional[ty.Dict[str, np.ndarray]] = None, resolution: ty.Optional[ty.Dict[str, float]] = None
     ):

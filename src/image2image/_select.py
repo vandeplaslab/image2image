@@ -70,15 +70,20 @@ class LoadWidget(LoadMixin):
     def __init__(self, parent, view, n_max: int = 0):
         """Init."""
         super().__init__(parent, view, n_max)
-        self.channel_dlg = OverlayChannelsDialog(self, self.model, self.view)
+        self.channel_dlg = OverlayChannelsDialog(self, self.model, self.view) if self.view else None
+        if self.channel_dlg is None:
+            self.select_btn.hide()
 
     def _setup_ui(self):
         """Setup UI."""
         layout = hp.make_form_layout()
         style_form_layout(layout)
-        layout.addRow(hp.make_label(self, self.INFO_TEXT, bold=True, wrap=True, alignment=Qt.AlignCenter))  # noqa
+        self.info_text = hp.make_label(self, self.INFO_TEXT, bold=True, wrap=True, alignment=Qt.AlignCenter)
+        layout.addRow(self.info_text)  # noqa
         layout.addRow(hp.make_btn(self, "Add/remove dataset...", func=self._on_add_dataset))
-        layout.addRow(hp.make_btn(self, "Select channels...", func=self._on_select_channels))
+
+        self.select_btn = hp.make_btn(self, "Select channels...", func=self._on_select_channels)
+        layout.addRow(self.select_btn)
         self.setLayout(layout)
         return layout
 

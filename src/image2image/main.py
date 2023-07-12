@@ -10,7 +10,7 @@ def run(
     level: int = 10,
     no_color: bool = False,
     dev: bool = False,
-    tool: ty.Literal["launcher", "register", "viewer", "crop"] = "launcher",
+    tool: ty.Literal["launcher", "register", "viewer", "crop", "export"] = "launcher",
 ):
     """Execute command."""
     from koyo.logging import set_loguru_log
@@ -47,11 +47,17 @@ def run(
 
         dlg = ImageCropWindow(None)
         dlg.setMinimumSize(1200, 500)
+    elif tool == "export":
+        from image2image.dialog_export import ImageExportWindow
+
+        dlg = ImageExportWindow(None)
+        dlg.setMinimumSize(600, 500)
     else:
         raise ValueError("Launcher is not implemented yet.")
 
     THEMES[THEMES.theme].font_size = "9pt"
     THEMES.set_theme_stylesheet(dlg)
+    THEMES.evt_theme_changed.connect(lambda: THEMES.set_theme_stylesheet(dlg))
 
     if dev:
         import faulthandler
