@@ -404,7 +404,7 @@ class ImageRegistrationWindow(Window):
             hp.warn(self, "Cannot save transformation - no transformation has been computed.")
             return
         # get filename which is based on the moving dataset
-        filename = transform.moving_model.get_filename() + "_transform.i2r.json"
+        filename = self.moving_model.get_filename() + "_transform.i2r.json"
         path = hp.get_save_filename(
             self,
             "Save transformation",

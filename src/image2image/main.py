@@ -55,7 +55,6 @@ def run(
     else:
         raise ValueError("Launcher is not implemented yet.")
 
-    THEMES[THEMES.theme].font_size = "9pt"
     THEMES.set_theme_stylesheet(dlg)
     THEMES.evt_theme_changed.connect(lambda: THEMES.set_theme_stylesheet(dlg))
 
