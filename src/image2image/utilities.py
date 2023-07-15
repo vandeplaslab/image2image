@@ -1,4 +1,6 @@
 """Utilities."""
+import random
+
 import typing as ty
 from pathlib import Path
 
@@ -10,9 +12,11 @@ from napari._vispy.layers.points import VispyPointsLayer
 from napari._vispy.layers.shapes import VispyShapesLayer
 from napari.layers.points._points_mouse_bindings import select as _select
 from napari.layers.points.points import Mode as PointsMode
-from napari.layers.points.points import Points
-from napari.layers.shapes.shapes import Shapes
+from napari.layers import Points, Shapes, Image
 from napari.utils.events import Event
+from napari.utils.colormaps.standardize_color import transform_color
+from vispy.color import Colormap as VispyColormap
+from napari.utils.colormaps.colormap_utils import convert_vispy_colormap
 
 from image2image.config import CONFIG
 
@@ -78,7 +82,7 @@ def open_link(url: str):
 
 def open_docs():
     """Open documentation site."""
-    open_link("https://image2image.readthedocs.io/en/latest/")
+    open_link("https://vandeplaslab.github.io/image2image-docs/")
 
 
 def open_github():
@@ -104,8 +108,26 @@ def style_form_layout(layout):
         layout.setVerticalSpacing(4)
 
 
-def get_colormap(index: int, used: ty.List[str]):
+def get_random_hex_color() -> str:
+    """Return random hex color"""
+    return "#%06x" % random.randint(0, 0xFFFFFF)
+
+
+def get_used_colormaps(layer_list) -> ty.List[str]:
+    """Return list of used colormaps based on their name"""
+    used = []
+    for layer in layer_list:
+        if isinstance(layer, Image):
+            if hasattr(layer.colormap, "name"):
+                used.append(layer.colormap.name)
+            else:
+                used.append(layer.colormap)
+    return used
+
+
+def get_colormap(index: int, layer_list):
     """Get colormap that has not been used yet."""
+    used = get_used_colormaps(layer_list)
     if index < len(PREFERRED_COLORMAPS):
         colormap = PREFERRED_COLORMAPS[index]
         if colormap not in used:
@@ -113,7 +135,14 @@ def get_colormap(index: int, used: ty.List[str]):
     for colormap in PREFERRED_COLORMAPS:
         if colormap not in used:
             return colormap
-    return "gray"
+    return vispy_colormap(get_random_hex_color())
+
+
+def vispy_colormap(color) -> VispyColormap:
+    """Return vispy colormap."""
+    return convert_vispy_colormap(
+        VispyColormap([np.asarray([0.0, 0.0, 0.0, 1.0]), transform_color(color)[0]]), name=str(color)
+    )
 
 
 def sanitize_path(path: PathLike) -> ty.Optional[Path]:
@@ -340,7 +369,6 @@ def _insert_indices(array, shape: ty.Tuple[int, int]):
 def write_reader_to_txt(reader: "BaseImageReader", path: PathLike, update_freq: int = 100000):
     """Write image data to text."""
     array = reader.flat_array()
-    print(array.shape, reader.pyramid[0].shape, reader.pyramid)
     array = _insert_indices(array, reader.pyramid[0].shape[0:2])
 
     if reader.n_channels == 3 and reader.dtype == np.uint8:

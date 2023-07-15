@@ -236,9 +236,8 @@ class ImageRegistrationWindow(Window):
         moving_image_layer = []
         for index, (name, array) in enumerate(wrapper.channel_image_iter()):
             logger.trace(f"Adding '{name}' to moving view...")
-            used = [layer.colormap for layer in self.view_moving.layers if isinstance(layer, Image)]
             with MeasureTimer() as timer:
-                colormap = get_colormap(index, used) if is_overlay else "turbo"
+                colormap = get_colormap(index, self.view_moving.layers) if is_overlay else "turbo"
                 is_visible = True if (is_overlay and index == 0) else (not is_overlay)
                 if name in self.view_moving.layers:
                     del self.view_moving.layers[name]
