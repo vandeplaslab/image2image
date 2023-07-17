@@ -240,6 +240,7 @@ class ImageRegistrationWindow(Window):
                 colormap = get_colormap(index, self.view_moving.layers) if is_overlay else "turbo"
                 is_visible = True if (is_overlay and index == 0) else (not is_overlay)
                 if name in self.view_moving.layers:
+                    is_visible = self.view_moving.layers[name].visible
                     del self.view_moving.layers[name]
                 moving_image_layer.append(
                     self.view_moving.viewer.add_image(

@@ -27,26 +27,26 @@ def run(
 
     # make app
     app = get_app()
-    if tool == "register":
+    if tool == "launcher":
+        from image2image.launcher import Launcher
+
+        dlg = Launcher(None)
+        dlg.setMinimumSize(400, 450)
+    elif tool == "register":
         from image2image.dialog_register import ImageRegistrationWindow
 
         dlg = ImageRegistrationWindow(None)
-        dlg.setMinimumSize(1200, 500)
+        dlg.setMinimumSize(1200, 800)
     elif tool == "viewer":
         from image2image.dialog_viewer import ImageViewerWindow
 
         dlg = ImageViewerWindow(None)
-        dlg.setMinimumSize(1200, 500)
-    elif tool == "launcher":
-        from image2image.launcher import Launcher
-
-        dlg = Launcher(None)
-        dlg.setMinimumSize(300, 500)
+        dlg.setMinimumSize(1200, 800)
     elif tool == "crop":
         from image2image.dialog_crop import ImageCropWindow
 
         dlg = ImageCropWindow(None)
-        dlg.setMinimumSize(1200, 500)
+        dlg.setMinimumSize(1200, 800)
     elif tool == "export":
         from image2image.dialog_export import ImageExportWindow
 
@@ -55,6 +55,7 @@ def run(
     else:
         raise ValueError("Launcher is not implemented yet.")
 
+    THEMES[THEMES.theme].font_size = "9pt"
     THEMES.set_theme_stylesheet(dlg)
     THEMES.evt_theme_changed.connect(lambda: THEMES.set_theme_stylesheet(dlg))
 
@@ -82,7 +83,10 @@ def run(
     else:
         os.environ["IMAGE2IMAGE_DEV_MODE"] = "0"
 
-    dlg.show()
+    if tool in ["launcher", "export"]:
+        dlg.show()
+    else:
+        dlg.showMaximized()
     sys.exit(app.exec_())
 
 

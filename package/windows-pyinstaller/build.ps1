@@ -98,7 +98,7 @@ if ($debug) {
     pyinstaller.exe --noconfirm --clean $filename
 }
 
-conda deactivate imimsui_package
+conda deactivate image2image_package
 
 # Copy runner script
 Copy-Item -Path "run_image2image.bat" -Destination "dist/"

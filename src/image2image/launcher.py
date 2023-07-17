@@ -101,8 +101,8 @@ class Launcher(QtDialog):
 
         dlg = ImageRegistrationWindow(None)
         THEMES.set_theme_stylesheet(dlg)
-        dlg.setMinimumSize(1200, 500)
-        dlg.show()
+        dlg.setMinimumSize(1200, 700)
+        dlg.showMaximized()
 
     @staticmethod
     def on_viewer():
@@ -111,8 +111,8 @@ class Launcher(QtDialog):
 
         dlg = ImageViewerWindow(None)
         THEMES.set_theme_stylesheet(dlg)
-        dlg.setMinimumSize(1200, 500)
-        dlg.show()
+        dlg.setMinimumSize(1200, 700)
+        dlg.showMaximized()
 
 
 if __name__ == "__main__":  # pragma: no cover

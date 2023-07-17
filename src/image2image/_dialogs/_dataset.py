@@ -211,7 +211,7 @@ class ExtractChannelsDialog(QtDialog):
         """Make panel."""
         self.mz_edit = hp.make_double_spin_box(self, minimum=0, maximum=2500, step=0.1, n_decimals=3)
         self.ppm_edit = hp.make_double_spin_box(
-            self, minimum=0.5, maximum=25, value=10, step=1, n_decimals=1, suffix=" ppm"
+            self, minimum=0.5, maximum=500, value=10, step=2.5, n_decimals=1, suffix=" ppm"
         )
 
         self.table = QtCheckableTableView(self, config=self.TABLE_CONFIG, enable_all_check=False, sortable=False)
