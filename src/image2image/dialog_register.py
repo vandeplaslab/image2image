@@ -340,7 +340,7 @@ class ImageRegistrationWindow(Window):
 
     def on_clear_all(self):
         """Clear arr data."""
-        if hp.confirm(self, "Are you sure you want to remove all images and data points?"):
+        if hp.confirm(self, "Are you sure you want to remove <b>all</b> images and data points?"):
             self.on_clear("fixed", force=True)
             self.on_clear("moving", force=True)
             self._moving_widget.dataset_dlg._on_close_dataset(force=True)

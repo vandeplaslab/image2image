@@ -43,7 +43,7 @@ def dev_options(func):
 @click.option(
     "-t",
     "--tool",
-    type=click.Choice(["launcher", "register", "viewer", "crop"]),
+    type=click.Choice(["launcher", "register", "viewer", "export"]),
     default="launcher",
     show_default=True,
 )
@@ -66,6 +66,7 @@ def cli(
     launcher - opens dialog where you can launch any of the tools.
     register - opens dialog where you can co-register images.
     viewer - opens dialog where you can view images.
+    export - opens dialog where you can export images.
     sync - opens dialog where you can sync images (not yet implemented)
     crop - opens dialog where you can crop images (not yet implemented)
     """

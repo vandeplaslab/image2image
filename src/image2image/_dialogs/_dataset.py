@@ -298,7 +298,7 @@ class SelectImagesDialog(QtFramelessTool):
         self.setMinimumWidth(600)
         self.setMinimumHeight(400)
 
-        self.on_load()
+        self.on_populate_table()
 
     def on_remove(self, name: str, path: str):
         """Remove path."""
@@ -338,9 +338,9 @@ class SelectImagesDialog(QtFramelessTool):
             while self.table.rowCount() > 0:
                 self.table.removeRow(0)
 
-    def on_load(self):
+    def on_populate_table(self):
         """Load data."""
-        # self._clear_table()
+        self._clear_table()
 
         wrapper = self.model.get_wrapper()
         if wrapper:
@@ -430,7 +430,7 @@ class SelectImagesDialog(QtFramelessTool):
             if paths:
                 self.model.remove_paths(paths)
                 self.evt_closed.emit(self.model)  # noqa
-            self.on_load()
+            self.on_populate_table()
             return True
         return False
 
@@ -467,7 +467,7 @@ class SelectImagesDialog(QtFramelessTool):
             logger.warning("No channels selected - dataset not loaded")
         # load data into an image
         self.evt_loaded.emit(model, channel_list)  # noqa
-        self.on_load()
+        self.on_populate_table()
 
     def _on_failed_dataset(self, exception: Exception):
         """Failed to load dataset."""
