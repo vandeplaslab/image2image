@@ -465,7 +465,7 @@ class ImageRegistrationWindow(Window):
                         moving_paths_missing,
                         moving_points,
                     ) = load_transform_from_file(path, **config)
-                except ValueError as e:
+                except (ValueError, KeyError) as e:
                     hp.warn(self, f"Failed to load transformation from {path}\n{e}", "Failed to load transformation")
                     return
 
