@@ -60,6 +60,7 @@ def run(
     THEMES.evt_theme_changed.connect(lambda: THEMES.set_theme_stylesheet(dlg))
 
     if dev:
+        import logging
         import faulthandler
 
         from qtextra.utils.dev import qdev
@@ -69,7 +70,7 @@ def run(
         faulthandler.enable(segfault_file, all_threads=True)
         logger.trace(f"Enabled fault handler - logging to '{segfault_path}'")
         logger.enable("qtextra")
-        logger.enable("qtreload")
+        logging.getLogger("qtreload").setLevel(logging.DEBUG)
 
         dev = qdev(dlg, modules=["qtextra", "image2image"])
         dev.evt_theme.connect(lambda: THEMES.set_theme_stylesheet(dlg))

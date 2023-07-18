@@ -306,6 +306,11 @@ class Transformation(BaseModel):
         """Inverse transformation of coordinates."""
         return self.transform.inverse(coords)
 
+    def error(self) -> float:
+        """Return error of the transformation."""
+        transformed_points = self(self.moving_points)
+        return float(np.sqrt(np.sum((self.fixed_points - transformed_points) ** 2)))
+
     @property
     def matrix(self):
         """Retrieve the transformation array."""

@@ -129,6 +129,8 @@ class MovingWidget(LoadWidget):
             data=VIEW_TYPE_TRANSLATIONS,
             value=str(CONFIG.view_type),
             func=self._on_update_view_type,
+            tooltip="Select what kind of image should be displayed.<br><b>Overlay</b> will use the 'true' image and can"
+            " be overlaid with other images.<br><b>Random</b> will display single image with random intensity.",
         )
         layout.addRow(hp.make_label(self, "View type"), self.view_type_choice)
 

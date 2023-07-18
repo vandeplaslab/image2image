@@ -316,3 +316,11 @@ QLineEdit#table_cell:focus {
 QDialog#confirm_dialog > QLabel {
     font-size: {{ increase(font_size, 3) }};
 }
+
+QLabel#error {
+    color: {{ error }};
+}
+
+QLabel#success {
+    color: {{ success }};
+}

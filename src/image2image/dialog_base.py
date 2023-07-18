@@ -132,7 +132,7 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
         from image2image.utilities import open_bug_report, open_docs, open_github, open_request
 
         menu_help = hp.make_menu(self, "Help")
-        hp.make_menu_item(self, "Documentation (online)", menu=menu_help, icon="web", func=open_docs)
+        hp.make_menu_item(self, "Documentation (online)", menu=menu_help, icon="web", func=open_docs, shortcut="F1")
         hp.make_menu_item(
             self,
             "GitHub (online)",

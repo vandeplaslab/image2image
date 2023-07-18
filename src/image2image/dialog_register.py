@@ -388,6 +388,11 @@ class ImageRegistrationWindow(Window):
                 fixed_points=self.fixed_points_layer.data,
                 moving_points=self.moving_points_layer.data,
             )
+            error = self.transform_model.error()
+            self.transform_error.setText(f"{error:.2f}")
+            hp.update_widget_style(
+                self.transform_error, "error" if error > self.transform_model.moving_model.resolution / 2 else "success"
+            )
             logger.info(self.transform_model.about())
             self.on_apply()
         else:
@@ -498,6 +503,13 @@ class ImageRegistrationWindow(Window):
             self._table = FiducialsDialog(self)
         self._table.show()
 
+    def on_show_shortcuts(self):
+        """View shortcuts table."""
+        from image2image._dialogs._shortcuts import RegisterShortcutsDialog
+
+        dlg = RegisterShortcutsDialog(self)
+        dlg.show()
+
     def _get_console_variables(self) -> ty.Dict:
         return {
             "transform_model": self.transform_model,
@@ -532,7 +544,6 @@ class ImageRegistrationWindow(Window):
                 moving_image_layer.data,
                 name="Transformed",
                 blending="translucent",
-                opacity=self.moving_opacity.value() / 100,
                 affine=self.transform.params,
                 colormap=moving_image_layer.colormap,
             )
@@ -639,9 +650,13 @@ class ImageRegistrationWindow(Window):
         self._fixed_widget = FixedWidget(self, self.view_fixed)
         self._moving_widget = MovingWidget(self, self.view_moving)
 
-        self.transform_choice = hp.make_combobox(self)
+        self.transform_choice = hp.make_combobox(self, tooltip="Type of transformation to compute.")
         hp.set_combobox_data(self.transform_choice, TRANSFORMATION_TRANSLATIONS, "Affine")
         self.transform_choice.currentTextChanged.connect(self.on_run)  # noqa
+
+        self.transform_error = hp.make_label(
+            self, "", bold=True, tooltip="Error is estimated by computing the square root of the sum of squared errors."
+        )
 
         side_layout = hp.make_form_layout()
         style_form_layout(side_layout)
@@ -656,6 +671,7 @@ class ImageRegistrationWindow(Window):
         side_layout.addRow(self._make_focus_layout())
         side_layout.addRow(hp.make_h_line_with_text("Transformation"))
         side_layout.addRow(hp.make_label(self, "Type of transformation"), self.transform_choice)
+        side_layout.addRow(hp.make_label(self, "Estimated error"), self.transform_error)
         side_layout.addRow(
             hp.make_btn(
                 self,
@@ -699,14 +715,14 @@ class ImageRegistrationWindow(Window):
         hp.make_menu_item(
             self,
             "Add fixed image (.tiff, .png, .jpg, .imzML, .tdf, .tsf, + others)...",
-            "Ctrl+M",
+            "Ctrl+F",
             menu=menu_file,
             func=self._fixed_widget.on_select_dataset,
         )
         hp.make_menu_item(
             self,
             "Add moving image (.tiff, .png, .jpg, .imzML, .tdf, .tsf, + others)...",
-            "Ctrl+I",
+            "Ctrl+M",
             menu=menu_file,
             func=self._moving_widget.on_select_dataset,
         )
@@ -729,6 +745,7 @@ class ImageRegistrationWindow(Window):
             self, "Select moving channels...", menu=menu_tools, func=self._moving_widget._on_select_channels
         )
         hp.make_menu_item(self, "Show fiducials table...", menu=menu_tools, func=self.on_show_fiducials)
+        hp.make_menu_item(self, "Show shortcuts...", menu=menu_tools, func=self.on_show_shortcuts)
         menu_tools.addSeparator()
         hp.make_menu_item(self, "Show IPython console...", "Ctrl+T", menu=menu_tools, func=self.on_show_console)
 
@@ -743,12 +760,26 @@ class ImageRegistrationWindow(Window):
         self.setMenuBar(self.menubar)
 
     def _make_focus_layout(self):
-        self.lock_btn = hp.make_lock_btn(self, func=self.on_lock, normal=True)
+        self.lock_btn = hp.make_lock_btn(
+            self,
+            func=self.on_lock,
+            normal=True,
+            tooltip="Lock the area of interest. Press <b>L</b> on your keyboard to lock.",
+        )
         # self.set_current_focus_btn = hp.make_btn(self, "Set current range", func=self.on_set_focus)
-        self.x_center = hp.make_double_spin_box(self, -1e5, 1e5, step_size=500)
-        self.y_center = hp.make_double_spin_box(self, -1e5, 1e5, step_size=500)
-        self.zoom = hp.make_double_spin_box(self, -1e5, 1e5, step_size=0.5, n_decimals=4)
-        self.use_focus_btn = hp.make_btn(self, "Zoom-in", func=self.on_apply_focus)
+        self.x_center = hp.make_double_spin_box(
+            self, -1e5, 1e5, step_size=500, tooltip="Center of the area of interest along the x-axis."
+        )
+        self.y_center = hp.make_double_spin_box(
+            self, -1e5, 1e5, step_size=500, tooltip="Center of the area of interest along the y-axis."
+        )
+        self.zoom = hp.make_double_spin_box(self, -1e5, 1e5, step_size=0.5, n_decimals=4, tooltip="Zoom factor.")
+        self.use_focus_btn = hp.make_btn(
+            self,
+            "Zoom-in",
+            func=self.on_apply_focus,
+            tooltip="Zoom-in to an area of interest. Press <b>Z</b> on your keyboard to zoom-in.",
+        )
 
         layout = hp.make_form_layout()
         style_form_layout(layout)
@@ -973,6 +1004,12 @@ class ImageRegistrationWindow(Window):
         elif key == Qt.Key_3:
             self.on_mode("fixed", mode=Mode.SELECT)
             self.on_mode("moving", mode=Mode.SELECT)
+            evt.ignore()
+        elif key == Qt.Key_Z:
+            self.on_apply_focus()
+            evt.ignore()
+        elif key == Qt.Key_L:
+            self.on_set_focus()
             evt.ignore()
         else:
             super().keyPressEvent(evt)
