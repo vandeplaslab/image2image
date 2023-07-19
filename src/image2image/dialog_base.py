@@ -25,6 +25,8 @@ if ty.TYPE_CHECKING:
 class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
     """Base class window for all apps.."""
 
+    _console = None
+
     def __init__(self, parent, title: str):
         super().__init__(parent)
         self.setAttribute(Qt.WA_DeleteOnClose)  # noqa
@@ -110,7 +112,7 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
     def on_show_console(self):
         """View console."""
         if self._console is None:
-            from image2image._console import QtConsoleDialog
+            from qtextra.dialogs.qt_console import QtConsoleDialog
 
             self._console = QtConsoleDialog(self)
             self._console.push_variables(self._get_console_variables())
