@@ -86,7 +86,7 @@ class CoordinateReader(BaseImageReader):
         for i, mz in enumerate(mzs):
             label = format_mz(mz)
             self.data[label] = images[i]
-            labels.append(label)
+            labels.append(f"{label} | {self.name}")
         return self.path, labels
 
     def get_dask_pyr(self) -> ty.List[np.ndarray]:

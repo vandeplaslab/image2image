@@ -211,7 +211,7 @@ class ExtractChannelsDialog(QtDialog):
         """Make panel."""
         self.mz_edit = hp.make_double_spin_box(self, minimum=0, maximum=2500, step=0.1, n_decimals=3)
         self.ppm_edit = hp.make_double_spin_box(
-            self, minimum=0.5, maximum=25, value=10, step=1, n_decimals=1, suffix=" ppm"
+            self, minimum=0.5, maximum=500, value=10, step=2.5, n_decimals=1, suffix=" ppm"
         )
 
         self.table = QtCheckableTableView(self, config=self.TABLE_CONFIG, enable_all_check=False, sortable=False)
@@ -290,14 +290,15 @@ class SelectImagesDialog(QtFramelessTool):
         .add("remove", "remove", "str", 0)
     )
 
-    def __init__(self, parent, model: "DataModel", is_fixed: bool = False):
+    def __init__(self, parent, model: "DataModel", is_fixed: bool = False, n_max: int = 0):
         self.is_fixed = is_fixed
         super().__init__(parent)
+        self.n_max = n_max
         self.model = model
         self.setMinimumWidth(600)
         self.setMinimumHeight(400)
 
-        self.on_load()
+        self.on_populate_table()
 
     def on_remove(self, name: str, path: str):
         """Remove path."""
@@ -337,7 +338,7 @@ class SelectImagesDialog(QtFramelessTool):
             while self.table.rowCount() > 0:
                 self.table.removeRow(0)
 
-    def on_load(self):
+    def on_populate_table(self):
         """Load data."""
         self._clear_table()
 
@@ -345,9 +346,13 @@ class SelectImagesDialog(QtFramelessTool):
         if wrapper:
             with self._editing_table():
                 for path, reader in wrapper.path_reader_iter():
+                    name = reader.name
+                    index = hp.find_in_table(self.table, self.TABLE_CONFIG.name, name)
+                    if index is not None:
+                        continue
+
                     # get model information
                     index = self.table.rowCount()
-                    name = reader.name
                     resolution = reader.resolution
 
                     self.table.insertRow(index)
@@ -399,6 +404,15 @@ class SelectImagesDialog(QtFramelessTool):
                 CONFIG.fixed_dir = str(Path(path).parent)
             else:
                 CONFIG.moving_dir = str(Path(path).parent)
+
+            if self.n_max and self.model.n_paths >= self.n_max:
+                verb = "image" if self.n_max == 1 else "images"
+                hp.warn(
+                    self,
+                    f"Maximum number of images reached. You can only have {self.n_max} {verb} loaded at at time. Please"
+                    f" remove other images first.",
+                )
+                return
             self._on_load_dataset(path)
 
     def _on_close_dataset(self, force: bool = False) -> bool:
@@ -416,7 +430,7 @@ class SelectImagesDialog(QtFramelessTool):
             if paths:
                 self.model.remove_paths(paths)
                 self.evt_closed.emit(self.model)  # noqa
-            self.on_load()
+            self.on_populate_table()
             return True
         return False
 
@@ -453,7 +467,7 @@ class SelectImagesDialog(QtFramelessTool):
             logger.warning("No channels selected - dataset not loaded")
         # load data into an image
         self.evt_loaded.emit(model, channel_list)  # noqa
-        self.on_load()
+        self.on_populate_table()
 
     def _on_failed_dataset(self, exception: Exception):
         """Failed to load dataset."""
@@ -482,6 +496,7 @@ class SelectImagesDialog(QtFramelessTool):
         if path and mzs and ppm:
             reader: "CoordinateReader" = self.model.get_reader(path)  # noqa
             if reader:
+                self.evt_loading.emit()  # noqa
                 func = thread_worker(
                     partial(reader.extract, mzs=mzs, ppm=ppm),  # noqa
                     start_thread=True,

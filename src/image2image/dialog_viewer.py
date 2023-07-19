@@ -14,7 +14,7 @@ from image2image import __version__
 from image2image._select import LoadWithTransformWidget
 from image2image.config import CONFIG
 from image2image.dialog_base import Window
-from image2image.enums import ALLOWED_PROJECT_FORMATS
+from image2image.enums import ALLOWED_VIEWER_FORMATS
 from image2image.utilities import style_form_layout
 
 if ty.TYPE_CHECKING:
@@ -89,16 +89,14 @@ class ImageViewerWindow(Window):
 
     def on_show_scalebar(self):
         """Show scale bar controls for the viewer."""
-        from qtextra._napari.image.component_controls.qt_scalebar_controls import QtScaleBarControls
+        from image2image._dialogs._scalebar import QtScaleBarControls
 
         dlg = QtScaleBarControls(self.view.viewer, self.view.widget)
         dlg.show_below_widget(self._image_widget)
 
     def on_load(self, _evt=None):
         """Load a previous project."""
-        path = hp.get_filename(
-            self, "Load i2v project", base_dir=CONFIG.output_dir, file_filter=ALLOWED_PROJECT_FORMATS
-        )
+        path = hp.get_filename(self, "Load i2v project", base_dir=CONFIG.output_dir, file_filter=ALLOWED_VIEWER_FORMATS)
         if path:
             from image2image.models import _remove_missing_from_dict, load_viewer_setup_from_file
 
@@ -143,7 +141,7 @@ class ImageViewerWindow(Window):
             self,
             "Save i2v project",
             base_dir=CONFIG.output_dir,
-            file_filter=ALLOWED_PROJECT_FORMATS,
+            file_filter=ALLOWED_VIEWER_FORMATS,
             base_filename=filename,
         )
         if path:
@@ -192,13 +190,6 @@ class ImageViewerWindow(Window):
         # extra settings
         self._make_menu()
         self._make_icon()
-
-    # noinspection PyAttributeOutsideInit
-    def _make_icon(self):
-        """Make icon."""
-        from image2image.assets import ICON_ICO
-
-        self.setWindowIcon(hp.get_icon_from_img(ICON_ICO))
 
     def _make_menu(self):
         """Make menu items."""

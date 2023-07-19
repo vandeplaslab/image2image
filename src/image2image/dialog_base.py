@@ -63,23 +63,25 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
             channel_list = wrapper.channel_names()
         image_layer = []
         for index, (name, array, reader) in enumerate(wrapper.channel_image_reader_iter()):
-            used = [layer.colormap for layer in view_wrapper.layers if isinstance(layer, Image)]
             logger.trace(f"Adding '{name}' to view...")
             with MeasureTimer() as timer:
                 if name in view_wrapper.layers:
                     image_layer.append(view_wrapper.layers[name])
                     continue
+                # get current transform and scale
+                current_affine = (
+                    wrapper.update_affine(reader.transform, reader.resolution) if scale else reader.transform
+                )
+                current_scale = reader.scale if scale else (1, 1)
                 image_layer.append(
                     view_wrapper.viewer.add_image(
                         array,
                         name=name,
                         blending="additive",
-                        colormap=get_colormap(index, used),
+                        colormap=get_colormap(index, view_wrapper.layers),
                         visible=name in channel_list,
-                        affine=wrapper.update_affine(reader.transform, reader.resolution)
-                        if scale
-                        else reader.transform,
-                        scale=reader.scale if scale else (1, 1),
+                        affine=current_affine,
+                        scale=current_scale,
                     )
                 )
                 logger.trace(f"Added '{name}' to {view_kind} in {timer()}.")
@@ -130,7 +132,7 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
         from image2image.utilities import open_bug_report, open_docs, open_github, open_request
 
         menu_help = hp.make_menu(self, "Help")
-        hp.make_menu_item(self, "Documentation (in browser)", menu=menu_help, icon="web", func=open_docs)
+        hp.make_menu_item(self, "Documentation (online)", menu=menu_help, icon="web", func=open_docs, shortcut="F1")
         hp.make_menu_item(
             self,
             "GitHub (online)",
@@ -138,6 +140,7 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
             status_tip="Open project's GitHub page.",
             icon="github",
             func=open_github,
+            disabled=True,
         )
         hp.make_menu_item(
             self,
@@ -146,6 +149,7 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
             status_tip="Open project's GitHub feature request page.",
             icon="request",
             func=open_request,
+            disabled=True,
         )
         hp.make_menu_item(
             self,
@@ -154,10 +158,15 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
             status_tip="Open project's GitHub bug report page.",
             icon="bug",
             func=open_bug_report,
+            disabled=True,
         )
         menu_help.addSeparator()
         hp.make_menu_item(
-            self, "Send feedback...", menu=menu_help, func=partial(send_feedback, parent=self), icon="feedback"
+            self,
+            "Send feedback or request...",
+            menu=menu_help,
+            func=partial(send_feedback, parent=self),
+            icon="feedback",
         )
         hp.make_menu_item(self, "Telemetry...", menu=menu_help, func=partial(ask_opt_in, parent=self), icon="telemetry")
         hp.make_menu_item(self, "About...", menu=menu_help, func=partial(open_about, parent=self), icon="info")

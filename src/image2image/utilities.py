@@ -1,19 +1,28 @@
 """Utilities."""
+import random
+
 import typing as ty
 from pathlib import Path
 
+import numba
 import numpy as np
 from koyo.typing import PathLike
 from loguru import logger
 from napari._vispy.layers.points import VispyPointsLayer
+from napari._vispy.layers.shapes import VispyShapesLayer
 from napari.layers.points._points_mouse_bindings import select as _select
-from napari.layers.points.points import Mode, Points
+from napari.layers.points.points import Mode as PointsMode
+from napari.layers import Points, Shapes, Image
 from napari.utils.events import Event
+from napari.utils.colormaps.standardize_color import transform_color
+from vispy.color import Colormap as VispyColormap
+from napari.utils.colormaps.colormap_utils import convert_vispy_colormap
 
 from image2image.config import CONFIG
 
 if ty.TYPE_CHECKING:
     from skimage.transform import ProjectiveTransform
+    from image2image.readers.base_reader import BaseImageReader
 
 
 DRAG_DIST_THRESHOLD = 5
@@ -73,7 +82,7 @@ def open_link(url: str):
 
 def open_docs():
     """Open documentation site."""
-    open_link("https://image2image.readthedocs.io/en/latest/")
+    open_link("https://vandeplaslab.github.io/image2image-docs/")
 
 
 def open_github():
@@ -99,8 +108,26 @@ def style_form_layout(layout):
         layout.setVerticalSpacing(4)
 
 
-def get_colormap(index: int, used: ty.List[str]):
+def get_random_hex_color() -> str:
+    """Return random hex color"""
+    return "#%06x" % random.randint(0, 0xFFFFFF)
+
+
+def get_used_colormaps(layer_list) -> ty.List[str]:
+    """Return list of used colormaps based on their name"""
+    used = []
+    for layer in layer_list:
+        if isinstance(layer, Image):
+            if hasattr(layer.colormap, "name"):
+                used.append(layer.colormap.name)
+            else:
+                used.append(layer.colormap)
+    return used
+
+
+def get_colormap(index: int, layer_list):
     """Get colormap that has not been used yet."""
+    used = get_used_colormaps(layer_list)
     if index < len(PREFERRED_COLORMAPS):
         colormap = PREFERRED_COLORMAPS[index]
         if colormap not in used:
@@ -108,7 +135,14 @@ def get_colormap(index: int, used: ty.List[str]):
     for colormap in PREFERRED_COLORMAPS:
         if colormap not in used:
             return colormap
-    return "gray"
+    return vispy_colormap(get_random_hex_color())
+
+
+def vispy_colormap(color) -> VispyColormap:
+    """Return vispy colormap."""
+    return convert_vispy_colormap(
+        VispyColormap([np.asarray([0.0, 0.0, 0.0, 1.0]), transform_color(color)[0]]), name=str(color)
+    )
 
 
 def sanitize_path(path: PathLike) -> ty.Optional[Path]:
@@ -141,12 +175,17 @@ def select(layer, event):
 
 def init_points_layer(layer: Points, visual: VispyPointsLayer):
     """Initialize points layer."""
-    layer._drag_modes[Mode.ADD] = add
-    layer._drag_modes[Mode.SELECT] = select
+    layer._drag_modes[PointsMode.ADD] = add
+    layer._drag_modes[PointsMode.SELECT] = select
     layer.edge_width = 0
     layer.events.add(move=Event, add_point=Event)
 
     visual._highlight_color = (0, 0.6, 1, 0.3)
+
+
+def init_shapes_layer(layer: Shapes, visual: VispyShapesLayer):
+    """Initialize shapes layer."""
+    layer._highlight_color = (0, 0.6, 1, 0.3)
 
 
 def _get_text_format():
@@ -220,3 +259,164 @@ def write_xml_registration(output_path: PathLike, affine: np.ndarray):
 
     with open(output_path, "w") as f:
         f.write(parseString(xml).toprettyxml())
+
+
+def write_reader_to_xml(path_or_tiff: ty.Union[PathLike, "BaseImageReader"], filename: PathLike):
+    """Get filename."""
+    from xml.dom.minidom import parseString
+
+    from dicttoxml import dicttoxml
+
+    if isinstance(path_or_tiff, (str, Path)):
+        from image2image._reader import TiffImageReader
+
+        reader = TiffImageReader(path_or_tiff)
+    else:
+        reader = path_or_tiff
+
+    image_shape = reader.pyramid[0].shape
+    shape = reader.flat_array().shape
+
+    meta = {
+        "modality": "microscopy",
+        "data_label": reader.path.stem,
+        "nr_spatial_dims": 2,
+        "spatial_grid_size": f"{image_shape[0]} {image_shape[1]}",
+        "nr_spatial_grid_elems": image_shape[0] * image_shape[1],
+        "spatial_resolution_um": reader.resolution,
+        "nr_obs": shape[0],
+        "nr_vars": shape[1],
+    }
+    xml = dicttoxml(meta, custom_root="data_source", attr_type=False)
+
+    # filename = xml_output_path.parent / (reader.path.stem + ".xml")
+    filename = Path(filename).with_suffix(".xml")
+    with open(filename, "w") as f:
+        f.write(parseString(xml).toprettyxml())
+    logger.debug(f"Saved XML file to {filename}")
+
+
+def reshape_fortran(x, shape):
+    """Reshape data to Fortran (MATLAB) ordering."""
+    return x.T.reshape(shape[::-1]).T
+
+
+@numba.njit()
+def rgb_format_to_row(row: np.ndarray) -> str:
+    """Format string to row."""
+    return ",".join([str(v) for v in row]) + ",\n"
+
+
+def float_format_to_row(row: np.ndarray) -> str:
+    """Format string to row."""
+    return ",".join(
+        [
+            ",".join([str(int(v)) for v in row[0:2]]),
+            ",".join([f"{v:.2f}" for v in row[2:]]),
+            "\n",
+        ]
+    )
+
+
+def prepare_micro_to_fusion(
+    path_or_tiff: ty.Union[PathLike, "BaseImageReader"], output_dir: PathLike, get_minimal: bool = False
+):
+    """Export microscopy data to text."""
+    output_dir = Path(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    if isinstance(path_or_tiff, (str, Path)):
+        path = path_or_tiff
+    else:
+        path = path_or_tiff.path
+    micro_path = output_dir / (Path(path).stem + ".txt")
+    if get_minimal:
+        return None, micro_path
+
+    if isinstance(path_or_tiff, (str, Path)):
+        from image2image._reader import read_image
+
+        reader = next(read_image(path_or_tiff).reader_iter())
+    else:
+        reader = path_or_tiff
+    image = reader.pyramid[0]
+    shape = image.shape[0:2]
+    n = image.shape[2]
+
+    y, x = np.indices(shape)
+    y = y.ravel(order="F")
+    x = x.ravel(order="F")
+
+    res = np.zeros((x.size, n + 2), dtype=np.uint16)
+    res[:, 0] = y + 1
+    res[:, 1] = x + 1
+    res[:, 2:] = reshape_fortran(image, (-1, n))
+    return res, micro_path
+
+
+def _insert_indices(array, shape: ty.Tuple[int, int]):
+    n = array.shape[1]
+    y, x = np.indices(shape)
+    y = y.ravel(order="F")
+    x = x.ravel(order="F")
+    res = np.zeros((x.size, n + 2), dtype=np.uint16)
+    res[:, 0] = y + 1
+    res[:, 1] = x + 1
+    res[:, 2:] = reshape_fortran(array, (-1, n))
+    return res
+
+
+def write_reader_to_txt(reader: "BaseImageReader", path: PathLike, update_freq: int = 100000):
+    """Write image data to text."""
+    array = reader.flat_array()
+    array = _insert_indices(array, reader.pyramid[0].shape[0:2])
+
+    if reader.n_channels == 3 and reader.dtype == np.uint8:
+        yield from write_rgb_to_txt(path, array, update_freq=update_freq)
+    else:
+        yield from write_any_to_txt(path, array, reader.channel_names, update_freq=update_freq)
+
+
+def write_rgb_to_txt(path: PathLike, array: np.ndarray, update_freq: int = 100000):
+    """Write IMS data to text."""
+    columns = ["row", "col", "Red (R)", "Green (G)", "Blue (B)"]
+    yield from _write_txt(path, columns, array, rgb_format_to_row, update_freq=update_freq)
+
+
+def write_any_to_txt(path: PathLike, array: np.ndarray, channel_names: ty.List[str], update_freq: int = 100000):
+    """Write IMS data to text."""
+    columns = ["row", "col", *channel_names]
+    yield from _write_txt(path, columns, array, float_format_to_row, update_freq=update_freq)
+
+
+def _write_txt(
+    path: PathLike,
+    columns: ty.List[str],
+    array: np.ndarray,
+    str_func: ty.Callable,
+    update_freq: int = 100000,
+):
+    """Write data to csv file."""
+    from tqdm.auto import tqdm
+
+    columns = ",".join(columns) + ",\n"
+
+    path = Path(path)
+    assert path.suffix == ".txt", "Path must have .txt extension."
+
+    n = array.shape[0]
+    logger.debug(f"Exporting array with {array.shape[0]:,} observations and {array.shape[1]:,} features to '{path}'")
+    with open(path, "w", newline="\n", encoding="cp1252") as f:
+        f.write(columns)
+        with tqdm(array, total=n, mininterval=1) as pbar:
+            for i, row in enumerate(pbar):
+                f.write(str_func(row))
+                if i % update_freq == 0:
+                    if i != 0:
+                        d = pbar.format_dict
+                        if d["rate"]:
+                            eta = pbar.format_interval((d["total"] - d["n"]) / d["rate"])
+                        else:
+                            eta = ""
+                        yield i, n, eta
+        yield n, n, ""

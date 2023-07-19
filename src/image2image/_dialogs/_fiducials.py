@@ -119,8 +119,7 @@ class FiducialsDialog(QtFramelessTool):
     # noinspection PyAttributeOutsideInit
     def make_panel(self) -> QFormLayout:
         """Make panel."""
-        _, header_layout = self._make_hide_handle()
-        self._title_label.setText("Fiducial markers")
+        _, header_layout = self._make_hide_handle("Fiducial markers")
 
         self.table = QtCheckableTableView(self, config=self.TABLE_CONFIG, enable_all_check=False, sortable=False)
         self.table.setCornerButtonEnabled(False)

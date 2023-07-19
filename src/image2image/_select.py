@@ -26,13 +26,14 @@ class LoadMixin(QWidget):
     IS_FIXED: bool
     INFO_TEXT = "Select data..."
 
-    def __init__(self, parent, view):
+    def __init__(self, parent, view, n_max: int = 0):
         """Init."""
         super().__init__(parent=parent)
         self._setup_ui()
         self.view = view
+        self.n_max = n_max
         self.model = DataModel(is_fixed=self.IS_FIXED)
-        self.dataset_dlg = SelectImagesDialog(self, self.model, self.IS_FIXED)
+        self.dataset_dlg = SelectImagesDialog(self, self.model, self.IS_FIXED, self.n_max)
 
     def _setup_ui(self):
         """Setup UI."""
@@ -66,18 +67,23 @@ class LoadWidget(LoadMixin):
 
     IS_FIXED: bool = True
 
-    def __init__(self, parent, view):
+    def __init__(self, parent, view, n_max: int = 0):
         """Init."""
-        super().__init__(parent, view)
-        self.channel_dlg = OverlayChannelsDialog(self, self.model, self.view)
+        super().__init__(parent, view, n_max)
+        self.channel_dlg = OverlayChannelsDialog(self, self.model, self.view) if self.view else None
+        if self.channel_dlg is None:
+            self.select_btn.hide()
 
     def _setup_ui(self):
         """Setup UI."""
         layout = hp.make_form_layout()
         style_form_layout(layout)
-        layout.addRow(hp.make_label(self, self.INFO_TEXT, bold=True, wrap=True, alignment=Qt.AlignCenter))  # noqa
+        self.info_text = hp.make_label(self, self.INFO_TEXT, bold=True, wrap=True, alignment=Qt.AlignCenter)
+        layout.addRow(self.info_text)  # noqa
         layout.addRow(hp.make_btn(self, "Add/remove dataset...", func=self._on_add_dataset))
-        layout.addRow(hp.make_btn(self, "Select channels...", func=self._on_select_channels))
+
+        self.select_btn = hp.make_btn(self, "Select channels...", func=self._on_select_channels)
+        layout.addRow(self.select_btn)
         self.setLayout(layout)
         return layout
 
@@ -123,6 +129,8 @@ class MovingWidget(LoadWidget):
             data=VIEW_TYPE_TRANSLATIONS,
             value=str(CONFIG.view_type),
             func=self._on_update_view_type,
+            tooltip="Select what kind of image should be displayed.<br><b>Overlay</b> will use the 'true' image and can"
+            " be overlaid with other images.<br><b>Random</b> will display single image with random intensity.",
         )
         layout.addRow(hp.make_label(self, "View type"), self.view_type_choice)
 

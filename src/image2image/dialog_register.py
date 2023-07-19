@@ -24,7 +24,12 @@ from image2image import __version__
 from image2image._select import FixedWidget, MovingWidget
 from image2image.config import CONFIG
 from image2image.dialog_base import Window
-from image2image.enums import ALLOWED_EXPORT_FORMATS, ALLOWED_IMPORT_FORMATS, TRANSFORMATION_TRANSLATIONS, ViewType
+from image2image.enums import (
+    ALLOWED_EXPORT_REGISTER_FORMATS,
+    ALLOWED_IMPORT_REGISTER_FORMATS,
+    TRANSFORMATION_TRANSLATIONS,
+    ViewType,
+)
 from image2image.models import DataModel, Transformation
 from image2image.utilities import (
     _get_text_data,
@@ -51,8 +56,8 @@ class ImageRegistrationWindow(Window):
     def __init__(self, parent):
         super().__init__(parent, f"image2image: Simple image registration tool (v{__version__})")
         self.transform_model = Transformation(
-            fixed_model=self._fixed_widget.model,
-            moving_model=self._moving_widget.model,
+            fixed_model=self.fixed_model,
+            moving_model=self.moving_model,
             fixed_points=self.fixed_points_layer.data,
             moving_points=self.moving_points_layer.data,
         )
@@ -86,6 +91,8 @@ class ImageRegistrationWindow(Window):
             )
             visual = self.view_fixed.widget.layer_to_visual[layer]
             init_points_layer(layer, visual)
+            connect(self.fixed_points_layer.events.data, self.on_run, state=True)
+            connect(self.fixed_points_layer.events.add_point, partial(self.on_predict, "fixed"), state=True)
         return self.view_fixed.layers["Fixed (points)"]
 
     @property
@@ -102,6 +109,8 @@ class ImageRegistrationWindow(Window):
             )
             visual = self.view_moving.widget.layer_to_visual[layer]
             init_points_layer(layer, visual)
+            connect(self.moving_points_layer.events.data, self.on_run, state=True)
+            connect(self.moving_points_layer.events.add_point, partial(self.on_predict, "moving"), state=True)
         return self.view_moving.layers["Moving (points)"]
 
     def setup_events(self, state: bool = True):
@@ -126,14 +135,6 @@ class ImageRegistrationWindow(Window):
             state=state,
         )
         connect(self._moving_widget.evt_view_type, self.on_change_view_type, state=state)
-        # fixed view
-        # connect(self.view_fixed.viewer.camera.events.zoom, self.on_auto_apply_focus, state=state)
-        # fixed points layer
-        connect(self.fixed_points_layer.events.data, self.on_run, state=state)
-        connect(self.fixed_points_layer.events.add_point, partial(self.on_predict, "fixed"), state=state)
-        # moving points layer
-        connect(self.moving_points_layer.events.data, self.on_run, state=state)
-        connect(self.moving_points_layer.events.add_point, partial(self.on_predict, "moving"), state=state)
 
     def on_indicator(self, which: str, state: bool = True):
         """Set indicator."""
@@ -143,6 +144,16 @@ class ImageRegistrationWindow(Window):
     def on_close_fixed(self, model: DataModel):
         """Close fixed image."""
         self._close_model(model, self.view_fixed, "fixed view")
+
+    @property
+    def fixed_model(self) -> "DataModel":
+        """Return transform model."""
+        return self._fixed_widget.model
+
+    @property
+    def moving_model(self) -> "DataModel":
+        """Return transform model."""
+        return self._moving_widget.model
 
     @ensure_main_thread
     def on_load_fixed(self, model: DataModel, channel_list: ty.List[str]):
@@ -168,9 +179,7 @@ class ImageRegistrationWindow(Window):
         logger.info(f"Loaded fixed data in {timer()}")
 
     def _plot_fixed_layers(self, channel_list: ty.Optional[ty.List[str]] = None):
-        self.fixed_image_layer = self._plot_image_layers(
-            self._fixed_widget.model, self.view_fixed, channel_list, "fixed view"
-        )
+        self.fixed_image_layer = self._plot_image_layers(self.fixed_model, self.view_fixed, channel_list, "fixed view")
         if isinstance(self.fixed_image_layer, list) and len(self.fixed_image_layer) > 1:
             link_layers(self.fixed_image_layer, attributes=("opacity",))
 
@@ -220,18 +229,18 @@ class ImageRegistrationWindow(Window):
     def _plot_moving_layers(self, channel_list: ty.Optional[ty.List[str]] = None):
         CONFIG.view_type = ViewType(CONFIG.view_type)
         is_overlay = CONFIG.view_type == ViewType.OVERLAY
-        wrapper = self._moving_widget.model.get_wrapper()
+        wrapper = self.moving_model.get_wrapper()
         if channel_list is None:
             channel_list = wrapper.channel_names()
 
         moving_image_layer = []
         for index, (name, array) in enumerate(wrapper.channel_image_iter()):
             logger.trace(f"Adding '{name}' to moving view...")
-            used = [layer.colormap for layer in self.view_moving.layers if isinstance(layer, Image)]
             with MeasureTimer() as timer:
-                colormap = get_colormap(index, used) if is_overlay else "turbo"
+                colormap = get_colormap(index, self.view_moving.layers) if is_overlay else "turbo"
                 is_visible = True if (is_overlay and index == 0) else (not is_overlay)
                 if name in self.view_moving.layers:
+                    is_visible = self.view_moving.layers[name].visible
                     del self.view_moving.layers[name]
                 moving_image_layer.append(
                     self.view_moving.viewer.add_image(
@@ -252,7 +261,7 @@ class ImageRegistrationWindow(Window):
 
     def on_change_view_type(self, _view_type: str):
         """Change view type."""
-        if self._moving_widget.model.n_paths:
+        if self.moving_model.n_paths:
             self._plot_moving_layers()
             self.on_apply(update_data=True)
 
@@ -330,6 +339,14 @@ class ImageRegistrationWindow(Window):
             return
         layer.remove_selected()
 
+    def on_clear_all(self):
+        """Clear arr data."""
+        if hp.confirm(self, "Are you sure you want to remove <b>all</b> images and data points?"):
+            self.on_clear("fixed", force=True)
+            self.on_clear("moving", force=True)
+            self._moving_widget.dataset_dlg._on_close_dataset(force=True)
+            self._fixed_widget.dataset_dlg._on_close_dataset(force=True)
+
     def on_clear(self, which: str, force: bool = True):
         """Remove point to the image."""
         if force or hp.confirm(self, "Are you sure you want to remove all data points from the points layer?"):
@@ -371,6 +388,11 @@ class ImageRegistrationWindow(Window):
                 fixed_points=self.fixed_points_layer.data,
                 moving_points=self.moving_points_layer.data,
             )
+            error = self.transform_model.error()
+            self.transform_error.setText(f"{error:.2f}")
+            hp.update_widget_style(
+                self.transform_error, "error" if error > self.transform_model.moving_model.resolution / 2 else "success"
+            )
             logger.info(self.transform_model.about())
             self.on_apply()
         else:
@@ -387,12 +409,12 @@ class ImageRegistrationWindow(Window):
             hp.warn(self, "Cannot save transformation - no transformation has been computed.")
             return
         # get filename which is based on the moving dataset
-        filename = transform.moving_model.get_filename() + "_transform.i2i.json"
+        filename = self.moving_model.get_filename() + "_transform.i2r.json"
         path = hp.get_save_filename(
             self,
             "Save transformation",
             base_dir=CONFIG.output_dir,
-            file_filter=ALLOWED_EXPORT_FORMATS,
+            file_filter=ALLOWED_EXPORT_REGISTER_FORMATS,
             base_filename=filename,
         )
         if path:
@@ -410,7 +432,7 @@ class ImageRegistrationWindow(Window):
     def on_load(self, _evt=None):
         """Import transformation."""
         path = hp.get_filename(
-            self, "Load transformation", base_dir=CONFIG.output_dir, file_filter=ALLOWED_IMPORT_FORMATS
+            self, "Load transformation", base_dir=CONFIG.output_dir, file_filter=ALLOWED_IMPORT_REGISTER_FORMATS
         )
         if path:
             from image2image._dialogs import ImportSelectDialog
@@ -443,7 +465,7 @@ class ImageRegistrationWindow(Window):
                         moving_paths_missing,
                         moving_points,
                     ) = load_transform_from_file(path, **config)
-                except ValueError as e:
+                except (ValueError, KeyError) as e:
                     hp.warn(self, f"Failed to load transformation from {path}\n{e}", "Failed to load transformation")
                     return
 
@@ -481,13 +503,20 @@ class ImageRegistrationWindow(Window):
             self._table = FiducialsDialog(self)
         self._table.show()
 
+    def on_show_shortcuts(self):
+        """View shortcuts table."""
+        from image2image._dialogs._shortcuts import RegisterShortcutsDialog
+
+        dlg = RegisterShortcutsDialog(self)
+        dlg.show()
+
     def _get_console_variables(self) -> ty.Dict:
         return {
             "transform_model": self.transform_model,
             "fixed_viewer": self.view_fixed.viewer,
-            "fixed_model": self._fixed_widget.model,
+            "fixed_model": self.fixed_model,
             "moving_viewer": self.view_moving.viewer,
-            "moving_model": self._moving_widget.model,
+            "moving_model": self.moving_model,
         }
 
     @ensure_main_thread
@@ -515,7 +544,6 @@ class ImageRegistrationWindow(Window):
                 moving_image_layer.data,
                 name="Transformed",
                 blending="translucent",
-                opacity=self.moving_opacity.value() / 100,
                 affine=self.transform.params,
                 colormap=moving_image_layer.colormap,
             )
@@ -622,9 +650,13 @@ class ImageRegistrationWindow(Window):
         self._fixed_widget = FixedWidget(self, self.view_fixed)
         self._moving_widget = MovingWidget(self, self.view_moving)
 
-        self.transform_choice = hp.make_combobox(self)
+        self.transform_choice = hp.make_combobox(self, tooltip="Type of transformation to compute.")
         hp.set_combobox_data(self.transform_choice, TRANSFORMATION_TRANSLATIONS, "Affine")
         self.transform_choice.currentTextChanged.connect(self.on_run)  # noqa
+
+        self.transform_error = hp.make_label(
+            self, "", bold=True, tooltip="Error is estimated by computing the square root of the sum of squared errors."
+        )
 
         side_layout = hp.make_form_layout()
         style_form_layout(side_layout)
@@ -639,6 +671,7 @@ class ImageRegistrationWindow(Window):
         side_layout.addRow(self._make_focus_layout())
         side_layout.addRow(hp.make_h_line_with_text("Transformation"))
         side_layout.addRow(hp.make_label(self, "Type of transformation"), self.transform_choice)
+        side_layout.addRow(hp.make_label(self, "Estimated error"), self.transform_error)
         side_layout.addRow(
             hp.make_btn(
                 self,
@@ -682,16 +715,23 @@ class ImageRegistrationWindow(Window):
         hp.make_menu_item(
             self,
             "Add fixed image (.tiff, .png, .jpg, .imzML, .tdf, .tsf, + others)...",
-            "Ctrl+M",
+            "Ctrl+F",
             menu=menu_file,
             func=self._fixed_widget.on_select_dataset,
         )
         hp.make_menu_item(
             self,
             "Add moving image (.tiff, .png, .jpg, .imzML, .tdf, .tsf, + others)...",
-            "Ctrl+I",
+            "Ctrl+M",
             menu=menu_file,
             func=self._moving_widget.on_select_dataset,
+        )
+        menu_file.addSeparator()
+        hp.make_menu_item(
+            self,
+            "Clear all data...",
+            menu=menu_file,
+            func=self.on_clear_all,
         )
         menu_file.addSeparator()
         hp.make_menu_item(self, "Quit", menu=menu_file, func=self.close)
@@ -705,6 +745,7 @@ class ImageRegistrationWindow(Window):
             self, "Select moving channels...", menu=menu_tools, func=self._moving_widget._on_select_channels
         )
         hp.make_menu_item(self, "Show fiducials table...", menu=menu_tools, func=self.on_show_fiducials)
+        hp.make_menu_item(self, "Show shortcuts...", menu=menu_tools, func=self.on_show_shortcuts)
         menu_tools.addSeparator()
         hp.make_menu_item(self, "Show IPython console...", "Ctrl+T", menu=menu_tools, func=self.on_show_console)
 
@@ -719,12 +760,26 @@ class ImageRegistrationWindow(Window):
         self.setMenuBar(self.menubar)
 
     def _make_focus_layout(self):
-        self.lock_btn = hp.make_lock_btn(self, func=self.on_lock, normal=True)
+        self.lock_btn = hp.make_lock_btn(
+            self,
+            func=self.on_lock,
+            normal=True,
+            tooltip="Lock the area of interest. Press <b>L</b> on your keyboard to lock.",
+        )
         # self.set_current_focus_btn = hp.make_btn(self, "Set current range", func=self.on_set_focus)
-        self.x_center = hp.make_double_spin_box(self, -1e5, 1e5, step_size=500)
-        self.y_center = hp.make_double_spin_box(self, -1e5, 1e5, step_size=500)
-        self.zoom = hp.make_double_spin_box(self, -1e5, 1e5, step_size=0.5, n_decimals=4)
-        self.use_focus_btn = hp.make_btn(self, "Zoom-in", func=self.on_apply_focus)
+        self.x_center = hp.make_double_spin_box(
+            self, -1e5, 1e5, step_size=500, tooltip="Center of the area of interest along the x-axis."
+        )
+        self.y_center = hp.make_double_spin_box(
+            self, -1e5, 1e5, step_size=500, tooltip="Center of the area of interest along the y-axis."
+        )
+        self.zoom = hp.make_double_spin_box(self, -1e5, 1e5, step_size=0.5, n_decimals=4, tooltip="Zoom factor.")
+        self.use_focus_btn = hp.make_btn(
+            self,
+            "Zoom-in",
+            func=self.on_apply_focus,
+            tooltip="Zoom-in to an area of interest. Press <b>Z</b> on your keyboard to zoom-in.",
+        )
 
         layout = hp.make_form_layout()
         style_form_layout(layout)
@@ -949,6 +1004,12 @@ class ImageRegistrationWindow(Window):
         elif key == Qt.Key_3:
             self.on_mode("fixed", mode=Mode.SELECT)
             self.on_mode("moving", mode=Mode.SELECT)
+            evt.ignore()
+        elif key == Qt.Key_Z:
+            self.on_apply_focus()
+            evt.ignore()
+        elif key == Qt.Key_L:
+            self.on_set_focus()
             evt.ignore()
         else:
             super().keyPressEvent(evt)

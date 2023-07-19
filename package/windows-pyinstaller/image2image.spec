@@ -90,17 +90,27 @@ def collect_pkg_data(package, include_py_files=False, subdir=None):
     return data_toc
 
 
-# NAPARI_RESOURCE_PATH = import_napari_resources()
-# NAPARI_BASE_PATH = os.path.dirname(os.path.dirname(napari.__file__))
-# NAPARI_RESOURCE_DEST_PATH = os.path.relpath(os.path.dirname(NAPARI_RESOURCE_PATH), NAPARI_BASE_PATH)
-#
-# image2image_RESOURCE_PATH = import_image2image_resources()
-# image2image_BASE_PATH = os.path.dirname(os.path.dirname(image2image.__file__))
-# image2image_RESOURCE_DEST_PATH = os.path.relpath(os.path.dirname(image2image_RESOURCE_PATH), image2image_BASE_PATH)
-
-# Extra imports that can sometimes be problematic
-hiddenimports = (
-    [
+image2image_a = Analysis(
+    ["../../src/image2image/__main__.py"],
+    binaries=[],
+    datas=[]
+    + collect_data_files("numba")
+    + collect_data_files("qtextra")
+    + collect_data_files("napari")
+    + collect_data_files("napari_plot")
+    + collect_data_files("xmlschema")
+    + collect_data_files("ome_types")
+    + collect_data_files("distributed")
+    + collect_data_files("imagecodecs")
+    + collect_data_files("imzy")
+    + collect_data_files("vispy")
+    + collect_data_files("napari")
+    + collect_data_files("image2image")
+    + collect_data_files("freetype")
+    + collect_data_files("xmlschema")
+    + [(os.path.dirname(debugpy._vendored.__file__), "debugpy/_vendored")],
+    hiddenimports=[]
+    + [
         # scipy
         "scipy",
         "scipy.sparse.csgraph._validation",
@@ -123,44 +133,9 @@ hiddenimports = (
         # sklearn
         "sklearn.neighbors._partition_nodes",
         "sklearn.utils._cython_blas",
-        # bokeh - found it in the past to cause trouble
-        # "bokeh",
-        # internal - let's be on the safe side
     ]
     + [f"imagecodecs.{y}" for y in (x if x[0] == "_" else f"_{x}" for x in imagecodecs._extensions())]
     + ["imagecodecs._shared"]
-)
-
-# Extra data
-datas = (
-    []
-    + collect_data_files("numba")
-    + collect_data_files("qtextra")
-    + collect_data_files("napari")
-    + collect_data_files("napari_plot")
-    + collect_data_files("xmlschema")
-    + collect_data_files("ome_types")
-    + collect_data_files("distributed")
-    + collect_data_files("imagecodecs")
-)
-
-# Excludes
-excludedimports = ["tcl", "Tkconstants", "Tkinter"]
-
-
-image2image_a = Analysis(
-    ["../../src/image2image/__main__.py"],
-    binaries=[],
-    datas=[]
-    + datas
-    + collect_data_files("vispy")
-    + collect_data_files("napari")
-    + collect_data_files("image2image")
-    + collect_data_files("freetype")
-    + collect_data_files("xmlschema")
-    + [(os.path.dirname(debugpy._vendored.__file__), "debugpy/_vendored")],
-    hiddenimports=[]
-    + hiddenimports
     + [
         "pkg_resources",
         "six",
@@ -171,13 +146,14 @@ image2image_a = Analysis(
         "vispy.app.backends._pyside2",
         "freetype",
         "magicgui.backends._qtpy",
+        "imzy",
     ],
     hookspath=[],
     runtime_hooks=[
         "runtimehooks/hook-bundle.py",
         "runtimehooks/hook-multiprocessing.py",
     ],
-    excludes=[] + excludedimports,
+    excludes=[] + ["tcl", "Tkconstants", "Tkinter"],
     cipher=block_cipher,
 )
 

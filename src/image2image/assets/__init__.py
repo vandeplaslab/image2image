@@ -2,7 +2,7 @@
 from pathlib import Path
 
 from qtextra.assets import update_icon_mapping, update_icons, update_styles
-from qtextra.config import THEMES
+from qtextra.config.theme import Theme, THEMES
 from qtextra.utils.utilities import IS_MAC, get_module_path
 
 HERE = Path(get_module_path("image2image.assets", "__init__.py")).parent.resolve()
@@ -47,6 +47,37 @@ update_icon_mapping(
         "feedback": "msc.feedback",
         "viewer": "fa5.images",
         "register": "fa5s.layer-group",
+        "sync": "fa5s.sync-alt",
+        "crop": "fa5s.crop-alt",
+        "export": "mdi6.content-save-check-outline",
     }
 )
+
+THEME = {
+    "name": "image2image",
+    "type": "light",
+    "background": "rgb(247, 247, 247)",
+    "foreground": "rgb(245, 224, 218)",
+    "primary": "rgb(156, 151, 148)",
+    "secondary": "rgb(134, 130, 135)",
+    "highlight": "rgb(198, 207, 126)",
+    "text": "rgb(13, 13, 13)",
+    "icon": "rgb(81, 86, 105)",
+    "warning": "rgb(255, 105, 60)",
+    "error": "rgb(255, 18, 31)",
+    "success": "rgb(12, 237, 91)",
+    "progress": "rgb(255, 175, 77)",
+    "current": "rgb(12, 237, 91)",
+    "syntax_style": "default",
+    "console": "rgb(255, 255, 255)",
+    "canvas": "rgb(255, 255, 255)",
+    "standout": "rgb(255, 252, 0)",
+    "font_size": "14px",
+    "header_size": "18px",
+}
+
+theme = Theme(**THEME)
+THEMES.add_theme(theme.name, theme, register=True)
 THEMES.register_themes()
+# THEMES.theme = "image2image"
+THEMES[THEMES.theme].font_size = "9pt"

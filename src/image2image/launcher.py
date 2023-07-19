@@ -3,52 +3,116 @@ import qtextra.helpers as hp
 from qtextra.config import THEMES
 from qtextra.widgets.qt_dialog import QtDialog
 from qtpy.QtCore import Qt
-from qtpy.QtWidgets import QHBoxLayout, QVBoxLayout
+from qtpy.QtWidgets import QVBoxLayout
+
+
+REGISTER_TEXT = "<b>Registration App</b><br>Co-register your microscopy and imaging mass spectrometry data."
+VIEWER_TEXT = "<b>Viewer App</b><br>Overlay your microscopy and imaging mass spectrometry data."
+EXPORT_TEXT = (
+    "<b>Export App</b><br>Export your data for Image Fusion in MATLAB compatible format.<br>(work in progress)"
+)
+SYNC_TEXT = "<b>Sync App</b><br>(coming)"
+CROP_TEXT = "<b>Crop App</b><br>(coming)"
 
 
 class Launcher(QtDialog):
     """General launcher application."""
 
-    def __init__(self, parent):
-        super().__init__(parent, title="App Launcher")
+    def __init__(self, parent=None):
+        super().__init__(parent, title="Image2Image Launcher")
 
-    def make_panel(self) -> QHBoxLayout:
+    def make_panel(self) -> QVBoxLayout:
         """Make panel."""
+        layout = QVBoxLayout()
+        # register app
         btn = hp.make_qta_btn(self, "register", tooltip="Open registration application.", func=self.on_register)
         btn.set_xxlarge()
-
-        reg_layout = QVBoxLayout()
-        reg_layout.addWidget(btn, alignment=Qt.AlignHCenter)
-        reg_layout.addWidget(hp.make_label(self, "<b>Registration App</b>", alignment=Qt.AlignHCenter))
-
+        layout.addLayout(
+            hp.make_h_layout(
+                btn,
+                hp.make_label(self, REGISTER_TEXT, alignment=Qt.AlignHCenter, wrap=True, enable_url=True),
+                stretch_id=1,
+                alignment=Qt.AlignCenter,
+            ),
+        )
+        # viewer app
         btn = hp.make_qta_btn(self, "viewer", tooltip="Open viewer application.", func=self.on_viewer)
         btn.set_xxlarge()
-        viewer_layout = QVBoxLayout()
-        viewer_layout.addWidget(btn, alignment=Qt.AlignHCenter)
-        viewer_layout.addWidget(hp.make_label(self, "<b>Viewer App</b>", alignment=Qt.AlignHCenter))
-
-        layout = QHBoxLayout()
-        layout.addLayout(reg_layout)
-        layout.addLayout(viewer_layout)
+        layout.addLayout(
+            hp.make_h_layout(
+                btn,
+                hp.make_label(self, VIEWER_TEXT, alignment=Qt.AlignHCenter, wrap=True),
+                stretch_id=0,
+                alignment=Qt.AlignCenter,
+            ),
+        )
+        # sync app
+        btn = hp.make_qta_btn(self, "export", tooltip="Open export application (coming).", func=self.on_export)
+        btn.set_xxlarge()
+        layout.addLayout(
+            hp.make_h_layout(
+                btn,
+                hp.make_label(self, EXPORT_TEXT, alignment=Qt.AlignHCenter, wrap=True),
+                stretch_id=0,
+                alignment=Qt.AlignCenter,
+            ),
+        )
+        # sync app
+        btn = hp.make_qta_btn(self, "sync", tooltip="Open sync application (coming).", func=self.on_viewer)
+        hp.disable_widgets(btn, disabled=True)
+        btn.set_xxlarge()
+        layout.addLayout(
+            hp.make_h_layout(
+                btn,
+                hp.make_label(self, SYNC_TEXT, alignment=Qt.AlignHCenter, wrap=True),
+                stretch_id=0,
+                alignment=Qt.AlignCenter,
+            ),
+        )
+        # crop app
+        btn = hp.make_qta_btn(self, "crop", tooltip="Open crop application (coming).", func=self.on_viewer)
+        hp.disable_widgets(btn, disabled=True)
+        btn.set_xxlarge()
+        layout.addLayout(
+            hp.make_h_layout(
+                btn,
+                hp.make_label(self, CROP_TEXT, alignment=Qt.AlignHCenter, wrap=True),
+                stretch_id=0,
+                alignment=Qt.AlignCenter,
+            ),
+        )
+        layout.addStretch(1)
         return layout
 
-    def on_register(self):
+    @staticmethod
+    def on_export():
+        """Open registration application."""
+        from image2image.dialog_export import ImageExportWindow
+
+        dlg = ImageExportWindow(None)
+        THEMES.set_theme_stylesheet(dlg)
+        dlg.setMinimumSize(500, 500)
+        dlg.show()
+
+    @staticmethod
+    def on_register():
         """Open registration application."""
         from image2image.dialog_register import ImageRegistrationWindow
 
         dlg = ImageRegistrationWindow(None)
         THEMES.set_theme_stylesheet(dlg)
-        dlg.setMinimumSize(1200, 500)
-        dlg.show()
+        dlg.setMinimumSize(1200, 700)
+        dlg.showMaximized()
 
-    def on_viewer(self):
+    @staticmethod
+    def on_viewer():
         """Open registration application."""
         from image2image.dialog_viewer import ImageViewerWindow
 
         dlg = ImageViewerWindow(None)
         THEMES.set_theme_stylesheet(dlg)
-        dlg.setMinimumSize(1200, 500)
-        dlg.show()
+        dlg.setMinimumSize(1200, 700)
+        dlg.showMaximized()
 
 
 if __name__ == "__main__":  # pragma: no cover
