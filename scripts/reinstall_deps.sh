@@ -33,5 +33,5 @@ echo "Re-installing napari"
 pip install -U napari==0.4.17
 echo "Reinstalled napari"
 
-# go back to where we st arted
+# go back to where we started
 cd $(realpath $github_dir/image2image) || exit 1

@@ -991,7 +991,7 @@ class ImageRegistrationWindow(Window):
         if hasattr(evt, "native"):
             evt = evt.native
         key = evt.key()
-        if key == Qt.Key_Escape:  # noqa
+        if key == Qt.Key_Escape:  # noqa":"
             evt.ignore()
         elif key == Qt.Key_1:
             self.on_mode("fixed", mode=Mode.PAN_ZOOM)
