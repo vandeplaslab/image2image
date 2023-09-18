@@ -1,6 +1,5 @@
 """Utilities."""
 import random
-
 import typing as ty
 from pathlib import Path
 
@@ -10,18 +9,20 @@ from koyo.typing import PathLike
 from loguru import logger
 from napari._vispy.layers.points import VispyPointsLayer
 from napari._vispy.layers.shapes import VispyShapesLayer
+from napari.layers import Image, Points, Shapes
 from napari.layers.points._points_mouse_bindings import select as _select
 from napari.layers.points.points import Mode as PointsMode
-from napari.layers import Points, Shapes, Image
-from napari.utils.events import Event
-from napari.utils.colormaps.standardize_color import transform_color
-from vispy.color import Colormap as VispyColormap
 from napari.utils.colormaps.colormap_utils import convert_vispy_colormap
+from napari.utils.colormaps.standardize_color import transform_color
+from napari.utils.events import Event
+from qtpy.QtWidgets import QFormLayout
+from vispy.color import Colormap as VispyColormap
 
 from image2image.config import CONFIG
 
 if ty.TYPE_CHECKING:
     from skimage.transform import ProjectiveTransform
+
     from image2image.readers.base_reader import BaseImageReader
 
 
@@ -100,7 +101,7 @@ def open_bug_report():
     open_link("https://github.com/vandeplaslab/image2image/issues/new")
 
 
-def style_form_layout(layout):
+def style_form_layout(layout: QFormLayout) -> None:
     """Override certain styles for macOS."""
     from qtextra.utils.utilities import IS_MAC
 
@@ -109,12 +110,12 @@ def style_form_layout(layout):
 
 
 def get_random_hex_color() -> str:
-    """Return random hex color"""
+    """Return random hex color."""
     return "#%06x" % random.randint(0, 0xFFFFFF)
 
 
 def get_used_colormaps(layer_list) -> ty.List[str]:
-    """Return list of used colormaps based on their name"""
+    """Return list of used colormaps based on their name."""
     used = []
     for layer in layer_list:
         if isinstance(layer, Image):

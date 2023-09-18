@@ -25,13 +25,13 @@ class BaseModel(_BaseModel):
 
         arbitrary_types_allowed = True
 
-    def update(self, **kwargs):
+    def update(self, **kwargs) -> None:
         """Update transformation."""
         for key, value in kwargs.items():
             if hasattr(self, key):
                 setattr(self, key, value)
 
-    def to_dict(self):
+    def to_dict(self) -> ty.Dict:
         """Convert to dict."""
         raise NotImplementedError("Must implement method")
 
@@ -284,19 +284,20 @@ class Transformation(BaseModel):
     fixed_points: ty.Optional[np.ndarray] = None
     moving_points: ty.Optional[np.ndarray] = None
 
-    def is_valid(self):
+    def is_valid(self) -> bool:
         """Returns True if the transformation is valid."""
         return self.transform is not None
 
-    def clear(self):
+    def clear(self, clear_model: bool = True):
         """Clear transformation."""
         self.transform = None
         self.transformation_type = ""
-        self.fixed_model = None
-        self.moving_model = None
         self.time_created = None
         self.fixed_points = None
         self.moving_points = None
+        if clear_model:
+            self.fixed_model = None
+            self.moving_model = None
 
     def __call__(self, coords: np.ndarray):
         """Transform coordinates."""
@@ -308,7 +309,7 @@ class Transformation(BaseModel):
 
     def error(self) -> float:
         """Return error of the transformation."""
-        transformed_points = self(self.moving_points)
+        transformed_points = self.transform(self.moving_points)
         return float(np.sqrt(np.sum((self.fixed_points - transformed_points) ** 2)))
 
     @property

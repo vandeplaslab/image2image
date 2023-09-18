@@ -347,23 +347,23 @@ class ImageRegistrationWindow(Window):
             self._moving_widget.dataset_dlg._on_close_dataset(force=True)
             self._fixed_widget.dataset_dlg._on_close_dataset(force=True)
 
-    def on_clear(self, which: str, force: bool = True):
+    def on_clear(self, which: str, force: bool = True) -> None:
         """Remove point to the image."""
         if force or hp.confirm(self, "Are you sure you want to remove all data points from the points layer?"):
             layer = self.fixed_points_layer if which == "fixed" else self.moving_points_layer
             layer.data = np.zeros((0, 2))
             self.on_clear_transformation()
 
-    def on_clear_transformation(self):
+    def on_clear_transformation(self) -> None:
         """Clear transformation and remove image."""
         if self.transform_model.is_valid():
-            self.transform_model.clear()
+            self.transform_model.clear(clear_model=False)
         if self.transformed_moving_image_layer:
             with suppress(ValueError):
                 self.view_fixed.layers.remove(self.transformed_moving_image_layer)
 
     @ensure_main_thread
-    def on_run(self, _evt=None):
+    def on_run(self, _evt=None) -> None:
         """Compute transformation."""
         from image2image.utilities import compute_transform
 
@@ -372,10 +372,10 @@ class ImageRegistrationWindow(Window):
             return
 
         # execute transform calculation
-        method = self.transform_choice.currentText().lower()
         n_fixed = len(self.fixed_points_layer.data)
         n_moving = len(self.moving_points_layer.data)
         if 3 <= n_fixed == n_moving >= 3:
+            method = self.transform_choice.currentText().lower()
             transform = compute_transform(
                 self.moving_points_layer.data,  # source
                 self.fixed_points_layer.data,  # destination

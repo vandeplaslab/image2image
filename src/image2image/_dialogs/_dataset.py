@@ -287,7 +287,7 @@ class SelectImagesDialog(QtFramelessTool):
         .add("name", "name", "str", 0)
         .add("resolution", "resolution", "str", 0)
         .add("extract", "extract", "str", 0)
-        .add("remove", "remove", "str", 0)
+        # .add("remove", "remove", "str", 0)
     )
 
     def __init__(self, parent, model: "DataModel", is_fixed: bool = False, n_max: int = 0):
@@ -382,14 +382,14 @@ class SelectImagesDialog(QtFramelessTool):
                         item.setFlags(item.flags() & ~Qt.ItemIsEditable)  # noqa
                         item.setTextAlignment(Qt.AlignCenter)  # noqa
                         self.table.setItem(index, self.TABLE_CONFIG.extract, item)
-                    # add remove button
-                    self.table.setCellWidget(
-                        index,
-                        self.TABLE_CONFIG.remove,
-                        hp.make_qta_btn(
-                            self, "remove_all", normal=True, func=partial(self.on_remove, name=name, path=path)
-                        ),
-                    )
+                    # # add remove button
+                    # self.table.setCellWidget(
+                    #     index,
+                    #     self.TABLE_CONFIG.remove,
+                    #     hp.make_qta_btn(
+                    #         self, "remove_all", normal=True, func=partial(self.on_remove, name=name, path=path)
+                    #     ),
+                    # )
 
     def on_select_dataset(self):
         """Load path."""
@@ -523,7 +523,7 @@ class SelectImagesDialog(QtFramelessTool):
         self._title_label.setText("Images")
 
         self.table = QTableWidget(self)
-        self.table.setColumnCount(4)  # name, resolution, extract, delete
+        self.table.setColumnCount(3)  # name, resolution, extract, delete
         self.table.setHorizontalHeaderLabels(["name", "pixel size (μm)", "", ""])
         self.table.setCornerButtonEnabled(False)
 
@@ -531,7 +531,7 @@ class SelectImagesDialog(QtFramelessTool):
         header.setSectionResizeMode(self.TABLE_CONFIG.name, QHeaderView.Stretch)  # noqa
         header.setSectionResizeMode(self.TABLE_CONFIG.resolution, QHeaderView.ResizeToContents)  # noqa
         header.setSectionResizeMode(self.TABLE_CONFIG.extract, QHeaderView.ResizeToContents)  # noqa
-        header.setSectionResizeMode(self.TABLE_CONFIG.remove, QHeaderView.ResizeToContents)  # noqa
+        # header.setSectionResizeMode(self.TABLE_CONFIG.remove, QHeaderView.ResizeToContents)  # noqa
 
         # add delegate
         # self.table.setItemDelegateForColumn(self.TABLE_CONFIG.resolution, NumericDelegate(self.table))
