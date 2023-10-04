@@ -1,20 +1,17 @@
 """Viewer dialog."""
-from contextlib import suppress
-
-from pathlib import Path
-from functools import partial
-
 import typing as ty
+from contextlib import suppress
+from functools import partial
+from pathlib import Path
 
 import qtextra.helpers as hp
 from loguru import logger
-
 from qtextra.utils.table_config import TableConfig
 from qtextra.utils.utilities import connect
-from qtpy.QtWidgets import QMenuBar, QVBoxLayout, QWidget, QHeaderView, QTableWidget, QTableWidgetItem, QLineEdit
 from qtpy.QtCore import Qt
+from qtpy.QtWidgets import QHeaderView, QLineEdit, QMenuBar, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget
 from superqt import ensure_main_thread
-from superqt.utils import thread_worker, GeneratorWorker
+from superqt.utils import GeneratorWorker, thread_worker
 
 from image2image import __version__
 from image2image._select import LoadWidget
@@ -23,7 +20,7 @@ from image2image.dialog_base import Window
 from image2image.utilities import style_form_layout
 
 if ty.TYPE_CHECKING:
-    from image2image.models import DataModel
+    from image2image.models.data import DataModel
 
 
 class ImageExportWindow(Window):
@@ -37,16 +34,16 @@ class ImageExportWindow(Window):
         TableConfig().add("name", "name", "str", 0).add("path", "path", "str", 0).add("progress", "progress", "str", 0)
     )
 
-    def __init__(self, parent):
+    def __init__(self, parent: ty.Optional[QWidget]):
         super().__init__(parent, f"image2export: Export images in MATLAB fusion format (v{__version__})")
 
-    def setup_events(self, state: bool = True):
+    def setup_events(self, state: bool = True) -> None:
         """Setup events."""
         connect(self._image_widget.dataset_dlg.evt_loaded, self.on_load_image, state=state)
         connect(self._image_widget.dataset_dlg.evt_closed, self.on_remove_image, state=state)
 
     @ensure_main_thread
-    def on_load_image(self, model: "DataModel", channel_list: ty.List[str]):
+    def on_load_image(self, model: "DataModel", _channel_list: ty.List[str]) -> None:
         """Load fixed image."""
         if model and model.n_paths:
             hp.toast(
@@ -56,7 +53,7 @@ class ImageExportWindow(Window):
         else:
             logger.warning(f"Failed to load data - model={model}")
 
-    def on_remove_image(self, model: "DataModel"):
+    def on_remove_image(self, model: "DataModel") -> None:
         """Remove image."""
         if model:
             self.on_depopulate_table()
@@ -70,10 +67,10 @@ class ImageExportWindow(Window):
             return Path(CONFIG.output_dir)
         return Path(self._output_dir)
 
-    def on_output_path(self, item, path: Path):
+    def on_output_path(self, item: ty.Any, path: Path) -> None:
         """Update output filename."""
 
-    def on_depopulate_table(self):
+    def on_depopulate_table(self) -> None:
         """Remove items that are not present in the model."""
         to_remove = []
         for index in range(self.table.rowCount()):
@@ -83,12 +80,12 @@ class ImageExportWindow(Window):
         for index in reversed(to_remove):
             self.table.removeRow(index)
 
-    def on_populate_table(self):
+    def on_populate_table(self) -> None:
         """Load data."""
         self.on_depopulate_table()
         wrapper = self.data_model.get_wrapper()
         if wrapper:
-            for path, reader in wrapper.path_reader_iter():
+            for _path, reader in wrapper.path_reader_iter():
                 name = reader.name
                 index = hp.find_in_table(self.table, self.TABLE_CONFIG.name, name)
                 if index is not None:
@@ -99,20 +96,21 @@ class ImageExportWindow(Window):
 
                 self.table.insertRow(index)
                 # add name item
-                item = QTableWidgetItem(name)
-                item.setFlags(item.flags() & ~Qt.ItemIsEditable)  # noqa
-                item.setTextAlignment(Qt.AlignCenter)  # noqa
-                self.table.setItem(index, self.TABLE_CONFIG.name, item)
+                table_item = QTableWidgetItem(name)
+                table_item.setFlags(table_item.flags() & ~Qt.ItemIsEditable)  # type: ignore[attr-defined]
+                table_item.setTextAlignment(Qt.AlignCenter)  # type: ignore[attr-defined]
+                self.table.setItem(index, self.TABLE_CONFIG.name, table_item)
 
                 # add resolution item
-                item = QLineEdit(str(f"{reader.stem}.txt"))
+                item = QLineEdit()
+                item.setText(f"{reader.stem}.txt")
                 item.setObjectName("table_cell")
-                item.setAlignment(Qt.AlignCenter)  # noqa
+                item.setAlignment(Qt.AlignCenter)  # type: ignore[attr-defined]
                 self.table.setCellWidget(index, self.TABLE_CONFIG.path, item)
 
-                item = QTableWidgetItem("Ready!")
-                item.setFlags(item.flags() & ~Qt.ItemIsEditable)  # noqa
-                self.table.setItem(index, self.TABLE_CONFIG.progress, item)
+                table_item = QTableWidgetItem("Ready!")
+                table_item.setFlags(item.flags() & ~Qt.ItemIsEditable)  # type: ignore[attr-defined]
+                self.table.setItem(index, self.TABLE_CONFIG.progress, table_item)
 
     def on_process(self):
         """Process data."""
@@ -125,8 +123,8 @@ class ImageExportWindow(Window):
         for row in range(self.table.rowCount()):
             name = self.table.item(row, self.TABLE_CONFIG.name).text()
             is_exported = self.table.item(row, self.TABLE_CONFIG.progress).text() == "Exported!"
-            # if is_exported:
-            #     logger.info(f"Skipping {name} as it is already exported.")
+            if is_exported:
+                logger.info(f"Skipping {name} as it is already exported.")
             #     continue
             path = self.data_model.get_path(name)
             output_path = self.output_dir / self.table.cellWidget(row, self.TABLE_CONFIG.path).text()
@@ -160,7 +158,7 @@ class ImageExportWindow(Window):
                     item.setText("Exported!")
                     self.on_toggle_export_btn()
 
-    def on_toggle_export_btn(self, force: bool = False):
+    def on_toggle_export_btn(self, force: bool = False) -> None:
         """Toggle export button."""
         disabled = False
         if not force:
@@ -204,9 +202,12 @@ class ImageExportWindow(Window):
         self.table.setCornerButtonEnabled(False)
 
         header = self.table.horizontalHeader()
-        header.setSectionResizeMode(self.TABLE_CONFIG.name, QHeaderView.Stretch)  # noqa
-        header.setSectionResizeMode(self.TABLE_CONFIG.path, QHeaderView.ResizeToContents)  # noqa
-        header.setSectionResizeMode(self.TABLE_CONFIG.progress, QHeaderView.ResizeToContents)  # noqa
+        header.setSectionResizeMode(self.TABLE_CONFIG.name, QHeaderView.Stretch)  # type: ignore[attr-defined]
+        header.setSectionResizeMode(self.TABLE_CONFIG.path, QHeaderView.ResizeToContents)  # type: ignore[attr-defined]
+        header.setSectionResizeMode(
+            self.TABLE_CONFIG.progress,
+            QHeaderView.ResizeToContents,  # type: ignore[attr-defined]
+        )
 
         side_layout = hp.make_form_layout()
         style_form_layout(side_layout)
@@ -236,7 +237,7 @@ class ImageExportWindow(Window):
         self._make_menu()
         self._make_icon()
 
-    def _make_menu(self):
+    def _make_menu(self) -> None:
         """Make menu items."""
         # File menu
         menu_file = hp.make_menu(self, "File")

@@ -161,7 +161,6 @@ def get_app(
                 pass
 
         _app_ref = app  # prevent garbage collection
-
         return app
 
 

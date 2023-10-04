@@ -2,7 +2,7 @@
 from pathlib import Path
 
 from qtextra.assets import update_icon_mapping, update_icons, update_styles
-from qtextra.config.theme import Theme, THEMES
+from qtextra.config.theme import THEMES, Theme
 from qtextra.utils.utilities import IS_MAC, get_module_path
 
 HERE = Path(get_module_path("image2image.assets", "__init__.py")).parent.resolve()

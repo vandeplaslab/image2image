@@ -1,9 +1,11 @@
+"""About dialog."""
 from qtextra import helpers as hp
 from qtextra.widgets.qt_dialog import QtFramelessPopup
 from qtpy.QtCore import Qt
+from qtpy.QtWidgets import QWidget
 
 
-def open_about(parent):
+def open_about(parent: QWidget) -> None:
     """Open a dialog with information about the app."""
     dlg = AboutDialog(parent)
     dlg.show()
@@ -12,7 +14,7 @@ def open_about(parent):
 class AboutDialog(QtFramelessPopup):
     """About dialog."""
 
-    def __init__(self, parent):
+    def __init__(self, parent: QWidget):
         super().__init__(parent)
 
     # noinspection PyAttributeOutsideInit
@@ -49,10 +51,10 @@ class AboutDialog(QtFramelessPopup):
         # about label
         self.about_label = hp.make_label(self)
         self.about_label.setText(text)
-        self.about_label.setAlignment(Qt.AlignCenter)
+        self.about_label.setAlignment(Qt.AlignCenter)  # type: ignore[attr-defined]
 
         # set layout
         vertical_layout = hp.make_v_layout()
-        vertical_layout.addWidget(self._image, alignment=Qt.AlignHCenter)
+        vertical_layout.addWidget(self._image, alignment=Qt.AlignHCenter)  # type: ignore[attr-defined]
         vertical_layout.addWidget(self.about_label)
         return vertical_layout

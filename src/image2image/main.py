@@ -60,8 +60,8 @@ def run(
     THEMES.evt_theme_changed.connect(lambda: THEMES.set_theme_stylesheet(dlg))
 
     if dev:
-        import logging
         import faulthandler
+        import logging
 
         from qtextra.utils.dev import qdev
 
@@ -84,7 +84,7 @@ def run(
     else:
         os.environ["IMAGE2IMAGE_DEV_MODE"] = "0"
 
-    if tool in ["launcher", "export"]:
+    if tool in ["launcher", "export", "crop"]:
         dlg.show()
     else:
         dlg.showMaximized()

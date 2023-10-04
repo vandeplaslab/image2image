@@ -49,8 +49,9 @@ def update_affine(matrix: np.ndarray, min_resolution: float, resolution: float) 
     if resolution == min_resolution or resolution == 1 or min_resolution == 1:
         return matrix
     affine = Affine(affine_matrix=matrix)
-    affine.scale = affine.scale.astype(np.float64) / (resolution / min_resolution)
-    affine.translate = affine.translate * min_resolution
+    affine.scale = (1, 1)
+    # affine.scale = affine.scale.astype(np.float64) / (resolution / min_resolution)
+    # affine.translate = affine.translate * min_resolution
     return affine.affine_matrix
 
 
@@ -189,7 +190,7 @@ def init_shapes_layer(layer: Shapes, visual: VispyShapesLayer):
     layer._highlight_color = (0, 0.6, 1, 0.3)
 
 
-def _get_text_format():
+def _get_text_format() -> ty.Dict[str, ty.Any]:
     return {
         "text": "{name}",
         "color": CONFIG.label_color,
@@ -204,7 +205,7 @@ def _get_text_data(data: np.ndarray) -> ty.Dict[str, ty.List[str]]:
     return {"name": [str(i + 1) for i in range(n_pts)]}
 
 
-def add(layer, event):
+def add(layer, event) -> None:
     """Add a new point at the clicked position."""
     if event.type == "mouse_press":
         start_pos = event.pos
@@ -398,7 +399,7 @@ def _write_txt(
     update_freq: int = 100000,
 ):
     """Write data to csv file."""
-    from tqdm.auto import tqdm
+    from tqdm import tqdm
 
     columns = ",".join(columns) + ",\n"
 

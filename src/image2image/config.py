@@ -73,7 +73,7 @@ class Config(BaseModel):
         USER_CONFIG_DIR.mkdir(parents=True, exist_ok=True)
         return USER_CONFIG_DIR / "config.json"
 
-    def save(self):
+    def save(self) -> None:
         """Export configuration to file."""
         try:
             self.output_path.write_text(self.json(indent=4, exclude_unset=True))
@@ -99,4 +99,4 @@ class Config(BaseModel):
                 logger.warning(f"Failed to load configuration from {self.output_path}: {e}")
 
 
-CONFIG = Config()
+CONFIG: Config = Config()

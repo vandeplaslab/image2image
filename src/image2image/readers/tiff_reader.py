@@ -38,7 +38,7 @@ class TiffImageReader(BaseImageReader):
         self.is_rgb = guess_rgb(self.im_dims)
 
         self.resolution = self._get_im_res()
-        self.channel_names = self._get_channel_names()
+        self._channel_names = self._get_channel_names()
         self.channel_colors = None
 
         if init_pyramid:

@@ -5,7 +5,6 @@ from qtextra.widgets.qt_dialog import QtDialog
 from qtpy.QtCore import Qt
 from qtpy.QtWidgets import QVBoxLayout
 
-
 REGISTER_TEXT = "<b>Registration App</b><br>Co-register your microscopy and imaging mass spectrometry data."
 VIEWER_TEXT = "<b>Viewer App</b><br>Overlay your microscopy and imaging mass spectrometry data."
 EXPORT_TEXT = (
@@ -30,9 +29,15 @@ class Launcher(QtDialog):
         layout.addLayout(
             hp.make_h_layout(
                 btn,
-                hp.make_label(self, REGISTER_TEXT, alignment=Qt.AlignHCenter, wrap=True, enable_url=True),
+                hp.make_label(
+                    self,
+                    REGISTER_TEXT,
+                    alignment=Qt.AlignHCenter,  # type: ignore[attr-defined]
+                    wrap=True,
+                    enable_url=True,
+                ),
                 stretch_id=1,
-                alignment=Qt.AlignCenter,
+                alignment=Qt.AlignCenter,  # type: ignore[attr-defined]
             ),
         )
         # viewer app
@@ -41,9 +46,9 @@ class Launcher(QtDialog):
         layout.addLayout(
             hp.make_h_layout(
                 btn,
-                hp.make_label(self, VIEWER_TEXT, alignment=Qt.AlignHCenter, wrap=True),
+                hp.make_label(self, VIEWER_TEXT, alignment=Qt.AlignHCenter, wrap=True),  # type: ignore[attr-defined]
                 stretch_id=0,
-                alignment=Qt.AlignCenter,
+                alignment=Qt.AlignCenter,  # type: ignore[attr-defined]
             ),
         )
         # sync app
@@ -52,9 +57,9 @@ class Launcher(QtDialog):
         layout.addLayout(
             hp.make_h_layout(
                 btn,
-                hp.make_label(self, EXPORT_TEXT, alignment=Qt.AlignHCenter, wrap=True),
+                hp.make_label(self, EXPORT_TEXT, alignment=Qt.AlignHCenter, wrap=True),  # type: ignore[attr-defined]
                 stretch_id=0,
-                alignment=Qt.AlignCenter,
+                alignment=Qt.AlignCenter,  # type: ignore[attr-defined]
             ),
         )
         # sync app
@@ -64,9 +69,9 @@ class Launcher(QtDialog):
         layout.addLayout(
             hp.make_h_layout(
                 btn,
-                hp.make_label(self, SYNC_TEXT, alignment=Qt.AlignHCenter, wrap=True),
+                hp.make_label(self, SYNC_TEXT, alignment=Qt.AlignHCenter, wrap=True),  # type: ignore[attr-defined]
                 stretch_id=0,
-                alignment=Qt.AlignCenter,
+                alignment=Qt.AlignCenter,  # type: ignore[attr-defined]
             ),
         )
         # crop app
@@ -76,9 +81,9 @@ class Launcher(QtDialog):
         layout.addLayout(
             hp.make_h_layout(
                 btn,
-                hp.make_label(self, CROP_TEXT, alignment=Qt.AlignHCenter, wrap=True),
+                hp.make_label(self, CROP_TEXT, alignment=Qt.AlignHCenter, wrap=True),  # type: ignore[attr-defined]
                 stretch_id=0,
-                alignment=Qt.AlignCenter,
+                alignment=Qt.AlignCenter,  # type: ignore[attr-defined]
             ),
         )
         layout.addStretch(1)

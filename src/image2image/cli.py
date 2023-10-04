@@ -43,7 +43,7 @@ def dev_options(func):
 @click.option(
     "-t",
     "--tool",
-    type=click.Choice(["launcher", "register", "viewer", "export"]),
+    type=click.Choice(["launcher", "register", "viewer", "export", "crop"]),
     default="launcher",
     show_default=True,
 )
@@ -53,8 +53,8 @@ def dev_options(func):
 @click.pass_context
 def cli(
     ctx,
-    tool: ty.Literal["launcher", "register", "viewer"],
-    verbosity: int,
+    tool: ty.Literal["launcher", "register", "viewer", "crop"],
+    verbosity: float,
     no_color: bool,
     dev: bool = False,
     extras=None,

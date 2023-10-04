@@ -1,0 +1,338 @@
+"""Transformation model."""
+import typing as ty
+from datetime import datetime
+from pathlib import Path
+
+import numpy as np
+from koyo.typing import PathLike
+from loguru import logger
+from skimage.transform import ProjectiveTransform
+
+from image2image.models.base import BaseModel
+from image2image.models.data import DataModel
+from image2image.models.utilities import _get_paths, _read_config_from_file
+
+RegistrationMetadata = ty.Tuple[
+    str,
+    ty.Optional[ty.List[Path]],
+    ty.Optional[ty.List[Path]],
+    ty.Optional[np.ndarray],
+    ty.Optional[ty.List[Path]],
+    ty.Optional[ty.List[Path]],
+    ty.Optional[np.ndarray],
+]
+
+
+class Transformation(BaseModel):
+    """Temporary object that holds transformation information."""
+
+    # Transformation object
+    transform: ty.Optional[ProjectiveTransform] = None
+    # Type of transformation
+    transformation_type: str = ""
+    # Path to the image
+    fixed_model: ty.Optional[DataModel] = None
+    moving_model: ty.Optional[DataModel] = None
+    # Date when the registration was created
+    time_created: ty.Optional[datetime] = None
+    # Arrays of fixed and moving points
+    fixed_points: ty.Optional[np.ndarray] = None
+    moving_points: ty.Optional[np.ndarray] = None
+
+    def is_valid(self) -> bool:
+        """Returns True if the transformation is valid."""
+        return self.transform is not None
+
+    def clear(self, clear_model: bool = True) -> None:
+        """Clear transformation."""
+        self.transform = None
+        self.transformation_type = ""
+        self.time_created = None
+        self.fixed_points = None
+        self.moving_points = None
+        if clear_model:
+            self.fixed_model = None
+            self.moving_model = None
+
+    def __call__(self, coords: np.ndarray) -> np.ndarray:
+        """Transform coordinates."""
+        if self.transform is None:
+            raise ValueError("No transformation found.")
+        return self.transform(coords)  # type: ignore[no-any-return]
+
+    def inverse(self, coords: np.ndarray) -> np.ndarray:
+        """Inverse transformation of coordinates."""
+        if self.transform is None:
+            raise ValueError("No transformation found.")
+        return self.transform.inverse(coords)  # type: ignore[no-any-return]
+
+    def error(self) -> float:
+        """Return error of the transformation."""
+        if self.transform is None:
+            raise ValueError("No transformation found.")
+        transformed_points = self.transform(self.moving_points)
+        return float(np.sqrt(np.sum((self.fixed_points - transformed_points) ** 2)))
+
+    @property
+    def matrix(self) -> np.ndarray:
+        """Retrieve the transformation array."""
+        if self.transform is None:
+            raise ValueError("No transformation found.")
+        return self.transform.params  # type: ignore[no-any-return]
+
+    def compute(self, yx: bool = True, px: bool = True) -> ProjectiveTransform:
+        """Compute transformation matrix."""
+        from image2image.utilities import compute_transform
+
+        moving_points = self.moving_points
+        fixed_points = self.fixed_points
+        if moving_points is None or fixed_points is None:
+            raise ValueError("No points found.")
+
+        if not yx:
+            moving_points = moving_points[:, ::-1]
+            fixed_points = fixed_points[:, ::-1]
+        if not px:
+            moving_points = moving_points * self.fixed_model.resolution  # type: ignore[union-attr]
+            fixed_points = fixed_points * self.moving_model.resolution  # type: ignore[union-attr]
+
+        transform = compute_transform(
+            moving_points,  # source
+            fixed_points,  # destination
+            self.transformation_type,
+        )
+        return transform
+
+    def about(self) -> str:
+        """Retrieve information about the model in textual format."""
+        info = ""
+        if self.transformation_type:
+            info += f"Transformation type: {self.transformation_type}"
+        transform = self.transform
+        if transform:
+            if hasattr(transform, "params"):
+                info += "\nTransformation matrix:"
+                info += f"\n{transform.params}"
+            if hasattr(transform, "scale"):
+                scale = transform.scale
+                scale = (scale, scale) if isinstance(scale, float) else scale
+                info += f"\nScale: {scale[0]:.3f}, {scale[1]:.3f}"
+            if hasattr(transform, "translation"):
+                translation = transform.translation
+                translation = (translation, translation) if isinstance(translation, float) else translation
+                f"\nTranslation: {translation[0]:.3f}, {translation[1]:.3f}"
+            if hasattr(transform, "rotation"):
+                rotation = transform.rotation
+                info += f"\nRotation: {rotation:.3f}"
+        if self.fixed_points is not None:
+            info += f"\nNumber of fixed points: {len(self.fixed_points)}"
+        if self.moving_points is not None:
+            info += f"\nNumber of moving points: {len(self.moving_points)}"
+        return info
+
+    def to_dict(self) -> ty.Dict:
+        """Convert to dict."""
+        fixed_mdl = self.fixed_model
+        if not fixed_mdl:
+            raise ValueError("No fixed model found.")
+        moving_mdl = self.moving_model
+        if not moving_mdl:
+            raise ValueError("No moving model found.")
+        if self.time_created is None:
+            raise ValueError("No time_created found.")
+        fixed_pts = self.fixed_points
+        moving_pts = self.moving_points
+        return {
+            "schema_version": "1.2",
+            "time_created": self.time_created.strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
+            "fixed_points_yx_px": fixed_pts.tolist(),  # type: ignore[union-attr]
+            "fixed_points_yx_um": (fixed_pts * fixed_mdl.resolution).tolist(),  # type: ignore[operator, union-attr]
+            "moving_points_yx_px": moving_pts.tolist(),  # type: ignore[union-attr]
+            "moving_points_yx_um": (moving_pts * moving_mdl.resolution).tolist(),  # type: ignore[operator, union-attr]
+            "transformation_type": self.transformation_type,
+            "fixed_paths": [
+                {
+                    "path": str(path),
+                    "pixel_size_um": resolution,
+                }
+                for (path, resolution) in fixed_mdl.path_resolution_iter()
+            ],
+            "moving_paths": [
+                {
+                    "path": str(path),
+                    "pixel_size_um": resolution,
+                }
+                for (path, resolution) in moving_mdl.path_resolution_iter()
+            ],
+            "matrix_yx_px": self.compute(yx=True, px=True).params.tolist(),
+            "matrix_yx_um": self.compute(yx=True, px=False).params.tolist(),
+            "matrix_xy_px": self.compute(yx=False, px=True).params.tolist(),
+            "matrix_xy_um": self.compute(yx=False, px=False).params.tolist(),
+            "matrix_yx_px_inv": self.compute(yx=True, px=True)._inv_matrix.tolist(),
+            "matrix_yx_um_inv": self.compute(yx=True, px=False)._inv_matrix.tolist(),
+            "matrix_xy_px_inv": self.compute(yx=False, px=True)._inv_matrix.tolist(),
+            "matrix_xy_um_inv": self.compute(yx=False, px=False)._inv_matrix.tolist(),
+        }
+
+    def to_file(self, path: PathLike) -> Path:
+        """Export data as any supported format."""
+        path = Path(path)
+        if path.suffix == ".json":
+            self.to_json(path)
+        elif path.suffix == ".toml":
+            self.to_toml(path)
+        elif path.suffix == ".xml":
+            self.to_xml(path)
+        else:
+            raise ValueError(f"Unknown file format: {path.suffix}")
+        logger.info(f"Exported to '{path}'")
+        return path
+
+    def to_xml(self, path: PathLike) -> None:
+        """Export dat aas fusion file."""
+        from image2image.utilities import write_xml_registration
+
+        affine = self.compute(yx=False, px=True).params
+        affine = affine.flatten("F").reshape(3, 3)
+        write_xml_registration(path, affine)
+
+
+def load_transform_from_file(
+    path: PathLike,
+    fixed_image: bool = True,
+    moving_image: bool = True,
+    fixed_points: bool = True,
+    moving_points: bool = True,
+) -> RegistrationMetadata:
+    """Load registration from file."""
+    path = Path(path)
+    data = _read_config_from_file(path)
+
+    # image2image config
+    if "schema_version" in data:
+        (
+            transformation_type,
+            fixed_paths,
+            fixed_missing_paths,
+            _fixed_points,
+            moving_paths,
+            moving_missing_paths,
+            _moving_points,
+        ) = _read_image2register_config(data)
+    # imsmicrolink config
+    elif "Project name" in data:
+        (
+            transformation_type,
+            fixed_paths,
+            fixed_missing_paths,
+            _fixed_points,
+            moving_paths,
+            moving_missing_paths,
+            _moving_points,
+        ) = _read_imsmicrolink_config(data)
+    else:
+        raise ValueError(f"Unknown file format: {path.suffix}.")
+
+    # apply config
+    fixed_paths, fixed_missing_paths = (fixed_paths, fixed_missing_paths) if fixed_image else (None, None)
+    moving_paths, moving_missing_paths = (moving_paths, moving_missing_paths) if moving_image else (None, None)
+    _fixed_points = _fixed_points if fixed_points else None
+    _moving_points = _moving_points if moving_points else None
+    return (
+        transformation_type,
+        fixed_paths,
+        fixed_missing_paths,
+        _fixed_points,
+        moving_paths,
+        moving_missing_paths,
+        _moving_points,
+    )
+
+
+def _read_image2register_config(config: ty.Dict) -> RegistrationMetadata:
+    """Read image2image configuration file."""
+    schema_version = config["schema_version"]
+    if schema_version == "1.0":
+        return _read_image2register_v1_0_config(config)
+    elif schema_version == "1.1":
+        return _read_image2register_v1_1_config(config)
+    return _read_image2register_latest_config(config)
+
+
+def _read_image2register_latest_config(config: ty.Dict) -> RegistrationMetadata:
+    # read important fields
+    paths = [temp["path"] for temp in config["fixed_paths"]]
+    fixed_paths, fixed_missing_paths = _get_paths(paths)
+    paths = [temp["path"] for temp in config["moving_paths"]]
+    moving_paths, moving_missing_paths = _get_paths(paths)
+    fixed_points = np.array(config["fixed_points_yx_px"])
+    moving_points = np.array(config["moving_points_yx_px"])
+    transformation_type = config["transformation_type"]
+    return (
+        transformation_type,
+        fixed_paths,
+        fixed_missing_paths,
+        fixed_points,
+        moving_paths,
+        moving_missing_paths,
+        moving_points,
+    )
+
+
+def _read_image2register_v1_1_config(config: ty.Dict) -> RegistrationMetadata:
+    # read important fields
+    fixed_paths, fixed_missing_paths = _get_paths(config["fixed_paths"])
+    moving_paths, moving_missing_paths = _get_paths(config["moving_paths"])
+    fixed_points = np.array(config["fixed_points_yx_px"])
+    moving_points = np.array(config["moving_points_yx_px"])
+    transformation_type = config["transformation_type"]
+    return (
+        transformation_type,
+        fixed_paths,
+        fixed_missing_paths,
+        fixed_points,
+        moving_paths,
+        moving_missing_paths,
+        moving_points,
+    )
+
+
+def _read_image2register_v1_0_config(config: ty.Dict) -> RegistrationMetadata:
+    # read important fields
+    fixed_paths, fixed_missing_paths = _get_paths(config["micro_paths"])
+    moving_paths, moving_missing_paths = _get_paths(config["ims_paths"])
+    fixed_points = np.array(config["fixed_points_yx_px"])
+    moving_points = np.array(config["moving_points_yx_px"])
+    transformation_type = config["transformation_type"]
+    return (
+        transformation_type,
+        fixed_paths,
+        fixed_missing_paths,
+        fixed_points,
+        moving_paths,
+        moving_missing_paths,
+        moving_points,
+    )
+
+
+def _read_imsmicrolink_config(config: ty.Dict) -> RegistrationMetadata:
+    """Read imsmicrolink configuration file."""
+    fixed_paths, fixed_missing_paths = _get_paths([config["PostIMS microscopy image"]])  # need to be a list
+    moving_paths, moving_missing_paths = _get_paths(config["Pixel Map Datasets Files"])
+    fixed_points = np.array(config["PAQ microscopy points (xy, px)"])[:, ::-1]
+    moving_points = np.array(config["IMS pixel map points (xy, px)"])[:, ::-1]
+    padding = config["padding"]
+    if padding["x_left_padding (px)"]:
+        moving_points[:, 1] -= padding["x_left_padding (px)"]
+    if padding["y_top_padding (px)"]:
+        moving_points[:, 0] -= padding["y_top_padding (px)"]
+    transformation_type = "Affine"
+    return (
+        transformation_type,
+        fixed_paths,
+        fixed_missing_paths,
+        fixed_points,
+        moving_paths,
+        moving_missing_paths,
+        moving_points,
+    )

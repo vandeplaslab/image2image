@@ -9,7 +9,7 @@ from napari.layers import Image
 from qtextra._napari.mixins import ImageViewMixin
 from qtextra.mixins import IndicatorMixin
 from qtpy.QtCore import Qt
-from qtpy.QtWidgets import QMainWindow
+from qtpy.QtWidgets import QMainWindow, QMenu
 
 # need to load to ensure all assets are loaded properly
 import image2image.assets  # noqa: F401
@@ -71,6 +71,7 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
                     image_layer.append(view_wrapper.layers[name])
                     continue
                 # get current transform and scale
+                # current_affine = reader.transform
                 current_affine = (
                     wrapper.update_affine(reader.transform, reader.resolution) if scale else reader.transform
                 )
@@ -122,13 +123,15 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
         """Get variables for the console."""
         raise NotImplementedError("Must implement method")
 
-    def _make_icon(self):
+    def _make_icon(self) -> None:
         """Make icon."""
         from image2image.assets import ICON_ICO
 
-        self.setWindowIcon(hp.get_icon_from_img(ICON_ICO))
+        icon = hp.get_icon_from_img(ICON_ICO)
+        if icon:
+            self.setWindowIcon(icon)
 
-    def _make_help_menu(self):
+    def _make_help_menu(self) -> QMenu:
         from image2image._dialogs import open_about
         from image2image._sentry import ask_opt_in, send_feedback
         from image2image.utilities import open_bug_report, open_docs, open_github, open_request

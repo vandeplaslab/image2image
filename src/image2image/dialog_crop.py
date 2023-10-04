@@ -21,7 +21,7 @@ from image2image.dialog_base import Window
 from image2image.utilities import init_shapes_layer, style_form_layout
 
 if ty.TYPE_CHECKING:
-    from image2image.models import DataModel
+    from image2image.models.data import DataModel
 
 
 class ImageCropWindow(Window):
@@ -34,13 +34,13 @@ class ImageCropWindow(Window):
     def __init__(self, parent):
         super().__init__(parent, f"image2crop: Crop and export microscopy data app (v{__version__})")
 
-    def setup_events(self, state: bool = True):
+    def setup_events(self, state: bool = True) -> None:
         """Setup events."""
         connect(self._image_widget.dataset_dlg.evt_loaded, self.on_load_image, state=state)
         connect(self._image_widget.dataset_dlg.evt_closed, self.on_close_image, state=state)
 
     @ensure_main_thread
-    def on_load_image(self, model: "DataModel", channel_list: ty.List[str]):
+    def on_load_image(self, model: "DataModel", channel_list: ty.List[str]) -> None:
         """Load fixed image."""
         if model and model.n_paths:
             self._on_load_image(model, channel_list)
@@ -51,25 +51,25 @@ class ImageCropWindow(Window):
             logger.warning(f"Failed to load data - model={model}")
         # self.on_indicator("fixed", False)
 
-    def _on_load_image(self, model: "DataModel", channel_list: ty.Optional[ty.List[str]] = None):
+    def _on_load_image(self, model: "DataModel", channel_list: ty.Optional[ty.List[str]] = None) -> None:
         with MeasureTimer() as timer:
             logger.info(f"Loading fixed data with {model.n_paths} paths...")
             self.plot_image_layers(channel_list)
             self.view.viewer.reset_view()
         logger.info(f"Loaded data in {timer()}")
 
-    def plot_image_layers(self, channel_list: ty.Optional[ty.List[str]] = None):
+    def plot_image_layers(self, channel_list: ty.Optional[ty.List[str]] = None) -> None:
         """Plot image layers."""
         self.image_layer = self._plot_image_layers(self.data_model, self.view, channel_list, "view", True)
 
-    def on_close_image(self, model: "DataModel"):
+    def on_close_image(self, model: "DataModel") -> None:
         """Close fixed image."""
         self._close_model(model, self.view, "view")
 
-    def on_load(self):
+    def on_load(self) -> None:
         """Load previous data."""
 
-    def on_save(self):
+    def on_save(self) -> None:
         """Save data."""
 
     def on_crop_rect(self):
@@ -77,16 +77,17 @@ class ImageCropWindow(Window):
         if self.crop_layer.data:
             self.crop_layer.data = []
         left = self.left_edit.text()
-        left = int(left) if left else 0
+        left = int(left or 0)  # type: ignore
         top = self.top_edit.text()
-        top = int(top) if top else 0
+        top = int(top or 0)  # type: ignore
         right = self.right_edit.text()
-        right = int(right) if right else 0
+        right = int(right or 0)  # type: ignore
         bottom = self.bottom_edit.text()
-        bottom = int(bottom) if bottom else 0
+        bottom = int(bottom or 0)  # type: ignore
         rect = np.asarray([[top, left], [top, right], [bottom, right], [bottom, left]])
         with self._editing_crop():
             self.crop_layer.data = [(rect, "rectangle")]
+        logger.trace("Updated rectangle (from edit).")
 
     def on_update_crop(self, _evt=None):
         """Update crop values."""
@@ -112,6 +113,7 @@ class ImageCropWindow(Window):
             self.right_edit.setText(str(ceil(xmax)))
             self.top_edit.setText(str(floor(ymin)))
             self.bottom_edit.setText(str(ceil(ymax)))
+        logger.trace("Updated rectangle (from canvas).")
 
     @property
     def crop_layer(self) -> Shapes:
@@ -126,7 +128,8 @@ class ImageCropWindow(Window):
             )
             visual = self.view.widget.layer_to_visual[layer]
             init_shapes_layer(layer, visual)
-            connect(self.crop_layer.events.set_data, self.on_update_crop, state=True)
+            connect(self.crop_layer.events.data, self.on_update_crop, state=True)
+            # connect(self.crop_layer.events.set_data, self.on_update_crop, state=True)
         return self.view.layers["Crop rectangle"]
 
     def _setup_ui(self):
@@ -135,21 +138,21 @@ class ImageCropWindow(Window):
         self._image_widget = LoadWidget(self, self.view, n_max=1)
 
         self.left_edit = hp.make_line_edit(
-            self, placeholder="Left", validator=QIntValidator(0, 50_000), func=self.on_crop_rect
+            self, placeholder="Left", validator=QIntValidator(0, 75_000), func=self.on_crop_rect
         )
-        self.left_edit.setAlignment(Qt.AlignCenter)
+        self.left_edit.setAlignment(Qt.AlignCenter)  # type: ignore[attr-defined]
         self.top_edit = hp.make_line_edit(
-            self, placeholder="Top", validator=QIntValidator(0, 50_000), func=self.on_crop_rect
+            self, placeholder="Top", validator=QIntValidator(0, 75_000), func=self.on_crop_rect
         )
-        self.top_edit.setAlignment(Qt.AlignCenter)
+        self.top_edit.setAlignment(Qt.AlignCenter)  # type: ignore[attr-defined]
         self.right_edit = hp.make_line_edit(
-            self, placeholder="Right", validator=QIntValidator(0, 50_000), func=self.on_crop_rect
+            self, placeholder="Right", validator=QIntValidator(0, 75_000), func=self.on_crop_rect
         )
-        self.right_edit.setAlignment(Qt.AlignCenter)
+        self.right_edit.setAlignment(Qt.AlignCenter)  # type: ignore[attr-defined]
         self.bottom_edit = hp.make_line_edit(
-            self, placeholder="Bottom", validator=QIntValidator(0, 50_000), func=self.on_crop_rect
+            self, placeholder="Bottom", validator=QIntValidator(0, 75_000), func=self.on_crop_rect
         )
-        self.bottom_edit.setAlignment(Qt.AlignCenter)
+        self.bottom_edit.setAlignment(Qt.AlignCenter)  # type: ignore[attr-defined]
 
         crop_layout = QGridLayout()
         crop_layout.addWidget(self.left_edit, 1, 0, 1, 1)
@@ -193,7 +196,7 @@ class ImageCropWindow(Window):
         self._make_menu()
         self._make_icon()
 
-    def _make_menu(self):
+    def _make_menu(self) -> None:
         """Make menu items."""
         # File menu
         menu_file = hp.make_menu(self, "File")

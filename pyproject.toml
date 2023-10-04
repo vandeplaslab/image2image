@@ -150,8 +150,18 @@ files = "src/**/"
 strict = true
 disallow_any_generics = false
 disallow_subclassing_any = false
+disallow_untyped_defs = false
+#dissalow-untyped-calls = false
 show_error_codes = true
 pretty = true
+ignore_missing_imports = true
+exclude = [
+    "venv",
+    "tests",
+    "package",
+    "build",
+    "src/image2image/_version.py"
+]
 
 # # module specific overrides
 # [[tool.mypy.overrides]]

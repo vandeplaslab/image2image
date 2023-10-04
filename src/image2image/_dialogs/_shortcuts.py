@@ -1,6 +1,6 @@
-"""Shortcuts helper for image2image"""
-from qtextra.widgets.qt_dialog import QtFramelessTool
+"""Shortcuts helper for image2image."""
 import qtextra.helpers as hp
+from qtextra.widgets.qt_dialog import QtFramelessTool
 
 
 class ShortcutsDialog(QtFramelessTool):
@@ -16,7 +16,6 @@ class ShortcutsDialog(QtFramelessTool):
     # noinspection PyAttributeOutsideInit
     def make_panel(self):
         """Make panel."""
-
         return hp.make_v_layout(
             self._make_hide_handle("Shortcuts")[1],
             hp.make_label(self, self.SHORTCUTS),

@@ -376,11 +376,15 @@ def yield_tiles(z, tile_size, is_rgb):
 def compute_sub_res(zarray, ds_factor, tile_size, is_rgb, im_dtype):
     """Compute sub-resolution image."""
     if is_rgb:
-        resampling_axis = {0: 2 ** ds_factor, 1: 2 ** ds_factor, 2: 1}
+        resampling_axis = {0: 2**ds_factor, 1: 2**ds_factor, 2: 1}
         tiling = (tile_size, tile_size, 3)
     else:
-        resampling_axis = {0: 1, 1: 2 ** ds_factor, 2: 2 ** ds_factor}
+        # if zarray.ndim == 3:
+        resampling_axis = {0: 1, 1: 2**ds_factor, 2: 2**ds_factor}
         tiling = (1, tile_size, tile_size)
+        # elif zarray.ndim == 4:
+        #     resampling_axis = {0: 1, 1: 1, 2: 2**ds_factor, 3: 2**ds_factor}
+        #     tiling = (1, 1, tile_size, tile_size)
 
     resampled_zarray_subres = da.coarsen(
         np.mean,

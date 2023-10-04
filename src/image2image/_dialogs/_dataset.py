@@ -19,7 +19,7 @@ from superqt.utils import thread_worker
 
 from image2image.config import CONFIG
 from image2image.enums import ALLOWED_FORMATS
-from image2image.utilities import log_exception, style_form_layout
+from image2image.utilities import log_exception
 
 if ty.TYPE_CHECKING:
     from image2image.models import DataModel
@@ -51,7 +51,7 @@ class CloseDatasetDialog(QtDialog):
             self.checkboxes.append(checkbox)
 
         layout = hp.make_form_layout()
-        style_form_layout(layout)
+        hp.style_form_layout(layout)
         layout.addRow(
             hp.make_label(
                 self,
@@ -153,7 +153,7 @@ class SelectChannelsToLoadDialog(QtDialog):
         )
 
         layout = hp.make_form_layout(self)
-        style_form_layout(layout)
+        hp.style_form_layout(layout)
         layout.addRow(self.table)
         layout.addRow(
             hp.make_label(
@@ -222,7 +222,7 @@ class ExtractChannelsDialog(QtDialog):
         )
 
         layout = hp.make_form_layout(self)
-        style_form_layout(layout)
+        hp.style_form_layout(layout)
         layout.addRow(
             hp.make_h_layout(
                 hp.make_label(self, "m/z"),
@@ -391,7 +391,7 @@ class SelectImagesDialog(QtFramelessTool):
                     #     ),
                     # )
 
-    def on_select_dataset(self):
+    def on_select_dataset(self) -> None:
         """Load path."""
         path = hp.get_filename(
             self,
@@ -537,7 +537,7 @@ class SelectImagesDialog(QtFramelessTool):
         # self.table.setItemDelegateForColumn(self.TABLE_CONFIG.resolution, NumericDelegate(self.table))
 
         layout = hp.make_form_layout()
-        style_form_layout(layout)
+        hp.style_form_layout(layout)
         layout.addRow(header_layout)
         layout.addRow(
             hp.make_h_layout(

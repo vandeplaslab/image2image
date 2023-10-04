@@ -13,7 +13,7 @@ from image2image.utilities import style_form_layout
 
 if ty.TYPE_CHECKING:
     from image2image._select import LoadWidget
-    from image2image.models import DataModel
+    from image2image.models.data import DataModel
 
 
 class OverlayChannelsDialog(QtFramelessTool):

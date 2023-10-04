@@ -13,7 +13,7 @@ class BaseImageReader:
     fh = None
     allow_extraction: bool = False
     base_layer_pixel_res: float = 1.0
-    channel_names: ty.List[str]
+    _channel_names: ty.List[str]
     channel_colors: ty.Optional[ty.List[str]]
 
     def __init__(self, path: PathLike):
@@ -23,8 +23,13 @@ class BaseImageReader:
         self.transform_name = "Identity matrix"
 
     @property
+    def channel_names(self) -> ty.List[str]:
+        """Return channel names."""
+        return self._channel_names
+
+    @property
     def n_channels(self) -> int:
-        """Return number of channels"""
+        """Return number of channels."""
         return len(self.channel_names)
 
     @property

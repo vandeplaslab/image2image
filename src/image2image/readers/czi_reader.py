@@ -32,14 +32,14 @@ class CziImageReader(BaseImageReader):
 
         czi_meta = xml2dict(self.fh.metadata())
         pixel_scaling_str = czi_meta["ImageDocument"]["Metadata"]["Scaling"]["Items"]["Distance"][0]["Value"]
-        pixel_scaling = float(pixel_scaling_str) * 1000000
+        pixel_scaling = float(pixel_scaling_str) * 1_000_000
         self.resolution = pixel_scaling
         channels_meta = czi_meta["ImageDocument"]["Metadata"]["DisplaySetting"]["Channels"]["Channel"]
 
         channel_names = []
         for ch in channels_meta:
             channel_names.append(ch.get("ShortName"))
-        self.channel_names = channel_names
+        self._channel_names = channel_names
 
         channel_colors = []
         for ch in channels_meta:

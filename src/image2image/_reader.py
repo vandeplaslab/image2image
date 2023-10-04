@@ -104,7 +104,7 @@ class ImageWrapper:
         for channel_name, (_, reader_or_array, image, _) in zip(self.channel_names(), self.reader_image_iter()):
             yield channel_name, image, reader_or_array
 
-    def path_reader_iter(self):
+    def path_reader_iter(self) -> ty.Generator[ty.Tuple[Path, "BaseImageReader"], None, None]:
         """Iterator of a path + reader."""
         for path in self.paths:
             yield path, self.data[path.name]

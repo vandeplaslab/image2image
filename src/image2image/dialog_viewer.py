@@ -18,7 +18,8 @@ from image2image.enums import ALLOWED_VIEWER_FORMATS
 from image2image.utilities import style_form_layout
 
 if ty.TYPE_CHECKING:
-    from image2image.models import DataModel, TransformModel
+    from image2image.models.data import DataModel
+    from image2image.models.transform import TransformModel
 
 
 class ImageViewerWindow(Window):
@@ -27,10 +28,10 @@ class ImageViewerWindow(Window):
     image_layer: ty.Optional[ty.List["Image"]] = None
     _console = None
 
-    def __init__(self, parent):
+    def __init__(self, parent: ty.Optional[QWidget]):
         super().__init__(parent, f"image2viewer: Simple viewer app (v{__version__})")
 
-    def setup_events(self, state: bool = True):
+    def setup_events(self, state: bool = True) -> None:
         """Setup events."""
         # connect(self._fixed_widget.evt_loading, self.on_indicator, state=state)
         connect(self._image_widget.dataset_dlg.evt_loaded, self.on_load_image, state=state)
@@ -49,7 +50,7 @@ class ImageViewerWindow(Window):
         return self._image_widget.transform_model
 
     @ensure_main_thread
-    def on_load_image(self, model: "DataModel", channel_list: ty.List[str]):
+    def on_load_image(self, model: "DataModel", channel_list: ty.List[str]) -> None:
         """Load fixed image."""
         if model and model.n_paths:
             self._on_load_image(model, channel_list)
@@ -60,45 +61,48 @@ class ImageViewerWindow(Window):
             logger.warning(f"Failed to load data - model={model}")
         # self.on_indicator("fixed", False)
 
-    def _on_load_image(self, model: "DataModel", channel_list: ty.Optional[ty.List[str]] = None):
+    def _on_load_image(self, model: "DataModel", channel_list: ty.Optional[ty.List[str]] = None) -> None:
         with MeasureTimer() as timer:
             logger.info(f"Loading fixed data with {model.n_paths} paths...")
             self.plot_image_layers(channel_list)
             self.view.viewer.reset_view()
         logger.info(f"Loaded data in {timer()}")
 
-    def plot_image_layers(self, channel_list: ty.Optional[ty.List[str]] = None):
+    def plot_image_layers(self, channel_list: ty.Optional[ty.List[str]] = None) -> None:
         """Plot image layers."""
         self.image_layer = self._plot_image_layers(self.data_model, self.view, channel_list, "view", True)
 
-    def on_close_image(self, model: "DataModel"):
+    def on_close_image(self, model: "DataModel") -> None:
         """Close fixed image."""
         self._close_model(model, self.view, "view")
 
-    def on_update_transform(self, path: Path):
+    def on_update_transform(self, path: Path) -> None:
         """Update affine transformation."""
         wrapper = self.data_model.get_wrapper()
         reader = self.data_model.get_reader(path)
         if wrapper and reader:
             channel_names = wrapper.channel_names_for_names([path])
             for name in channel_names:
+                if name not in self.view.layers:
+                    continue
                 layer = self.view.layers[name]
                 layer.scale = reader.scale
-                layer.affine = wrapper.update_affine(reader.transform, reader.resolution)
+                layer.affine = reader.affine  # wrapper.update_affine(reader.transform, reader.resolution)
                 logger.trace(f"Updated affine for '{name}'.")
 
-    def on_show_scalebar(self):
+    def on_show_scalebar(self) -> None:
         """Show scale bar controls for the viewer."""
         from image2image._dialogs._scalebar import QtScaleBarControls
 
         dlg = QtScaleBarControls(self.view.viewer, self.view.widget)
-        dlg.show_below_widget(self._image_widget)
+        dlg.show_below_mouse()
 
     def on_load(self, _evt=None):
         """Load a previous project."""
         path = hp.get_filename(self, "Load i2v project", base_dir=CONFIG.output_dir, file_filter=ALLOWED_VIEWER_FORMATS)
         if path:
-            from image2image.models import _remove_missing_from_dict, load_viewer_setup_from_file
+            from image2image.models.data import load_viewer_setup_from_file
+            from image2image.models.utilities import _remove_missing_from_dict
 
             path = Path(path)
             CONFIG.output_dir = str(path.parent)
@@ -114,9 +118,9 @@ class ImageViewerWindow(Window):
             if paths_missing:
                 from image2image._dialogs import LocateFilesDialog
 
-                dlg = LocateFilesDialog(self, paths_missing)
-                if dlg.exec_():  # noqa
-                    paths = dlg.fix_missing_paths(paths_missing, paths)
+                locate_dlg = LocateFilesDialog(self, paths_missing)
+                if locate_dlg.exec_():  # noqa
+                    paths = locate_dlg.fix_missing_paths(paths_missing, paths)
 
             # clean-up affine matrices
             affine = _remove_missing_from_dict(affine, paths)
@@ -129,7 +133,7 @@ class ImageViewerWindow(Window):
             for name, matrix in affine.items():
                 self.transform_model.add_transform(name, matrix)
 
-    def on_save(self):
+    def on_save(self) -> None:
         """Export project."""
         model = self.data_model
         if model.n_paths == 0:
@@ -191,7 +195,7 @@ class ImageViewerWindow(Window):
         self._make_menu()
         self._make_icon()
 
-    def _make_menu(self):
+    def _make_menu(self) -> None:
         """Make menu items."""
         # File menu
         menu_file = hp.make_menu(self, "File")

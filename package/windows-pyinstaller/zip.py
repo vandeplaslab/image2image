@@ -1,9 +1,9 @@
-from pathlib import Path
 import inspect
+from pathlib import Path
+from shutil import make_archive
 
 from image2image import __version__
 from koyo.timer import MeasureTimer
-from shutil import make_archive
 
 print("Started zipping folder")
 with MeasureTimer() as timer:
