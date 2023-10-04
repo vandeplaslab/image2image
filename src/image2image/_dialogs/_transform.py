@@ -94,7 +94,7 @@ class SelectTransformDialog(QtFramelessTool):
         """Load transformation matrix."""
         from image2image.config import CONFIG
         from image2image.enums import ALLOWED_EXPORT_REGISTER_FORMATS
-        from image2image.models import load_transform_from_file
+        from image2image.models.transformation import load_transform_from_file
         from image2image.utilities import compute_transform
 
         path = hp.get_filename(

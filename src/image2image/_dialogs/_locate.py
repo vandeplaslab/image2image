@@ -93,11 +93,16 @@ class LocateFilesDialog(QtDialog):
 
     def on_update_data_list(self, _evt=None):
         """On load."""
+        def _exists(path):
+            try:
+                return path.exists()
+            except PermissionError:
+                return False
         data = []
         for path_pair in self.paths:
             old_path = path_pair["old_path"]
             new_path = path_pair["new_path"]
-            comment = "File found at old location" if old_path.exists() else "File not found"
+            comment = "File found at old location" if _exists(old_path) else "File not found"
             if new_path and new_path.exists():
                 comment = "File found at new location"
                 if old_path.name != new_path.name:

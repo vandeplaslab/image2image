@@ -35,9 +35,12 @@ def _get_paths(paths: ty.List[PathLike]) -> ty.Tuple[ty.Optional[ty.List[Path]],
     _paths_exist, _paths_missing = [], []
     for path in paths:
         path = Path(path)
-        if path.exists():
-            _paths_exist.append(path)
-        else:
+        try:
+            if path.exists():
+                _paths_exist.append(path)
+            else:
+                _paths_missing.append(path)
+        except PermissionError:
             _paths_missing.append(path)
     if not _paths_exist:
         _paths_exist = []

@@ -15,7 +15,7 @@ from qtpy.QtWidgets import QMainWindow, QMenu
 import image2image.assets  # noqa: F401
 from image2image._sentry import install_error_monitor
 from image2image.config import CONFIG
-from image2image.models import DataModel
+from image2image.models.data import DataModel
 from image2image.utilities import get_colormap, log_exception
 
 if ty.TYPE_CHECKING:

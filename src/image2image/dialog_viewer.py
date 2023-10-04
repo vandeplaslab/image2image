@@ -87,7 +87,8 @@ class ImageViewerWindow(Window):
                     continue
                 layer = self.view.layers[name]
                 layer.scale = reader.scale
-                layer.affine = reader.affine  # wrapper.update_affine(reader.transform, reader.resolution)
+                # layer.affine = reader.affine  # wrapper.update_affine(reader.transform, reader.resolution)
+                layer.affine = wrapper.update_affine(reader.transform, reader.resolution)
                 logger.trace(f"Updated affine for '{name}'.")
 
     def on_show_scalebar(self) -> None:
