@@ -208,6 +208,15 @@ class ImageViewerWindow(Window):
         self.statusbar.addPermanentWidget(
             hp.make_qta_btn(
                 self,
+                "save",
+                tooltip="Save snapshot of the canvas to file.",
+                func=self.view.widget.on_save_figure,
+                small=True,
+            )
+        )
+        self.statusbar.addPermanentWidget(
+            hp.make_qta_btn(
+                self,
                 "screenshot",
                 tooltip="Take a snapshot of the canvas and copy it into your clipboard.",
                 func=self.view.widget.clipboard,

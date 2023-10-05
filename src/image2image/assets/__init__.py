@@ -23,6 +23,7 @@ update_styles({x.stem: str(x) for x in STYLES_PATH.iterdir() if x.suffix == ".qs
 
 update_icon_mapping(
     {
+        "save": "fa5s.save",
         "screenshot": "mdi.camera-outline",
         "ipython": "mdi.console",
         "ruler": "fa5s.ruler-horizontal",
