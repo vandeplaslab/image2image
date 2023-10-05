@@ -259,7 +259,7 @@ def read_image(
         reader.transform_data = transform_data
         reader.transform_name = path.name
     if resolution is not None:
-        reader.base_layer_pixel_res = resolution
+        reader.resolution = resolution
 
     if wrapper is None:
         wrapper = ImageWrapper(None)

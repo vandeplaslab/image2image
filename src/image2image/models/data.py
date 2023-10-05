@@ -14,6 +14,8 @@ from image2image.models.transform import TransformData
 from image2image.models.utilities import _get_paths, _read_config_from_file
 from image2image.readers.base_reader import BaseImageReader
 
+I2V_METADATA = ty.Tuple[ty.List[Path], ty.List[Path], ty.Dict[str, TransformData], ty.Dict[str, float]]
+
 
 class DataModel(BaseModel):
     """Base model."""
@@ -122,9 +124,14 @@ class DataModel(BaseModel):
             transform_data = affine.get(path.name, None)
             pixel_size = resolution.get(path.name, None)
             if self.wrapper is None or not self.wrapper.is_loaded(path):
-                self.wrapper = read_image(
-                    path, self.wrapper, self.is_fixed, transform_data=transform_data, resolution=pixel_size
-                )
+                try:
+                    self.wrapper = read_image(
+                        path, self.wrapper, self.is_fixed, transform_data=transform_data, resolution=pixel_size
+                    )
+                except Exception:  # noqa
+                    logger.exception(f"Failed to read '{path}'")
+                    self.remove_paths(path)
+                    continue
                 just_added.append(path)
         if self.wrapper:
             self.resolution = self.wrapper.resolution
@@ -195,9 +202,14 @@ class DataModel(BaseModel):
         if not wrapper:
             raise ValueError("No wrapper found.")
         return {
-            "schema_version": "1.0",
+            "schema_version": "1.1",
             "images": [
-                {"path": str(path), "matrix_yx_px": reader.transform.tolist(), "pixel_size_um": reader.resolution}
+                {
+                    "path": str(path),
+                    "pixel_size_um": reader.resolution,
+                    # "matrix_yx_px": reader.transform.tolist(),
+                    **reader.transform_data.to_dict(),
+                }
                 for path, reader in wrapper.path_reader_iter()
             ],
         }
@@ -207,27 +219,49 @@ class DataModel(BaseModel):
         return self.n_paths > 0
 
 
-def load_viewer_setup_from_file(
-    path: PathLike,
-) -> ty.Tuple[ty.List[Path], ty.List[Path], ty.Dict[str, np.ndarray], ty.Dict[str, float]]:
+def load_viewer_setup_from_file(path: PathLike) -> I2V_METADATA:
     """Load configuration from config file."""
     data = _read_config_from_file(path)
 
-    if "schema_version" in data:
-        return _read_image2viewer_latest_config(data)
-    raise ValueError("Cannot read config file.")
+    if "schema_version" not in data:
+        raise ValueError("Cannot read config file.")
+    if data["schema_version"] == "1.0":
+        return _read_image2viewer_v1_0_config(data)
+    return _read_image2viewer_latest_config(data)
 
 
-def _read_image2viewer_latest_config(
-    config: ty.Dict,
-) -> ty.Tuple[ty.List[Path], ty.List[Path], ty.Dict[str, np.ndarray], ty.Dict[str, float]]:
-    # read important fields
+def _read_image2viewer_latest_config(config: ty.Dict) -> I2V_METADATA:
+    """Read config file."""
     paths = [temp["path"] for temp in config["images"]]
-    affine = {Path(temp["path"]).name: np.asarray(temp["matrix_yx_px"]) for temp in config["images"]}
+    transform_data = {
+        Path(temp["path"]).name: TransformData(
+            fixed_points=np.asarray(temp["fixed_points"]),
+            moving_points=np.asarray(temp["moving_points"]),
+            fixed_resolution=temp["fixed_pixel_size_um"],
+            moving_resolution=temp["moving_pixel_size_um"],
+            affine=np.asarray(temp["matrix_yx_um"]),
+        )
+        for temp in config["images"]
+    }
     resolution = {Path(temp["path"]).name: temp["pixel_size_um"] for temp in config["images"]}
     paths, paths_missing = _get_paths(paths)
     if not paths:
         paths = []
     if not paths_missing:
         paths_missing = []
-    return paths, paths_missing, affine, resolution
+    return paths, paths_missing, transform_data, resolution
+
+
+def _read_image2viewer_v1_0_config(config: ty.Dict) -> I2V_METADATA:
+    # read important fields
+    paths = [temp["path"] for temp in config["images"]]
+    transform_data = {
+        Path(temp["path"]).name: TransformData(affine=np.asarray(temp["matrix_yx_px"])) for temp in config["images"]
+    }
+    resolution = {Path(temp["path"]).name: temp["pixel_size_um"] for temp in config["images"]}
+    paths, paths_missing = _get_paths(paths)
+    if not paths:
+        paths = []
+    if not paths_missing:
+        paths_missing = []
+    return paths, paths_missing, transform_data, resolution

@@ -53,6 +53,8 @@ class BaseImageReader:
     @resolution.setter
     def resolution(self, value: float):
         self.base_layer_pixel_res = value
+        if self.transform_data:
+            self.transform_data.moving_resolution = value
 
     @property
     def name(self) -> str:

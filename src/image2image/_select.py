@@ -46,17 +46,23 @@ class LoadMixin(QWidget):
     def on_set_path(
         self,
         paths: ty.Union[PathLike, ty.Sequence[PathLike]],
-        affine: ty.Optional[ty.Dict[str, np.ndarray]] = None,
+        transform_data: ty.Optional[ty.Dict[str, TransformData]] = None,
         resolution: ty.Optional[ty.Dict[str, float]] = None,
     ) -> None:
         """Set the path and immediately load it."""
         if isinstance(paths, (str, Path)):
             paths = [paths]
-        self.dataset_dlg._on_load_dataset(paths, affine, resolution)
+        self.dataset_dlg._on_load_dataset(paths, transform_data, resolution)
 
-    def on_select_dataset(self, _evt=None) -> None:
+    def on_select_dataset(self, _evt: ty.Any = None) -> None:
         """Load data."""
         self.dataset_dlg.on_select_dataset()
+
+    def on_clear_data(self, _evt: ty.Any = None) -> None:
+        """Clear data."""
+        if hp.confirm(self, "Are you sure you want to clear all data?"):
+            while self.dataset_dlg.model.n_paths > 0:
+                self.dataset_dlg._on_close_dataset(force=True)
 
     def _on_add_dataset(self) -> None:
         """Select channels from the list."""

@@ -1,5 +1,6 @@
 """Transform widget."""
 import typing as ty
+from copy import deepcopy
 from pathlib import Path
 
 from loguru import logger
@@ -62,9 +63,32 @@ class SelectTransformDialog(QtFramelessTool):
         """Force update of the data/transform list."""
         self.on_update_transform_list()
         self.on_update_data_list()
+        self.on_show_transform()
         super().show()
 
-    def on_apply_transform(self):
+    def on_show_transform(self) -> None:
+        """Show metadata about the transform."""
+        transform_name = self.transform_choice.currentText()
+        transform_data = self.transform_model.get_matrix(transform_name)
+        if not transform_data:
+            info = "No metadata available"
+        else:
+            info = ""
+            transform = transform_data.compute()
+            if hasattr(transform, "scale"):
+                scale = transform.scale
+                scale = (scale, scale) if isinstance(scale, float) else scale
+                info += f"\nScale: {scale[0]:.3f}, {scale[1]:.3f}"
+            if hasattr(transform, "translation"):
+                translation = transform.translation
+                translation = (translation, translation) if isinstance(translation, float) else translation
+                info += f"\nTranslation: {translation[0]:.3f}, {translation[1]:.3f}"
+            if hasattr(transform, "rotation"):
+                rotation = transform.rotation
+                info += f"\nRotation: {rotation:.3f}"
+        self.transform_metadata.setText(info)
+
+    def on_apply_transform(self) -> None:
         """On transform choice."""
         indices = reversed(self.table.get_all_checked())
         if indices:
@@ -80,7 +104,7 @@ class SelectTransformDialog(QtFramelessTool):
                 if reader:
                     # transform information need to be updated
                     reader.transform_name = transform_name
-                    reader.transform_data = transform_data
+                    reader.transform_data = deepcopy(transform_data)
                     self.table.update_value(index, self.TABLE_CONFIG.transform, transform_name)
                     self.evt_transform.emit(reader_path)
                     logger.trace(f"Updated transformation matrix for '{reader_path}'")
@@ -123,21 +147,9 @@ class SelectTransformDialog(QtFramelessTool):
             # load data from config file
             try:
                 transform_data = TransformData.from_i2r(path_)
-                # (
-                #     transformation_type,
-                #     _fixed_paths,
-                #     _fixed_paths_missing,
-                #     fixed_points,
-                #     _moving_paths,
-                #     _moving_paths_missing,
-                #     moving_points,
-                # ) = load_transform_from_file(path)
             except ValueError as e:
                 hp.warn(self, f"Failed to load transformation from {path_}\n{e}", "Failed to load transformation")
                 return
-
-            # affine = compute_transform(moving_points, fixed_points, transformation_type)
-            # self.transform_model.add_transform(path, affine.params)
             self.transform_model.add_transform(path_, transform_data)
             self.on_update_transform_list()
 
@@ -147,8 +159,10 @@ class SelectTransformDialog(QtFramelessTool):
         _, header_layout = self._make_hide_handle()
         self._title_label.setText("Transformation Selection")
 
-        self.transform_choice = hp.make_combobox(self, ["Identity matrix"])
+        self.transform_choice = hp.make_combobox(self, ["Identity matrix"], func=self.on_show_transform)
         self.add_btn = hp.make_qta_btn(self, "add", func=self.on_load_transform, normal=True)
+
+        self.transform_metadata = hp.make_label(self, "\n\n\n", wrap=True)
 
         self.table = QtCheckableTableView(
             self, config=self.TABLE_CONFIG, enable_all_check=True, sortable=True, double_click_to_check=True
@@ -172,6 +186,7 @@ class SelectTransformDialog(QtFramelessTool):
                 stretch_id=0,
             ),
         )
+        layout.addRow(self.transform_metadata)
         layout.addRow(hp.make_btn(self, "Apply to selected", func=self.on_apply_transform))
         layout.addRow(self.table)
         layout.addRow(

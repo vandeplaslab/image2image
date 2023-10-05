@@ -60,7 +60,6 @@ class ImageViewerWindow(Window):
             )
         else:
             logger.warning(f"Failed to load data - model={model}")
-        # self.on_indicator("fixed", False)
 
     def _on_load_image(self, model: "DataModel", channel_list: ty.Optional[ty.List[str]] = None) -> None:
         with MeasureTimer() as timer:
@@ -89,9 +88,7 @@ class ImageViewerWindow(Window):
                 layer = self.view.layers[name]
                 layer.scale = reader.scale
                 layer.affine = wrapper.get_affine(reader, reader.resolution)
-                # layer.affine = reader.affine  # wrapper.update_affine(reader.transform, reader.resolution)
-                # layer.affine = wrapper.update_affine(reader.transform, reader.resolution)
-                logger.trace(f"Updated affine for '{name}'.")
+                logger.trace(f"Updated affine for '{name}' with resolution={reader.resolution}.")
 
     def on_show_scalebar(self) -> None:
         """Show scale bar controls for the viewer."""
@@ -112,7 +109,7 @@ class ImageViewerWindow(Window):
 
             # load data from config file
             try:
-                paths, paths_missing, affine, resolution = load_viewer_setup_from_file(path_)
+                paths, paths_missing, transform_data, resolution = load_viewer_setup_from_file(path_)
             except ValueError as e:
                 hp.warn(self, f"Failed to load transformation from {path_}\n{e}", "Failed to load transformation")
                 return
@@ -126,14 +123,14 @@ class ImageViewerWindow(Window):
                     paths = locate_dlg.fix_missing_paths(paths_missing, paths)
 
             # clean-up affine matrices
-            affine = _remove_missing_from_dict(affine, paths)
+            transform_data = _remove_missing_from_dict(transform_data, paths)
             resolution = _remove_missing_from_dict(resolution, paths)
             # add paths
             if paths:
-                self._image_widget.on_set_path(paths, affine, resolution)
+                self._image_widget.on_set_path(paths, transform_data, resolution)
 
             # add affine matrices to transform object
-            for name, matrix in affine.items():
+            for name, matrix in transform_data.items():
                 self.transform_model.add_transform(name, matrix)
 
     def on_save_to_project(self) -> None:
@@ -211,9 +208,9 @@ class ImageViewerWindow(Window):
         self.statusbar.addPermanentWidget(
             hp.make_qta_btn(
                 self,
-                "feedback",
-                tooltip="Refresh task list ahead of schedule.",
-                func=partial(send_feedback, parent=self),
+                "screenshot",
+                tooltip="Take a snapshot of the canvas and copy it into your clipboard.",
+                func=self.view.widget.clipboard,
                 small=True,
             )
         )
@@ -221,7 +218,7 @@ class ImageViewerWindow(Window):
             hp.make_qta_btn(
                 self,
                 "ruler",
-                tooltip="Refresh task list ahead of schedule.",
+                tooltip="Show scalebar.",
                 func=self.on_show_scalebar,
                 small=True,
             )
@@ -233,6 +230,15 @@ class ImageViewerWindow(Window):
                 tooltip="Open IPython console",
                 small=True,
                 func=self.on_show_console,
+            )
+        )
+        self.statusbar.addPermanentWidget(
+            hp.make_qta_btn(
+                self,
+                "feedback",
+                tooltip="Send feedback or suggestion.",
+                func=partial(send_feedback, parent=self),
+                small=True,
             )
         )
         self.update_status_btn = hp.make_qta_btn(
@@ -257,6 +263,13 @@ class ImageViewerWindow(Window):
             "Ctrl+I",
             menu=menu_file,
             func=self._image_widget.on_select_dataset,
+        )
+        menu_file.addSeparator()
+        hp.make_menu_item(
+            self,
+            "Clear data",
+            menu=menu_file,
+            func=self._image_widget.on_clear_data,
         )
         menu_file.addSeparator()
         hp.make_menu_item(self, "Quit", menu=menu_file, func=self.close)

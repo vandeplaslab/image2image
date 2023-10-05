@@ -79,9 +79,10 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
                     continue
                 # get current transform and scale
                 # current_affine = reader.transform
-                current_affine = (
-                    wrapper.update_affine(reader.transform, reader.resolution) if scale else reader.transform
-                )
+                current_affine = wrapper.get_affine(reader, reader.resolution) if scale else reader.transform
+                # current_affine = (
+                #     wrapper.update_affine(reader.transform, reader.resolution) if scale else reader.transform
+                # )
                 current_scale = reader.scale if scale else (1, 1)
                 image_layer.append(
                     view_wrapper.viewer.add_image(

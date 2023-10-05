@@ -26,14 +26,27 @@ class TransformData(BaseModel):
     affine: ty.Optional[np.ndarray] = None
 
     # Type of transformation
-    transformation_type: str = ""
+    transformation_type: str = "affine"
+
+    def to_dict(self) -> ty.Dict:
+        """Serialize data."""
+        return {
+            "fixed_points": self.fixed_points.tolist() if self.fixed_points is not None else [],
+            "moving_points": self.moving_points.tolist() if self.moving_points is not None else [],
+            "fixed_pixel_size_um": self.fixed_resolution,
+            "moving_pixel_size_um": self.moving_resolution,
+            "matrix_yx_um": self.compute().params.tolist(),
+            "matrix_yx_px": self.compute(px=True).params.tolist(),
+        }
 
     @property
     def transform(self) -> ProjectiveTransform:
         """Retrieve the transformation object."""
         if self._transform is None:
             if self.fixed_points is None or self.moving_points is None:
-                self._transform = AffineTransform(matrix=np.eye(3))
+                if self.affine is None:
+                    self.affine = np.eye(3)
+                self._transform = AffineTransform(matrix=self.affine)
             else:
                 self._transform = self.compute()
         return self._transform
@@ -57,14 +70,22 @@ class TransformData(BaseModel):
             raise ValueError("No transformation found.")
         return self.transform.params  # type: ignore[no-any-return]
 
-    def compute(self, moving_resolution: float = 1.0, yx: bool = True, px: bool = True) -> ProjectiveTransform:
+    def compute(
+        self, moving_resolution: ty.Optional[float] = None, yx: bool = True, px: bool = False
+    ) -> ProjectiveTransform:
         """Compute transformation matrix."""
         from image2image.utilities import compute_transform
 
+        if moving_resolution is None:
+            moving_resolution = self.moving_resolution
+
         moving_points = self.moving_points
         fixed_points = self.fixed_points
-        if moving_points is None or fixed_points is None:
-            raise ValueError("No points found.")
+        if moving_points is None or len(moving_points) == 0 or fixed_points is None or len(fixed_points) == 0:
+            if self.affine is None:
+                self.affine = np.eye(3)
+                logger.warning("Transform has not been specified - using identity matrix.")
+            return AffineTransform(matrix=self.affine)
 
         if not yx:
             moving_points = moving_points[:, ::-1]
@@ -78,6 +99,7 @@ class TransformData(BaseModel):
             fixed_points,  # destination
             self.transformation_type,
         )
+        self.moving_resolution = moving_resolution
         return transform
 
     @classmethod

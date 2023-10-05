@@ -389,27 +389,29 @@ class SelectImagesDialog(QtFramelessTool):
 
     def on_select_dataset(self) -> None:
         """Load path."""
-        path = hp.get_filename(
+        paths = hp.get_filename(
             self,
             title="Select data...",
             base_dir=CONFIG.fixed_dir if self.is_fixed else CONFIG.moving_dir,
             file_filter=ALLOWED_FORMATS,
+            multiple=True,
         )
-        if path:
-            if self.is_fixed:
-                CONFIG.fixed_dir = str(Path(path).parent)
-            else:
-                CONFIG.moving_dir = str(Path(path).parent)
+        if paths:
+            for path in paths:
+                if self.is_fixed:
+                    CONFIG.fixed_dir = str(Path(path).parent)
+                else:
+                    CONFIG.moving_dir = str(Path(path).parent)
 
-            if self.n_max and self.model.n_paths >= self.n_max:
-                verb = "image" if self.n_max == 1 else "images"
-                hp.warn(
-                    self,
-                    f"Maximum number of images reached. You can only have {self.n_max} {verb} loaded at at time. Please"
-                    f" remove other images first.",
-                )
-                return
-            self._on_load_dataset(path)
+                if self.n_max and self.model.n_paths >= self.n_max:
+                    verb = "image" if self.n_max == 1 else "images"
+                    hp.warn(
+                        self,
+                        f"Maximum number of images reached. You can only have {self.n_max} {verb} loaded at at"
+                        f" time. Please remove other images first.",
+                    )
+                    return
+            self._on_load_dataset(paths)
 
     def _on_close_dataset(self, force: bool = False) -> bool:
         """Close dataset."""
@@ -519,8 +521,8 @@ class SelectImagesDialog(QtFramelessTool):
         self._title_label.setText("Images")
 
         self.table = QTableWidget(self)
-        self.table.setColumnCount(3)  # name, resolution, extract, delete
-        self.table.setHorizontalHeaderLabels(["name", "pixel size (μm)", ""])
+        self.table.setColumnCount(3)  # name, resolution, extract
+        self.table.setHorizontalHeaderLabels(["name", "pixel size (μm)", "extract"])
         self.table.setCornerButtonEnabled(False)
 
         header = self.table.horizontalHeader()

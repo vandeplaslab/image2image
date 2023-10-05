@@ -382,7 +382,8 @@ class ImageRegistrationWindow(Window):
         n_fixed = len(self.fixed_points_layer.data)
         n_moving = len(self.moving_points_layer.data)
         if 3 <= n_fixed == n_moving >= 3:
-            method = self.transform_choice.currentText().lower()
+            method = "affine"
+            # method = self.transform_choice.currentText().lower()
             transform = compute_transform(
                 self.moving_points_layer.data,  # source
                 self.fixed_points_layer.data,  # destination
@@ -500,7 +501,7 @@ class ImageRegistrationWindow(Window):
                     self._update_layer_points(self.moving_points_layer, moving_points, block=False)
                 if fixed_points is not None:
                     self._update_layer_points(self.fixed_points_layer, fixed_points, block=False)
-                self.transform_choice.setCurrentText(transformation_type)
+                # self.transform_choice.setCurrentText(transformation_type)
                 # force update of the text
                 self.on_update_text(block=False)
 
@@ -659,9 +660,9 @@ class ImageRegistrationWindow(Window):
         self._fixed_widget = FixedWidget(self, self.view_fixed)
         self._moving_widget = MovingWidget(self, self.view_moving)
 
-        self.transform_choice = hp.make_combobox(self, tooltip="Type of transformation to compute.")
-        hp.set_combobox_data(self.transform_choice, TRANSFORMATION_TRANSLATIONS, "Affine")
-        self.transform_choice.currentTextChanged.connect(self.on_run)  # type: ignore[arg-type]
+        # self.transform_choice = hp.make_combobox(self, tooltip="Type of transformation to compute.")
+        # hp.set_combobox_data(self.transform_choice, TRANSFORMATION_TRANSLATIONS, "Affine")
+        # self.transform_choice.currentTextChanged.connect(self.on_run)  # type: ignore[arg-type]
 
         self.transform_error = hp.make_label(
             self, "", bold=True, tooltip="Error is estimated by computing the square root of the sum of squared errors."
@@ -679,7 +680,7 @@ class ImageRegistrationWindow(Window):
         side_layout.addRow(hp.make_h_line_with_text("Area of interest"))
         side_layout.addRow(self._make_focus_layout())
         side_layout.addRow(hp.make_h_line_with_text("Transformation"))
-        side_layout.addRow(hp.make_label(self, "Type of transformation"), self.transform_choice)
+        # side_layout.addRow(hp.make_label(self, "Type of transformation"), self.transform_choice)
         side_layout.addRow(hp.make_label(self, "Estimated error"), self.transform_error)
         side_layout.addRow(
             hp.make_btn(
