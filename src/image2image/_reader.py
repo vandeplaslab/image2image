@@ -6,6 +6,8 @@ import numpy as np
 from koyo.typing import PathLike
 from loguru import logger
 
+from image2image.models.transform import TransformData
+
 if ty.TYPE_CHECKING:
     from image2image.readers.array_reader import ArrayReader
     from image2image.readers.base_reader import BaseImageReader
@@ -25,11 +27,11 @@ NPY_EXTENSIONS = [".npy"]
 class ImageWrapper:
     """Wrapper around image data."""
 
-    data: ty.Dict[str, ty.Optional["BaseImageReader"]]
+    data: ty.Dict[str, "BaseImageReader"]
     paths: ty.List[Path]
     resolution: float = 1.0
 
-    def __init__(self, reader_or_array: ty.Optional[ty.Dict[str, "BaseImageReader"]] = None):
+    def __init__(self, reader_or_array: ty.Optional[ty.Mapping[str, "BaseImageReader"]] = None):
         self.data = reader_or_array or {}
         self.paths = []
 
@@ -39,17 +41,17 @@ class ImageWrapper:
                 resolution.append(_reader_or_array.base_layer_pixel_res)
         self.resolution = np.min(resolution)
 
-    def add(self, key: str, array: ty.Union[np.ndarray, ty.Any]):
+    def add(self, key: str, array: ty.Union[np.ndarray, ty.Any]) -> None:
         """Add data to wrapper."""
         self.data[key] = array
         logger.trace(f"Added '{key}' to wrapper data.")
 
-    def add_path(self, path: PathLike):
+    def add_path(self, path: PathLike) -> None:
         """Add the path to wrapper."""
         self.paths.append(Path(path))
         logger.trace(f"Added '{path}' to wrapper paths.")
 
-    def remove_path(self, path: PathLike):
+    def remove_path(self, path: PathLike) -> None:
         """Remove the path from wrapper."""
         path = Path(path)
         if path in self.paths:
@@ -61,7 +63,7 @@ class ImageWrapper:
                 reader.close()
             del self.data[path]
 
-    def is_loaded(self, path: PathLike):
+    def is_loaded(self, path: PathLike) -> bool:
         """Check if the path is loaded."""
         return Path(path) in self.paths
 
@@ -89,17 +91,18 @@ class ImageWrapper:
 
     def map_channel_to_index(self, dataset: str, channel_name: str) -> int:
         """Map channel name to index."""
-        dataset_to_channel_map = {}
+        dataset_to_channel_map: ty.Dict[str, ty.List[str]] = {}
         for name in self.channel_names():
             dataset, channel = name.split(" | ")
             dataset_to_channel_map.setdefault(dataset, []).append(channel)
-        return dataset_to_channel_map[dataset].index(channel_name)
+        channels: ty.List[str] = dataset_to_channel_map[dataset]
+        return channels.index(channel_name)
 
-    def channel_image_iter(self) -> ty.Iterator[ty.Tuple[str, ty.List[np.ndarray]]]:
+    def channel_image_iter(self) -> ty.Generator[ty.Tuple[str, ty.List[np.ndarray]], None, None]:
         """Iterator of channel name + image."""
         yield from zip(self.channel_names(), self.image_iter())
 
-    def channel_image_reader_iter(self) -> ty.Iterator[ty.Tuple[str, ty.List[np.ndarray], np.ndarray]]:
+    def channel_image_reader_iter(self) -> ty.Generator[ty.Tuple[str, ty.List[np.ndarray], np.ndarray], None, None]:
         """Iterator of channel name + image."""
         for channel_name, (_, reader_or_array, image, _) in zip(self.channel_names(), self.reader_image_iter()):
             yield channel_name, image, reader_or_array
@@ -109,7 +112,9 @@ class ImageWrapper:
         for path in self.paths:
             yield path, self.data[path.name]
 
-    def reader_image_iter(self) -> ty.Iterator[ty.Tuple[str, "BaseImageReader", ty.List[np.ndarray], int]]:
+    def reader_image_iter(
+        self,
+    ) -> ty.Generator[ty.Tuple[str, ty.Union["BaseImageReader", np.ndarray], ty.List[np.ndarray], int], None, None]:
         """Iterator to add channels."""
         for reader_name, reader_or_array in self.data.items():
             # image is a numpy array
@@ -188,6 +193,15 @@ class ImageWrapper:
 
         return update_affine(affine, self.min_resolution, resolution)
 
+    @staticmethod
+    def get_affine(reader: "BaseImageReader", moving_resolution: float) -> np.ndarray:
+        """Get affine transformation for specified reader."""
+        transform_data = reader.transform_data
+        if not transform_data:
+            raise ValueError("No transformation data found")
+        affine = transform_data.compute(moving_resolution=moving_resolution, px=False)
+        return np.asarray(affine.params)
+
 
 def sanitize_path(path: PathLike) -> Path:
     """Sanitize a path, so it has a unified format across models."""
@@ -202,7 +216,7 @@ def read_image(
     path: PathLike,
     wrapper: ty.Optional["ImageWrapper"] = None,
     is_fixed: bool = False,
-    affine: ty.Optional[np.ndarray] = None,
+    transform_data: ty.Optional[TransformData] = None,
     resolution: ty.Optional[float] = None,
 ) -> "ImageWrapper":
     """Read image data."""
@@ -220,6 +234,7 @@ def read_image(
     ), f"Unsupported file format: {path.suffix} ({path})"
 
     suffix = path.suffix.lower()
+    reader: "BaseImageReader"
     if suffix in TIFF_EXTENSIONS:
         path, reader = _read_tiff(path)
     elif suffix in CZI_EXTENSIONS:
@@ -240,8 +255,8 @@ def read_image(
     else:
         raise ValueError(f"Unsupported file format: {suffix}")
 
-    if affine is not None:
-        reader.transform = affine
+    if transform_data is not None:
+        reader.transform_data = transform_data
         reader.transform_name = path.name
     if resolution is not None:
         reader.base_layer_pixel_res = resolution
@@ -291,6 +306,7 @@ def _read_npy_coordinates(path: PathLike) -> ty.Tuple[Path, "CoordinateReader"]:
     """Read data from npz or npy file."""
     from image2image.readers.coordinate_reader import CoordinateReader
 
+    path = Path(path)
     with open(path, "rb") as f:
         image = np.load(f)  # noqa
     assert image.ndim == 2, "Only 2D images are supported"

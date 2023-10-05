@@ -9,10 +9,11 @@ from napari.layers import Image
 from qtextra._napari.mixins import ImageViewMixin
 from qtextra.mixins import IndicatorMixin
 from qtpy.QtCore import Qt
-from qtpy.QtWidgets import QMainWindow, QMenu
+from qtpy.QtWidgets import QMainWindow, QMenu, QWidget
 
 # need to load to ensure all assets are loaded properly
 import image2image.assets  # noqa: F401
+from image2image._dialogs._update import check_version
 from image2image._sentry import install_error_monitor
 from image2image.config import CONFIG
 from image2image.models.data import DataModel
@@ -23,13 +24,13 @@ if ty.TYPE_CHECKING:
 
 
 class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
-    """Base class window for all apps.."""
+    """Base class window for all apps."""
 
     _console = None
 
-    def __init__(self, parent, title: str):
+    def __init__(self, parent: ty.Optional[QWidget], title: str):
         super().__init__(parent)
-        self.setAttribute(Qt.WA_DeleteOnClose)  # noqa
+        self.setAttribute(Qt.WA_DeleteOnClose)  # type: ignore[attr-defined]
         self.setWindowTitle(title)
         self.setUnifiedTitleAndToolBarOnMac(True)
         self.setMouseTracking(True)
@@ -43,12 +44,15 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
 
         # delay asking for telemetry opt-in by 10s
         hp.call_later(self, install_error_monitor, 5_000)
+        hp.call_later(self, partial(check_version, parent=self), 5 * 1000)
+        # check for updates every 4 hours
+        self.version_timer = hp.make_periodic_timer(self, partial(check_version, parent=self), 3600 * 4 * 1000)
 
-    def _setup_ui(self):
+    def _setup_ui(self) -> None:
         """Create panel."""
         raise NotImplementedError("Must implement method")
 
-    def setup_events(self, state: bool = True):
+    def setup_events(self, state: bool = True) -> None:
         """Additional setup."""
         raise NotImplementedError("Must implement method")
 
@@ -59,8 +63,11 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
         channel_list: ty.Optional[ty.List[str]] = None,
         view_kind: str = "view",
         scale: bool = False,
-    ):
+    ) -> ty.Optional[Image]:
         wrapper = model.get_wrapper()
+        if not wrapper:
+            logger.error("Failed to get wrapper.")
+            return None
         if channel_list is None:
             channel_list = wrapper.channel_names()
         image_layer = []
@@ -104,13 +111,13 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
             log_exception(e)
 
     @staticmethod
-    def _move_layer(view, layer, new_index: int = -1, select: bool = True):
+    def _move_layer(view, layer, new_index: int = -1, select: bool = True) -> None:
         """Move a layer and select it."""
         view.layers.move(view.layers.index(layer), new_index)
         if select:
             view.layers.selection.select_only(layer)
 
-    def on_show_console(self):
+    def on_show_console(self) -> None:
         """View console."""
         if self._console is None:
             from qtextra.dialogs.qt_console import QtConsoleDialog
@@ -176,3 +183,13 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
         hp.make_menu_item(self, "Telemetry...", menu=menu_help, func=partial(ask_opt_in, parent=self), icon="telemetry")
         hp.make_menu_item(self, "About...", menu=menu_help, func=partial(open_about, parent=self), icon="info")
         return menu_help
+
+    def on_show_update_info(self) -> None:
+        """Show information about available updates."""
+        from koyo.release import format_version, get_latest_git
+        from qtextra.widgets.changelog import ChangelogDialog
+
+        data = get_latest_git(package="image2image-docs")
+        text = format_version(data)
+        dlg = ChangelogDialog(self, text)
+        dlg.exec_()  # type: ignore

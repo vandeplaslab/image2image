@@ -32,7 +32,7 @@ if __name__ == "__main__":  # pragma: no cover
     from qtextra.utils.dev import apply_style, qapplication, qdev
 
     import image2image.assets  # noqa: F401
-    from image2image.models import DataModel  # noqa
+    from image2image.models.data import DataModel  # noqa
 
     model = DataModel()
     model.add_paths([r"/Users/lgmigas/Downloads/ims2micro-1.png"])

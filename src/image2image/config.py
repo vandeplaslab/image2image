@@ -81,7 +81,7 @@ class Config(BaseModel):
         except Exception as e:
             logger.warning(f"Failed to save configuration to {self.output_path}: {e}")
 
-    def load(self):
+    def load(self) -> None:
         """Load configuration from file."""
         from koyo.json import read_json_data
 

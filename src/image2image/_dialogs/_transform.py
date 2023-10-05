@@ -1,3 +1,4 @@
+"""Transform widget."""
 import typing as ty
 from pathlib import Path
 
@@ -7,14 +8,17 @@ from qtextra.utils.table_config import TableConfig
 from qtextra.utils.utilities import connect
 from qtextra.widgets.qt_dialog import QtFramelessTool
 from qtextra.widgets.qt_table_view import QtCheckableTableView
-from qtpy.QtCore import Qt, Signal
+from qtpy.QtCore import Qt, Signal  # type: ignore[attr-defined]
 from qtpy.QtWidgets import QFormLayout
 
+from image2image.models.data import DataModel
+from image2image.models.transform import TransformData, TransformModel
 from image2image.utilities import style_form_layout
 
 if ty.TYPE_CHECKING:
+    from qtextra._napari.image.viewer import NapariImageView
+
     from image2image._select import LoadWithTransformWidget
-    from image2image.models import DataModel, TransformModel
 
 
 class SelectTransformDialog(QtFramelessTool):
@@ -25,14 +29,20 @@ class SelectTransformDialog(QtFramelessTool):
     HIDE_WHEN_CLOSE = True
 
     TABLE_CONFIG = (
-        TableConfig()
+        TableConfig()  # type: ignore[no-untyped-call]
         .add("", "check", "bool", 25, no_sort=True)
         .add("dataset", "dataset", "str", 250)
         .add("dataset_path", "dataset_path", "str", 0, no_sort=True, hidden=True)
         .add("transform", "transform", "str", 250)
     )
 
-    def __init__(self, parent: "LoadWithTransformWidget", model: "DataModel", transform_model: "TransformModel", view):
+    def __init__(
+        self,
+        parent: "LoadWithTransformWidget",
+        model: "DataModel",
+        transform_model: "TransformModel",
+        view: "NapariImageView",
+    ):
         self.model = model
         self.transform_model = transform_model
         self.view = view
@@ -40,12 +50,13 @@ class SelectTransformDialog(QtFramelessTool):
         self.setMinimumWidth(400)
         self.setMinimumHeight(400)
 
-    def connect_events(self, state: bool = True):
+    def connect_events(self, state: bool = True) -> None:
         """Connect events."""
         # TODO: connect event that updates checkbox state when user changes visibility in layer list
         # change of model events
-        connect(self.parent().dataset_dlg.evt_loaded, self.on_update_data_list, state=state)
-        connect(self.parent().dataset_dlg.evt_closed, self.on_update_data_list, state=state)
+        parent: "LoadWithTransformWidget" = self.parent()  # type: ignore[assignment]
+        connect(parent.dataset_dlg.evt_loaded, self.on_update_data_list, state=state)
+        connect(parent.dataset_dlg.evt_closed, self.on_update_data_list, state=state)
 
     def show(self) -> None:
         """Force update of the data/transform list."""
@@ -58,29 +69,30 @@ class SelectTransformDialog(QtFramelessTool):
         indices = reversed(self.table.get_all_checked())
         if indices:
             transform_name = self.transform_choice.currentText()
-            matrix = self.transform_model.get_matrix(transform_name)
+            transform_data = self.transform_model.get_matrix(transform_name)
+            if not transform_data:
+                return
             for index in indices:
                 self.table.set_value(self.TABLE_CONFIG.transform, index, transform_name)
                 reader_path = self.table.get_value(self.TABLE_CONFIG.dataset_path, index)
                 # get reader appropriate for the path
                 reader = self.model.get_reader(reader_path)
                 if reader:
-                    # if reader.transform_name != transform_name:
                     # transform information need to be updated
                     reader.transform_name = transform_name
-                    reader.transform = matrix
+                    reader.transform_data = transform_data
                     self.table.update_value(index, self.TABLE_CONFIG.transform, transform_name)
                     self.evt_transform.emit(reader_path)
                     logger.trace(f"Updated transformation matrix for '{reader_path}'")
                 else:
                     logger.warning(f"Could not update transformation matrix for '{reader_path}'")
 
-    def on_update_transform_list(self):
+    def on_update_transform_list(self) -> None:
         """Update list of transforms."""
-        transforms = [t.name for t in self.transform_model.transforms] if self.transform_model.transforms else []
+        transforms = self.transform_model.transform_names
         hp.combobox_setter(self.transform_choice, items=transforms, set_item=self.transform_choice.currentText())
 
-    def on_update_data_list(self):
+    def on_update_data_list(self) -> None:
         """Update the list of datasets."""
         data = []
         wrapper = self.model.get_wrapper()
@@ -94,8 +106,6 @@ class SelectTransformDialog(QtFramelessTool):
         """Load transformation matrix."""
         from image2image.config import CONFIG
         from image2image.enums import ALLOWED_EXPORT_REGISTER_FORMATS
-        from image2image.models.transformation import load_transform_from_file
-        from image2image.utilities import compute_transform
 
         path = hp.get_filename(
             self,
@@ -105,27 +115,30 @@ class SelectTransformDialog(QtFramelessTool):
         )
         if path:
             # load transformation
-            path = Path(path)
-            CONFIG.output_dir = str(path.parent)
+            path_ = Path(path)
+            CONFIG.output_dir = str(path_.parent)
 
             # get info on which settings should be imported
 
             # load data from config file
             try:
-                (
-                    transformation_type,
-                    _fixed_paths,
-                    _fixed_paths_missing,
-                    fixed_points,
-                    _moving_paths,
-                    _moving_paths_missing,
-                    moving_points,
-                ) = load_transform_from_file(path)
+                transform_data = TransformData.from_i2r(path_)
+                # (
+                #     transformation_type,
+                #     _fixed_paths,
+                #     _fixed_paths_missing,
+                #     fixed_points,
+                #     _moving_paths,
+                #     _moving_paths_missing,
+                #     moving_points,
+                # ) = load_transform_from_file(path)
             except ValueError as e:
-                hp.warn(self, f"Failed to load transformation from {path}\n{e}", "Failed to load transformation")
+                hp.warn(self, f"Failed to load transformation from {path_}\n{e}", "Failed to load transformation")
                 return
-            affine = compute_transform(moving_points, fixed_points, transformation_type)
-            self.transform_model.add_transform(path, affine.params)
+
+            # affine = compute_transform(moving_points, fixed_points, transformation_type)
+            # self.transform_model.add_transform(path, affine.params)
+            self.transform_model.add_transform(path_, transform_data)
             self.on_update_transform_list()
 
     # noinspection PyAttributeOutsideInit
@@ -134,7 +147,7 @@ class SelectTransformDialog(QtFramelessTool):
         _, header_layout = self._make_hide_handle()
         self._title_label.setText("Transformation Selection")
 
-        self.transform_choice = hp.make_combobox(self, ["Identity matrix"])  # , func=self.on_transform_choice)
+        self.transform_choice = hp.make_combobox(self, ["Identity matrix"])
         self.add_btn = hp.make_qta_btn(self, "add", func=self.on_load_transform, normal=True)
 
         self.table = QtCheckableTableView(
@@ -166,7 +179,7 @@ class SelectTransformDialog(QtFramelessTool):
                 self,
                 "<b>Tip.</b> Check/uncheck images to select where the current transformation matrix should be applied."
                 "<br><b>Tip.</b> You can quickly check/uncheck row by double-clicking on a row.",
-                alignment=Qt.AlignHCenter,
+                alignment=Qt.AlignHCenter,  # type: ignore[attr-defined]
                 object_name="tip_label",
                 enable_url=True,
             )

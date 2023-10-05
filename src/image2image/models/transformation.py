@@ -20,6 +20,8 @@ RegistrationMetadata = ty.Tuple[
     ty.Optional[ty.List[Path]],
     ty.Optional[ty.List[Path]],
     ty.Optional[np.ndarray],
+    float,
+    float,
 ]
 
 
@@ -218,6 +220,8 @@ def load_transform_from_file(
             moving_paths,
             moving_missing_paths,
             _moving_points,
+            fixed_resolution,
+            moving_resolution,
         ) = _read_image2register_config(data)
     # imsmicrolink config
     elif "Project name" in data:
@@ -229,6 +233,8 @@ def load_transform_from_file(
             moving_paths,
             moving_missing_paths,
             _moving_points,
+            fixed_resolution,
+            moving_resolution,
         ) = _read_imsmicrolink_config(data)
     else:
         raise ValueError(f"Unknown file format: {path.suffix}.")
@@ -246,6 +252,8 @@ def load_transform_from_file(
         moving_paths,
         moving_missing_paths,
         _moving_points,
+        fixed_resolution,
+        moving_resolution,
     )
 
 
@@ -263,7 +271,11 @@ def _read_image2register_latest_config(config: ty.Dict) -> RegistrationMetadata:
     # read important fields
     paths = [temp["path"] for temp in config["fixed_paths"]]
     fixed_paths, fixed_missing_paths = _get_paths(paths)
+    fixed_res = [temp["pixel_size_um"] for temp in config["fixed_paths"]]
+    fixed_resolution = float(np.min(fixed_res))
     paths = [temp["path"] for temp in config["moving_paths"]]
+    moving_res = [temp["pixel_size_um"] for temp in config["moving_paths"]]
+    moving_resolution = float(np.min(moving_res))
     moving_paths, moving_missing_paths = _get_paths(paths)
     fixed_points = np.array(config["fixed_points_yx_px"])
     moving_points = np.array(config["moving_points_yx_px"])
@@ -276,6 +288,8 @@ def _read_image2register_latest_config(config: ty.Dict) -> RegistrationMetadata:
         moving_paths,
         moving_missing_paths,
         moving_points,
+        fixed_resolution,
+        moving_resolution,
     )
 
 
@@ -294,6 +308,8 @@ def _read_image2register_v1_1_config(config: ty.Dict) -> RegistrationMetadata:
         moving_paths,
         moving_missing_paths,
         moving_points,
+        1.0,
+        1.0,
     )
 
 
@@ -312,6 +328,8 @@ def _read_image2register_v1_0_config(config: ty.Dict) -> RegistrationMetadata:
         moving_paths,
         moving_missing_paths,
         moving_points,
+        1.0,
+        1.0,
     )
 
 
@@ -335,4 +353,6 @@ def _read_imsmicrolink_config(config: ty.Dict) -> RegistrationMetadata:
         moving_paths,
         moving_missing_paths,
         moving_points,
+        1.0,
+        1.0,
     )

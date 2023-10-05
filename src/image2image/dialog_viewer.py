@@ -1,5 +1,6 @@
 """Viewer dialog."""
 import typing as ty
+from functools import partial
 from pathlib import Path
 
 import qtextra.helpers as hp
@@ -7,7 +8,7 @@ from koyo.timer import MeasureTimer
 from loguru import logger
 from napari.layers import Image
 from qtextra.utils.utilities import connect
-from qtpy.QtWidgets import QHBoxLayout, QMenuBar, QVBoxLayout, QWidget
+from qtpy.QtWidgets import QHBoxLayout, QMenuBar, QStatusBar, QVBoxLayout, QWidget
 from superqt import ensure_main_thread
 
 from image2image import __version__
@@ -87,8 +88,9 @@ class ImageViewerWindow(Window):
                     continue
                 layer = self.view.layers[name]
                 layer.scale = reader.scale
+                layer.affine = wrapper.get_affine(reader, reader.resolution)
                 # layer.affine = reader.affine  # wrapper.update_affine(reader.transform, reader.resolution)
-                layer.affine = wrapper.update_affine(reader.transform, reader.resolution)
+                # layer.affine = wrapper.update_affine(reader.transform, reader.resolution)
                 logger.trace(f"Updated affine for '{name}'.")
 
     def on_show_scalebar(self) -> None:
@@ -96,23 +98,23 @@ class ImageViewerWindow(Window):
         from image2image._dialogs._scalebar import QtScaleBarControls
 
         dlg = QtScaleBarControls(self.view.viewer, self.view.widget)
-        dlg.show_below_mouse()
+        dlg.show()
 
-    def on_load(self, _evt=None):
+    def on_load_from_project(self, _evt=None):
         """Load a previous project."""
         path = hp.get_filename(self, "Load i2v project", base_dir=CONFIG.output_dir, file_filter=ALLOWED_VIEWER_FORMATS)
         if path:
             from image2image.models.data import load_viewer_setup_from_file
             from image2image.models.utilities import _remove_missing_from_dict
 
-            path = Path(path)
-            CONFIG.output_dir = str(path.parent)
+            path_ = Path(path)
+            CONFIG.output_dir = str(path_.parent)
 
             # load data from config file
             try:
-                paths, paths_missing, affine, resolution = load_viewer_setup_from_file(path)
+                paths, paths_missing, affine, resolution = load_viewer_setup_from_file(path_)
             except ValueError as e:
-                hp.warn(self, f"Failed to load transformation from {path}\n{e}", "Failed to load transformation")
+                hp.warn(self, f"Failed to load transformation from {path_}\n{e}", "Failed to load transformation")
                 return
 
             # locate paths that are missing
@@ -134,7 +136,7 @@ class ImageViewerWindow(Window):
             for name, matrix in affine.items():
                 self.transform_model.add_transform(name, matrix)
 
-    def on_save(self) -> None:
+    def on_save_to_project(self) -> None:
         """Export project."""
         model = self.data_model
         if model.n_paths == 0:
@@ -164,7 +166,9 @@ class ImageViewerWindow(Window):
 
         side_layout = hp.make_form_layout()
         style_form_layout(side_layout)
-        side_layout.addRow(hp.make_btn(self, "Import project...", tooltip="Load previous project", func=self.on_load))
+        side_layout.addRow(
+            hp.make_btn(self, "Import project...", tooltip="Load previous project", func=self.on_load_from_project)
+        )
         side_layout.addRow(hp.make_h_line_with_text("or"))
         side_layout.addRow(self._image_widget)
         side_layout.addRow(hp.make_h_line())
@@ -174,7 +178,7 @@ class ImageViewerWindow(Window):
                 "Export project...",
                 tooltip="Export configuration to a project file. Information such as image path and transformation"
                 " information are saved.",
-                func=self.on_save,
+                func=self.on_save_to_project,
             )
         )
         side_layout.addRow(hp.make_h_line_with_text("Layer controls"))
@@ -190,11 +194,58 @@ class ImageViewerWindow(Window):
         layout.addWidget(hp.make_v_line())
         layout.addLayout(side_layout)
         main_layout = QVBoxLayout(widget)
-        main_layout.addLayout(layout)
+        main_layout.addLayout(layout, stretch=True)
 
         # extra settings
         self._make_menu()
+        self._make_statusbar()
         self._make_icon()
+
+    def _make_statusbar(self) -> None:
+        """Make statusbar."""
+        from image2image._sentry import send_feedback
+
+        self.statusbar = QStatusBar()
+        self.statusbar.setSizeGripEnabled(False)
+
+        self.statusbar.addPermanentWidget(
+            hp.make_qta_btn(
+                self,
+                "feedback",
+                tooltip="Refresh task list ahead of schedule.",
+                func=partial(send_feedback, parent=self),
+                small=True,
+            )
+        )
+        self.statusbar.addPermanentWidget(
+            hp.make_qta_btn(
+                self,
+                "ruler",
+                tooltip="Refresh task list ahead of schedule.",
+                func=self.on_show_scalebar,
+                small=True,
+            )
+        )
+        self.statusbar.addPermanentWidget(
+            hp.make_qta_btn(
+                self,
+                "ipython",
+                tooltip="Open IPython console",
+                small=True,
+                func=self.on_show_console,
+            )
+        )
+        self.update_status_btn = hp.make_qta_btn(
+            self,
+            "reload",
+            tooltip="Show information about available updates.",
+            small=True,
+            func=self.on_show_update_info,
+            color="green",
+        )
+        self.update_status_btn.hide()
+        self.statusbar.addPermanentWidget(self.update_status_btn)
+        self.setStatusBar(self.statusbar)
 
     def _make_menu(self) -> None:
         """Make menu items."""
@@ -212,9 +263,13 @@ class ImageViewerWindow(Window):
 
         # Tools menu
         menu_tools = hp.make_menu(self, "Tools")
-        hp.make_menu_item(self, "Show scale bar controls...", "Ctrl+S", menu=menu_tools, func=self.on_show_scalebar)
+        hp.make_menu_item(
+            self, "Show scale bar controls...", "Ctrl+S", menu=menu_tools, icon="ruler", func=self.on_show_scalebar
+        )
         menu_tools.addSeparator()
-        hp.make_menu_item(self, "Show IPython console...", "Ctrl+T", menu=menu_tools, func=self.on_show_console)
+        hp.make_menu_item(
+            self, "Show IPython console...", "Ctrl+T", menu=menu_tools, icon="ipython", func=self.on_show_console
+        )
 
         # Help menu
         menu_help = self._make_help_menu()
@@ -240,7 +295,7 @@ class ImageViewerWindow(Window):
         CONFIG.save()
         if self.data_model.is_valid():
             if hp.confirm(self, "There might be unsaved changes. Would you like to save them?"):
-                self.on_save()
+                self.on_save_to_project()
 
 
 if __name__ == "__main__":  # pragma: no cover

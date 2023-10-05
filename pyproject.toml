@@ -151,9 +151,11 @@ strict = true
 disallow_any_generics = false
 disallow_subclassing_any = false
 disallow_untyped_defs = false
-#dissalow-untyped-calls = false
+disable_error_code = [
+    "no-redef"
+]
 show_error_codes = true
-pretty = true
+pretty = false
 ignore_missing_imports = true
 exclude = [
     "venv",

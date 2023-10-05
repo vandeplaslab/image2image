@@ -84,10 +84,11 @@ def run(
     else:
         os.environ["IMAGE2IMAGE_DEV_MODE"] = "0"
 
-    if tool in ["launcher", "export", "crop"]:
-        dlg.show()
-    else:
-        dlg.showMaximized()
+    dlg.show()
+    # if tool in ["launcher", "export", "crop"]:
+    #     dlg.show()
+    # else:
+    #     dlg.showMaximized()
     sys.exit(app.exec_())
 
 

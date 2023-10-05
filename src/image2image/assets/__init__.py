@@ -23,6 +23,8 @@ update_styles({x.stem: str(x) for x in STYLES_PATH.iterdir() if x.suffix == ".qs
 
 update_icon_mapping(
     {
+        "ipython": "mdi.console",
+        "ruler": "fa5s.ruler-horizontal",
         "add": "ri.add-circle-fill",
         "remove": "ri.indeterminate-circle-line",
         "remove_single": "mdi.close-circle",

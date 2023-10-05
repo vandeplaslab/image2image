@@ -5,6 +5,8 @@ from pathlib import Path
 import numpy as np
 from koyo.typing import PathLike
 
+from image2image.models.transform import TransformData
+
 
 class BaseImageReader:
     """Base class for some of the other image readers."""
@@ -19,6 +21,7 @@ class BaseImageReader:
     def __init__(self, path: PathLike):
         self.path = Path(path)
         self.base_layer_idx = 0
+        self.transform_data: TransformData = TransformData()
         self.transform: np.ndarray = np.eye(3, dtype=np.float64)
         self.transform_name = "Identity matrix"
 

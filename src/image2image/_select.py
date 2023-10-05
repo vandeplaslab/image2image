@@ -17,8 +17,11 @@ from image2image._dialogs import (
 from image2image.config import CONFIG
 from image2image.enums import VIEW_TYPE_TRANSLATIONS
 from image2image.models.data import DataModel
-from image2image.models.transform import TransformModel
+from image2image.models.transform import TransformData, TransformModel
 from image2image.utilities import style_form_layout
+
+if ty.TYPE_CHECKING:
+    from qtextra._napari.image.viewer import NapariImageView
 
 
 class LoadMixin(QWidget):
@@ -27,7 +30,7 @@ class LoadMixin(QWidget):
     IS_FIXED: bool
     INFO_TEXT = "Select data..."
 
-    def __init__(self, parent: ty.Optional[QWidget], view, n_max: int = 0):
+    def __init__(self, parent: ty.Optional[QWidget], view: "NapariImageView", n_max: int = 0):
         """Init."""
         super().__init__(parent=parent)
         self._setup_ui()
@@ -68,7 +71,7 @@ class LoadWidget(LoadMixin):
 
     IS_FIXED: bool = True
 
-    def __init__(self, parent: ty.Optional[QWidget], view, n_max: int = 0):
+    def __init__(self, parent: ty.Optional[QWidget], view: "NapariImageView", n_max: int = 0):
         """Init."""
         super().__init__(parent, view, n_max)
         self.channel_dlg = OverlayChannelsDialog(self, self.model, self.view) if self.view else None
@@ -180,7 +183,7 @@ class LoadWithTransformWidget(LoadMixin):
         """Init."""
         super().__init__(parent, view)
         self.transform_model = TransformModel()
-        self.transform_model.add_transform("Identity matrix", np.eye(3, dtype=np.float64))
+        self.transform_model.add_transform("Identity matrix", TransformData.from_array(np.eye(3, dtype=np.float64)))
         self.transform_dlg = SelectTransformDialog(self, self.model, self.transform_model, self.view)
 
     def _setup_ui(self) -> QFormLayout:

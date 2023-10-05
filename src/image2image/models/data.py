@@ -1,3 +1,4 @@
+"""Image data models."""
 import typing as ty
 from pathlib import Path
 
@@ -9,6 +10,7 @@ from pydantic import Field, validator
 
 from image2image._reader import ImageWrapper, sanitize_path
 from image2image.models.base import BaseModel
+from image2image.models.transform import TransformData
 from image2image.models.utilities import _get_paths, _read_config_from_file
 from image2image.readers.base_reader import BaseImageReader
 
@@ -24,13 +26,13 @@ class DataModel(BaseModel):
 
     # noinspection PyMethodFirstArgAssignment,PyMethodParameters
     @validator("paths", pre=True, allow_reuse=True)
-    def _validate_path(value: ty.Union[PathLike, ty.List[PathLike]]) -> ty.List[Path]:
+    def _validate_path(value: ty.Union[PathLike, ty.List[PathLike]]) -> ty.List[Path]:  # type-ignore[misc]
         """Validate path."""
         if isinstance(value, (str, Path)):
             value = [Path(value)]
-        value = [Path(path) for path in value]
-        assert all(path.exists() for path in value), "Path does not exist."
-        return value
+        value_ = [Path(path) for path in value]
+        assert all(p.exists() for p in value_), "Path does not exist."
+        return value_
 
     def get_filename(self) -> str:
         """Get representative filename."""
@@ -40,7 +42,7 @@ class DataModel(BaseModel):
             return self.paths[0].parent.stem
         return self.paths[-1].parent.stem + "_multiple_files"
 
-    def add_paths(self, path_or_paths: ty.Union[PathLike, ty.List[PathLike]]):
+    def add_paths(self, path_or_paths: ty.Union[PathLike, ty.Sequence[PathLike]]) -> None:
         """Add paths to model."""
         if isinstance(path_or_paths, (str, Path)):
             path_or_paths = [path_or_paths]
@@ -53,7 +55,7 @@ class DataModel(BaseModel):
                 logger.trace(f"Added '{path}' to model paths.")
         self.just_added = just_added
 
-    def remove_paths(self, path_or_paths: ty.Union[PathLike, ty.List[PathLike]]) -> None:
+    def remove_paths(self, path_or_paths: ty.Union[PathLike, ty.Sequence[PathLike]]) -> None:
         """Remove paths."""
         if path_or_paths is None:
             return
@@ -87,21 +89,23 @@ class DataModel(BaseModel):
 
     def has_path(self, path: PathLike) -> bool:
         """Check if path is in model."""
-        path = self.get_path(path)
-        return path is not None
+        path_ = self.get_path(path)
+        return path_ is not None
 
     def load(
-        self, affine: ty.Optional[ty.Dict[str, np.ndarray]] = None, resolution: ty.Optional[ty.Dict[str, float]] = None
+        self,
+        transform_data: ty.Optional[ty.Dict[str, TransformData]] = None,
+        resolution: ty.Optional[ty.Dict[str, float]] = None,
     ) -> "DataModel":
         """Load data into memory."""
         with MeasureTimer() as timer:
-            self.get_wrapper(affine, resolution)
+            self.get_wrapper(transform_data, resolution)
             logger.info(f"Loaded data in {timer()}")
         return self
 
     def get_wrapper(
         self,
-        affine: ty.Optional[ty.Dict[str, np.ndarray]] = None,
+        affine: ty.Optional[ty.Dict[str, TransformData]] = None,
         resolution: ty.Optional[ty.Dict[str, float]] = None,
     ) -> ty.Optional["ImageWrapper"]:
         """Read data from file."""
@@ -115,10 +119,12 @@ class DataModel(BaseModel):
 
         just_added = []
         for path in self.paths:
-            matrix = affine.get(path.name, None)
+            transform_data = affine.get(path.name, None)
             pixel_size = resolution.get(path.name, None)
             if self.wrapper is None or not self.wrapper.is_loaded(path):
-                self.wrapper = read_image(path, self.wrapper, self.is_fixed, affine=matrix, resolution=pixel_size)
+                self.wrapper = read_image(
+                    path, self.wrapper, self.is_fixed, transform_data=transform_data, resolution=pixel_size
+                )
                 just_added.append(path)
         if self.wrapper:
             self.resolution = self.wrapper.resolution

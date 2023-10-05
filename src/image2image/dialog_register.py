@@ -471,6 +471,8 @@ class ImageRegistrationWindow(Window):
                         moving_paths,
                         moving_paths_missing,
                         moving_points,
+                        _fixed_resolution,
+                        _moving_resolution,
                     ) = load_transform_from_file(path, **config)
                 except (ValueError, KeyError) as e:
                     hp.warn(self, f"Failed to load transformation from {path}\n{e}", "Failed to load transformation")
@@ -706,7 +708,7 @@ class ImageRegistrationWindow(Window):
         layout.addWidget(hp.make_v_line())
         layout.addLayout(side_layout)
         main_layout = QVBoxLayout(widget)
-        main_layout.addLayout(layout)
+        main_layout.addLayout(layout, stretch=True)
 
         # extra settings
         self._make_menu()

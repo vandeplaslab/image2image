@@ -67,7 +67,7 @@ def is_debug() -> bool:
     return os.environ.get("IMAGE2IMAGE_DEV_MODE", "0") == "1"
 
 
-def log_exception(message_or_error):
+def log_exception(message_or_error: ty.Union[str, Exception]) -> None:
     """Log exception message. If in 'DEBUG mode' raise exception."""
     if is_debug():
         logger.exception(message_or_error)
