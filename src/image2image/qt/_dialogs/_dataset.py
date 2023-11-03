@@ -19,10 +19,11 @@ from superqt.utils import thread_worker
 from image2image.config import CONFIG
 from image2image.enums import ALLOWED_FORMATS
 from image2image.models.transform import TransformData
-from image2image.utilities import log_exception
+from image2image.utils.utilities import log_exception
 
 if ty.TYPE_CHECKING:
     from image2image.models.data import DataModel
+    from image2image.readers.coordinate_reader import CoordinateReader
 
 
 class CloseDatasetDialog(QtDialog):
@@ -415,7 +416,7 @@ class SelectImagesDialog(QtFramelessTool):
 
     def _on_close_dataset(self, force: bool = False) -> bool:
         """Close dataset."""
-        from image2image._dialogs import CloseDatasetDialog
+        from image2image.qt._dialogs import CloseDatasetDialog
 
         if self.model.n_paths:
             paths = None

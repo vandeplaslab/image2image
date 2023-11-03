@@ -1,4 +1,6 @@
 """Registration dialog."""
+from __future__ import annotations
+
 import typing as ty
 from contextlib import suppress
 from datetime import datetime
@@ -23,18 +25,17 @@ from superqt import ensure_main_thread
 # need to load to ensure all assets are loaded properly
 import image2image.assets  # noqa: F401
 from image2image import __version__
-from image2image._select import FixedWidget, MovingWidget
 from image2image.config import CONFIG
-from image2image.dialog_base import Window
 from image2image.enums import (
     ALLOWED_EXPORT_REGISTER_FORMATS,
     ALLOWED_IMPORT_REGISTER_FORMATS,
-    TRANSFORMATION_TRANSLATIONS,
     ViewType,
 )
 from image2image.models.data import DataModel
 from image2image.models.transformation import Transformation
-from image2image.utilities import (
+from image2image.qt._select import FixedWidget, MovingWidget
+from image2image.qt.dialog_base import Window
+from image2image.utils.utilities import (
     _get_text_data,
     _get_text_format,
     get_colormap,
@@ -51,14 +52,14 @@ class ImageRegistrationWindow(Window):
 
     view_fixed: NapariImageView
     view_moving: NapariImageView
-    fixed_image_layer: ty.Optional[ty.List["Image"]] = None
-    moving_image_layer: ty.Optional[ty.List["Image"]] = None
+    fixed_image_layer: list[Image] | None = None
+    moving_image_layer: list[Image] | None = None
     _table, _console = None, None
 
     # events
     evt_predicted = Signal()
 
-    def __init__(self, parent: ty.Optional[QWidget]):
+    def __init__(self, parent: QWidget | None):
         super().__init__(parent, f"image2image: Simple image registration tool (v{__version__})")
         self.transform_model = Transformation(
             fixed_model=self.fixed_model,
@@ -68,7 +69,7 @@ class ImageRegistrationWindow(Window):
         )
 
     @property
-    def transform(self) -> ty.Optional["ProjectiveTransform"]:
+    def transform(self) -> ProjectiveTransform | None:
         """Retrieve transform."""
         transform = self.transform_model
         if transform.is_valid():
@@ -76,7 +77,7 @@ class ImageRegistrationWindow(Window):
         return None
 
     @property
-    def transformed_moving_image_layer(self) -> ty.Optional["Image"]:
+    def transformed_moving_image_layer(self) -> Image | None:
         """Return transformed, moving image layer."""
         if "Transformed" in self.view_fixed.layers:
             return self.view_fixed.layers["Transformed"]
@@ -151,17 +152,17 @@ class ImageRegistrationWindow(Window):
         self._close_model(model, self.view_fixed, "fixed view")
 
     @property
-    def fixed_model(self) -> "DataModel":
+    def fixed_model(self) -> DataModel:
         """Return transform model."""
         return self._fixed_widget.model
 
     @property
-    def moving_model(self) -> "DataModel":
+    def moving_model(self) -> DataModel:
         """Return transform model."""
         return self._moving_widget.model
 
     @ensure_main_thread
-    def on_load_fixed(self, model: DataModel, channel_list: ty.List[str]) -> None:
+    def on_load_fixed(self, model: DataModel, channel_list: list[str]) -> None:
         """Load fixed image."""
         if model and model.n_paths:
             self._on_load_fixed(model, channel_list)
@@ -176,14 +177,14 @@ class ImageRegistrationWindow(Window):
             logger.warning(f"Failed to load fixed data - model={model}")
         self.on_indicator("fixed", False)
 
-    def _on_load_fixed(self, model: DataModel, channel_list: ty.Optional[ty.List[str]] = None) -> None:
+    def _on_load_fixed(self, model: DataModel, channel_list: list[str] | None = None) -> None:
         with MeasureTimer() as timer:
             logger.info(f"Loading fixed data with {model.n_paths} paths...")
             self._plot_fixed_layers(channel_list)
             self.view_fixed.viewer.reset_view()
         logger.info(f"Loaded fixed data in {timer()}")
 
-    def _plot_fixed_layers(self, channel_list: ty.Optional[ty.List[str]] = None) -> None:
+    def _plot_fixed_layers(self, channel_list: list[str] | None = None) -> None:
         self.fixed_image_layer = self._plot_image_layers(self.fixed_model, self.view_fixed, channel_list, "fixed view")
         if isinstance(self.fixed_image_layer, list) and len(self.fixed_image_layer) > 1:
             link_layers(self.fixed_image_layer, attributes=("opacity",))
@@ -208,7 +209,7 @@ class ImageRegistrationWindow(Window):
         self._close_model(model, self.view_moving, "moving view")
 
     @ensure_main_thread
-    def on_load_moving(self, model: DataModel, channel_list: ty.List[str]) -> None:
+    def on_load_moving(self, model: DataModel, channel_list: list[str]) -> None:
         """Open modality."""
         if model and model.n_paths:
             self._on_load_moving(model, channel_list)
@@ -223,7 +224,7 @@ class ImageRegistrationWindow(Window):
             logger.warning(f"Failed to load moving data - model={model}")
         self.on_indicator("moving", False)
 
-    def _on_load_moving(self, model: DataModel, channel_list: ty.Optional[ty.List[str]] = None) -> None:
+    def _on_load_moving(self, model: DataModel, channel_list: list[str] | None = None) -> None:
         with MeasureTimer() as timer:
             logger.info(f"Loading moving data with {model.n_paths} paths...")
             self._plot_moving_layers(channel_list)
@@ -231,7 +232,7 @@ class ImageRegistrationWindow(Window):
             self.view_moving.viewer.reset_view()
         logger.info(f"Loaded moving data in {timer()}")
 
-    def _plot_moving_layers(self, channel_list: ty.Optional[ty.List[str]] = None) -> None:
+    def _plot_moving_layers(self, channel_list: list[str] | None = None) -> None:
         CONFIG.view_type = ViewType(CONFIG.view_type)
         is_overlay = CONFIG.view_type == ViewType.OVERLAY
         wrapper = self.moving_model.get_wrapper()
@@ -285,7 +286,7 @@ class ImageRegistrationWindow(Window):
         )
         self._move_layer(view, layer)
 
-    def _get_mode_button(self, which: str, mode: Mode) -> ty.Optional[QtImagePushButton]:
+    def _get_mode_button(self, which: str, mode: Mode) -> QtImagePushButton | None:
         if which == "fixed":
             widgets = {
                 Mode.ADD: self.fixed_add_btn,
@@ -300,7 +301,7 @@ class ImageRegistrationWindow(Window):
             }
         return widgets.get(mode, None)
 
-    def on_mode(self, which: str, evt: ty.Any = None, mode: ty.Optional[Mode] = None) -> None:
+    def on_mode(self, which: str, evt: ty.Any = None, mode: Mode | None = None) -> None:
         """Update mode."""
         widget = self._get_mode_button(which, mode or evt.mode)
         if widget:
@@ -372,7 +373,7 @@ class ImageRegistrationWindow(Window):
     @ensure_main_thread
     def on_run(self, _evt: ty.Any = None) -> None:
         """Compute transformation."""
-        from image2image.utilities import compute_transform
+        from image2image.utils.utilities import compute_transform
 
         if not self.fixed_points_layer or not self.moving_points_layer:
             self.on_notify_warning("There must be at least three points before we can compute the transformation.")
@@ -443,8 +444,8 @@ class ImageRegistrationWindow(Window):
             self, "Load transformation", base_dir=CONFIG.output_dir, file_filter=ALLOWED_IMPORT_REGISTER_FORMATS
         )
         if path:
-            from image2image._dialogs import ImportSelectDialog
             from image2image.models.transformation import load_transform_from_file
+            from image2image.qt._dialogs import ImportSelectDialog
 
             # load transformation
             path = Path(path)
@@ -481,7 +482,7 @@ class ImageRegistrationWindow(Window):
 
                 # locate paths that are missing
                 if fixed_paths_missing or moving_paths_missing:
-                    from image2image._dialogs import LocateFilesDialog
+                    from image2image.qt._dialogs import LocateFilesDialog
 
                     locate_dlg = LocateFilesDialog(self, fixed_paths_missing, moving_paths_missing)
                     if locate_dlg.exec_():  # type: ignore[attr-defined]
@@ -508,19 +509,19 @@ class ImageRegistrationWindow(Window):
     def on_show_fiducials(self):
         """View fiducials table."""
         if self._table is None:
-            from image2image._dialogs import FiducialsDialog
+            from image2image.qt._dialogs import FiducialsDialog
 
             self._table = FiducialsDialog(self)
         self._table.show()
 
     def on_show_shortcuts(self) -> None:
         """View shortcuts table."""
-        from image2image._dialogs._shortcuts import RegisterShortcutsDialog
+        from image2image.qt._dialogs._shortcuts import RegisterShortcutsDialog
 
         dlg = RegisterShortcutsDialog(self)
         dlg.show()
 
-    def _get_console_variables(self) -> ty.Dict:
+    def _get_console_variables(self) -> dict:
         return {
             "transform_model": self.transform_model,
             "fixed_viewer": self.view_fixed.viewer,
@@ -530,7 +531,7 @@ class ImageRegistrationWindow(Window):
         }
 
     @ensure_main_thread
-    def on_apply(self, update_data: bool = False, name: ty.Optional[str] = None):
+    def on_apply(self, update_data: bool = False, name: str | None = None) -> None:
         """Apply transformation."""
         if self.transform is None or self.moving_image_layer is None:
             logger.warning("Cannot apply transformation - no transformation has been computed.")
@@ -714,6 +715,7 @@ class ImageRegistrationWindow(Window):
         # extra settings
         self._make_menu()
         self._make_icon()
+        self._make_statusbar()
 
     def _make_menu(self) -> None:
         """Make menu items."""

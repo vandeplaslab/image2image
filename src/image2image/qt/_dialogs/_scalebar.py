@@ -9,7 +9,7 @@ class QtScaleBarControls(_QtScaleBarControls):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.setWindowFlags(Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.Tool)
+        self.setWindowFlags(Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.Tool)  # type: ignore[attr-defined]
 
         self.HIDE_WHEN_CLOSE = False
 

@@ -96,7 +96,7 @@ class BaseImageReader:
 
     def to_csv(self, path: PathLike) -> str:
         """Export data as CSV file."""
-        from image2image.utilities import write_rgb_to_txt, write_xml_micro_metadata
+        from image2image.utils.utilities import write_rgb_to_txt, write_xml_micro_metadata
 
         write_xml_micro_metadata(self, path.with_suffix(".xml"))
         yield from write_rgb_to_txt(path, self.pyramid[0])

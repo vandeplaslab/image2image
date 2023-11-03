@@ -1,4 +1,6 @@
 """Viewer dialog."""
+from __future__ import annotations
+
 import typing as ty
 from functools import partial
 from pathlib import Path
@@ -8,15 +10,16 @@ from koyo.timer import MeasureTimer
 from loguru import logger
 from napari.layers import Image
 from qtextra.utils.utilities import connect
+from qtextra.widgets.qt_image_button import QtThemeButton
 from qtpy.QtWidgets import QHBoxLayout, QMenuBar, QStatusBar, QVBoxLayout, QWidget
 from superqt import ensure_main_thread
 
 from image2image import __version__
-from image2image._select import LoadWithTransformWidget
 from image2image.config import CONFIG
-from image2image.dialog_base import Window
 from image2image.enums import ALLOWED_VIEWER_FORMATS
-from image2image.utilities import style_form_layout
+from image2image.qt._select import LoadWithTransformWidget
+from image2image.qt.dialog_base import Window
+from image2image.utils.utilities import style_form_layout
 
 if ty.TYPE_CHECKING:
     from image2image.models.data import DataModel
@@ -26,10 +29,10 @@ if ty.TYPE_CHECKING:
 class ImageViewerWindow(Window):
     """Image viewer dialog."""
 
-    image_layer: ty.Optional[ty.List["Image"]] = None
+    image_layer: list[Image] | None = None
     _console = None
 
-    def __init__(self, parent: ty.Optional[QWidget]):
+    def __init__(self, parent: QWidget | None):
         super().__init__(parent, f"image2viewer: Simple viewer app (v{__version__})")
 
     def setup_events(self, state: bool = True) -> None:
@@ -41,17 +44,17 @@ class ImageViewerWindow(Window):
         connect(self._image_widget.transform_dlg.evt_transform, self.on_update_transform, state=state)
 
     @property
-    def data_model(self) -> "DataModel":
+    def data_model(self) -> DataModel:
         """Return transform model."""
         return self._image_widget.model
 
     @property
-    def transform_model(self) -> "TransformModel":
+    def transform_model(self) -> TransformModel:
         """Return transform model."""
         return self._image_widget.transform_model
 
     @ensure_main_thread
-    def on_load_image(self, model: "DataModel", channel_list: ty.List[str]) -> None:
+    def on_load_image(self, model: DataModel, channel_list: list[str]) -> None:
         """Load fixed image."""
         if model and model.n_paths:
             self._on_load_image(model, channel_list)
@@ -61,18 +64,18 @@ class ImageViewerWindow(Window):
         else:
             logger.warning(f"Failed to load data - model={model}")
 
-    def _on_load_image(self, model: "DataModel", channel_list: ty.Optional[ty.List[str]] = None) -> None:
+    def _on_load_image(self, model: DataModel, channel_list: list[str] | None = None) -> None:
         with MeasureTimer() as timer:
             logger.info(f"Loading fixed data with {model.n_paths} paths...")
             self.plot_image_layers(channel_list)
             self.view.viewer.reset_view()
         logger.info(f"Loaded data in {timer()}")
 
-    def plot_image_layers(self, channel_list: ty.Optional[ty.List[str]] = None) -> None:
+    def plot_image_layers(self, channel_list: list[str] | None = None) -> None:
         """Plot image layers."""
         self.image_layer = self._plot_image_layers(self.data_model, self.view, channel_list, "view", True)
 
-    def on_close_image(self, model: "DataModel") -> None:
+    def on_close_image(self, model: DataModel) -> None:
         """Close fixed image."""
         self._close_model(model, self.view, "view")
 
@@ -92,7 +95,7 @@ class ImageViewerWindow(Window):
 
     def on_show_scalebar(self) -> None:
         """Show scale bar controls for the viewer."""
-        from image2image._dialogs._scalebar import QtScaleBarControls
+        from image2image.qt._dialogs._scalebar import QtScaleBarControls
 
         dlg = QtScaleBarControls(self.view.viewer, self.view.widget)
         dlg.show()
@@ -116,7 +119,7 @@ class ImageViewerWindow(Window):
 
             # locate paths that are missing
             if paths_missing:
-                from image2image._dialogs import LocateFilesDialog
+                from image2image.qt._dialogs import LocateFilesDialog
 
                 locate_dlg = LocateFilesDialog(self, paths_missing)
                 if locate_dlg.exec_():  # noqa
@@ -195,12 +198,12 @@ class ImageViewerWindow(Window):
 
         # extra settings
         self._make_menu()
-        self._make_statusbar()
         self._make_icon()
+        self._make_statusbar()
 
     def _make_statusbar(self) -> None:
         """Make statusbar."""
-        from image2image._sentry import send_feedback
+        from image2image.qt._sentry import send_feedback
 
         self.statusbar = QStatusBar()
         self.statusbar.setSizeGripEnabled(False)
@@ -232,15 +235,12 @@ class ImageViewerWindow(Window):
                 small=True,
             )
         )
-        self.statusbar.addPermanentWidget(
-            hp.make_qta_btn(
-                self,
-                "ipython",
-                tooltip="Open IPython console",
-                small=True,
-                func=self.on_show_console,
-            )
+
+        self.tutorial_btn = hp.make_qta_btn(
+            self, "help", tooltip="Give me a quick tutorial!", func=self.on_show_tutorial, small=True
         )
+        self.statusbar.addPermanentWidget(self.tutorial_btn)
+
         self.statusbar.addPermanentWidget(
             hp.make_qta_btn(
                 self,
@@ -250,14 +250,32 @@ class ImageViewerWindow(Window):
                 small=True,
             )
         )
-        self.update_status_btn = hp.make_qta_btn(
-            self,
-            "reload",
-            tooltip="Show information about available updates.",
-            small=True,
-            func=self.on_show_update_info,
-            color="green",
+
+        self.theme_btn = QtThemeButton(self)
+        self.theme_btn.auto_connect()
+        with hp.qt_signals_blocked(self.theme_btn):
+            self.theme_btn.dark = CONFIG.theme == "dark"
+        self.theme_btn.clicked.connect(self.on_toggle_theme)
+        self.theme_btn.set_small()
+
+        self.statusbar.addPermanentWidget(self.theme_btn)
+        self.statusbar.addPermanentWidget(
+            hp.make_qta_btn(
+                self,
+                "ipython",
+                tooltip="Open IPython console",
+                small=True,
+                func=self.on_show_console,
+            )
         )
+
+        self.update_status_btn = hp.make_btn(
+            self,
+            "Update available - click here to download!",
+            tooltip="Show information about available updates.",
+            func=self.on_show_update_info,
+        )
+        self.update_status_btn.setObjectName("update_btn")
         self.update_status_btn.hide()
         self.statusbar.addPermanentWidget(self.update_status_btn)
         self.setStatusBar(self.statusbar)
@@ -303,7 +321,7 @@ class ImageViewerWindow(Window):
         self.menubar.addAction(menu_help.menuAction())
         self.setMenuBar(self.menubar)
 
-    def _get_console_variables(self) -> ty.Dict:
+    def _get_console_variables(self) -> dict:
         return {
             "transforms_model": self.transform_model,
             "viewer": self.view.viewer,

@@ -14,11 +14,11 @@ def _read_config_from_file(path: PathLike) -> ty.Dict[str, ty.Any]:
     if path.suffix == ".json":
         from koyo.json import read_json_data
 
-        data = read_json_data(path)
+        data: ty.Dict = read_json_data(path)
     else:
         from koyo.toml import read_toml_data
 
-        data = read_toml_data(path)
+        data: ty.Dict = read_toml_data(path)
     return data
 
 

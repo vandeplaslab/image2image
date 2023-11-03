@@ -6,8 +6,8 @@ from koyo.typing import PathLike
 from loguru import logger
 from pydantic import BaseModel, Field, validator
 
-from image2image._appdirs import USER_CONFIG_DIR
 from image2image.enums import ViewerOrientation, ViewType
+from image2image.utils._appdirs import USER_CONFIG_DIR
 
 
 class Config(BaseModel):
@@ -41,7 +41,11 @@ class Config(BaseModel):
     )
 
     # visuals
-    theme: str = Field("light", title="Theme", description="Theme of the application.")
+    theme: str = Field("light", title="Theme", description="Theme of the application.", options=["light", "dark"])
+    first_time_crop: bool = Field(True, title="First time", description="First time running the crop app.")
+    first_time_reader: bool = Field(True, title="First time", description="First time running the reader app.")
+    first_time_export: bool = Field(True, title="First time", description="First time running the export app.")
+    first_time_viewer: bool = Field(True, title="First time", description="First time running the viewer app.")
 
     # paths
     fixed_dir: str = Field("", title="Fixed directory", description="Directory with fixed images.")
@@ -53,17 +57,17 @@ class Config(BaseModel):
     telemetry_with_locals: bool = Field(True, title="Send locals", description="Send locals with telemetry.")
 
     @validator("fixed_dir", "moving_dir", "output_dir", pre=True, allow_reuse=True)
-    def _validate_path(value: PathLike) -> str:
+    def _validate_path(value: PathLike) -> str:  # type: ignore[misc]
         """Validate path."""
         return str(value)
 
     @validator("viewer_orientation", pre=True, allow_reuse=True)
-    def _validate_orientation(value: ty.Union[str, ViewerOrientation]) -> ViewerOrientation:
+    def _validate_orientation(value: ty.Union[str, ViewerOrientation]) -> ViewerOrientation:  # type: ignore[misc]
         """Validate path."""
         return ViewerOrientation(value)
 
     @validator("view_type", pre=True, allow_reuse=True)
-    def _validate_view_type(value: ty.Union[str, ViewType]) -> ViewType:
+    def _validate_view_type(value: ty.Union[str, ViewType]) -> ViewType:  # type: ignore[misc]
         """Validate view_type."""
         return ViewType(value)
 
@@ -99,4 +103,4 @@ class Config(BaseModel):
                 logger.warning(f"Failed to load configuration from {self.output_path}: {e}")
 
 
-CONFIG: Config = Config()
+CONFIG: Config = Config()  # type: ignore[call-arg]

@@ -185,7 +185,7 @@ def init_points_layer(layer: Points, visual: VispyPointsLayer):
     visual._highlight_color = (0, 0.6, 1, 0.3)
 
 
-def init_shapes_layer(layer: Shapes, visual: VispyShapesLayer):
+def init_shapes_layer(layer: Shapes, visual: VispyShapesLayer) -> None:
     """Initialize shapes layer."""
     layer._highlight_color = (0, 0.6, 1, 0.3)
 

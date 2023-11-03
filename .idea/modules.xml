@@ -2,6 +2,7 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
+      <module fileurl="file://$PROJECT_DIR$/../image2image-reader/.idea/image2image-reader.iml" filepath="$PROJECT_DIR$/../image2image-reader/.idea/image2image-reader.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/ims2micro.iml" filepath="$PROJECT_DIR$/.idea/ims2micro.iml" />
       <module fileurl="file://$PROJECT_DIR$/../imzy/.idea/imzy.iml" filepath="$PROJECT_DIR$/../imzy/.idea/imzy.iml" />
       <module fileurl="file://$PROJECT_DIR$/../koyo/.idea/koyo.iml" filepath="$PROJECT_DIR$/../koyo/.idea/koyo.iml" />

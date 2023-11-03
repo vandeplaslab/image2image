@@ -84,7 +84,7 @@ class Transformation(BaseModel):
 
     def compute(self, yx: bool = True, px: bool = True) -> ProjectiveTransform:
         """Compute transformation matrix."""
-        from image2image.utilities import compute_transform
+        from image2image.utils.utilities import compute_transform
 
         moving_points = self.moving_points
         fixed_points = self.fixed_points
@@ -192,7 +192,7 @@ class Transformation(BaseModel):
 
     def to_xml(self, path: PathLike) -> None:
         """Export dat aas fusion file."""
-        from image2image.utilities import write_xml_registration
+        from image2image.utils.utilities import write_xml_registration
 
         affine = self.compute(yx=False, px=True).params
         affine = affine.flatten("F").reshape(3, 3)

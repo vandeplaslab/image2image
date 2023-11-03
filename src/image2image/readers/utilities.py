@@ -1,6 +1,6 @@
 """Tiff file utilities."""
+import typing as ty
 from pathlib import Path
-from typing import List, Tuple
 
 import dask.array as da
 import numpy as np
@@ -9,7 +9,7 @@ import zarr
 from tifffile import TiffFile, imread, xml2dict
 
 
-def tifffile_to_dask(im_fp: [str, Path], largest_series: int):
+def tifffile_to_dask(im_fp: ty.Union[str, Path], largest_series: int):
     """Convert a tifffile to a dask array."""
     imdata = zarr.open(imread(im_fp, aszarr=True, series=largest_series))
     if isinstance(imdata, zarr.hierarchy.Group):
@@ -19,7 +19,7 @@ def tifffile_to_dask(im_fp: [str, Path], largest_series: int):
     return imdata
 
 
-def calc_pyramid_levels(xy_final_shape: np.ndarray, tile_size: int) -> List[Tuple[int, int]]:
+def calc_pyramid_levels(xy_final_shape: np.ndarray, tile_size: int) -> ty.List[ty.Tuple[int, int]]:
     """Calculate the number of pyramids for a given image dimension, and tile size.
 
     Stops when further downsampling would be smaller than tile_size.
@@ -49,7 +49,7 @@ def calc_pyramid_levels(xy_final_shape: np.ndarray, tile_size: int) -> List[Tupl
 
 def get_pyramid_info(
     y_size: int, x_size: int, n_ch: int, tile_size: int
-) -> Tuple[List[Tuple[int, int]], List[Tuple[int, int, int, int, int]]]:
+) -> ty.Tuple[ty.List[ty.Tuple[int, int]], ty.List[ty.Tuple[int, int, int, int, int]]]:
     """
     Get pyramidal info for OME-tiff output.
 
@@ -105,7 +105,7 @@ def centered_transform(
     return rot_mat
 
 
-def guess_rgb(shape: Tuple[int, ...]) -> bool:
+def guess_rgb(shape: ty.Tuple[int, ...]) -> bool:
     """Guess if the passed shape comes from rgb data.
 
     If last dim is 3 or 4 assume the data is rgb, including rgba.

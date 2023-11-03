@@ -1,16 +1,16 @@
 """Various dialogs."""
-from image2image._dialogs._about import AboutDialog, open_about
-from image2image._dialogs._channels import OverlayChannelsDialog
-from image2image._dialogs._dataset import (
+from image2image.qt._dialogs._about import AboutDialog, open_about
+from image2image.qt._dialogs._channels import OverlayChannelsDialog
+from image2image.qt._dialogs._dataset import (
     CloseDatasetDialog,
     ExtractChannelsDialog,
     SelectChannelsToLoadDialog,
     SelectImagesDialog,
 )
-from image2image._dialogs._fiducials import FiducialsDialog
-from image2image._dialogs._locate import LocateFilesDialog
-from image2image._dialogs._misc import ImportSelectDialog
-from image2image._dialogs._transform import SelectTransformDialog
+from image2image.qt._dialogs._fiducials import FiducialsDialog
+from image2image.qt._dialogs._locate import LocateFilesDialog
+from image2image.qt._dialogs._misc import ImportSelectDialog
+from image2image.qt._dialogs._transform import SelectTransformDialog
 
 __all__ = [
     "AboutDialog",
@@ -25,6 +25,7 @@ __all__ = [
     "SelectTransformDialog",
     "OverlayChannelsDialog",
 ]
+
 
 if __name__ == "__main__":  # pragma: no cover
     import sys

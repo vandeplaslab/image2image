@@ -7,17 +7,20 @@ from koyo.timer import MeasureTimer
 from loguru import logger
 from napari.layers import Image
 from qtextra._napari.mixins import ImageViewMixin
+from qtextra.config import THEMES
 from qtextra.mixins import IndicatorMixin
+from qtextra.widgets.qt_image_button import QtThemeButton
 from qtpy.QtCore import Qt
-from qtpy.QtWidgets import QMainWindow, QMenu, QWidget
+from qtpy.QtWidgets import QMainWindow, QMenu, QProgressBar, QStatusBar, QWidget
+from superqt.utils import create_worker, ensure_main_thread
 
 # need to load to ensure all assets are loaded properly
 import image2image.assets  # noqa: F401
-from image2image._dialogs._update import check_version
-from image2image._sentry import install_error_monitor
 from image2image.config import CONFIG
 from image2image.models.data import DataModel
-from image2image.utilities import get_colormap, log_exception
+from image2image.qt._dialogs._update import check_version
+from image2image.qt._sentry import install_error_monitor
+from image2image.utils.utilities import get_colormap, log_exception
 
 if ty.TYPE_CHECKING:
     from qtextra._napari.image.viewer import NapariImageView
@@ -44,9 +47,48 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
 
         # delay asking for telemetry opt-in by 10s
         hp.call_later(self, install_error_monitor, 5_000)
-        hp.call_later(self, partial(check_version, parent=self), 5 * 1000)
+        hp.call_later(self, self.on_check_new_version, 5 * 1000)
         # check for updates every 4 hours
-        self.version_timer = hp.make_periodic_timer(self, partial(check_version, parent=self), 3600 * 4 * 1000)
+        self.version_timer = hp.make_periodic_timer(self, self.on_check_new_version, 3600 * 4 * 1000)
+
+        # synchronize themes
+        THEMES.evt_theme_changed.connect(self.on_changed_theme)
+
+    def on_toggle_theme(self) -> None:
+        """Toggle theme."""
+        THEMES.theme = "dark" if self.theme_btn.dark else "light"
+        CONFIG.theme = THEMES.theme
+
+    def on_changed_theme(self) -> None:
+        """Update theme of the app."""
+        CONFIG.theme = THEMES.theme
+        THEMES.set_theme_stylesheet(self)
+        # update console
+        if self._console:
+            self._console._console._update_theme()
+
+    def on_check_new_version(self) -> None:
+        """Check for the new version."""
+        create_worker(
+            check_version,
+            _connect={
+                "returned": self._on_set_new_version,
+                "errored": lambda: hp.toast(
+                    self, "Failed", "Failed checking for new version", icon="error", position="top_left"
+                ),
+            },
+        )
+
+    @ensure_main_thread()
+    def _on_set_new_version(self, res: tuple[bool, str]) -> None:
+        """Set the result of version check."""
+        is_new_available, reason = res
+        if not is_new_available:
+            logger.debug("Failed to check GitHub for latest version.")
+            return
+        hp.long_toast(self, "New version available!", reason, 15_000, icon="info", position="top_left")
+        logger.debug("Checked for latest version.")
+        self.update_status_btn.show()
 
     def _setup_ui(self) -> None:
         """Create panel."""
@@ -140,9 +182,9 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
             self.setWindowIcon(icon)
 
     def _make_help_menu(self) -> QMenu:
-        from image2image._dialogs import open_about
-        from image2image._sentry import ask_opt_in, send_feedback
-        from image2image.utilities import open_bug_report, open_docs, open_github, open_request
+        from image2image.qt._dialogs import open_about
+        from image2image.qt._sentry import ask_opt_in, send_feedback
+        from image2image.utils.utilities import open_bug_report, open_docs, open_github, open_request
 
         menu_help = hp.make_menu(self, "Help")
         hp.make_menu_item(self, "Documentation (online)", menu=menu_help, icon="web", func=open_docs, shortcut="F1")
@@ -185,6 +227,59 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
         hp.make_menu_item(self, "About...", menu=menu_help, func=partial(open_about, parent=self), icon="info")
         return menu_help
 
+    def _make_statusbar(self) -> None:
+        """Make statusbar."""
+        from image2image.qt._sentry import send_feedback
+
+        self.statusbar = QStatusBar()  # type: ignore
+        self.statusbar.setSizeGripEnabled(False)
+
+        self.progress_bar = QProgressBar(self)
+        self.progress_bar.setMaximumWidth(200)
+        self.statusbar.addPermanentWidget(self.progress_bar)
+        self.progress_bar.hide()
+
+        self.tutorial_btn = hp.make_qta_btn(
+            self, "help", tooltip="Give me a quick tutorial!", func=self.on_show_tutorial, small=True
+        )
+        self.statusbar.addPermanentWidget(self.tutorial_btn)
+        self.feedback_btn = hp.make_qta_btn(
+            self,
+            "feedback",
+            tooltip="Refresh task list ahead of schedule.",
+            func=partial(send_feedback, parent=self),
+            small=True,
+        )
+        self.statusbar.addPermanentWidget(self.feedback_btn)
+
+        self.theme_btn = QtThemeButton(self)
+        self.theme_btn.auto_connect()
+        with hp.qt_signals_blocked(self.theme_btn):
+            self.theme_btn.dark = CONFIG.theme == "dark"
+        self.theme_btn.clicked.connect(self.on_toggle_theme)
+        self.theme_btn.set_small()
+        self.statusbar.addPermanentWidget(self.theme_btn)
+
+        self.statusbar.addPermanentWidget(
+            hp.make_qta_btn(
+                self,
+                "ipython",
+                tooltip="Open IPython console",
+                small=True,
+                func=self.on_show_console,
+            )
+        )
+        self.update_status_btn = hp.make_btn(
+            self,
+            "Update available - click here to download!",
+            tooltip="Show information about available updates.",
+            func=self.on_show_update_info,
+        )
+        self.update_status_btn.setObjectName("update_btn")
+        self.update_status_btn.hide()
+        self.statusbar.addPermanentWidget(self.update_status_btn)
+        self.setStatusBar(self.statusbar)
+
     def on_show_update_info(self) -> None:
         """Show information about available updates."""
         from koyo.release import format_version, get_latest_git
@@ -194,3 +289,6 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
         text = format_version(data)
         dlg = ChangelogDialog(self, text)
         dlg.exec_()  # type: ignore
+
+    def on_show_tutorial(self) -> None:
+        """Quick tutorial."""

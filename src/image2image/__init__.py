@@ -10,7 +10,7 @@ __author__ = "Lukasz G. Migas"
 __email__ = "lukas.migas@yahoo.com"
 
 try:
-    from image2image.event_loop import get_app
+    from image2image.qt.event_loop import get_app
 
     # force application creation
     get_app()

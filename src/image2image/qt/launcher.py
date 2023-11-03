@@ -1,4 +1,6 @@
 """Launcher application for image2image."""
+from __future__ import annotations
+
 import qtextra.helpers as hp
 from qtextra.config import THEMES
 from qtextra.widgets.qt_dialog import QtDialog
@@ -92,7 +94,7 @@ class Launcher(QtDialog):
     @staticmethod
     def on_export():
         """Open registration application."""
-        from image2image.dialog_export import ImageExportWindow
+        from image2image.qt.dialog_export import ImageExportWindow
 
         dlg = ImageExportWindow(None)
         THEMES.set_theme_stylesheet(dlg)
@@ -102,7 +104,7 @@ class Launcher(QtDialog):
     @staticmethod
     def on_register():
         """Open registration application."""
-        from image2image.dialog_register import ImageRegistrationWindow
+        from image2image.qt.dialog_register import ImageRegistrationWindow
 
         dlg = ImageRegistrationWindow(None)
         THEMES.set_theme_stylesheet(dlg)
@@ -112,7 +114,7 @@ class Launcher(QtDialog):
     @staticmethod
     def on_viewer():
         """Open registration application."""
-        from image2image.dialog_viewer import ImageViewerWindow
+        from image2image.qt.dialog_viewer import ImageViewerWindow
 
         dlg = ImageViewerWindow(None)
         THEMES.set_theme_stylesheet(dlg)

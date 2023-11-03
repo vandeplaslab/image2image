@@ -74,7 +74,7 @@ class TransformData(BaseModel):
         self, moving_resolution: ty.Optional[float] = None, yx: bool = True, px: bool = False
     ) -> ProjectiveTransform:
         """Compute transformation matrix."""
-        from image2image.utilities import compute_transform
+        from image2image.utils.utilities import compute_transform
 
         if moving_resolution is None:
             moving_resolution = self.moving_resolution
@@ -161,7 +161,7 @@ class TransformModel(BaseModel):
     @property
     def transform_names(self) -> ty.List[str]:
         """Return list of transform names."""
-        return [t.name for t in self.transforms] if self.transforms else []
+        return [Path(t).name for t in self.transforms] if self.transforms else []
 
     def add_transform(self, name_or_path: PathLike, transform_data: TransformData) -> None:
         """Add transformation matrix."""

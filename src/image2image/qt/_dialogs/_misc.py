@@ -5,7 +5,7 @@ from qtextra.widgets.qt_dialog import QtDialog
 from qtpy.QtCore import Qt
 from qtpy.QtWidgets import QFormLayout
 
-from image2image.utilities import style_form_layout
+from image2image.utils.utilities import style_form_layout
 
 
 class ImportSelectDialog(QtDialog):

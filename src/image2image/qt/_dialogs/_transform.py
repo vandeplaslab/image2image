@@ -14,12 +14,12 @@ from qtpy.QtWidgets import QFormLayout
 
 from image2image.models.data import DataModel
 from image2image.models.transform import TransformData, TransformModel
-from image2image.utilities import style_form_layout
+from image2image.utils.utilities import style_form_layout
 
 if ty.TYPE_CHECKING:
     from qtextra._napari.image.viewer import NapariImageView
 
-    from image2image._select import LoadWithTransformWidget
+    from image2image.qt._select import LoadWithTransformWidget
 
 
 class SelectTransformDialog(QtFramelessTool):

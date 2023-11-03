@@ -11,7 +11,7 @@ from qtextra.widgets.qt_table_view import QtCheckableTableView
 from qtpy.QtCore import Qt
 from qtpy.QtWidgets import QFormLayout
 
-from image2image.utilities import style_form_layout
+from image2image.utils.utilities import style_form_layout
 
 
 class LocateFilesDialog(QtDialog):
@@ -93,18 +93,22 @@ class LocateFilesDialog(QtDialog):
 
     def on_update_data_list(self, _evt=None):
         """On load."""
+
         def _exists(path):
             try:
                 return path.exists()
             except PermissionError:
                 return False
+
         data = []
         for path_pair in self.paths:
             old_path = path_pair["old_path"]
             new_path = path_pair["new_path"]
             comment = "File found at old location" if _exists(old_path) else "File not found"
-            if new_path and new_path.exists():
+            if new_path and _exists(new_path):
                 comment = "File found at new location"
+                old_path = Path(old_path)
+                new_path = Path(new_path)
                 if old_path.name != new_path.name:
                     comment += " but has different name."
             data.append([True, str(old_path), str(new_path) if new_path else "", comment])
@@ -129,7 +133,7 @@ class LocateFilesDialog(QtDialog):
                 self,
                 "At least one file read from the configuration file is no longer at the specified path."
                 " Please locate it on your hard drive or it won't be imported.",
-                alignment=Qt.AlignHCenter,
+                alignment=Qt.AlignHCenter,  # type: ignore[attr-defined]
             )
         )
         layout.addRow(self.table)
@@ -137,7 +141,7 @@ class LocateFilesDialog(QtDialog):
             hp.make_label(
                 self,
                 "<b>Tip.</b> Double-click on a row to zoom in on the point.",
-                alignment=Qt.AlignHCenter,
+                alignment=Qt.AlignHCenter,  # type: ignore[attr-defined]
                 object_name="tip_label",
                 enable_url=True,
             )

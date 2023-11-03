@@ -1,3 +1,6 @@
+"""Fiducials marker."""
+import typing as ty
+
 import numpy as np
 from loguru import logger
 from qtextra import helpers as hp
@@ -5,10 +8,14 @@ from qtextra.utils.table_config import TableConfig
 from qtextra.utils.utilities import connect
 from qtextra.widgets.qt_dialog import QtFramelessTool
 from qtextra.widgets.qt_table_view import QtCheckableTableView
-from qtpy.QtCore import Qt, Signal
+from qtpy.QtCore import QModelIndex, Qt, Signal  # type: ignore[attr-defined]
+from qtpy.QtGui import QKeyEvent
 from qtpy.QtWidgets import QFormLayout
 
-from image2image.utilities import style_form_layout
+from image2image.utils.utilities import style_form_layout
+
+if ty.TYPE_CHECKING:
+    from image2image.qt.dialog_register import ImageRegistrationWindow
 
 
 class FiducialsDialog(QtFramelessTool):
@@ -20,7 +27,7 @@ class FiducialsDialog(QtFramelessTool):
     evt_close = Signal()
 
     TABLE_CONFIG = (
-        TableConfig()
+        TableConfig()  # type: ignore[no-untyped-call]
         .add("", "check", "bool", 0, no_sort=True, hidden=True)
         .add("index", "index", "int", 50)
         .add("y-m(px)", "y_px_micro", "float", 50)
@@ -29,72 +36,77 @@ class FiducialsDialog(QtFramelessTool):
         .add("x-i(px)", "x_px_ims", "float", 50)
     )
 
-    def __init__(self, parent):
+    def __init__(self, parent: "ImageRegistrationWindow"):
         super().__init__(parent)
         self.setMinimumWidth(600)
         self.setMinimumHeight(400)
-        self.points_data = None
+        self.points_data: ty.Optional[np.ndarray] = None
         self.on_load()
 
-    def connect_events(self, state: bool = True):
+    def connect_events(self, state: bool = True) -> None:
         """Connect events."""
+        parent: ImageRegistrationWindow = self.parent()  # type: ignore[assignment]
         # change of model events
-        connect(self.parent().fixed_points_layer.events.data, self.on_load, state=state)
-        connect(self.parent().moving_points_layer.events.data, self.on_load, state=state)
-        connect(self.parent().evt_predicted, self.on_load, state=state)
+        connect(parent.fixed_points_layer.events.data, self.on_load, state=state)
+        connect(parent.moving_points_layer.events.data, self.on_load, state=state)
+        connect(parent.evt_predicted, self.on_load, state=state)
         # table events
         connect(self.table.doubleClicked, self.on_double_click, state=state)
 
-    def keyPressEvent(self, evt):
+    def keyPressEvent(self, evt: QKeyEvent) -> None:
         """Key press event."""
-        if evt.key() == Qt.Key_Escape:
+        if evt.key() == Qt.Key_Escape:  # type: ignore[attr-defined]
             evt.ignore()
-        elif evt.key() == Qt.Key_Backspace or evt.key() == Qt.Key_Delete:
+        elif evt.key() == Qt.Key_Backspace or evt.key() == Qt.Key_Delete:  # type: ignore[attr-defined]
             self.on_delete_row()
             evt.accept()
         else:
             super().keyPressEvent(evt)
 
-    def on_delete_row(self):
+    def on_delete_row(self) -> None:
         """Delete row."""
+        parent: "ImageRegistrationWindow" = self.parent()  # type: ignore[assignment]
         sel_model = self.table.selectionModel()
         if sel_model.hasSelection():
             indices = [index.row() for index in sel_model.selectedRows()]
             indices = sorted(indices, reverse=True)
             for index in indices:
-                fixed_points = self.parent().fixed_points_layer.data
-                moving_points = self.parent().moving_points_layer.data
+                fixed_points = parent.fixed_points_layer.data
+                moving_points = parent.moving_points_layer.data
                 if index < len(fixed_points):
                     fixed_points = np.delete(fixed_points, index, axis=0)
-                    self.parent().fixed_points_layer.data = fixed_points
+                    parent.fixed_points_layer.data = fixed_points
                 if index < len(moving_points):
                     moving_points = np.delete(moving_points, index, axis=0)
-                    self.parent().moving_points_layer.data = moving_points
+                    parent.moving_points_layer.data = moving_points
                 logger.debug(f"Deleted {index} from fiducial table")
 
-    def on_double_click(self, index):
+    def on_double_click(self, index: QModelIndex) -> None:
         """Zoom in."""
+        parent: "ImageRegistrationWindow" = self.parent()  # type: ignore[assignment]
         row = index.row()
-        y_micro, x_micro, y_ims, x_ims = self.points_data[row]
-        # zoom-in on fixed data
-        if not np.isnan(x_micro):
-            view_fixed = self.parent().view_fixed
-            view_fixed.viewer.camera.center = (0.0, y_micro, x_micro)
-            view_fixed.viewer.camera.zoom = 5
-            logger.debug(
-                f"Applied focus center=({y_micro:.1f}, {x_micro:.1f}) zoom={view_fixed.viewer.camera.zoom:.3f} on micro"
-                f" data"
-            )
-        # zoom-in on moving data
-        if not np.isnan(x_ims):
-            view_moving = self.parent().view_moving
-            view_moving.viewer.camera.center = (0.0, y_ims, x_ims)
-            view_moving.viewer.camera.zoom = 50
-            logger.debug(
-                f"Applied focus center=({y_ims:.1f}, {x_ims:.1f}) zoom={view_moving.viewer.camera.zoom:.3f} on IMS data"
-            )
+        if self.points_data is not None:
+            y_micro, x_micro, y_ims, x_ims = self.points_data[row]
+            # zoom-in on fixed data
+            if not np.isnan(x_micro):
+                view_fixed = parent.view_fixed
+                view_fixed.viewer.camera.center = (0.0, y_micro, x_micro)
+                view_fixed.viewer.camera.zoom = 5
+                logger.debug(
+                    f"Applied focus center=({y_micro:.1f}, {x_micro:.1f}) zoom={view_fixed.viewer.camera.zoom:.3f} on"
+                    f" micro data"
+                )
+            # zoom-in on moving data
+            if not np.isnan(x_ims):
+                view_moving = parent.view_moving
+                view_moving.viewer.camera.center = (0.0, y_ims, x_ims)
+                view_moving.viewer.camera.zoom = 50
+                logger.debug(
+                    f"Applied focus center=({y_ims:.1f}, {x_ims:.1f}) zoom={view_moving.viewer.camera.zoom:.3f} on IMS"
+                    f"data"
+                )
 
-    def on_load(self, _evt=None):
+    def on_load(self, _evt: ty.Any = None) -> None:
         """On load."""
 
         def _str_fmt(value):
@@ -102,8 +114,9 @@ class FiducialsDialog(QtFramelessTool):
                 return ""
             return f"{value:.3f}"
 
-        fixed_points_layer = self.parent().fixed_points_layer
-        moving_points_layer = self.parent().moving_points_layer
+        parent: "ImageRegistrationWindow" = self.parent()  # type: ignore[assignment]
+        fixed_points_layer = parent.fixed_points_layer
+        moving_points_layer = parent.moving_points_layer
         n = max([len(fixed_points_layer.data), len(moving_points_layer.data)])
         array = np.full((n, 4), fill_value=np.nan)
         array[0 : len(fixed_points_layer.data), 0:2] = fixed_points_layer.data
@@ -137,7 +150,7 @@ class FiducialsDialog(QtFramelessTool):
                 self,
                 "<b>Tip.</b> Double-click on a row to zoom in on the point.<br>"
                 "<b>Tip.</b> Press  <b>Delete</b> or <b>Backspace</b> to delete a point.",
-                alignment=Qt.AlignHCenter,
+                alignment=Qt.AlignHCenter,  # type: ignore[attr-defined]
                 object_name="tip_label",
                 enable_url=True,
             )

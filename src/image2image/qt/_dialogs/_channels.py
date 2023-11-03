@@ -9,11 +9,11 @@ from qtextra.widgets.qt_table_view import QtCheckableTableView
 from qtpy.QtCore import Qt, Signal
 from qtpy.QtWidgets import QFormLayout
 
-from image2image.utilities import style_form_layout
+from image2image.utils.utilities import style_form_layout
 
 if ty.TYPE_CHECKING:
-    from image2image._select import LoadWidget
     from image2image.models.data import DataModel
+    from image2image.qt._select import LoadWidget
 
 
 class OverlayChannelsDialog(QtFramelessTool):

@@ -1,4 +1,6 @@
 """Viewer dialog."""
+from __future__ import annotations
+
 import typing as ty
 from contextlib import contextmanager
 from math import ceil, floor
@@ -15,10 +17,10 @@ from qtpy.QtWidgets import QGridLayout, QHBoxLayout, QMenuBar, QVBoxLayout, QWid
 from superqt import ensure_main_thread
 
 from image2image import __version__
-from image2image._select import LoadWidget
 from image2image.config import CONFIG
-from image2image.dialog_base import Window
-from image2image.utilities import init_shapes_layer, style_form_layout
+from image2image.qt._select import LoadWidget
+from image2image.qt.dialog_base import Window
+from image2image.utils.utilities import init_shapes_layer, style_form_layout
 
 if ty.TYPE_CHECKING:
     from image2image.models.data import DataModel
@@ -27,11 +29,11 @@ if ty.TYPE_CHECKING:
 class ImageCropWindow(Window):
     """Image viewer dialog."""
 
-    image_layer: ty.Optional[ty.List["Image"]] = None
+    image_layer: list[Image] | None = None
     _console = None
     _editing = False
 
-    def __init__(self, parent):
+    def __init__(self, parent: QWidget | None = None):
         super().__init__(parent, f"image2crop: Crop and export microscopy data app (v{__version__})")
 
     def setup_events(self, state: bool = True) -> None:
@@ -40,7 +42,7 @@ class ImageCropWindow(Window):
         connect(self._image_widget.dataset_dlg.evt_closed, self.on_close_image, state=state)
 
     @ensure_main_thread
-    def on_load_image(self, model: "DataModel", channel_list: ty.List[str]) -> None:
+    def on_load_image(self, model: DataModel, channel_list: list[str]) -> None:
         """Load fixed image."""
         if model and model.n_paths:
             self._on_load_image(model, channel_list)
@@ -51,18 +53,18 @@ class ImageCropWindow(Window):
             logger.warning(f"Failed to load data - model={model}")
         # self.on_indicator("fixed", False)
 
-    def _on_load_image(self, model: "DataModel", channel_list: ty.Optional[ty.List[str]] = None) -> None:
+    def _on_load_image(self, model: DataModel, channel_list: list[str] | None = None) -> None:
         with MeasureTimer() as timer:
             logger.info(f"Loading fixed data with {model.n_paths} paths...")
             self.plot_image_layers(channel_list)
             self.view.viewer.reset_view()
         logger.info(f"Loaded data in {timer()}")
 
-    def plot_image_layers(self, channel_list: ty.Optional[ty.List[str]] = None) -> None:
+    def plot_image_layers(self, channel_list: list[str] | None = None) -> None:
         """Plot image layers."""
         self.image_layer = self._plot_image_layers(self.data_model, self.view, channel_list, "view", True)
 
-    def on_close_image(self, model: "DataModel") -> None:
+    def on_close_image(self, model: DataModel) -> None:
         """Close fixed image."""
         self._close_model(model, self.view, "view")
 
@@ -195,6 +197,7 @@ class ImageCropWindow(Window):
         # extra settings
         self._make_menu()
         self._make_icon()
+        self._make_statusbar()
 
     def _make_menu(self) -> None:
         """Make menu items."""
@@ -234,11 +237,11 @@ class ImageCropWindow(Window):
         dlg.show_below_widget(self._image_widget)
 
     @property
-    def data_model(self) -> "DataModel":
+    def data_model(self) -> DataModel:
         """Return transform model."""
         return self._image_widget.model
 
-    def _get_console_variables(self) -> ty.Dict:
+    def _get_console_variables(self) -> dict:
         return {
             "viewer": self.view.viewer,
             "data_model": self.data_model,

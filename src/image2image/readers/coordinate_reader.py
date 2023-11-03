@@ -8,7 +8,7 @@ from loguru import logger
 
 from image2image.config import CONFIG
 from image2image.readers.base_reader import BaseImageReader
-from image2image.utilities import format_mz
+from image2image.utils.utilities import format_mz
 
 if ty.TYPE_CHECKING:
     from imzy._readers._base import BaseReader

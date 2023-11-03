@@ -72,7 +72,7 @@ class ImageWrapper:
         """Return number of channels."""
         return len(self.channel_names())
 
-    def channel_names_for_names(self, names: ty.List[PathLike]) -> ty.List[str]:
+    def channel_names_for_names(self, names: ty.Sequence[PathLike]) -> ty.List[str]:
         """Return list of channel names for a given wrapper/dataset."""
         clean_names = []
         for name in names:
@@ -189,7 +189,7 @@ class ImageWrapper:
 
     def update_affine(self, affine: np.ndarray, resolution: float) -> np.ndarray:
         """Update affine matrix."""
-        from image2image.utilities import update_affine
+        from image2image.utils.utilities import update_affine
 
         return update_affine(affine, self.min_resolution, resolution)
 
@@ -342,7 +342,7 @@ def _read_centroids_h5_coordinates(path: PathLike) -> ty.Tuple[Path, "Coordinate
     """Read centroids data from HDF5 file."""
     import h5py
 
-    from image2image.utilities import format_mz
+    from image2image.utils.utilities import format_mz
 
     path = Path(path)
     assert path.suffix in H5_EXTENSIONS, "Only .h5 files are supported"

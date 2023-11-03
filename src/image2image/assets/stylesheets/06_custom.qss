@@ -324,3 +324,10 @@ QLabel#error {
 QLabel#success {
     color: {{ success }};
 }
+
+QPushButton#update_btn{
+    color: {{ replace(success) }};
+    background-color: {{ success }};
+    font-size: {{ increase(font_size, 1) }};
+    font-weight: bold;
+}

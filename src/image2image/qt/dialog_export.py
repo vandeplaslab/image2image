@@ -1,4 +1,6 @@
 """Viewer dialog."""
+from __future__ import annotations
+
 import typing as ty
 from contextlib import suppress
 from functools import partial
@@ -14,10 +16,10 @@ from superqt import ensure_main_thread
 from superqt.utils import GeneratorWorker, thread_worker
 
 from image2image import __version__
-from image2image._select import LoadWidget
 from image2image.config import CONFIG
-from image2image.dialog_base import Window
-from image2image.utilities import style_form_layout
+from image2image.qt._select import LoadWidget
+from image2image.qt.dialog_base import Window
+from image2image.utils.utilities import style_form_layout
 
 if ty.TYPE_CHECKING:
     from image2image.models.data import DataModel
@@ -34,7 +36,7 @@ class ImageExportWindow(Window):
         TableConfig().add("name", "name", "str", 0).add("path", "path", "str", 0).add("progress", "progress", "str", 0)
     )
 
-    def __init__(self, parent: ty.Optional[QWidget]):
+    def __init__(self, parent: QWidget | None):
         super().__init__(parent, f"image2export: Export images in MATLAB fusion format (v{__version__})")
 
     def setup_events(self, state: bool = True) -> None:
@@ -43,7 +45,7 @@ class ImageExportWindow(Window):
         connect(self._image_widget.dataset_dlg.evt_closed, self.on_remove_image, state=state)
 
     @ensure_main_thread
-    def on_load_image(self, model: "DataModel", _channel_list: ty.List[str]) -> None:
+    def on_load_image(self, model: DataModel, _channel_list: list[str]) -> None:
         """Load fixed image."""
         if model and model.n_paths:
             hp.toast(
@@ -53,7 +55,7 @@ class ImageExportWindow(Window):
         else:
             logger.warning(f"Failed to load data - model={model}")
 
-    def on_remove_image(self, model: "DataModel") -> None:
+    def on_remove_image(self, model: DataModel) -> None:
         """Remove image."""
         if model:
             self.on_depopulate_table()
@@ -114,7 +116,7 @@ class ImageExportWindow(Window):
 
     def on_process(self):
         """Process data."""
-        from image2image.utilities import write_reader_to_txt, write_reader_to_xml
+        from image2image.utils.utilities import write_reader_to_txt, write_reader_to_xml
 
         if self._output_dir is None:
             hp.warn(self, "No output directory was selected. Please select directory where to save data.")
@@ -236,6 +238,7 @@ class ImageExportWindow(Window):
         # extra settings
         self._make_menu()
         self._make_icon()
+        self._make_statusbar()
 
     def _make_menu(self) -> None:
         """Make menu items."""
@@ -266,11 +269,11 @@ class ImageExportWindow(Window):
         self.setMenuBar(self.menubar)
 
     @property
-    def data_model(self) -> "DataModel":
+    def data_model(self) -> DataModel:
         """Return transform model."""
         return self._image_widget.model
 
-    def _get_console_variables(self) -> ty.Dict:
+    def _get_console_variables(self) -> dict:
         return {
             "data_model": self.data_model,
         }

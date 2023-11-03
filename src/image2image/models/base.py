@@ -55,7 +55,7 @@ class BaseModel(_BaseModel):
         return cls.from_dict(read_toml_data(path))
 
     @classmethod
-    def from_dict(cls, data: dict) -> None:
+    def from_dict(cls, data: dict) -> "BaseModel":
         """Create from dict."""
         raise NotImplementedError("Must implement method")
 
