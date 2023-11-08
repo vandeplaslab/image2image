@@ -60,12 +60,14 @@ class Transformation(BaseModel):
         """Transform coordinates."""
         if self.transform is None:
             raise ValueError("No transformation found.")
+        coords = coords.copy()
         return self.transform(coords)  # type: ignore[no-any-return]
 
     def inverse(self, coords: np.ndarray) -> np.ndarray:
         """Inverse transformation of coordinates."""
         if self.transform is None:
             raise ValueError("No transformation found.")
+        coords = coords.copy()
         return self.transform.inverse(coords)  # type: ignore[no-any-return]
 
     def error(self) -> float:
@@ -105,31 +107,32 @@ class Transformation(BaseModel):
         )
         return transform
 
-    def about(self) -> str:
+    def about(self, sep: str = "\n") -> str:
         """Retrieve information about the model in textual format."""
         info = ""
         if self.transformation_type:
             info += f"Transformation type: {self.transformation_type}"
         transform = self.transform
         if transform:
-            if hasattr(transform, "params"):
-                info += "\nTransformation matrix:"
-                info += f"\n{transform.params}"
+            # if hasattr(transform, "params"):
+            #     info += "\nTransformation matrix:"
+            #     info += f"\n{transform.params}"
             if hasattr(transform, "scale"):
                 scale = transform.scale
                 scale = (scale, scale) if isinstance(scale, float) else scale
-                info += f"\nScale: {scale[0]:.3f}, {scale[1]:.3f}"
+                info += f"{sep}scale: {scale[0]:.3f}, {scale[1]:.3f}"
             if hasattr(transform, "translation"):
                 translation = transform.translation
                 translation = (translation, translation) if isinstance(translation, float) else translation
-                info += f"\nTranslation: {translation[0]:.3f}, {translation[1]:.3f}"
+                info += f"{sep}translation: {translation[0]:.3f}, {translation[1]:.3f}"
             if hasattr(transform, "rotation"):
                 rotation = transform.rotation
-                info += f"\nRotation: {rotation:.3f}"
+                info += f"{sep}rotation: {rotation:.3f}"
+            info += f"{sep}error: {self.error():.2f}"
         if self.fixed_points is not None:
-            info += f"\nNumber of fixed points: {len(self.fixed_points)}"
+            info += f"{sep}Number of fixed points: {len(self.fixed_points)}"
         if self.moving_points is not None:
-            info += f"\nNumber of moving points: {len(self.moving_points)}"
+            info += f"{sep}Number of moving points: {len(self.moving_points)}"
         return info
 
     def to_dict(self) -> ty.Dict:

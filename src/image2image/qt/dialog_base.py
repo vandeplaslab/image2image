@@ -23,7 +23,7 @@ from image2image.qt._sentry import install_error_monitor
 from image2image.utils.utilities import get_colormap, log_exception
 
 if ty.TYPE_CHECKING:
-    from qtextra._napari.image.viewer import NapariImageView
+    from qtextra._napari.image.wrapper import NapariImageView
 
 
 class Window(QMainWindow, IndicatorMixin, ImageViewMixin):

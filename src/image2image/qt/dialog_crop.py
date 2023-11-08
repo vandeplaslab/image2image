@@ -231,7 +231,7 @@ class ImageCropWindow(Window):
 
     def on_show_scalebar(self):
         """Show scale bar controls for the viewer."""
-        from qtextra._napari.image.component_controls.qt_scalebar_controls import QtScaleBarControls
+        from qtextra._napari.common.component_controls.qt_scalebar_controls import QtScaleBarControls
 
         dlg = QtScaleBarControls(self.view.viewer, self.view.widget)
         dlg.show_below_widget(self._image_widget)

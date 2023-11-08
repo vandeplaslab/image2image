@@ -17,7 +17,7 @@ from image2image.models.transform import TransformData, TransformModel
 from image2image.utils.utilities import style_form_layout
 
 if ty.TYPE_CHECKING:
-    from qtextra._napari.image.viewer import NapariImageView
+    from qtextra._napari.image.wrapper import NapariImageView
 
     from image2image.qt._select import LoadWithTransformWidget
 

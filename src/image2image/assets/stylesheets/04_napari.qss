@@ -229,3 +229,19 @@ QtPlayButton[playing=True] {
     width: 12px;
     padding: 2px;
 }
+
+
+#QtModalPopup {
+  /* required for rounded corners to not have background color */
+  background: {{ foreground }};
+}
+
+#QtPopupFrame {
+  border: 1px solid {{ secondary }};
+  border-radius: 5px;
+}
+
+#QtPopupFrame > QLabel {
+  color: {{ darken(text, 35) }};
+  font-size: 12px;
+}

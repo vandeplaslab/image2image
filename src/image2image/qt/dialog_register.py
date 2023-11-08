@@ -14,7 +14,7 @@ from loguru import logger
 from napari.layers import Image
 from napari.layers.points.points import Mode, Points
 from napari.layers.utils._link_layers import link_layers
-from qtextra._napari.image.viewer import NapariImageView
+from qtextra._napari.image.wrapper import NapariImageView
 from qtextra.utils.utilities import connect
 from qtextra.widgets.qt_image_button import QtImagePushButton
 from qtextra.widgets.qt_mini_toolbar import QtMiniToolbar
@@ -373,6 +373,9 @@ class ImageRegistrationWindow(Window):
     @ensure_main_thread
     def on_run(self, _evt: ty.Any = None) -> None:
         """Compute transformation."""
+        self._on_run()
+
+    def _on_run(self) -> None:
         from image2image.utils.utilities import compute_transform
 
         if not self.fixed_points_layer or not self.moving_points_layer:
@@ -390,19 +393,17 @@ class ImageRegistrationWindow(Window):
                 self.fixed_points_layer.data,  # destination
                 method,
             )
-            self.transform_model.update(
-                transform=transform,
-                transformation_type=method,
-                time_created=datetime.now(),
-                fixed_points=self.fixed_points_layer.data,
-                moving_points=self.moving_points_layer.data,
-            )
+            self.transform_model.transformation_type = method
+            self.transform_model.transform = transform
+            self.transform_model.time_created = datetime.now()
+            self.transform_model.fixed_points = self.fixed_points_layer.data
+            self.transform_model.moving_points = self.moving_points_layer.data
             error = self.transform_model.error()
             self.transform_error.setText(f"{error:.2f}")
-            hp.update_widget_style(
-                self.transform_error, "error" if error > self.transform_model.moving_model.resolution / 2 else "success"
-            )
-            logger.info(self.transform_model.about())
+            if self.transform_model.moving_model:
+                acceptable_error = self.transform_model.moving_model.resolution / 2
+                hp.update_widget_style(self.transform_error, "error" if error > acceptable_error else "success")
+            logger.info(self.transform_model.about("; "))
             self.on_apply()
         else:
             if n_fixed <= 3 or n_moving <= 3:
@@ -419,15 +420,15 @@ class ImageRegistrationWindow(Window):
             return
         # get filename which is based on the moving dataset
         filename = self.moving_model.get_filename() + "_transform.i2r.json"
-        path = hp.get_save_filename(
+        path_ = hp.get_save_filename(
             self,
             "Save transformation",
             base_dir=CONFIG.output_dir,
             file_filter=ALLOWED_EXPORT_REGISTER_FORMATS,
             base_filename=filename,
         )
-        if path:
-            path = Path(path)
+        if path_:
+            path = Path(path_)
             CONFIG.output_dir = str(path.parent)
             transform.to_file(path)
             hp.toast(
@@ -440,20 +441,20 @@ class ImageRegistrationWindow(Window):
 
     def on_load(self, _evt: ty.Any = None) -> None:
         """Import transformation."""
-        path = hp.get_filename(
+        path_ = hp.get_filename(
             self, "Load transformation", base_dir=CONFIG.output_dir, file_filter=ALLOWED_IMPORT_REGISTER_FORMATS
         )
-        if path:
+        if path_:
             from image2image.models.transformation import load_transform_from_file
             from image2image.qt._dialogs import ImportSelectDialog
 
             # load transformation
-            path = Path(path)
+            path = Path(path_)
             CONFIG.output_dir = str(path.parent)
 
             # get info on which settings should be imported
             dlg = ImportSelectDialog(self)
-            if dlg.exec_():  # noqa
+            if dlg.exec_():  # type: ignore[attr-defined]
                 config = dlg.config
                 logger.trace(f"Loaded configuration from {path}\n{config}")
 
@@ -484,12 +485,22 @@ class ImageRegistrationWindow(Window):
                 if fixed_paths_missing or moving_paths_missing:
                     from image2image.qt._dialogs import LocateFilesDialog
 
-                    locate_dlg = LocateFilesDialog(self, fixed_paths_missing, moving_paths_missing)
+                    locate_dlg = LocateFilesDialog(
+                        self,
+                        fixed_paths_missing,  # type: ignore[arg-type]
+                        moving_paths_missing,
+                    )
                     if locate_dlg.exec_():  # type: ignore[attr-defined]
                         if fixed_paths_missing:
-                            fixed_paths = locate_dlg.fix_missing_paths(fixed_paths_missing, fixed_paths)
+                            fixed_paths = locate_dlg.fix_missing_paths(  # type: ignore[assignment]
+                                fixed_paths_missing,
+                                fixed_paths,  # type: ignore[arg-type]
+                            )
                         if moving_paths_missing:
-                            moving_paths = locate_dlg.fix_missing_paths(moving_paths_missing, moving_paths)
+                            moving_paths = locate_dlg.fix_missing_paths(  # type: ignore[assignment]
+                                moving_paths_missing,
+                                moving_paths,  # type: ignore[arg-type]
+                            )
 
                 # set new paths
                 if fixed_paths:
@@ -533,6 +544,9 @@ class ImageRegistrationWindow(Window):
     @ensure_main_thread
     def on_apply(self, update_data: bool = False, name: str | None = None) -> None:
         """Apply transformation."""
+        self._on_apply(update_data, name)
+
+    def _on_apply(self, update_data: bool = False, name: str | None = None) -> None:
         if self.transform is None or self.moving_image_layer is None:
             logger.warning("Cannot apply transformation - no transformation has been computed.")
             return
@@ -565,19 +579,25 @@ class ImageRegistrationWindow(Window):
     @ensure_main_thread
     def on_predict(self, which: str, _evt: ty.Any = None) -> None:
         """Predict transformation from either image."""
+        self._on_predict(which)
+
+    def _on_predict(self, which: str):
         self.on_update_text()
         if self.transform is None:
             logger.warning("Cannot predict - no transformation has been computed.")
             return
 
+        b = self.moving_points_layer.data
         if which == "fixed":
             # predict point position in the moving image -> inverse transform
             layer = self.moving_points_layer
             transformed_data = self.transform.inverse(self.fixed_points_layer.data)
+            logger.trace("Predicted moving points based on fixed points...")
         else:
             # predict point position in the fixed image -> transform
             layer = self.fixed_points_layer
             transformed_data = self.transform(self.moving_points_layer.data)
+            logger.trace("Predicted fixed points based on moving points...")
 
         # don't predict positions if the number of points is lower than the number already present in the image
         if layer.data.shape[0] > len(transformed_data):
@@ -683,6 +703,7 @@ class ImageRegistrationWindow(Window):
         side_layout.addRow(hp.make_h_line_with_text("Transformation"))
         # side_layout.addRow(hp.make_label(self, "Type of transformation"), self.transform_choice)
         side_layout.addRow(hp.make_label(self, "Estimated error"), self.transform_error)
+        side_layout.addRow(hp.make_btn(self, "Compute transformation", func=self.on_run))
         side_layout.addRow(
             hp.make_btn(
                 self,

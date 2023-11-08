@@ -1,6 +1,7 @@
 """Shortcuts helper for image2image."""
 import qtextra.helpers as hp
 from qtextra.widgets.qt_dialog import QtFramelessTool
+from qtpy.QtWidgets import QWidget
 
 
 class ShortcutsDialog(QtFramelessTool):
@@ -8,7 +9,7 @@ class ShortcutsDialog(QtFramelessTool):
 
     SHORTCUTS = ""
 
-    def __init__(self, parent):
+    def __init__(self, parent: QWidget):
         super().__init__(parent)
         self.setMinimumWidth(200)
         self.setMinimumHeight(200)

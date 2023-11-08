@@ -29,7 +29,7 @@ class LocateFilesDialog(QtDialog):
         self,
         parent,
         fixed_paths: ty.Sequence[PathLike],
-        moving_paths: ty.Optional[ty.Sequence[ty.List[PathLike]]] = None,
+        moving_paths: ty.Optional[ty.Sequence[PathLike]] = None,
     ):
         paths = list(fixed_paths)
         if moving_paths:
@@ -54,10 +54,13 @@ class LocateFilesDialog(QtDialog):
         else:
             super().keyPressEvent(evt)
 
-    def fix_missing_paths(self, paths_missing: ty.List[PathLike], paths: ty.List[PathLike]):
+    def fix_missing_paths(
+        self, paths_missing: ty.Sequence[PathLike], paths: ty.Sequence[PathLike]
+    ) -> ty.List[PathLike]:
         """Locate missing paths."""
         if paths is None:
             paths = []
+        paths = list(paths)
         for path in paths_missing:
             for path_pair in self.paths:
                 if path_pair["old_path"] == Path(path) and path_pair["new_path"] is not None:

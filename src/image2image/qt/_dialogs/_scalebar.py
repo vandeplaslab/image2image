@@ -1,6 +1,6 @@
 """Scalebar overrides."""
 import qtextra.helpers as hp
-from qtextra._napari.image.component_controls.qt_scalebar_controls import QtScaleBarControls as _QtScaleBarControls
+from qtextra._napari.common.component_controls.qt_scalebar_controls import QtScaleBarControls as _QtScaleBarControls
 from qtpy.QtCore import Qt
 
 

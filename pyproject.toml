@@ -30,7 +30,7 @@ classifiers = [
 dynamic = ["version"]
 dependencies = [
     "qtpy",
-    "napari==0.4.17",
+    "napari==0.4.18",
     "imzy",
     "zarr",
     "SimpleITK",
