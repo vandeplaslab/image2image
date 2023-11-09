@@ -30,6 +30,7 @@ class ImageViewerWindow(Window):
     """Image viewer dialog."""
 
     image_layer: list[Image] | None = None
+    shape_layer: list[Image] | None = None
     _console = None
 
     def __init__(self, parent: QWidget | None):
@@ -73,7 +74,9 @@ class ImageViewerWindow(Window):
 
     def plot_image_layers(self, channel_list: list[str] | None = None) -> None:
         """Plot image layers."""
-        self.image_layer = self._plot_image_layers(self.data_model, self.view, channel_list, "view", True)
+        self.image_layer, self.shape_layer = self._plot_image_layers(
+            self.data_model, self.view, channel_list, "view", True
+        )
 
     def on_close_image(self, model: DataModel) -> None:
         """Close fixed image."""
@@ -162,7 +165,7 @@ class ImageViewerWindow(Window):
     def _setup_ui(self):
         """Create panel."""
         self.view = self._make_image_view(self, add_toolbars=False, allow_extraction=False, disable_controls=True)
-        self._image_widget = LoadWithTransformWidget(self, self.view)
+        self._image_widget = LoadWithTransformWidget(self, self.view, allow_geojson=True)
 
         side_layout = hp.make_form_layout()
         style_form_layout(side_layout)

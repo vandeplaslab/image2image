@@ -9,8 +9,8 @@ from pathlib import Path
 from ome_types import from_xml
 from tifffile import TiffFile
 
-from image2image.readers.base_reader import BaseImageReader
-from image2image.readers.tiff_meta import (
+from image2image.readers._base_reader import BaseReader
+from image2image.readers.tiff_utils import (
     ometiff_ch_names,
     ometiff_xy_pixel_sizes,
     svs_xy_pixel_sizes,
@@ -24,7 +24,7 @@ from image2image.readers.utilities import (
 )
 
 
-class TiffImageReader(BaseImageReader):
+class TiffImageReader(BaseReader):
     """TIFF image wrapper."""
 
     def __init__(self, path, init_pyramid: bool = True):

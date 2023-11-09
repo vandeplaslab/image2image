@@ -15,7 +15,7 @@ from image2image.models.data import DataModel
 from image2image.models.transform import TransformData, TransformModel
 from image2image.qt._dialogs import (
     OverlayChannelsDialog,
-    SelectImagesDialog,
+    SelectDataDialog,
     SelectTransformDialog,
 )
 from image2image.utils.utilities import style_form_layout
@@ -30,14 +30,17 @@ class LoadMixin(QWidget):
     IS_FIXED: bool
     INFO_TEXT = "Select data..."
 
-    def __init__(self, parent: ty.Optional[QWidget], view: "NapariImageView", n_max: int = 0):
+    def __init__(
+        self, parent: ty.Optional[QWidget], view: "NapariImageView", n_max: int = 0, allow_geojson: bool = False
+    ):
         """Init."""
         super().__init__(parent=parent)
         self._setup_ui()
         self.view = view
         self.n_max = n_max
+        self.allow_geojson = allow_geojson
         self.model: DataModel = DataModel(is_fixed=self.IS_FIXED)
-        self.dataset_dlg = SelectImagesDialog(self, self.model, self.IS_FIXED, self.n_max)
+        self.dataset_dlg = SelectDataDialog(self, self.model, self.IS_FIXED, self.n_max, self.allow_geojson)
 
     def _setup_ui(self) -> QFormLayout:
         """Setup UI."""
@@ -119,19 +122,19 @@ class MovingWidget(LoadWidget):
     evt_show_transformed = Signal(str)
     evt_view_type = Signal(object)
 
-    def __init__(self, parent: ty.Optional[QWidget], view):
+    def __init__(self, parent: ty.Optional[QWidget], view: "NapariImageView"):
         super().__init__(parent, view)
 
         # extra events
         connect(self.dataset_dlg.evt_loaded, self._on_update_choice)
         connect(self.dataset_dlg.evt_closed, self._on_clear_choice)
 
-    def _on_update_choice(self, _model, _channel_list) -> None:
+    def _on_update_choice(self, _model: object, _channel_list: list[str]) -> None:
         """Update list of available options."""
         hp.combobox_setter(self.transformed_choice, clear=True, items=["None", *self.model.channel_names()])
         self._on_toggle_transformed(self.transformed_choice.currentText())
 
-    def _on_clear_choice(self, _model) -> None:
+    def _on_clear_choice(self, _model: object) -> None:
         """Clear list of available options."""
         hp.combobox_setter(self.transformed_choice, clear=True, items=["None"])
         self._on_toggle_transformed(self.transformed_choice.currentText())
@@ -161,7 +164,7 @@ class MovingWidget(LoadWidget):
         )
         return layout
 
-    def _on_update_view_type(self, value: str):
+    def _on_update_view_type(self, value: str) -> None:
         """Update view type."""
         CONFIG.view_type = value  # type: ignore
         self.evt_view_type.emit(value)  # noqa
@@ -185,9 +188,9 @@ class LoadWithTransformWidget(LoadMixin):
 
     IS_FIXED = True
 
-    def __init__(self, parent: ty.Optional[QWidget], view):
+    def __init__(self, parent: ty.Optional[QWidget], view: "NapariImageView", allow_geojson: bool = False):
         """Init."""
-        super().__init__(parent, view)
+        super().__init__(parent, view, allow_geojson=allow_geojson)
         self.transform_model = TransformModel()
         self.transform_model.add_transform("Identity matrix", TransformData.from_array(np.eye(3, dtype=np.float64)))
         self.transform_dlg = SelectTransformDialog(self, self.model, self.transform_model, self.view)

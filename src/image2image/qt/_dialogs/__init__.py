@@ -5,7 +5,7 @@ from image2image.qt._dialogs._dataset import (
     CloseDatasetDialog,
     ExtractChannelsDialog,
     SelectChannelsToLoadDialog,
-    SelectImagesDialog,
+    SelectDataDialog,
 )
 from image2image.qt._dialogs._fiducials import FiducialsDialog
 from image2image.qt._dialogs._locate import LocateFilesDialog
@@ -18,7 +18,7 @@ __all__ = [
     "CloseDatasetDialog",
     "ExtractChannelsDialog",
     "SelectChannelsToLoadDialog",
-    "SelectImagesDialog",
+    "SelectDataDialog",
     "FiducialsDialog",
     "LocateFilesDialog",
     "ImportSelectDialog",
@@ -39,7 +39,7 @@ if __name__ == "__main__":  # pragma: no cover
     model.add_paths([r"/Users/lgmigas/Downloads/ims2micro-1.png"])
 
     app = qapplication()
-    dlg = SelectImagesDialog(None, model)
+    dlg = SelectDataDialog(None, model)
     apply_style(dlg)
     dlg.show()
     qdev(dlg, ("qtextra", "image2image"))

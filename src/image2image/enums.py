@@ -30,6 +30,19 @@ ALLOWED_FORMATS = (
     "JPEG (*.jpg *.jpeg);; "
     "PNG (*.png);;"
 )
+ALLOWED_FORMATS_WITH_GEOJSON = (
+    "Any imaging (*.tsf *.tdf *.imzML *.metadata.h5 peaks_*.h5 *.npy *.czi *.ome.tiff *.tiff *.scn *.tif *.svs *.ndpi"
+    " *.jpg *.jpeg *.png *.geojson *.json);; "
+    "Bruker (*.tsf *.tdf);; "
+    "imzML (*.imzML);; "
+    "ionglow (*.metadata.h5, peaks_*.h5);;"
+    "Numpy (*.npy);;"
+    "CZI (*.czi);; "
+    "TIFF (*.ome.tiff *.tiff *.scn *.tif *.svs *.ndpi);; "
+    "JPEG (*.jpg *.jpeg);; "
+    "PNG (*.png);;"
+    "GeoJSON (*.geojson *.json);;"
+)
 
 
 class ImageTransformation(StringEnum):

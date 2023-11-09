@@ -57,6 +57,15 @@ QtImagePushButton[transparent="true"]{
     background-color: none;
 }
 
+QtImagePushButton[layer_button="true"]{
+    background-color: {{ foreground }};
+}
+
+QtImagePushButton[layer_button="true"]::hover{
+    border-radius: 2px;
+    background-color: {{ darken(foreground, 10) }};
+}
+
 /* ----------------- QtCopyToClipboardButton ----------------- */
 
 QtCopyToClipboardButton {

@@ -47,6 +47,7 @@ dependencies = [
     "qtconsole>=4.5.1,!=4.7.6,!=5.4.2",
     "ipykernel>=5.2.0",
     "sentry_sdk",
+    "wsireg",
     # "qtextra",
 ]
 

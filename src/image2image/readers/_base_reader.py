@@ -8,10 +8,13 @@ from koyo.typing import PathLike
 from image2image.models.transform import TransformData
 
 
-class BaseImageReader:
+class BaseReader:
     """Base class for some of the other image readers."""
 
     _pyramid = None
+
+    reader_type: str = "image"
+    lazy: bool = False
     fh = None
     allow_extraction: bool = False
     base_layer_pixel_res: float = 1.0

@@ -76,11 +76,14 @@ class FiducialsDialog(QtFramelessTool):
                 moving_points = parent.moving_points_layer.data
                 if index < len(fixed_points):
                     fixed_points = np.delete(fixed_points, index, axis=0)
-                    parent.fixed_points_layer.data = fixed_points
+                    with parent.fixed_points_layer.events.data.blocker(self.on_load):
+                        parent.fixed_points_layer.data = fixed_points
                 if index < len(moving_points):
                     moving_points = np.delete(moving_points, index, axis=0)
-                    parent.moving_points_layer.data = moving_points
+                    with parent.fixed_points_layer.events.data.blocker(self.on_load):
+                        parent.moving_points_layer.data = moving_points
                 logger.debug(f"Deleted index '{index}' from fiducial table")
+            self.on_load()
 
     def on_double_click(self, index: QModelIndex) -> None:
         """Zoom in."""

@@ -23,7 +23,7 @@ from image2image.config import CONFIG
 if ty.TYPE_CHECKING:
     from skimage.transform import ProjectiveTransform
 
-    from image2image.readers.base_reader import BaseImageReader
+    from image2image.readers._base_reader import BaseReader
 
 
 DRAG_DIST_THRESHOLD = 5
@@ -288,7 +288,7 @@ def write_xml_registration(output_path: PathLike, affine: np.ndarray):
         f.write(parseString(xml).toprettyxml())
 
 
-def write_reader_to_xml(path_or_tiff: ty.Union[PathLike, "BaseImageReader"], filename: PathLike):
+def write_reader_to_xml(path_or_tiff: ty.Union[PathLike, "BaseReader"], filename: PathLike):
     """Get filename."""
     from xml.dom.minidom import parseString
 
@@ -346,7 +346,7 @@ def float_format_to_row(row: np.ndarray) -> str:
 
 
 def prepare_micro_to_fusion(
-    path_or_tiff: ty.Union[PathLike, "BaseImageReader"], output_dir: PathLike, get_minimal: bool = False
+    path_or_tiff: ty.Union[PathLike, "BaseReader"], output_dir: PathLike, get_minimal: bool = False
 ):
     """Export microscopy data to text."""
     output_dir = Path(output_dir)
@@ -361,9 +361,9 @@ def prepare_micro_to_fusion(
         return None, micro_path
 
     if isinstance(path_or_tiff, (str, Path)):
-        from image2image._reader import read_image
+        from image2image._reader import read_data
 
-        reader = next(read_image(path_or_tiff).reader_iter())
+        reader = next(read_data(path_or_tiff).reader_iter())
     else:
         reader = path_or_tiff
     image = reader.pyramid[0]
@@ -393,7 +393,7 @@ def _insert_indices(array, shape: ty.Tuple[int, int]):
     return res
 
 
-def write_reader_to_txt(reader: "BaseImageReader", path: PathLike, update_freq: int = 100000):
+def write_reader_to_txt(reader: "BaseReader", path: PathLike, update_freq: int = 100000):
     """Write image data to text."""
     array = reader.flat_array()
     array = _insert_indices(array, reader.pyramid[0].shape[0:2])

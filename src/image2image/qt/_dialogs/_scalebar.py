@@ -1,4 +1,6 @@
 """Scalebar overrides."""
+import typing as ty
+
 import qtextra.helpers as hp
 from qtextra._napari.common.component_controls.qt_scalebar_controls import QtScaleBarControls as _QtScaleBarControls
 from qtpy.QtCore import Qt
@@ -7,7 +9,7 @@ from qtpy.QtCore import Qt
 class QtScaleBarControls(_QtScaleBarControls):
     """Scalebar controls."""
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args: ty.Any, **kwargs: ty.Any):
         super().__init__(*args, **kwargs)
         self.setWindowFlags(Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.Tool)  # type: ignore[attr-defined]
 

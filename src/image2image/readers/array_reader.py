@@ -4,10 +4,10 @@ import typing as ty
 import numpy as np
 from koyo.typing import PathLike
 
-from image2image.readers.base_reader import BaseImageReader
+from image2image.readers._base_reader import BaseReader
 
 
-class ArrayReader(BaseImageReader):
+class ArrayImageReader(BaseReader):
     """Reader for data that has defined coordinates."""
 
     is_fixed: bool = False

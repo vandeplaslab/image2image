@@ -128,9 +128,6 @@ class Transformation(BaseModel):
             info += f"Transformation type: {self.transformation_type}"
         transform = self.transform
         if transform:
-            # if hasattr(transform, "params"):
-            #     info += "\nTransformation matrix:"
-            #     info += f"\n{transform.params}"
             if hasattr(transform, "scale"):
                 scale = transform.scale
                 scale = (scale, scale) if isinstance(scale, float) else scale

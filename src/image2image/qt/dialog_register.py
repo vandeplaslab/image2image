@@ -198,7 +198,9 @@ class ImageRegistrationWindow(Window):
         logger.info(f"Loaded fixed data in {timer()}")
 
     def _plot_fixed_layers(self, channel_list: list[str] | None = None) -> None:
-        self.fixed_image_layer = self._plot_image_layers(self.fixed_model, self.view_fixed, channel_list, "fixed view")
+        self.fixed_image_layer, _ = self._plot_image_layers(
+            self.fixed_model, self.view_fixed, channel_list, "fixed view"
+        )
         if isinstance(self.fixed_image_layer, list) and len(self.fixed_image_layer) > 1:
             link_layers(self.fixed_image_layer, attributes=("opacity",))
 
@@ -393,7 +395,6 @@ class ImageRegistrationWindow(Window):
         from image2image.utils.utilities import compute_transform
 
         if not self.fixed_points_layer or not self.moving_points_layer:
-            self.on_notify_warning("There must be at least three points before we can compute the transformation.")
             return
 
         # execute transform calculation
@@ -412,16 +413,25 @@ class ImageRegistrationWindow(Window):
             self.transform_model.time_created = datetime.now()
             self.transform_model.fixed_points = self.fixed_points_layer.data
             self.transform_model.moving_points = self.moving_points_layer.data
-            error = self.transform_model.error()
-            self.transform_error.setText(f"{error:.2f}")
-            if self.transform_model.moving_model:
-                acceptable_error = self.transform_model.moving_model.resolution / 2
-                hp.update_widget_style(self.transform_error, "reg_error" if error > acceptable_error else "reg_success")
+            error_label = "<need more points>"
+            error_style = "reg_error"
+            if n_fixed > 4:
+                error = self.transform_model.error()
+                if self.transform_model.moving_model:
+                    acceptable_error = self.transform_model.moving_model.resolution / 2
+                    is_valid = error > acceptable_error if error != 0 else False
+
+                    error_label = f"{error:.2f}" + " (unlikely)" if error < 0.01 else ""
+                    error_style = "reg_error" if is_valid else "reg_success"
+            self.transform_error.setText(error_label)
+            hp.update_widget_style(self.transform_error, error_style)
             logger.info(self.transform_model.about("; "))
             self.on_apply()
         else:
             if n_fixed <= 3 or n_moving <= 3:
                 logger.warning("There must be at least three points before we can compute the transformation.")
+                self.transform_error.setText("<need more points>")
+                hp.update_widget_style(self.transform_error, "reg_error")
             elif n_fixed != n_moving:
                 logger.warning("The number of `fixed` and `moving` points must be the same.")
 
@@ -599,14 +609,13 @@ class ImageRegistrationWindow(Window):
         self._on_predict(which)
 
     def _on_predict(self, which: str) -> None:
-        self.on_update_text()
         if self.transform is None:
             logger.warning("Cannot predict - no transformation has been computed.")
             return
 
         if self.fixed_points_layer.data.size == self.moving_points_layer.data.size:
             return
-
+        self.on_update_text()
         if which == "fixed":
             # predict point position in the moving image -> inverse transform
             predict_for_layer = self.moving_points_layer
@@ -626,6 +635,7 @@ class ImageRegistrationWindow(Window):
 
         self._update_layer_points(predict_for_layer, transformed_data)
         self.evt_predicted.emit()  # noqa
+        self._on_run()
 
     @staticmethod
     def _update_layer_points(layer: Points, data: np.ndarray, block: bool = True) -> None:
@@ -738,8 +748,9 @@ class ImageRegistrationWindow(Window):
 
         self.transform_error = hp.make_label(
             self,
-            "",
+            "<need more points>",
             bold=True,
+            object_name="reg_error",
             tooltip="Error is estimated by computing the square root of the sum of squared errors. Value is <b>red</b>"
             " if the error is larger than half of the moving image resolution (off by half a pixel).",
         )
@@ -934,7 +945,7 @@ class ImageRegistrationWindow(Window):
     def _make_image_layout(self) -> QVBoxLayout:
         self.info = hp.make_label(
             self,
-            "Please select at least <b>3 points</b> in each image to compute transformation. "
+            "Please select at least <b>3 points</b> in each image to compute transformation.<br>"
             "It's advised to use <b>as many</b> anchor points as reasonable!",
             tooltip="Information regarding registration.",
             object_name="tip_label",

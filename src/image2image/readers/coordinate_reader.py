@@ -7,14 +7,17 @@ from koyo.typing import PathLike
 from loguru import logger
 
 from image2image.config import CONFIG
-from image2image.readers.base_reader import BaseImageReader
+from image2image.readers._base_reader import BaseReader
 from image2image.utils.utilities import format_mz
 
 if ty.TYPE_CHECKING:
-    from imzy._readers._base import BaseReader
+    from imzy._readers._base import BaseReader as BaseImagingReader  # noqa: F401
 
 
-def set_dimensions(reader: "CoordinateReader"):
+ArrayOrReader = ty.Union[np.ndarray, "BaseImagingReader"]
+
+
+def set_dimensions(reader: "CoordinateImageReader") -> None:
     """Set dimension information."""
     x, y = reader.x, reader.y
     reader.xmin, reader.xmax = np.min(x), np.max(x)
@@ -22,17 +25,19 @@ def set_dimensions(reader: "CoordinateReader"):
     reader.image_shape = (reader.ymax - reader.ymin + 1, reader.xmax - reader.xmin + 1)
 
 
-def get_image(array_or_reader):
+def get_image(array_or_reader: ArrayOrReader) -> np.ndarray:
     """Return image for the array/image."""
     if isinstance(array_or_reader, np.ndarray):
         return array_or_reader
-    else:
+    elif hasattr(array_or_reader, "reshape"):
         return array_or_reader.reshape(array_or_reader.get_tic())
+    raise ValueError(f"Cannot get image from {type(array_or_reader)}")
 
 
-class CoordinateReader(BaseImageReader):
+class CoordinateImageReader(BaseReader):
     """Reader for data that has defined coordinates."""
 
+    lazy = True
     xmin: int
     xmax: int
     ymin: int
@@ -46,7 +51,7 @@ class CoordinateReader(BaseImageReader):
         x: np.ndarray,
         y: np.ndarray,
         resolution: float = 1.0,
-        array_or_reader: ty.Optional[ty.Union[np.ndarray, "BaseReader"]] = None,
+        array_or_reader: ty.Optional[ArrayOrReader] = None,
         data: ty.Optional[ty.Dict[str, np.ndarray]] = None,
     ):
         super().__init__(path)
@@ -71,7 +76,7 @@ class CoordinateReader(BaseImageReader):
         """Pyramid."""
         return self.get_dask_pyr()
 
-    def extract(self, mzs: np.ndarray, ppm: float = 10.0):
+    def extract(self, mzs: np.ndarray, ppm: float = 10.0) -> tuple[PathLike, ty.List[str]]:
         """Extract ion images."""
         if self.reader is None:
             raise ValueError("Cannot extract ion images from a numpy array.")
@@ -95,13 +100,13 @@ class CoordinateReader(BaseImageReader):
             return [self.get_random_image()]
         return [self.get_image()]
 
-    def get_random_image(self):
+    def get_random_image(self) -> np.ndarray:
         """Return random ion image."""
         array = np.full(self.image_shape, np.nan)
         array[self.y - self.ymin, self.x - self.xmin] = np.random.randint(5, 255, size=len(self.x))
         return array
 
-    def get_image(self):
+    def get_image(self) -> np.ndarray:
         """Return image as a stack."""
         array = np.dstack([self.data[key] for key in self.data])
         return array

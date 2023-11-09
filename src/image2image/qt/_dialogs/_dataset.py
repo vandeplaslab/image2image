@@ -17,13 +17,13 @@ from qtpy.QtWidgets import QFormLayout, QHeaderView, QLineEdit, QTableWidget, QT
 from superqt.utils import thread_worker
 
 from image2image.config import CONFIG
-from image2image.enums import ALLOWED_FORMATS
+from image2image.enums import ALLOWED_FORMATS, ALLOWED_FORMATS_WITH_GEOJSON
 from image2image.models.transform import TransformData
 from image2image.utils.utilities import log_exception
 
 if ty.TYPE_CHECKING:
     from image2image.models.data import DataModel
-    from image2image.readers.coordinate_reader import CoordinateReader
+    from image2image.readers.coordinate_reader import CoordinateImageReader
 
 
 class CloseDatasetDialog(QtDialog):
@@ -105,7 +105,7 @@ class SelectChannelsToLoadDialog(QtDialog):
         .add("channel name (full)", "channel_name_full", "str", 0, hidden=True)
     )
 
-    def __init__(self, parent: "SelectImagesDialog", model: "DataModel"):
+    def __init__(self, parent: "SelectDataDialog", model: "DataModel"):
         super().__init__(parent, title="Select Channels to Load")
         self.model = model
 
@@ -185,7 +185,7 @@ class ExtractChannelsDialog(QtDialog):
         .add("m/z", "mz", "float", 100)
     )
 
-    def __init__(self, parent: "SelectImagesDialog", path_to_extract: PathLike):
+    def __init__(self, parent: "SelectDataDialog", path_to_extract: PathLike):
         super().__init__(parent, title="Extract Ion Images")
         self.setFocus()
         self.path_to_extract = path_to_extract
@@ -276,7 +276,7 @@ class ExtractChannelsDialog(QtDialog):
             super().keyPressEvent(evt)
 
 
-class SelectImagesDialog(QtFramelessTool):
+class SelectDataDialog(QtFramelessTool):
     """Dialog window to select images and specify some parameters."""
 
     HIDE_WHEN_CLOSE = True
@@ -291,14 +291,18 @@ class SelectImagesDialog(QtFramelessTool):
         TableConfig()  # type: ignore
         .add("name", "name", "str", 0)
         .add("resolution", "resolution", "str", 0)
+        .add("type", "type", "str", 0)
         .add("extract", "extract", "str", 0)
     )
 
-    def __init__(self, parent: QWidget, model: "DataModel", is_fixed: bool = False, n_max: int = 0):
+    def __init__(
+        self, parent: QWidget, model: "DataModel", is_fixed: bool = False, n_max: int = 0, allow_geojson: bool = False
+    ):
         self.is_fixed = is_fixed
         super().__init__(parent)
         self.n_max = n_max
         self.model = model
+        self.allow_geojson = allow_geojson
         self.setMinimumWidth(600)
         self.setMinimumHeight(400)
 
@@ -366,6 +370,12 @@ class SelectImagesDialog(QtFramelessTool):
                     name_item.setTextAlignment(Qt.AlignCenter)  # type: ignore[attr-defined]
                     self.table.setItem(index, self.TABLE_CONFIG.name, name_item)
 
+                    # add type item
+                    type_item = QTableWidgetItem(reader.reader_type)
+                    type_item.setFlags(type_item.flags() & ~Qt.ItemIsEditable)  # type: ignore[attr-defined]
+                    type_item.setTextAlignment(Qt.AlignCenter)  # type: ignore[attr-defined]
+                    self.table.setItem(index, self.TABLE_CONFIG.type, type_item)
+
                     # add resolution item
                     res_item = QLineEdit(f"{resolution:.2f}")
                     res_item.setObjectName("table_cell")
@@ -394,7 +404,7 @@ class SelectImagesDialog(QtFramelessTool):
             self,
             title="Select data...",
             base_dir=CONFIG.fixed_dir if self.is_fixed else CONFIG.moving_dir,
-            file_filter=ALLOWED_FORMATS,
+            file_filter=ALLOWED_FORMATS if not self.allow_geojson else ALLOWED_FORMATS_WITH_GEOJSON,
             multiple=True,
         )
         if paths:
@@ -493,7 +503,7 @@ class SelectImagesDialog(QtFramelessTool):
             ppm = dlg.ppm
 
         if path and mzs and ppm:
-            reader: "CoordinateReader" = self.model.get_reader(path)  # noqa
+            reader: "CoordinateImageReader" = self.model.get_reader(path)  # noqa
             if reader:
                 self.evt_loading.emit()  # noqa
                 func = thread_worker(
@@ -520,16 +530,20 @@ class SelectImagesDialog(QtFramelessTool):
         """Make panel."""
         _, header_layout = self._make_hide_handle()
         self._title_label.setText("Images")
-
+        column_names = ["name", "pixel size (μm)", "type", "extract"]
         self.table = QTableWidget(self)
-        self.table.setColumnCount(3)  # name, resolution, extract
-        self.table.setHorizontalHeaderLabels(["name", "pixel size (μm)", "extract"])
+        self.table.setColumnCount(len(column_names))  # name, resolution, layer type, extract
+        self.table.setHorizontalHeaderLabels(column_names)
         self.table.setCornerButtonEnabled(False)
 
         header = self.table.horizontalHeader()
         header.setSectionResizeMode(self.TABLE_CONFIG.name, QHeaderView.Stretch)  # type: ignore[attr-defined]
         header.setSectionResizeMode(
             self.TABLE_CONFIG.resolution,
+            QHeaderView.ResizeToContents,  # type: ignore[attr-defined]
+        )
+        header.setSectionResizeMode(
+            self.TABLE_CONFIG.type,
             QHeaderView.ResizeToContents,  # type: ignore[attr-defined]
         )
         header.setSectionResizeMode(

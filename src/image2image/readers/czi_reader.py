@@ -6,12 +6,12 @@ import zarr
 from koyo.typing import PathLike
 from tifffile import xml2dict
 
-from image2image.readers.base_reader import BaseImageReader
-from image2image.readers.czi import CziFile
+from image2image.readers._base_reader import BaseReader
+from image2image.readers._czi import CziFile
 from image2image.readers.utilities import guess_rgb
 
 
-class CziImageReader(BaseImageReader):
+class CziImageReader(BaseReader):
     """CZI file wrapper."""
 
     def __init__(self, path: PathLike, init_pyramid: bool = True):

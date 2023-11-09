@@ -12,7 +12,7 @@ from image2image._reader import ImageWrapper, sanitize_path
 from image2image.models.base import BaseModel
 from image2image.models.transform import TransformData
 from image2image.models.utilities import _get_paths, _read_config_from_file
-from image2image.readers.base_reader import BaseImageReader
+from image2image.readers._base_reader import BaseReader
 
 I2V_METADATA = ty.Tuple[ty.List[Path], ty.List[Path], ty.Dict[str, TransformData], ty.Dict[str, float]]
 
@@ -111,7 +111,7 @@ class DataModel(BaseModel):
         resolution: ty.Optional[ty.Dict[str, float]] = None,
     ) -> ty.Optional["ImageWrapper"]:
         """Read data from file."""
-        from image2image._reader import read_image
+        from image2image._reader import read_data
 
         if not self.paths:
             return None
@@ -125,7 +125,7 @@ class DataModel(BaseModel):
             pixel_size = resolution.get(path.name, None)
             if self.wrapper is None or not self.wrapper.is_loaded(path):
                 try:
-                    self.wrapper = read_image(
+                    self.wrapper = read_data(
                         path, self.wrapper, self.is_fixed, transform_data=transform_data, resolution=pixel_size
                     )
                 except Exception:  # noqa
@@ -139,7 +139,7 @@ class DataModel(BaseModel):
             self.just_added = just_added
         return self.wrapper
 
-    def get_reader(self, path: PathLike) -> ty.Optional["BaseImageReader"]:
+    def get_reader(self, path: PathLike) -> ty.Optional["BaseReader"]:
         """Get reader for the path."""
         path = Path(path)
         wrapper = self.get_wrapper()

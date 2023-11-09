@@ -1,11 +1,13 @@
 """Dialog window base class."""
+from __future__ import annotations
+
 import typing as ty
 from functools import partial
 
 import qtextra.helpers as hp
 from koyo.timer import MeasureTimer
 from loguru import logger
-from napari.layers import Image
+from napari.layers import Image, Layer, Shapes
 from qtextra._napari.mixins import ImageViewMixin
 from qtextra.config import THEMES
 from qtextra.mixins import IndicatorMixin
@@ -103,25 +105,29 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
 
     @staticmethod
     def _plot_image_layers(
-        model: "DataModel",
-        view_wrapper: "NapariImageView",
-        channel_list: ty.Optional[ty.List[str]] = None,
+        model: DataModel,
+        view_wrapper: NapariImageView,
+        channel_list: ty.Optional[list[str]] = None,
         view_kind: str = "view",
         scale: bool = False,
-    ) -> ty.Optional[Image]:
+    ) -> tuple[list[Image] | None, list[Shapes] | None]:
         wrapper = model.get_wrapper()
         if not wrapper:
             logger.error("Failed to get wrapper.")
-            return None
+            return None, None
         if channel_list is None:
             channel_list = wrapper.channel_names()
-        image_layer = []
+        image_layer, shape_layer = [], []
         for index, (name, array, reader) in enumerate(wrapper.channel_image_reader_iter()):
             logger.trace(f"Adding '{name}' to view...")
             with MeasureTimer() as timer:
                 if name in view_wrapper.layers:
-                    image_layer.append(view_wrapper.layers[name])
+                    if reader.reader_type == "shapes":
+                        shape_layer.append(view_wrapper.layers[name])
+                    else:
+                        image_layer.append(view_wrapper.layers[name])
                     continue
+
                 # get current transform and scale
                 # current_affine = reader.transform
                 current_affine = wrapper.get_affine(reader, reader.resolution) if scale else reader.transform
@@ -129,26 +135,31 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
                 #     wrapper.update_affine(reader.transform, reader.resolution) if scale else reader.transform
                 # )
                 current_scale = reader.scale if scale else (1, 1)
-                image_layer.append(
-                    view_wrapper.viewer.add_image(
-                        array,
-                        name=name,
-                        blending="additive",
-                        colormap=get_colormap(index, view_wrapper.layers),
-                        visible=name in channel_list,
-                        affine=current_affine,
-                        scale=current_scale,
+                if reader.reader_type == "shapes" and hasattr(reader, "to_shapes_kwargs"):
+                    shape_layer.append(
+                        view_wrapper.viewer.add_shapes(**reader.to_shapes_kwargs(name=name, affine=current_affine))
                     )
-                )
+                else:
+                    image_layer.append(
+                        view_wrapper.viewer.add_image(
+                            array,
+                            name=name,
+                            blending="additive",
+                            colormap=get_colormap(index, view_wrapper.layers),
+                            visible=name in channel_list,
+                            affine=current_affine,
+                            scale=current_scale,
+                        )
+                    )
                 logger.trace(f"Added '{name}' to {view_kind} in {timer()}.")
-        return image_layer
+        return image_layer, shape_layer
 
     @staticmethod
-    def _close_model(model: "DataModel", view_wrapper: "NapariImageView", view_kind: str = "view"):
+    def _close_model(model: DataModel, view_wrapper: NapariImageView, view_kind: str = "view") -> None:
         """Close model."""
         try:
             channel_names = model.channel_names()
-            layer_names = [layer.name for layer in view_wrapper.layers if isinstance(layer, Image)]
+            layer_names = [layer.name for layer in view_wrapper.layers if isinstance(layer, (Image, Shapes))]
             for name in layer_names:
                 if name not in channel_names:
                     del view_wrapper.layers[name]
@@ -157,7 +168,7 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
             log_exception(e)
 
     @staticmethod
-    def _move_layer(view, layer, new_index: int = -1, select: bool = True) -> None:
+    def _move_layer(view: NapariImageView, layer: Layer, new_index: int = -1, select: bool = True) -> None:
         """Move a layer and select it."""
         view.layers.move(view.layers.index(layer), new_index)
         if select:
@@ -172,7 +183,7 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
             self._console.push_variables(self._get_console_variables())
         self._console.show()
 
-    def _get_console_variables(self) -> ty.Dict:
+    def _get_console_variables(self) -> dict:
         """Get variables for the console."""
         raise NotImplementedError("Must implement method")
 
@@ -234,7 +245,7 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
         """Make statusbar."""
         from image2image.qt._sentry import send_feedback
 
-        self.statusbar = QStatusBar()  # type: ignore
+        self.statusbar = QStatusBar()  # noqa
         self.statusbar.setSizeGripEnabled(False)
 
         self.progress_bar = QProgressBar(self)
@@ -259,7 +270,7 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
         self.theme_btn.auto_connect()
         with hp.qt_signals_blocked(self.theme_btn):
             self.theme_btn.dark = CONFIG.theme == "dark"
-        self.theme_btn.clicked.connect(self.on_toggle_theme)
+        self.theme_btn.clicked.connect(self.on_toggle_theme)  # noqa
         self.theme_btn.set_small()
         self.statusbar.addPermanentWidget(self.theme_btn)
 
