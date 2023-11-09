@@ -9,11 +9,9 @@ from qtpy.QtWidgets import QVBoxLayout
 
 REGISTER_TEXT = "<b>Registration App</b><br>Co-register your microscopy and imaging mass spectrometry data."
 VIEWER_TEXT = "<b>Viewer App</b><br>Overlay your microscopy and imaging mass spectrometry data."
-EXPORT_TEXT = (
-    "<b>Export App</b><br>Export your data for Image Fusion in MATLAB compatible format.<br>(work in progress)"
-)
+EXPORT_TEXT = "<b>Export App</b><br>Export your data for Image Fusion in MATLAB compatible format."
+CROP_TEXT = "<b>Crop App</b><br>Crop your microscopy data to reduce it's size (handy for Image Fusion)."
 SYNC_TEXT = "<b>Sync App</b><br>(coming)"
-CROP_TEXT = "<b>Crop App</b><br>(coming)"
 
 
 class Launcher(QtDialog):
@@ -53,7 +51,18 @@ class Launcher(QtDialog):
                 alignment=Qt.AlignCenter,  # type: ignore[attr-defined]
             ),
         )
-        # sync app
+        # crop app
+        btn = hp.make_qta_btn(self, "crop", tooltip="Open crop application.", func=self.on_crop)
+        btn.set_xxlarge()
+        layout.addLayout(
+            hp.make_h_layout(
+                btn,
+                hp.make_label(self, CROP_TEXT, alignment=Qt.AlignHCenter, wrap=True),  # type: ignore[attr-defined]
+                stretch_id=0,
+                alignment=Qt.AlignCenter,  # type: ignore[attr-defined]
+            ),
+        )
+        # export app
         btn = hp.make_qta_btn(self, "export", tooltip="Open export application (coming).", func=self.on_export)
         btn.set_xxlarge()
         layout.addLayout(
@@ -64,30 +73,18 @@ class Launcher(QtDialog):
                 alignment=Qt.AlignCenter,  # type: ignore[attr-defined]
             ),
         )
-        # sync app
-        btn = hp.make_qta_btn(self, "sync", tooltip="Open sync application (coming).", func=self.on_viewer)
-        hp.disable_widgets(btn, disabled=True)
-        btn.set_xxlarge()
-        layout.addLayout(
-            hp.make_h_layout(
-                btn,
-                hp.make_label(self, SYNC_TEXT, alignment=Qt.AlignHCenter, wrap=True),  # type: ignore[attr-defined]
-                stretch_id=0,
-                alignment=Qt.AlignCenter,  # type: ignore[attr-defined]
-            ),
-        )
-        # crop app
-        btn = hp.make_qta_btn(self, "crop", tooltip="Open crop application (coming).", func=self.on_viewer)
-        hp.disable_widgets(btn, disabled=True)
-        btn.set_xxlarge()
-        layout.addLayout(
-            hp.make_h_layout(
-                btn,
-                hp.make_label(self, CROP_TEXT, alignment=Qt.AlignHCenter, wrap=True),  # type: ignore[attr-defined]
-                stretch_id=0,
-                alignment=Qt.AlignCenter,  # type: ignore[attr-defined]
-            ),
-        )
+        # # sync app
+        # btn = hp.make_qta_btn(self, "sync", tooltip="Open sync application (coming).", func=self.on_viewer)
+        # hp.disable_widgets(btn, disabled=True)
+        # btn.set_xxlarge()
+        # layout.addLayout(
+        #     hp.make_h_layout(
+        #         btn,
+        #         hp.make_label(self, SYNC_TEXT, alignment=Qt.AlignHCenter, wrap=True),  # type: ignore[attr-defined]
+        #         stretch_id=0,
+        #         alignment=Qt.AlignCenter,  # type: ignore[attr-defined]
+        #     ),
+        # )
         layout.addStretch(1)
         return layout
 
@@ -117,6 +114,16 @@ class Launcher(QtDialog):
         from image2image.qt.dialog_viewer import ImageViewerWindow
 
         dlg = ImageViewerWindow(None)
+        THEMES.set_theme_stylesheet(dlg)
+        dlg.setMinimumSize(1200, 700)
+        dlg.show()
+
+    @staticmethod
+    def on_crop():
+        """Open registration application."""
+        from image2image.qt.dialog_crop import ImageCropWindow
+
+        dlg = ImageCropWindow(None)
         THEMES.set_theme_stylesheet(dlg)
         dlg.setMinimumSize(1200, 700)
         dlg.show()

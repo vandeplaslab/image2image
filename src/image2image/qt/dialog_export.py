@@ -13,7 +13,7 @@ from qtextra.utils.utilities import connect
 from qtpy.QtCore import Qt
 from qtpy.QtWidgets import QHeaderView, QLineEdit, QMenuBar, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget
 from superqt import ensure_main_thread
-from superqt.utils import GeneratorWorker, thread_worker
+from superqt.utils import GeneratorWorker, create_worker
 
 from image2image import __version__
 from image2image.config import CONFIG
@@ -66,11 +66,10 @@ class ImageExportWindow(Window):
     def output_dir(self) -> Path:
         """Output directory."""
         if self._output_dir is None:
+            if CONFIG.output_dir is None:
+                return Path.cwd()
             return Path(CONFIG.output_dir)
         return Path(self._output_dir)
-
-    def on_output_path(self, item: ty.Any, path: Path) -> None:
-        """Update output filename."""
 
     def on_depopulate_table(self) -> None:
         """Remove items that are not present in the model."""
@@ -105,20 +104,20 @@ class ImageExportWindow(Window):
 
                 # add resolution item
                 item = QLineEdit()
-                item.setText(f"{reader.stem}.txt")
+                item.setText(f"{reader.stem}.txt".replace(".ome", ""))
                 item.setObjectName("table_cell")
                 item.setAlignment(Qt.AlignCenter)  # type: ignore[attr-defined]
                 self.table.setCellWidget(index, self.TABLE_CONFIG.path, item)
 
                 table_item = QTableWidgetItem("Ready!")
-                table_item.setFlags(item.flags() & ~Qt.ItemIsEditable)  # type: ignore[attr-defined]
+                table_item.setFlags(table_item.flags() & ~Qt.ItemIsEditable)  # type: ignore[attr-defined]
                 self.table.setItem(index, self.TABLE_CONFIG.progress, table_item)
 
-    def on_process(self):
+    def on_export(self):
         """Process data."""
         from image2image.utils.utilities import write_reader_to_txt, write_reader_to_xml
 
-        if self._output_dir is None:
+        if self.output_dir is None:
             hp.warn(self, "No output directory was selected. Please select directory where to save data.")
             return
 
@@ -129,36 +128,58 @@ class ImageExportWindow(Window):
                 logger.info(f"Skipping {name} as it is already exported.")
             #     continue
             path = self.data_model.get_path(name)
+            if path is None:
+                logger.warning(f"Could not find path for {name}")
+                continue
             output_path = self.output_dir / self.table.cellWidget(row, self.TABLE_CONFIG.path).text()
             reader = self.data_model.get_reader(path)
             if reader:
+                logger.info(f"Exporting {name} to {output_path}...")
                 item = self.table.item(row, self.TABLE_CONFIG.progress)
                 item.setText("Exporting...")
                 write_reader_to_xml(reader, output_path.with_suffix(".xml"))
-                func = thread_worker(
-                    partial(write_reader_to_txt, reader=reader, path=output_path.with_suffix(".txt")),
-                    start_thread=True,
-                    connect={
-                        "yielded": partial(self._on_yield_csv, name),
-                        "errored": partial(self._on_failed_csv, name),
+                create_worker(
+                    write_reader_to_txt,
+                    reader=reader,
+                    path=output_path.with_suffix(".txt"),
+                    _start_thread=True,
+                    _connect={
+                        "started": lambda: hp.toast(
+                            self, "Exporting image...", f"Started export of {path}...", icon="success"
+                        ),
+                        "yielded": partial(self._on_export_yield, name),
+                        "errored": partial(self._on_export_error, name),
                     },
-                    worker_class=GeneratorWorker,
+                    _worker_class=GeneratorWorker,
                 )
-                func()
                 hp.disable_widgets(self.export_btn, disabled=True)
 
-    # @ensure_main_thread()
-    def _on_yield_csv(self, *args):
+    @ensure_main_thread()
+    def _on_export_yield(self, *args):
         """Update CSV."""
+        self.__on_export_yield(*args)
+
+    def __on_export_yield(self, *args):
         with suppress(ValueError):
-            value, (current, total, remaining) = args
-            row = hp.find_in_table(self.table, self.TABLE_CONFIG.name, value)
+            name, (current, total, remaining) = args
+            row = hp.find_in_table(self.table, self.TABLE_CONFIG.name, name)
             if row is not None:
                 item = self.table.item(row, self.TABLE_CONFIG.progress)
                 item.setText(f"{current/total:.1%} {remaining}")
                 if current == total:
                     item.setText("Exported!")
                     self.on_toggle_export_btn()
+
+    @ensure_main_thread()
+    def _on_export_error(self, *args):
+        """Failed exporting of the CSV."""
+        name, exc = args
+        row = hp.find_in_table(self.table, self.TABLE_CONFIG.name, name)
+        if row is not None:
+            item = self.table.item(row, self.TABLE_CONFIG.progress)
+            item.setText("Export failed!")
+        self.on_toggle_export_btn(force=True)
+        logger.exception(exc)
 
     def on_toggle_export_btn(self, force: bool = False) -> None:
         """Toggle export button."""
@@ -170,21 +191,6 @@ class ImageExportWindow(Window):
                     disabled = True
         hp.disable_widgets(self.export_btn, disabled=disabled)
 
-    def _on_failed_csv(self, *args):
-        """Failed exporting CSV."""
-        value, *_ = args
-        row = hp.find_in_table(self.table, self.TABLE_CONFIG.name, value)
-        if row is not None:
-            item = self.table.item(row, self.TABLE_CONFIG.progress)
-            item.setText("Export failed!")
-        self.on_toggle_export_btn(force=True)
-
-    def on_load(self):
-        """Load previous data."""
-
-    def on_save(self):
-        """Save data."""
-
     def on_set_output_dir(self):
         """Set output directory."""
         directory = hp.get_directory(self, "Select output directory", CONFIG.output_dir)
@@ -195,17 +201,19 @@ class ImageExportWindow(Window):
 
     def _setup_ui(self):
         """Create panel."""
+        self.output_dir_label = hp.make_label(self, f"Output directory: {self.output_dir}")
+
         self._image_widget = LoadWidget(self, None)
         self._image_widget.info_text.setVisible(False)
 
         self.table = QTableWidget(self)
         self.table.setColumnCount(3)  # name, path, progress
-        self.table.setHorizontalHeaderLabels(["name", "path", "progress"])
+        self.table.setHorizontalHeaderLabels(["name", "path (click to edit)", "progress"])
         self.table.setCornerButtonEnabled(False)
 
         header = self.table.horizontalHeader()
         header.setSectionResizeMode(self.TABLE_CONFIG.name, QHeaderView.Stretch)  # type: ignore[attr-defined]
-        header.setSectionResizeMode(self.TABLE_CONFIG.path, QHeaderView.ResizeToContents)  # type: ignore[attr-defined]
+        header.setSectionResizeMode(self.TABLE_CONFIG.path, QHeaderView.Stretch)  # type: ignore[attr-defined]
         header.setSectionResizeMode(
             self.TABLE_CONFIG.progress,
             QHeaderView.ResizeToContents,  # type: ignore[attr-defined]
@@ -213,12 +221,6 @@ class ImageExportWindow(Window):
 
         side_layout = hp.make_form_layout()
         style_form_layout(side_layout)
-        side_layout.addRow(hp.make_btn(self, "Import project...", tooltip="Load previous project", func=self.on_load))
-        side_layout.addRow(hp.make_h_line_with_text("or"))
-        side_layout.addRow(self._image_widget)
-        side_layout.addRow(hp.make_h_line())
-        side_layout.addRow(self.table)
-
         side_layout.addRow(
             hp.make_btn(
                 self,
@@ -227,7 +229,13 @@ class ImageExportWindow(Window):
                 func=self.on_set_output_dir,
             )
         )
-        self.export_btn = hp.make_btn(self, "Export", tooltip="Export to csv file...", func=self.on_process)
+        side_layout.addRow(self.output_dir_label)
+        side_layout.addRow(hp.make_h_line(self))
+        side_layout.addRow(self._image_widget)
+        side_layout.addRow(hp.make_h_line())
+        side_layout.addRow(self.table)
+
+        self.export_btn = hp.make_btn(self, "Export", tooltip="Export to csv file...", func=self.on_export)
         side_layout.addRow(self.export_btn)
 
         widget = QWidget()
@@ -276,6 +284,7 @@ class ImageExportWindow(Window):
     def _get_console_variables(self) -> dict:
         return {
             "data_model": self.data_model,
+            "window": self,
         }
 
     def closeEvent(self, evt):

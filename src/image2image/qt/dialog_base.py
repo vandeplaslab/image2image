@@ -180,7 +180,7 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
             from qtextra.dialogs.qt_console import QtConsoleDialog
 
             self._console = QtConsoleDialog(self)
-            self._console.push_variables(self._get_console_variables())
+        self._console.push_variables(self._get_console_variables())
         self._console.show()
 
     def _get_console_variables(self) -> dict:

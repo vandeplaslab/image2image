@@ -3,7 +3,9 @@ from __future__ import annotations
 
 import typing as ty
 from contextlib import contextmanager
+from functools import partial
 from math import ceil, floor
+from pathlib import Path
 
 import numpy as np
 import qtextra.helpers as hp
@@ -15,6 +17,7 @@ from qtpy.QtCore import Qt
 from qtpy.QtGui import QIntValidator
 from qtpy.QtWidgets import QGridLayout, QHBoxLayout, QMenuBar, QVBoxLayout, QWidget
 from superqt import ensure_main_thread
+from superqt.utils import create_worker
 
 from image2image import __version__
 from image2image.config import CONFIG
@@ -76,11 +79,55 @@ class ImageCropWindow(Window):
 
     def on_save(self) -> None:
         """Save data."""
+        if not self.data_model.is_valid():
+            hp.toast(self, "Invalid data", "Data is invalid.", icon="error")
+            return
+        left, right, top, bottom = self._get_crop_area()
+        if left == right:
+            hp.toast(self, "Invalid crop area", "Left and right values are the same.", icon="error")
+            return
+        if top == bottom:
+            hp.toast(self, "Invalid crop area", "Top and bottom values are the same.", icon="error")
+            return
 
-    def on_crop_rect(self):
-        """Update crop rect."""
-        if self.crop_layer.data:
-            self.crop_layer.data = []
+        output_dir_ = hp.get_directory(self, "Select output directory", CONFIG.output_dir)
+        if output_dir_:
+            create_worker(
+                self._on_export,
+                output_dir=Path(output_dir_),
+                left=left,
+                right=right,
+                top=top,
+                bottom=bottom,
+                _start_thread=True,
+                _connect={
+                    "started": lambda: hp.toast(self, "Export started", "Export started.", icon="info"),
+                    "yielded": self._on_export_yield,
+                    "errored": self._on_export_error,
+                    "finished": lambda: hp.toast(self, "Export finished", "Export finished.", icon="success"),
+                },
+            )
+
+    def _on_export(
+        self, output_dir: Path, left: int, right: int, top: int, bottom: int
+    ) -> ty.Generator[Path, None, None]:
+        from image2image._reader import write_ome_tiff
+
+        for path, reader, cropped in self.data_model.crop(left, right, top, bottom):
+            logger.info(f"Exporting {path} with shape {cropped.shape}...")
+            output_path = output_dir / f"{path.stem}_l={left}_r={right}_t={top}_b={bottom}".replace(".ome", "")
+            filename = write_ome_tiff(output_path, cropped, reader)
+            yield Path(filename)
+
+    def _on_export_yield(self, filename: Path) -> None:
+        logger.info(f"Exported {filename}")
+        self.statusbar.showMessage(f"Exported {filename}")
+
+    def _on_export_error(self, exc: Exception) -> None:
+        logger.exception(f"Failed to export: {exc}")
+        self.statusbar.showMessage(f"Failed to export: {exc}")
+
+    def _get_crop_area(self) -> tuple[int, int, int, int]:
         left = self.left_edit.text()
         left = int(left or 0)  # type: ignore
         top = self.top_edit.text()
@@ -89,12 +136,45 @@ class ImageCropWindow(Window):
         right = int(right or 0)  # type: ignore
         bottom = self.bottom_edit.text()
         bottom = int(bottom or 0)  # type: ignore
+        return left, right, top, bottom  # type: ignore
+
+    def _get_default_crop_area(self) -> tuple[int, int, int, int]:
+        (_, x, y) = self.view.viewer.camera.center
+        top, bottom = y - 256, y + 256
+        left, right = x - 256, x + 256
+        return max(0, left), max(0, right), max(0, top), max(0, bottom)
+
+    def on_edit_crop(self):
+        """Edit crop area."""
+        self.crop_layer.mode = "select"
+        if len(self.crop_layer.data) == 0:
+            left, right, top, bottom = self._get_default_crop_area()
+            rect = np.asarray([[top, left], [top, right], [bottom, right], [bottom, left]])
+            self.crop_layer.data = [(rect, "rectangle")]
+        self.crop_layer.selected_data = [0]
+
+    def on_reset_crop(self):
+        """Reset crop area."""
+        self.crop_layer.data = []
+        with hp.qt_signals_blocked(self.left_edit, self.right_edit, self.top_edit):
+            left, right, top, bottom = self._get_default_crop_area()
+            self.left_edit.setText(f"{left:.0f}")
+            self.right_edit.setText(f"{right:.0f}")
+            self.top_edit.setText(f"{top:.0f}")
+            self.bottom_edit.setText(f"{bottom:.0f}")
+        self.on_crop_rect()
+
+    def on_crop_rect(self) -> None:
+        """Update crop rect."""
+        if self.crop_layer.data:
+            self.crop_layer.data = []
+        left, right, top, bottom = self._get_crop_area()
         rect = np.asarray([[top, left], [top, right], [bottom, right], [bottom, left]])
         with self._editing_crop():
             self.crop_layer.data = [(rect, "rectangle")]
         logger.trace("Updated rectangle (from edit).")
 
-    def on_update_crop(self, _evt=None):
+    def on_update_crop(self, _evt: ty.Any = None) -> None:
         """Update crop values."""
         if self._editing:
             return
@@ -140,7 +220,7 @@ class ImageCropWindow(Window):
     def _setup_ui(self):
         """Create panel."""
         self.view = self._make_image_view(self, add_toolbars=False, allow_extraction=False, disable_controls=True)
-        self._image_widget = LoadWidget(self, self.view, n_max=1)
+        self._image_widget = LoadWidget(self, self.view)
 
         self.left_edit = hp.make_line_edit(
             self, placeholder="Left", validator=QIntValidator(0, 75_000), func=self.on_crop_rect
@@ -159,11 +239,18 @@ class ImageCropWindow(Window):
         )
         self.bottom_edit.setAlignment(Qt.AlignCenter)  # type: ignore[attr-defined]
 
-        crop_layout = QGridLayout()
+        crop_layout = QGridLayout()  # noqa
         crop_layout.addWidget(self.left_edit, 1, 0, 1, 1)
         crop_layout.addWidget(self.right_edit, 1, 2, 1, 1)
         crop_layout.addWidget(self.top_edit, 0, 1, 1, 1)
         crop_layout.addWidget(self.bottom_edit, 2, 1, 1, 1)
+
+        self.edit_btn = hp.make_btn(
+            self, "Edit crop area", tooltip="Edit crop area (interactively)", func=self.on_edit_crop
+        )
+        self.reset_btn = hp.make_btn(
+            self, "Reset crop area", tooltip="Reset crop area (to full image)", func=self.on_reset_crop
+        )
 
         side_layout = hp.make_form_layout()
         style_form_layout(side_layout)
@@ -172,6 +259,7 @@ class ImageCropWindow(Window):
         side_layout.addRow(self._image_widget)
         side_layout.addRow(hp.make_h_line_with_text("Image crop position"))
         side_layout.addRow(crop_layout)
+        side_layout.addRow(hp.make_h_layout(self.edit_btn, self.reset_btn))
         side_layout.addRow(hp.make_h_line())
         side_layout.addRow(
             hp.make_btn(
@@ -188,7 +276,7 @@ class ImageCropWindow(Window):
         side_layout.addRow(self.view.widget.layers)
         side_layout.addRow(self.view.widget.viewerButtons)
 
-        widget = QWidget()
+        widget = QWidget()  # noqa
         self.setCentralWidget(widget)
         layout = QHBoxLayout()
         layout.addWidget(self.view.widget, stretch=True)

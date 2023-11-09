@@ -1,4 +1,5 @@
 """Base image wrapper."""
+import math
 import typing as ty
 from pathlib import Path
 
@@ -30,6 +31,7 @@ class BaseReader:
 
     @property
     def image_shape(self) -> tuple[int, int]:
+        """Image shape."""
         return self._image_shape
 
     @image_shape.setter
@@ -77,15 +79,19 @@ class BaseReader:
         """Return name of the input path."""
         return self.path.stem
 
-    def flat_array(self, index: int = 0):
+    def flat_array(self, index: int = 0) -> tuple[np.ndarray, tuple[int, int]]:
         """Return a flat array."""
+        from image2image.utils.utilities import get_shape_of_image
+
         array = self.pyramid[index]
+        if hasattr(array, "compute"):
+            array = array.compute()
+        n_channels, _, shape = get_shape_of_image(array)
         if array.ndim == 3:
-            n_channels = np.min(array.shape)
             array = array.reshape(-1, n_channels)
         else:
             array = array.reshape(-1, 1)
-        return array
+        return array, shape
 
     def close(self):
         """Close the file handle."""
@@ -109,6 +115,37 @@ class BaseReader:
         """Export data as CSV file."""
         from image2image.utils.utilities import write_rgb_to_txt, write_xml_micro_metadata
 
+        path = Path(path)
         write_xml_micro_metadata(self, path.with_suffix(".xml"))
         yield from write_rgb_to_txt(path, self.pyramid[0])
         return self.path.name
+
+    def crop(self, left: int, right: int, top: int, bottom: int) -> np.ndarray:
+        """Crop image."""
+        top, bottom = sorted([top, bottom])
+        left, right = sorted([left, right])
+        left = math.floor(left * 1 / self.resolution)
+        right = math.ceil(right * 1 / self.resolution)
+        top = math.floor(top * 1 / self.resolution)
+        bottom = math.ceil(bottom * 1 / self.resolution)
+        array = self.pyramid[0]
+        if array.ndim == 2:
+            array_ = array[top:bottom, left:right]
+        elif array.ndim == 3:
+            shape = array.shape
+            channel_axis = int(np.argmin(shape))
+            print(channel_axis, shape)
+            if channel_axis == 0:
+                array_ = array[:, top:bottom, left:right]
+            elif channel_axis == 1:
+                array_ = array[top:bottom, :, left:right]
+            elif channel_axis == 2:
+                array_ = array[top:bottom, left:right, :]
+            else:
+                raise ValueError(f"Array has unsupported shape: {array.shape}")
+        else:
+            raise ValueError(f"Array has unsupported shape: {array.shape}")
+        # check whether array is dask array - if so, we need to compute it
+        if hasattr(array_, "compute"):
+            array_ = array_.compute()
+        return array_

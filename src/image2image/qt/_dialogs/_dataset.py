@@ -14,7 +14,7 @@ from qtextra.widgets.qt_table_view import QtCheckableTableView
 from qtpy.QtCore import Qt, Signal  # type: ignore[attr-defined]
 from qtpy.QtGui import QDoubleValidator
 from qtpy.QtWidgets import QFormLayout, QHeaderView, QLineEdit, QTableWidget, QTableWidgetItem, QWidget
-from superqt.utils import thread_worker
+from superqt.utils import create_worker
 
 from image2image.config import CONFIG
 from image2image.enums import ALLOWED_FORMATS, ALLOWED_FORMATS_WITH_GEOJSON
@@ -454,12 +454,13 @@ class SelectDataDialog(QtFramelessTool):
         if not isinstance(path_or_paths, list):
             path_or_paths = [path_or_paths]
         self.model.add_paths(path_or_paths)
-        func = thread_worker(
-            partial(self.model.load, transform_data=transform_data, resolution=resolution),
-            start_thread=True,
-            connect={"returned": self._on_loaded_dataset, "errored": self._on_failed_dataset},
+        create_worker(
+            self.model.load,
+            transform_data=transform_data,
+            resolution=resolution,
+            _start_thread=True,
+            _connect={"returned": self._on_loaded_dataset, "errored": self._on_failed_dataset},
         )
-        func()
         logger.info(f"Started loading dataset - '{self.model.paths}'")
 
     def _on_loaded_dataset(self, model: "DataModel") -> None:
@@ -506,12 +507,13 @@ class SelectDataDialog(QtFramelessTool):
             reader: "CoordinateImageReader" = self.model.get_reader(path)  # noqa
             if reader:
                 self.evt_loading.emit()  # noqa
-                func = thread_worker(
-                    partial(reader.extract, mzs=mzs, ppm=ppm),  # noqa
-                    start_thread=True,
-                    connect={"returned": self._on_update_dataset, "errored": self._on_failed_update_dataset},
+                create_worker(
+                    reader.extract,
+                    mzs=mzs,
+                    ppm=ppm,
+                    _start_thread=True,
+                    _connect={"returned": self._on_update_dataset, "errored": self._on_failed_update_dataset},
                 )
-                func()
 
     def _on_update_dataset(self, result: ty.Tuple[Path, ty.List[str]]) -> None:
         """Finished loading data."""

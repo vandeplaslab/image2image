@@ -591,3 +591,102 @@ def get_yx_coordinates_from_shape(shape: tuple[int, int]) -> tuple[np.ndarray, n
     _y, _x = np.indices(shape)
     yx_coordinates = np.c_[np.ravel(_y), np.ravel(_x)]
     return yx_coordinates[:, 0], yx_coordinates[:, 1]
+
+
+def write_ome_tiff(path: PathLike, array: np.ndarray, reader: BaseReader):
+    """Write OME-TIFF."""
+    from wsireg.reg_images import NumpyRegImage
+    from wsireg.writers.ome_tiff_writer import OmeTiffWriter
+
+    if array.ndim == 2:
+        array = np.atleast_3d(array, axis=-1)
+
+    reg = NumpyRegImage(
+        array,
+        reader.resolution,
+        channel_names=reader.channel_names,
+    )
+
+    path = Path(path)
+    writer = OmeTiffWriter(reg)
+    filename = writer.write_image_by_plane(path.stem, path.parent, write_pyramid=True)
+    return filename
+
+
+# def write_ome_tiff(
+#     path: PathLike,
+#     array: np.ndarray,
+#     reader: BaseReader,
+#     tile_size: int = 512,
+#     compression: str = "default",
+#     pyramid: bool = True,
+# ) -> None:
+#     """Write OME-TIFF."""
+#     from image2image.readers.utilities import get_pyramid_info, guess_rgb
+#
+#     # from skimage.io import imsave
+#
+#     # path = Path(path)
+#     # assert path.suffix.lower() in TIFF_EXTENSIONS, "Only TIFF files are supported"
+#     # assert array.ndim == 3, "Only 3D images are supported"
+#     # assert array.shape[-1] in [1, 3], "Only grayscale or RGB images are supported"
+#     # imsave(path, array, resolution=resolution)
+#
+#     if array.ndim == 2:
+#         np.atleast_3d(array, axis=-1)
+#     if array.ndim == 3:
+#         channel_axis = int(np.argmin(array.shape))
+#         temp = list(array.shape)
+#         del temp[channel_axis]
+#         y_size, x_size = temp
+#         n_ch = array.shape[channel_axis]
+#     else:
+#         raise ValueError(f"Cannot write image with {array.ndim} dimensions")
+#
+#     # protect against too large tile size
+#     while y_size / tile_size <= 1 or x_size / tile_size <= 1:
+#         tile_size = tile_size // 2
+#     pyr_levels, _ = get_pyramid_info(y_size, x_size, n_ch, tile_size)
+#     n_pyr_levels = len(pyr_levels)
+#
+#     name = reader.name
+#     channel_names = reader.channel_names
+#     is_rgb = guess_rgb(array.shape)
+#     from wsireg.utils.im_utils import prepare_ome_xml_str
+#
+#     omexml = prepare_ome_xml_str(
+#         y_size,
+#         x_size,
+#         n_ch,
+#         array.dtype,
+#         is_rgb,
+#         PhysicalSizeX=reader.resolution,
+#         PhysicalSizeY=reader.resolution,
+#         PhysicalSizeXUnit="µm",
+#         PhysicalSizeYUnit="µm",
+#         Name=name,
+#         Channel=None if is_rgb else {"Name": channel_names},
+#     )
+#
+#
+# def prepare_ome_xml_str(y_size: int, x_size: int, n_ch: int, im_dtype, is_rgb: bool, **ome_metadata) -> str:
+#     """Prepare data to write to OME-XML."""
+#     from tifffile import OmeXml
+#
+#     ome_xml = OmeXml()
+#     if is_rgb:
+#         stored_shape = (1, 1, 1, y_size, x_size, n_ch)
+#         im_shape = (y_size, x_size, n_ch)
+#     else:
+#         stored_shape = (n_ch, 1, 1, y_size, x_size, 1)
+#         im_shape = (n_ch, y_size, x_size)
+#
+#     ome_xml.addimage(
+#         dtype=im_dtype,
+#         shape=im_shape,
+#         # specify how the image is stored in the TIFF file
+#         storedshape=stored_shape,
+#         **ome_metadata,
+#     )
+#
+#     return ome_xml.tostring().encode("utf8")

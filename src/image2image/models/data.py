@@ -231,6 +231,15 @@ class DataModel(BaseModel):
         """Returns True if there is some data on the model."""
         return self.n_paths > 0
 
+    def crop(
+        self, left: int, right: int, top: int, bottom: int
+    ) -> ty.Generator[ty.Tuple[Path, "BaseReader", np.ndarray], None, None]:
+        """Crop image(s) to the specified region."""
+        wrapper = self.get_wrapper()
+        for path, reader in wrapper.path_reader_iter():
+            cropped = reader.crop(left, right, top, bottom)
+            yield path, reader, cropped
+
 
 def load_viewer_setup_from_file(path: PathLike) -> I2V_METADATA:
     """Load configuration from config file."""
