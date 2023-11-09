@@ -41,6 +41,20 @@ class Transformation(BaseModel):
     fixed_points: ty.Optional[np.ndarray] = None
     moving_points: ty.Optional[np.ndarray] = None
 
+    @property
+    def moving_to_fixed_ratio(self) -> float:
+        """Ratio between the moving and fixed model."""
+        if self.moving_model and self.fixed_model:
+            return self.moving_model.min_resolution / self.fixed_model.min_resolution
+        return 1.0
+
+    @property
+    def fixed_to_moving_ratio(self) -> float:
+        """Ratio between the moving and fixed model."""
+        if self.moving_model and self.fixed_model:
+            return self.fixed_model.min_resolution / self.moving_model.min_resolution
+        return 1.0
+
     def is_valid(self) -> bool:
         """Returns True if the transformation is valid."""
         return self.transform is not None
@@ -130,9 +144,9 @@ class Transformation(BaseModel):
                 info += f"{sep}rotation: {rotation:.3f}"
             info += f"{sep}error: {self.error():.2f}"
         if self.fixed_points is not None:
-            info += f"{sep}Number of fixed points: {len(self.fixed_points)}"
+            info += f"{sep}no. fixed: {len(self.fixed_points)}"
         if self.moving_points is not None:
-            info += f"{sep}Number of moving points: {len(self.moving_points)}"
+            info += f"{sep}no. moving: {len(self.moving_points)}"
         return info
 
     def to_dict(self) -> ty.Dict:

@@ -31,7 +31,7 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
 
     _console = None
 
-    def __init__(self, parent: ty.Optional[QWidget], title: str):
+    def __init__(self, parent: ty.Optional[QWidget], title: str, delay_events: bool = False):
         super().__init__(parent)
         self.setAttribute(Qt.WA_DeleteOnClose)  # type: ignore[attr-defined]
         self.setWindowTitle(title)
@@ -43,13 +43,16 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
         CONFIG.load()
 
         self._setup_ui()
-        self.setup_events()
+        if not delay_events:
+            self.setup_events()
+        else:
+            hp.call_later(self, self.setup_events, 3000)
 
         # delay asking for telemetry opt-in by 10s
         hp.call_later(self, install_error_monitor, 5_000)
+        # check for updates every now and in then every 4 hours
         hp.call_later(self, self.on_check_new_version, 5 * 1000)
-        # check for updates every 4 hours
-        self.version_timer = hp.make_periodic_timer(self, self.on_check_new_version, 3600 * 4 * 1000)
+        self.version_timer = hp.make_periodic_timer(self, self.on_check_new_version, 4 * 3600 * 1000)
 
         # synchronize themes
         THEMES.evt_theme_changed.connect(self.on_changed_theme)
@@ -84,7 +87,7 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
         """Set the result of version check."""
         is_new_available, reason = res
         if not is_new_available:
-            logger.debug("Failed to check GitHub for latest version.")
+            logger.debug("Using the latest version of the app.")
             return
         hp.long_toast(self, "New version available!", reason, 15_000, icon="info", position="top_left")
         logger.debug("Checked for latest version.")

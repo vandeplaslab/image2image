@@ -317,11 +317,11 @@ QDialog#confirm_dialog > QLabel {
     font-size: {{ increase(font_size, 3) }};
 }
 
-QLabel#error {
+QLabel#reg_error {
     color: {{ error }};
 }
 
-QLabel#success {
+QLabel#reg_success {
     color: {{ success }};
 }
 

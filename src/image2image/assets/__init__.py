@@ -54,6 +54,8 @@ update_icon_mapping(
         "sync": "fa5s.sync-alt",
         "crop": "fa5s.crop-alt",
         "export": "mdi6.content-save-check-outline",
+        "pan_zoom": "ei.move",
+        "select_points": "fa5s.location-arrow",
     }
 )
 

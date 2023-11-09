@@ -12,6 +12,7 @@ from qtpy.QtCore import QModelIndex, Qt, Signal  # type: ignore[attr-defined]
 from qtpy.QtGui import QKeyEvent
 from qtpy.QtWidgets import QFormLayout
 
+from image2image.config import CONFIG
 from image2image.utils.utilities import style_form_layout
 
 if ty.TYPE_CHECKING:
@@ -79,7 +80,7 @@ class FiducialsDialog(QtFramelessTool):
                 if index < len(moving_points):
                     moving_points = np.delete(moving_points, index, axis=0)
                     parent.moving_points_layer.data = moving_points
-                logger.debug(f"Deleted {index} from fiducial table")
+                logger.debug(f"Deleted index '{index}' from fiducial table")
 
     def on_double_click(self, index: QModelIndex) -> None:
         """Zoom in."""
@@ -91,16 +92,19 @@ class FiducialsDialog(QtFramelessTool):
             if not np.isnan(x_micro):
                 view_fixed = parent.view_fixed
                 view_fixed.viewer.camera.center = (0.0, y_micro, x_micro)
-                view_fixed.viewer.camera.zoom = 5
+                view_fixed.viewer.camera.zoom = 7.5
                 logger.debug(
                     f"Applied focus center=({y_micro:.1f}, {x_micro:.1f}) zoom={view_fixed.viewer.camera.zoom:.3f} on"
                     f" micro data"
                 )
+                # no need to do this as it will be automatically synchronized
+                if CONFIG.sync_views:
+                    return
             # zoom-in on moving data
             if not np.isnan(x_ims):
                 view_moving = parent.view_moving
                 view_moving.viewer.camera.center = (0.0, y_ims, x_ims)
-                view_moving.viewer.camera.zoom = 50
+                view_moving.viewer.camera.zoom = 7.5 * parent.transform_model.fixed_to_moving_ratio
                 logger.debug(
                     f"Applied focus center=({y_ims:.1f}, {x_ims:.1f}) zoom={view_moving.viewer.camera.zoom:.3f} on IMS"
                     f"data"

@@ -26,6 +26,11 @@ def run(
     logger.enable("image2image")
     logger.info(f"Enabled logger - logging to '{log_path}' at level={level}")
 
+    if dev:
+        from koyo.hooks import install_debugger_hook
+
+        install_debugger_hook()
+
     # load config
     CONFIG.load()
     # setup theme

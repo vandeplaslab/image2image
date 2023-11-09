@@ -14,13 +14,14 @@ from loguru import logger
 from napari.layers import Image
 from napari.layers.points.points import Mode, Points
 from napari.layers.utils._link_layers import link_layers
+from napari.utils.events import Event
 from qtextra._napari.image.wrapper import NapariImageView
 from qtextra.utils.utilities import connect
 from qtextra.widgets.qt_image_button import QtImagePushButton
 from qtextra.widgets.qt_mini_toolbar import QtMiniToolbar
-from qtpy.QtCore import Qt, Signal
+from qtpy.QtCore import Qt, Signal  # type: ignore[attr-defined]
 from qtpy.QtWidgets import QFormLayout, QHBoxLayout, QMenuBar, QSizePolicy, QVBoxLayout, QWidget
-from superqt import ensure_main_thread
+from superqt.utils import ensure_main_thread, qdebounced
 
 # need to load to ensure all assets are loaded properly
 import image2image.assets  # noqa: F401
@@ -60,7 +61,7 @@ class ImageRegistrationWindow(Window):
     evt_predicted = Signal()
 
     def __init__(self, parent: QWidget | None):
-        super().__init__(parent, f"image2image: Simple image registration tool (v{__version__})")
+        super().__init__(parent, f"image2image: Simple image registration tool (v{__version__})", delay_events=True)
         self.transform_model = Transformation(
             fixed_model=self.fixed_model,
             moving_model=self.moving_model,
@@ -87,7 +88,7 @@ class ImageRegistrationWindow(Window):
     def fixed_points_layer(self) -> Points:
         """Fixed points layer."""
         if "Fixed (points)" not in self.view_fixed.layers:
-            layer = self.view_fixed.viewer.add_points(
+            layer = self.view_fixed.viewer.add_points(  # noqa
                 None,
                 size=self.fixed_point_size.value(),
                 name="Fixed (points)",
@@ -97,26 +98,26 @@ class ImageRegistrationWindow(Window):
             )
             visual = self.view_fixed.widget.layer_to_visual[layer]
             init_points_layer(layer, visual)
-            connect(self.fixed_points_layer.events.data, self.on_run, state=True)
-            connect(self.fixed_points_layer.events.add_point, partial(self.on_predict, "fixed"), state=True)
+            connect(layer.events.data, self.on_run, state=True)
+            connect(layer.events.add_point, partial(self.on_predict, "fixed"), state=True)
         return self.view_fixed.layers["Fixed (points)"]
 
     @property
     def moving_points_layer(self) -> Points:
         """Fixed points layer."""
         if "Moving (points)" not in self.view_moving.layers:
-            layer = self.view_moving.viewer.add_points(
+            layer = self.view_moving.viewer.add_points(  # noqa
                 None,
                 size=self.moving_point_size.value(),
                 name="Moving (points)",
-                face_color="red",
+                face_color="green",
                 edge_color="white",
                 symbol="ring",
             )
             visual = self.view_moving.widget.layer_to_visual[layer]
             init_points_layer(layer, visual)
-            connect(self.moving_points_layer.events.data, self.on_run, state=True)
-            connect(self.moving_points_layer.events.add_point, partial(self.on_predict, "moving"), state=True)
+            connect(layer.events.data, self.on_run, state=True)
+            connect(layer.events.add_point, partial(self.on_predict, "moving"), state=True)
         return self.view_moving.layers["Moving (points)"]
 
     def setup_events(self, state: bool = True) -> None:
@@ -141,6 +142,18 @@ class ImageRegistrationWindow(Window):
             state=state,
         )
         connect(self._moving_widget.evt_view_type, self.on_change_view_type, state=state)
+        # views
+        connect(
+            self.view_fixed.viewer.camera.events,
+            qdebounced(partial(self.on_sync_views, which="fixed"), 50),
+            state=True,
+        )
+        connect(
+            self.view_moving.viewer.camera.events,
+            qdebounced(partial(self.on_sync_views, which="moving"), 50),
+            state=True,
+        )
+        logger.trace("Connected events...")
 
     def on_indicator(self, which: str, state: bool = True) -> None:
         """Set indicator."""
@@ -360,6 +373,7 @@ class ImageRegistrationWindow(Window):
         if force or hp.confirm(self, "Are you sure you want to remove all data points from the points layer?"):
             layer = self.fixed_points_layer if which == "fixed" else self.moving_points_layer
             layer.data = np.zeros((0, 2))
+            self.evt_predicted.emit()  # noqa
             self.on_clear_transformation()
 
     def on_clear_transformation(self) -> None:
@@ -402,7 +416,7 @@ class ImageRegistrationWindow(Window):
             self.transform_error.setText(f"{error:.2f}")
             if self.transform_model.moving_model:
                 acceptable_error = self.transform_model.moving_model.resolution / 2
-                hp.update_widget_style(self.transform_error, "error" if error > acceptable_error else "success")
+                hp.update_widget_style(self.transform_error, "reg_error" if error > acceptable_error else "reg_success")
             logger.info(self.transform_model.about("; "))
             self.on_apply()
         else:
@@ -514,6 +528,8 @@ class ImageRegistrationWindow(Window):
                 if fixed_points is not None:
                     self._update_layer_points(self.fixed_points_layer, fixed_points, block=False)
                 # self.transform_choice.setCurrentText(transformation_type)
+                if moving_points is not None and fixed_points is not None:
+                    self.on_run()
                 # force update of the text
                 self.on_update_text(block=False)
 
@@ -571,6 +587,7 @@ class ImageRegistrationWindow(Window):
                 blending="translucent",
                 affine=self.transform.params,
                 colormap=moving_image_layer.colormap,
+                opacity=CONFIG.opacity_moving / 100,
             )
         self.transformed_moving_image_layer.visible = CONFIG.show_transformed
         self._move_layer(self.view_fixed, self.transformed_moving_image_layer, -1, False)
@@ -581,29 +598,33 @@ class ImageRegistrationWindow(Window):
         """Predict transformation from either image."""
         self._on_predict(which)
 
-    def _on_predict(self, which: str):
+    def _on_predict(self, which: str) -> None:
         self.on_update_text()
         if self.transform is None:
             logger.warning("Cannot predict - no transformation has been computed.")
             return
 
-        b = self.moving_points_layer.data
+        if self.fixed_points_layer.data.size == self.moving_points_layer.data.size:
+            return
+
         if which == "fixed":
             # predict point position in the moving image -> inverse transform
-            layer = self.moving_points_layer
-            transformed_data = self.transform.inverse(self.fixed_points_layer.data)
+            predict_for_layer = self.moving_points_layer
+            transformed_last_point = self.transform.inverse(self.fixed_points_layer.data[-1])
             logger.trace("Predicted moving points based on fixed points...")
         else:
             # predict point position in the fixed image -> transform
-            layer = self.fixed_points_layer
-            transformed_data = self.transform(self.moving_points_layer.data)
+            predict_for_layer = self.fixed_points_layer
+            transformed_last_point = self.transform(self.moving_points_layer.data[-1])
             logger.trace("Predicted fixed points based on moving points...")
 
+        transformed_data = predict_for_layer.data
+        transformed_data = np.append(transformed_data, transformed_last_point, axis=0)
         # don't predict positions if the number of points is lower than the number already present in the image
-        if layer.data.shape[0] > len(transformed_data):
+        if predict_for_layer.data.shape[0] > len(transformed_data):
             return
 
-        self._update_layer_points(layer, transformed_data)
+        self._update_layer_points(predict_for_layer, transformed_data)
         self.evt_predicted.emit()  # noqa
 
     @staticmethod
@@ -636,7 +657,7 @@ class ImageRegistrationWindow(Window):
         if self.transformed_moving_image_layer and which == "moving":
             self.transformed_moving_image_layer.opacity = CONFIG.opacity_moving / 100
 
-    def on_update_text(self, _: ty.Any = None, block: bool = True) -> None:
+    def on_update_text(self, _: ty.Any = None, block: bool = False) -> None:
         """Update text data in each layer."""
         CONFIG.label_color = self.text_color.hex_color
         CONFIG.label_size = self.text_size.value()
@@ -673,6 +694,36 @@ class ImageRegistrationWindow(Window):
             f" zoom={self.zoom.value():.3f}"
         )
 
+    def on_update_settings(self):
+        """Update config."""
+        CONFIG.sync_views = self.synchronize_zoom.isChecked()
+
+    def on_sync_views(self, which: str, _event: Event | None = None) -> None:
+        """Synchronize views."""
+        self._on_sync_views(which)
+
+    def _on_sync_views(self, which: str) -> None:
+        if not CONFIG.sync_views or self.transform is None:
+            return
+        if which == "fixed":
+            camera = self.view_fixed.viewer.camera
+            func = self.transform.inverse
+            other_view = self.view_moving
+            ratio = self.transform_model.moving_to_fixed_ratio
+        else:
+            camera = self.view_moving.viewer.camera
+            func = self.transform
+            other_view = self.view_fixed
+            ratio = self.transform_model.fixed_to_moving_ratio
+
+        # predict where to zoom
+        center = camera.center[1::]
+        zoom = camera.zoom * ratio  # zoom must be multiplied by the ratio of pixel sizes
+        transformed_center = func(center)[0]
+        with other_view.viewer.camera.events.blocker():
+            other_view.viewer.camera.zoom = zoom
+            other_view.viewer.camera.center = (0.0, transformed_center[0], transformed_center[1])
+
     # noinspection PyAttributeOutsideInit
     def _setup_ui(self) -> None:
         """Create panel."""
@@ -686,7 +737,11 @@ class ImageRegistrationWindow(Window):
         # self.transform_choice.currentTextChanged.connect(self.on_run)  # type: ignore[arg-type]
 
         self.transform_error = hp.make_label(
-            self, "", bold=True, tooltip="Error is estimated by computing the square root of the sum of squared errors."
+            self,
+            "",
+            bold=True,
+            tooltip="Error is estimated by computing the square root of the sum of squared errors. Value is <b>red</b>"
+            " if the error is larger than half of the moving image resolution (off by half a pixel).",
         )
 
         side_layout = hp.make_form_layout()
@@ -724,7 +779,7 @@ class ImageRegistrationWindow(Window):
         side_layout.addRow(hp.make_h_line_with_text("Settings"))
         side_layout.addRow(self._make_settings_layout())
 
-        widget = QWidget()
+        widget = QWidget()  # noqa
         self.setCentralWidget(widget)
         layout = QHBoxLayout()
         layout.addLayout(view_layout, stretch=True)
@@ -823,6 +878,14 @@ class ImageRegistrationWindow(Window):
         return layout
 
     def _make_settings_layout(self) -> QFormLayout:
+        self.synchronize_zoom = hp.make_checkbox(
+            self,
+            "",
+            "Synchronize zoom between views. It only starts taking effect once transformation model has been"
+            " calculated.",
+            value=CONFIG.sync_views,
+            func=self.on_update_settings,
+        )
         self.fixed_point_size = hp.make_int_spin_box(
             self, value=CONFIG.size_fixed, tooltip="Size of the points shown in the fixed image."
         )
@@ -859,8 +922,9 @@ class ImageRegistrationWindow(Window):
 
         layout = hp.make_form_layout()
         style_form_layout(layout)
-        layout.addRow(hp.make_label(self, "Size (fixed)"), self.fixed_point_size)
-        layout.addRow(hp.make_label(self, "Size (moving)"), self.moving_point_size)
+        layout.addRow(hp.make_label(self, "Synchronize views"), self.synchronize_zoom)
+        layout.addRow(hp.make_label(self, "Marker size (fixed)"), self.fixed_point_size)
+        layout.addRow(hp.make_label(self, "Marker size (moving)"), self.moving_point_size)
         layout.addRow(hp.make_label(self, "Opacity (fixed)"), self.fixed_opacity)
         layout.addRow(hp.make_label(self, "Opacity (moving)"), self.moving_opacity)
         layout.addRow(hp.make_label(self, "Label size"), self.text_size)
@@ -870,7 +934,8 @@ class ImageRegistrationWindow(Window):
     def _make_image_layout(self) -> QVBoxLayout:
         self.info = hp.make_label(
             self,
-            "Please select at least <b>3 points</b> in each image to compute transformation.",
+            "Please select at least <b>3 points</b> in each image to compute transformation. "
+            "It's advised to use <b>as many</b> anchor points as reasonable!",
             tooltip="Information regarding registration.",
             object_name="tip_label",
         )
@@ -900,7 +965,7 @@ class ImageRegistrationWindow(Window):
         _fixed_remove_selected_btn = toolbar.insert_qta_tool(
             "remove_multiple",
             func=lambda *args: self.on_remove_selected("fixed"),
-            tooltip="Remove last point from the fixed image.",
+            tooltip="Remove selected points from the fixed image.",
         )
         _fixed_remove_btn = toolbar.insert_qta_tool(
             "remove_single",
@@ -908,7 +973,7 @@ class ImageRegistrationWindow(Window):
             tooltip="Remove last point from the fixed image.",
         )
         self.fixed_move_btn = toolbar.insert_qta_tool(
-            "move",
+            "select_points",
             func=lambda *args: self.on_move("fixed"),
             tooltip="Move points in the fixed image. Press <b>3</b> on your keyboard to activate...",
             checkable=True,
@@ -920,7 +985,7 @@ class ImageRegistrationWindow(Window):
             checkable=True,
         )
         self.fixed_zoom_btn = toolbar.insert_qta_tool(
-            "zoom",
+            "pan_zoom",
             func=lambda *args: self.on_panzoom("fixed"),
             tooltip="Switch to zoom-only mode. Press <b>1</b> on your keyboard to activate...",
             checkable=True,
@@ -964,7 +1029,7 @@ class ImageRegistrationWindow(Window):
         _moving_remove_selected_btn = toolbar.insert_qta_tool(
             "remove_multiple",
             func=lambda *args: self.on_remove_selected("moving"),
-            tooltip="Remove last point from the moving image.",
+            tooltip="Remove selected points from the moving image.",
         )
         _moving_remove_btn = toolbar.insert_qta_tool(
             "remove_single",
@@ -972,7 +1037,7 @@ class ImageRegistrationWindow(Window):
             tooltip="Remove last point from the moving image.",
         )
         self.moving_move_btn = toolbar.insert_qta_tool(
-            "move",
+            "select_points",
             func=lambda *args: self.on_move("moving"),
             tooltip="Move points in the fixed image. Press <b>3</b> on your keyboard to activate...",
             checkable=True,
@@ -984,7 +1049,7 @@ class ImageRegistrationWindow(Window):
             checkable=True,
         )
         self.moving_zoom_btn = toolbar.insert_qta_tool(
-            "zoom",
+            "pan_zoom",
             func=lambda *args: self.on_panzoom("moving"),
             tooltip="Switch to zoom-only mode. Press <b>1</b> on your keyboard to activate...",
             checkable=True,

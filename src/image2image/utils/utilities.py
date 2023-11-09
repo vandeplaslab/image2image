@@ -164,7 +164,7 @@ def sanitize_path(path: PathLike) -> ty.Optional[Path]:
     return path
 
 
-def round_to_half(*values):
+def round_to_half(*values: tuple[float, ...]) -> np.ndarray:
     """Round values to nearest .5."""
     return np.round(np.asarray(values) * 2) / 2
 
@@ -182,7 +182,8 @@ def init_points_layer(layer: Points, visual: VispyPointsLayer):
     layer.edge_width = 0
     layer.events.add(move=Event, add_point=Event)
 
-    visual._highlight_color = (0, 0.6, 1, 0.3)
+    # adjust the highlight
+    visual._highlight_color = (1.0, 0.0, 0.0, 0.7)
 
 
 def init_shapes_layer(layer: Shapes, visual: VispyShapesLayer) -> None:
@@ -207,10 +208,15 @@ def _get_text_data(data: np.ndarray) -> ty.Dict[str, ty.List[str]]:
 
 def add(layer, event) -> None:
     """Add a new point at the clicked position."""
-    if event.type == "mouse_press":
-        start_pos = event.pos
+    start_pos = event.pos
+    dist = 0
+    yield
 
-    while event.type != "mouse_release":
+    while event.type == "mouse_move":
+        dist = np.linalg.norm(start_pos - event.pos)
+        if dist < DRAG_DIST_THRESHOLD:
+            # prevent vispy from moving the canvas if we're below threshold
+            event.handled = True
         yield
 
     dist = np.linalg.norm(start_pos - event.pos)
@@ -222,6 +228,25 @@ def add(layer, event) -> None:
         layer.properties = _get_text_data(layer.data)
         layer.text = _get_text_format()
         layer.events.add_point()
+
+
+# def add(layer, event) -> None:
+#     """Add a new point at the clicked position."""
+#     if event.type == "mouse_press":
+#         start_pos = event.pos
+#
+#     while event.type != "mouse_release":
+#         yield
+#
+#     dist = np.linalg.norm(start_pos - event.pos)
+#     if dist < DRAG_DIST_THRESHOLD:
+#         coordinates = round_to_half(layer.world_to_data(event.position))
+#         # add point
+#         layer.add(coordinates)
+#         # update text with index
+#         layer.properties = _get_text_data(layer.data)
+#         layer.text = _get_text_format()
+#         layer.events.add_point()
 
 
 def compute_transform(src: np.ndarray, dst: np.ndarray, transform_type: str = "affine") -> "ProjectiveTransform":

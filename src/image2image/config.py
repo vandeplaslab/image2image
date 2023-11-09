@@ -14,6 +14,7 @@ class Config(BaseModel):
     """Configuration of few parameters."""
 
     # view parameters
+    sync_views: bool = Field(True, title="Sync views", description="Sync views.")
     opacity_fixed: int = Field(
         100, ge=0, le=100, step_size=10, title="Opacity (fixed)", description="Opacity of the fixed image"
     )
