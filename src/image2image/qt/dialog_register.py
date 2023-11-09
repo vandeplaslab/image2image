@@ -438,7 +438,7 @@ class ImageRegistrationWindow(Window):
     def on_save(self, _evt: ty.Any = None) -> None:
         """Export transformation."""
         transform = self.transform_model
-        if transform.is_valid() is None:
+        if not transform.is_valid():
             logger.warning("Cannot save transformation - no transformation has been computed.")
             hp.warn(self, "Cannot save transformation - no transformation has been computed.")
             return
@@ -949,6 +949,7 @@ class ImageRegistrationWindow(Window):
             "It's advised to use <b>as many</b> anchor points as reasonable!",
             tooltip="Information regarding registration.",
             object_name="tip_label",
+            alignment=Qt.AlignmentFlag.AlignHCenter,
         )
 
         view_layout = QVBoxLayout()
@@ -963,7 +964,8 @@ class ImageRegistrationWindow(Window):
     def _make_fixed_view(self) -> QHBoxLayout:
         self.view_fixed = self._make_image_view(self, add_toolbars=False)
         self.view_fixed.viewer.text_overlay.text = "Fixed"
-        self.view_fixed.viewer.text_overlay.font_size = 8
+        self.view_fixed.viewer.text_overlay.position = "top_left"
+        self.view_fixed.viewer.text_overlay.font_size = 10
         self.view_fixed.viewer.text_overlay.visible = True
         self.view_fixed.widget.canvas.events.key_press.connect(self.keyPressEvent)
 
@@ -1027,7 +1029,8 @@ class ImageRegistrationWindow(Window):
     def _make_moving_view(self) -> QHBoxLayout:
         self.view_moving = self._make_image_view(self, add_toolbars=False)
         self.view_moving.viewer.text_overlay.text = "Moving"
-        self.view_moving.viewer.text_overlay.font_size = 8
+        self.view_moving.viewer.text_overlay.position = "top_left"
+        self.view_moving.viewer.text_overlay.font_size = 10
         self.view_moving.viewer.text_overlay.visible = True
         self.view_moving.widget.canvas.events.key_press.connect(self.keyPressEvent)
 

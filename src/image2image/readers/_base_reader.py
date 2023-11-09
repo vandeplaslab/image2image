@@ -12,7 +12,7 @@ class BaseReader:
     """Base class for some of the other image readers."""
 
     _pyramid = None
-
+    _image_shape: ty.Tuple[int, int]
     reader_type: str = "image"
     lazy: bool = False
     fh = None
@@ -27,6 +27,14 @@ class BaseReader:
         self.transform_data: TransformData = TransformData()
         self.transform: np.ndarray = np.eye(3, dtype=np.float64)
         self.transform_name = "Identity matrix"
+
+    @property
+    def image_shape(self) -> tuple[int, int]:
+        return self._image_shape
+
+    @image_shape.setter
+    def image_shape(self, value: tuple[int, int]):
+        self._image_shape = value
 
     @property
     def channel_names(self) -> ty.List[str]:

@@ -157,13 +157,26 @@ class DataModel(BaseModel):
                     paths.append(path)
         return paths
 
-    def path_resolution_iter(self) -> ty.Iterator[ty.Tuple[Path, float]]:
+    def path_resolution_iter(self) -> ty.Generator[ty.Tuple[Path, float], None, None]:
         """Iterator of path and pixel size."""
         for path in self.paths:
             reader = self.get_reader(path)
             if reader is None:
                 raise ValueError(f"Cannot find reader for path '{path}'")
             yield path, reader.resolution
+
+    def export_iter(self) -> ty.Generator[dict[str, ty.Union[Path, float, str, tuple[int, int]]], None, None]:
+        """Export iterator."""
+        for path, resolution in self.path_resolution_iter():
+            reader = self.get_reader(path)
+            if reader is None:
+                raise ValueError(f"Cannot find reader for path '{path}'")
+            yield {
+                "path": path,
+                "pixel_size_um": resolution,
+                "image_shape": reader.image_shape,
+                "type": reader.reader_type,
+            }
 
     def channel_names(self) -> ty.List[str]:
         """Return list of channel names."""
