@@ -63,7 +63,7 @@ class Launcher(QtDialog):
             ),
         )
         # export app
-        btn = hp.make_qta_btn(self, "export", tooltip="Open export application (coming).", func=self.on_export)
+        btn = hp.make_qta_btn(self, "export", tooltip="Open export application.", func=self.on_export)
         btn.set_xxlarge()
         layout.addLayout(
             hp.make_h_layout(

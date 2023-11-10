@@ -11,18 +11,20 @@ import qtextra.helpers as hp
 from koyo.timer import MeasureTimer
 from loguru import logger
 from napari.layers import Image, Shapes
+from napari.layers.shapes._shapes_constants import Box
 from qtextra.utils.utilities import connect
 from qtpy.QtCore import Qt
 from qtpy.QtGui import QIntValidator
-from qtpy.QtWidgets import QGridLayout, QHBoxLayout, QMenuBar, QVBoxLayout, QWidget
+from qtpy.QtWidgets import QFormLayout, QHBoxLayout, QMenuBar, QVBoxLayout, QWidget
 from superqt import ensure_main_thread
 from superqt.utils import create_worker
 
 from image2image import __version__
 from image2image.config import CONFIG
+from image2image.enums import ALLOWED_CROP_FORMATS
 from image2image.qt._select import LoadWidget
 from image2image.qt.dialog_base import Window
-from image2image.utils.utilities import init_shapes_layer, style_form_layout
+from image2image.utils.utilities import init_shapes_layer, log_exception_or_error, style_form_layout, write_project
 
 if ty.TYPE_CHECKING:
     from image2image.models.data import DataModel
@@ -73,26 +75,144 @@ class ImageCropWindow(Window):
         """Close fixed image."""
         self._close_model(model, self.view, "view")
 
-    def on_load(self) -> None:
+    def on_load_from_project(self) -> None:
         """Load previous data."""
+        path = hp.get_filename(self, "Load i2c project", base_dir=CONFIG.output_dir, file_filter=ALLOWED_CROP_FORMATS)
+        if path:
+            from image2image.models.data import load_crop_setup_from_file
+            from image2image.models.utilities import _remove_missing_from_dict
 
-    def on_save(self) -> None:
-        """Save data."""
+            path_ = Path(path)
+            CONFIG.output_dir = str(path_.parent)
+
+            # load data from config file
+            try:
+                paths, paths_missing, transform_data, resolution, crop = load_crop_setup_from_file(path_)
+            except ValueError as e:
+                hp.warn(self, f"Failed to load transformation from {path_}\n{e}", "Failed to load transformation")
+                return
+
+            # locate paths that are missing
+            if paths_missing:
+                from image2image.qt._dialogs import LocateFilesDialog
+
+                locate_dlg = LocateFilesDialog(self, paths_missing)
+                if locate_dlg.exec_():  # noqa
+                    paths = locate_dlg.fix_missing_paths(paths_missing, paths)
+
+            # clean-up affine matrices
+            transform_data = _remove_missing_from_dict(transform_data, paths)
+            resolution = _remove_missing_from_dict(resolution, paths)
+            # add paths
+            if paths:
+                self._image_widget.on_set_path(paths, transform_data, resolution)
+            # add crop
+            with hp.qt_signals_blocked(self.left_edit, self.right_edit, self.top_edit, self.bottom_edit):
+                self.left_edit.setText(str(crop["left"]))
+                self.right_edit.setText(str(crop["right"]))
+                self.top_edit.setText(str(crop["top"]))
+                self.bottom_edit.setText(str(crop["bottom"]))
+        self.on_update_rect_from_ui()
+
+    def on_save_to_project(self) -> None:
+        """Save data to config file."""
+        if not self._validate():
+            return
+
+        filename = "crop.i2c.json"
+        path_ = hp.get_save_filename(
+            self,
+            "Save transformation",
+            base_dir=CONFIG.output_dir,
+            file_filter=ALLOWED_CROP_FORMATS,
+            base_filename=filename,
+        )
+        if path_:
+            path = Path(path_)
+            CONFIG.output_dir = str(path.parent)
+            left, right, top, bottom = self._get_crop_area()
+            config = get_project_data(self.data_model, left, right, top, bottom)
+            write_project(path, config)
+            hp.toast(
+                self,
+                "Exported project",
+                f"Saved project to<br><b>{path}</b>",
+                icon="success",
+                position="top_left",
+            )
+
+    def _validate(self) -> bool:
         if not self.data_model.is_valid():
             hp.toast(self, "Invalid data", "Data is invalid.", icon="error")
-            return
+            return False
         left, right, top, bottom = self._get_crop_area()
         if left == right:
             hp.toast(self, "Invalid crop area", "Left and right values are the same.", icon="error")
-            return
+            return False
         if top == bottom:
             hp.toast(self, "Invalid crop area", "Top and bottom values are the same.", icon="error")
+            return False
+        if bottom - top < 128:
+            hp.toast(
+                self,
+                "Invalid crop area",
+                "The specified top and bottom areas are too small. They should be larger than 128 pixels.",
+                icon="error",
+            )
+            return False
+        if right - left < 128:
+            hp.toast(
+                self,
+                "Invalid crop area",
+                "The specified left and right areas are too small. They should be larger than 128 pixels.",
+                icon="error",
+            )
+            return False
+        return True
+
+    def on_preview(self):
+        """Preview image cropping."""
+        if not self._validate():
             return
 
+        left, right, top, bottom = self._get_crop_area()
+        create_worker(
+            self._on_preview,
+            data_model=self.data_model,
+            left=left,
+            right=right,
+            top=top,
+            bottom=bottom,
+            _start_thread=True,
+            _connect={
+                "yielded": self._on_preview_yield,
+            },
+        )
+
+    @staticmethod
+    def _on_preview(
+        data_model: DataModel, left: int, right: int, top: int, bottom: int
+    ) -> ty.Generator[tuple[str, np.ndarray], None, None]:
+        for path, reader, cropped in data_model.crop(left, right, top, bottom):
+            name = f"{path.stem}_x={left}-{right}_y={top}-{bottom}".replace(".ome", "")
+            yield name, cropped
+
+    def _on_preview_yield(self, args: tuple[str, np.ndarray]) -> None:
+        name, array = args
+        self.view.viewer.add_image(array, name=name)
+        self._move_layer(self.view, self.crop_layer)
+
+    def on_crop(self) -> None:
+        """Save data."""
+        if not self._validate():
+            return
+
+        left, right, top, bottom = self._get_crop_area()
         output_dir_ = hp.get_directory(self, "Select output directory", CONFIG.output_dir)
         if output_dir_:
             create_worker(
                 self._on_export,
+                data_model=self.data_model,
                 output_dir=Path(output_dir_),
                 left=left,
                 right=right,
@@ -103,16 +223,16 @@ class ImageCropWindow(Window):
                     "started": lambda: hp.toast(self, "Export started", "Export started.", icon="info"),
                     "yielded": self._on_export_yield,
                     "errored": self._on_export_error,
-                    "finished": lambda: hp.toast(self, "Export finished", "Export finished.", icon="success"),
                 },
             )
 
+    @staticmethod
     def _on_export(
-        self, output_dir: Path, left: int, right: int, top: int, bottom: int
+        data_model: DataModel, output_dir: Path, left: int, right: int, top: int, bottom: int
     ) -> ty.Generator[Path, None, None]:
         from image2image._reader import write_ome_tiff
 
-        for path, reader, cropped in self.data_model.crop(left, right, top, bottom):
+        for path, reader, cropped in data_model.crop(left, right, top, bottom):
             logger.info(f"Exporting {path} with shape {cropped.shape}...")
             output_path = output_dir / f"{path.stem}_x={left}-{right}_y={top}-{bottom}".replace(".ome", "")
             filename = write_ome_tiff(output_path, cropped, reader)
@@ -123,8 +243,8 @@ class ImageCropWindow(Window):
         self.statusbar.showMessage(f"Exported {filename}")
 
     def _on_export_error(self, exc: Exception) -> None:
-        logger.exception(f"Failed to export: {exc}")
-        self.statusbar.showMessage(f"Failed to export: {exc}")
+        hp.toast(self, "Export failed", f"Failed to export: {exc}", icon="error")
+        log_exception_or_error(exc)
 
     def _get_crop_area(self) -> tuple[int, int, int, int]:
         left = self.left_edit.text()
@@ -151,6 +271,7 @@ class ImageCropWindow(Window):
             rect = np.asarray([[top, left], [top, right], [bottom, right], [bottom, left]])
             self.crop_layer.data = [(rect, "rectangle")]
         self.crop_layer.selected_data = [0]
+        self.crop_layer.mode = "select"
 
     def on_reset_crop(self):
         """Reset crop area."""
@@ -161,9 +282,10 @@ class ImageCropWindow(Window):
             self.right_edit.setText(f"{right:.0f}")
             self.top_edit.setText(f"{top:.0f}")
             self.bottom_edit.setText(f"{bottom:.0f}")
-        self.on_crop_rect()
+        self.on_update_rect_from_ui()
+        self.crop_layer.mode = "select"
 
-    def on_crop_rect(self) -> None:
+    def on_update_rect_from_ui(self) -> None:
         """Update crop rect."""
         if self.crop_layer.data:
             self.crop_layer.data = []
@@ -171,9 +293,10 @@ class ImageCropWindow(Window):
         rect = np.asarray([[top, left], [top, right], [bottom, right], [bottom, left]])
         with self._editing_crop():
             self.crop_layer.data = [(rect, "rectangle")]
+        self._move_layer(self.view, self.crop_layer)
         logger.trace("Updated rectangle (from edit).")
 
-    def on_update_crop(self, _evt: ty.Any = None) -> None:
+    def on_update_crop_from_canvas(self, _evt: ty.Any = None) -> None:
         """Update crop values."""
         if self._editing:
             return
@@ -184,10 +307,12 @@ class ImageCropWindow(Window):
             hp.toast(
                 self,
                 "Multiple rectangles detected!",
-                "There are more than one crop rectangles. Only the first one will be used.",
+                "There are more than one crop rectangles. Only the first one will be used. Please remove "
+                " all the others as they won't be used.",
                 icon="error",
             )
-        rect = np.asarray(self.crop_layer.data[0])
+        rect = self.crop_layer.interaction_box(0)
+        rect = rect[Box.LINE_HANDLE]
         xmin, xmax = np.min(rect[:, 1]), np.max(rect[:, 1])
         xmin = max(0, xmin)
         ymin, ymax = np.min(rect[:, 0]), np.max(rect[:, 0])
@@ -212,8 +337,7 @@ class ImageCropWindow(Window):
             )
             visual = self.view.widget.layer_to_visual[layer]
             init_shapes_layer(layer, visual)
-            connect(self.crop_layer.events.data, self.on_update_crop, state=True)
-            # connect(self.crop_layer.events.set_data, self.on_update_crop, state=True)
+            connect(self.crop_layer.events.data, self.on_update_crop_from_canvas, state=True)
         return self.view.layers["Crop rectangle"]
 
     def _setup_ui(self):
@@ -222,51 +346,70 @@ class ImageCropWindow(Window):
         self._image_widget = LoadWidget(self, self.view)
 
         self.left_edit = hp.make_line_edit(
-            self, placeholder="Left", validator=QIntValidator(0, 75_000), func=self.on_crop_rect
+            self, placeholder="Left", validator=QIntValidator(0, 75_000), func=self.on_update_rect_from_ui
         )
         self.left_edit.setAlignment(Qt.AlignCenter)  # type: ignore[attr-defined]
         self.top_edit = hp.make_line_edit(
-            self, placeholder="Top", validator=QIntValidator(0, 75_000), func=self.on_crop_rect
+            self, placeholder="Top", validator=QIntValidator(0, 75_000), func=self.on_update_rect_from_ui
         )
         self.top_edit.setAlignment(Qt.AlignCenter)  # type: ignore[attr-defined]
         self.right_edit = hp.make_line_edit(
-            self, placeholder="Right", validator=QIntValidator(0, 75_000), func=self.on_crop_rect
+            self, placeholder="Right", validator=QIntValidator(0, 75_000), func=self.on_update_rect_from_ui
         )
         self.right_edit.setAlignment(Qt.AlignCenter)  # type: ignore[attr-defined]
         self.bottom_edit = hp.make_line_edit(
-            self, placeholder="Bottom", validator=QIntValidator(0, 75_000), func=self.on_crop_rect
+            self, placeholder="Bottom", validator=QIntValidator(0, 75_000), func=self.on_update_rect_from_ui
         )
         self.bottom_edit.setAlignment(Qt.AlignCenter)  # type: ignore[attr-defined]
 
-        crop_layout = QGridLayout()  # noqa
-        crop_layout.addWidget(self.left_edit, 1, 0, 1, 1)
-        crop_layout.addWidget(self.right_edit, 1, 2, 1, 1)
-        crop_layout.addWidget(self.top_edit, 0, 1, 1, 1)
-        crop_layout.addWidget(self.bottom_edit, 2, 1, 1, 1)
+        crop_layout = QFormLayout()  # noqa
+        crop_layout.addRow(
+            hp.make_label(self, "Horizontal"),
+            hp.make_h_layout(self.left_edit, hp.make_label(self, "-"), self.right_edit),
+        )
+        crop_layout.addRow(
+            hp.make_label(self, "Vertical"),
+            hp.make_h_layout(self.top_edit, hp.make_label(self, "-"), self.bottom_edit),
+        )
 
         self.edit_btn = hp.make_btn(
-            self, "Edit crop area", tooltip="Edit crop area (interactively)", func=self.on_edit_crop
+            self, "Initialize crop area", tooltip="Edit crop area (interactively)", func=self.on_edit_crop
         )
         self.reset_btn = hp.make_btn(
             self, "Reset crop area", tooltip="Reset crop area (to full image)", func=self.on_reset_crop
         )
+        self.sync_btn = hp.make_btn(
+            self,
+            "Synchronize",
+            tooltip="Synchronize the extents of the first shape and the values displayed above. Sometimes (rarely),"
+            " these are out of sync.",
+            func=self.on_update_crop_from_canvas,
+        )
 
         side_layout = hp.make_form_layout()
         style_form_layout(side_layout)
-        side_layout.addRow(hp.make_btn(self, "Import project...", tooltip="Load previous project", func=self.on_load))
+        side_layout.addRow(
+            hp.make_btn(self, "Import project...", tooltip="Load previous project", func=self.on_load_from_project)
+        )
         side_layout.addRow(hp.make_h_line_with_text("or"))
         side_layout.addRow(self._image_widget)
         side_layout.addRow(hp.make_h_line_with_text("Image crop position"))
         side_layout.addRow(crop_layout)
-        side_layout.addRow(hp.make_h_layout(self.edit_btn, self.reset_btn))
-        side_layout.addRow(hp.make_h_line())
+        side_layout.addRow(hp.make_h_layout(self.edit_btn, self.sync_btn, self.reset_btn))
+        side_layout.addRow(hp.make_h_line_with_text("Export"))
+        side_layout.addRow(hp.make_btn(self, "Preview", tooltip="Preview crop area.", func=self.on_preview))
+        side_layout.addRow(
+            hp.make_btn(
+                self, "Export to OME-TIFF...", tooltip="Export cropped image to OME-TIFF file.", func=self.on_crop
+            )
+        )
         side_layout.addRow(
             hp.make_btn(
                 self,
                 "Export project...",
                 tooltip="Export configuration to a project file. Information such as image path and crop"
-                " information are saved.",
-                func=self.on_save,
+                " information are saved. (This does not save the cropped image)",
+                func=self.on_save_to_project,
             )
         )
         side_layout.addRow(hp.make_h_line_with_text("Layer controls"))
@@ -350,7 +493,20 @@ class ImageCropWindow(Window):
         CONFIG.save()
         if self.data_model.is_valid():
             if hp.confirm(self, "There might be unsaved changes. Would you like to save them?"):
-                self.on_save()
+                self.on_save_to_project()
+
+
+def get_project_data(data_model: DataModel, left: int, right: int, top: int, bottom: int) -> dict:
+    """Write project."""
+    schema_version = "1.0"
+    data_ = data_model.to_dict()
+    data = {
+        "schema_version": schema_version,
+        "version": __version__,
+        "crop": [{"left": left, "right": right, "top": top, "bottom": bottom}],
+        "images": data_["images"],
+    }
+    return data
 
 
 if __name__ == "__main__":  # pragma: no cover

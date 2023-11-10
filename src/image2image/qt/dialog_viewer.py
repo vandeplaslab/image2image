@@ -144,6 +144,13 @@ class ImageViewerWindow(Window):
         model = self.data_model
         if model.n_paths == 0:
             logger.warning("Cannot save project - there are no images loaded.")
+            hp.toast(
+                self,
+                "Cannot save project",
+                "Cannot save project - there are no images loaded.",
+                icon="warning",
+                position="top_left",
+            )
             return
         # get filename which is based on the moving dataset
         filename = model.get_filename() + ".i2v.json"
@@ -162,6 +169,11 @@ class ImageViewerWindow(Window):
                 self, "Exported i2v project", f"Saved project to <br><b>{path}</b>", icon="success", position="top_left"
             )
 
+    def on_save_masks(self) -> None:
+        """Export masks."""
+        # Ask user which layer(s) to export (select layer(s) from list) - only shapes
+        # Specify output dimensions (select layer(s) from list) - only images
+
     def _setup_ui(self):
         """Create panel."""
         self.view = self._make_image_view(self, add_toolbars=False, allow_extraction=False, disable_controls=True)
@@ -174,7 +186,15 @@ class ImageViewerWindow(Window):
         )
         side_layout.addRow(hp.make_h_line_with_text("or"))
         side_layout.addRow(self._image_widget)
-        side_layout.addRow(hp.make_h_line())
+        side_layout.addRow(hp.make_h_line_with_text("Export"))
+        side_layout.addRow(
+            hp.make_btn(
+                self,
+                "Export masks...",
+                tooltip="Export masks/regions in a AutoIMS compatible format",
+                func=self.on_save_masks,
+            )
+        )
         side_layout.addRow(
             hp.make_btn(
                 self,

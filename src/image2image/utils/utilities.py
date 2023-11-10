@@ -40,6 +40,18 @@ PREFERRED_COLORMAPS = [
 ]
 
 
+def log_exception_or_error(exc_or_error: Exception):
+    """Log exception or error and send it to Sentry."""
+    from sentry_sdk import capture_exception, capture_message
+
+    if isinstance(exc_or_error, str):
+        capture_message(exc_or_error)
+        logger.error(exc_or_error)
+    else:
+        capture_exception(exc_or_error)
+        logger.exception(exc_or_error)
+
+
 def update_affine(matrix: np.ndarray, min_resolution: float, resolution: float) -> np.ndarray:
     """Update affine transformation."""
     from napari.utils.transforms import Affine
@@ -188,7 +200,7 @@ def init_points_layer(layer: Points, visual: VispyPointsLayer):
 
 def init_shapes_layer(layer: Shapes, visual: VispyShapesLayer) -> None:
     """Initialize shapes layer."""
-    layer._highlight_color = (0, 0.6, 1, 0.3)
+    layer._highlight_color = (1.0, 0.0, 0.0, 0.7)
 
 
 def _get_text_format() -> ty.Dict[str, ty.Any]:
@@ -469,3 +481,18 @@ def _write_txt(
                             eta = ""
                         yield i, n, eta
         yield n, n, ""
+
+
+def write_project(path: PathLike, data: dict) -> None:
+    """Export project in appropriate format."""
+    path = Path(path)
+    if path.suffix == ".json":
+        from koyo.json import write_json_data
+
+        write_json_data(path, data)
+    elif path.suffix == ".toml":
+        from koyo.toml import write_toml_data
+
+        write_toml_data(path, data)
+    else:
+        raise ValueError(f"Unsupported file format: {path.suffix}")

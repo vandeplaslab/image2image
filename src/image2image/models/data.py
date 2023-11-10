@@ -15,6 +15,9 @@ from image2image.models.utilities import _get_paths, _read_config_from_file
 from image2image.readers._base_reader import BaseReader
 
 I2V_METADATA = ty.Tuple[ty.List[Path], ty.List[Path], ty.Dict[str, TransformData], ty.Dict[str, float]]
+I2C_METADATA = ty.Tuple[
+    ty.List[Path], ty.List[Path], ty.Dict[str, TransformData], ty.Dict[str, float], list[dict[str, int]]
+]
 
 
 class DataModel(BaseModel):
@@ -220,7 +223,6 @@ class DataModel(BaseModel):
                 {
                     "path": str(path),
                     "pixel_size_um": reader.resolution,
-                    # "matrix_yx_px": reader.transform.tolist(),
                     **reader.transform_data.to_dict(),
                 }
                 for path, reader in wrapper.path_reader_iter()
@@ -236,9 +238,10 @@ class DataModel(BaseModel):
     ) -> ty.Generator[ty.Tuple[Path, "BaseReader", np.ndarray], None, None]:
         """Crop image(s) to the specified region."""
         wrapper = self.get_wrapper()
-        for path, reader in wrapper.path_reader_iter():
-            cropped = reader.crop(left, right, top, bottom)
-            yield path, reader, cropped
+        if wrapper:
+            for path, reader in wrapper.path_reader_iter():
+                cropped = reader.crop(left, right, top, bottom)
+                yield path, reader, cropped
 
 
 def load_viewer_setup_from_file(path: PathLike) -> I2V_METADATA:
@@ -287,3 +290,36 @@ def _read_image2viewer_v1_0_config(config: ty.Dict) -> I2V_METADATA:
     if not paths_missing:
         paths_missing = []
     return paths, paths_missing, transform_data, resolution
+
+
+def load_crop_setup_from_file(path: PathLike) -> I2C_METADATA:
+    """Load configuration from config file."""
+    data = _read_config_from_file(path)
+
+    if "schema_version" not in data:
+        raise ValueError("Cannot read config file.")
+    if data["schema_version"] == "1.0":
+        return _read_image2crop_latest_config(data)
+
+
+def _read_image2crop_latest_config(config: ty.Dict) -> I2C_METADATA:
+    """Read config file."""
+    paths = [temp["path"] for temp in config["images"]]
+    transform_data = {
+        Path(temp["path"]).name: TransformData(
+            fixed_points=np.asarray(temp["fixed_points"]),
+            moving_points=np.asarray(temp["moving_points"]),
+            fixed_resolution=temp["fixed_pixel_size_um"],
+            moving_resolution=temp["moving_pixel_size_um"],
+            affine=np.asarray(temp["matrix_yx_um"]),
+        )
+        for temp in config["images"]
+    }
+    resolution = {Path(temp["path"]).name: temp["pixel_size_um"] for temp in config["images"]}
+    paths, paths_missing = _get_paths(paths)
+    crop = config["crop"][0]
+    if not paths:
+        paths = []
+    if not paths_missing:
+        paths_missing = []
+    return paths, paths_missing, transform_data, resolution, crop

@@ -437,7 +437,7 @@ class ImageRegistrationWindow(Window):
             elif n_fixed != n_moving:
                 logger.warning("The number of `fixed` and `moving` points must be the same.")
 
-    def on_save(self, _evt: ty.Any = None) -> None:
+    def on_save_to_project(self, _evt: ty.Any = None) -> None:
         """Export transformation."""
         transform = self.transform_model
         if not transform.is_valid():
@@ -465,7 +465,7 @@ class ImageRegistrationWindow(Window):
                 position="top_left",
             )
 
-    def on_load(self, _evt: ty.Any = None) -> None:
+    def on_load_from_project(self, _evt: ty.Any = None) -> None:
         """Import transformation."""
         path_ = hp.get_filename(
             self, "Load transformation", base_dir=CONFIG.output_dir, file_filter=ALLOWED_IMPORT_REGISTER_FORMATS
@@ -764,7 +764,12 @@ class ImageRegistrationWindow(Window):
         side_layout = hp.make_form_layout()
         style_form_layout(side_layout)
         side_layout.addRow(
-            hp.make_btn(self, "Import project", tooltip="Import previously computed transformation.", func=self.on_load)
+            hp.make_btn(
+                self,
+                "Import project",
+                tooltip="Import previously computed transformation.",
+                func=self.on_load_from_project,
+            )
         )
         side_layout.addRow(hp.make_h_line_with_text("or"))
         side_layout.addRow(self._fixed_widget)
@@ -789,7 +794,7 @@ class ImageRegistrationWindow(Window):
                 self,
                 "Export to file...",
                 tooltip="Export transformation to file. XML format is usable by MATLAB fusion.",
-                func=self.on_save,
+                func=self.on_save_to_project,
             )
         )
         side_layout.addRow(hp.make_spacer_widget())
@@ -815,7 +820,11 @@ class ImageRegistrationWindow(Window):
         # File menu
         menu_file = hp.make_menu(self, "File")
         hp.make_menu_item(
-            self, "Import configuration file (.json, .toml)...", "Ctrl+C", menu=menu_file, func=self.on_load
+            self,
+            "Import configuration file (.json, .toml)...",
+            "Ctrl+C",
+            menu=menu_file,
+            func=self.on_load_from_project,
         )
         hp.make_menu_item(
             self,
@@ -1102,7 +1111,7 @@ class ImageRegistrationWindow(Window):
         CONFIG.save()
         if self.transform_model.is_valid():
             if hp.confirm(self, "There might be unsaved changes. Would you like to save it?"):
-                self.on_save()
+                self.on_save_to_project()
 
     def keyPressEvent(self, evt: ty.Any) -> None:
         """Key press event."""

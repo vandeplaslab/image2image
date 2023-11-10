@@ -16,7 +16,10 @@ ALLOWED_EXPORT_REGISTER_FORMATS = (
     "MATLAB fusion format (*.xml);;"
 )
 ALLOWED_VIEWER_FORMATS = (
-    "Any projects (*.i2v.json *.i2v.toml);; " "Transformation (*.i2v.json);; " "Transformation (*.i2v.toml);;"
+    "Any projects (*.i2v.json *.i2v.toml);; " "JSON Project (*.i2v.json);; " "TOML Project (*.i2v.toml);;"
+)
+ALLOWED_CROP_FORMATS = (
+    "Any projects (*.i2c.json *.i2c.toml);; " "JSON Project (*.i2c.json);; " "TOML Project (*.i2c.toml);;"
 )
 ALLOWED_FORMATS = (
     "Any imaging (*.tsf *.tdf *.imzML *.metadata.h5 peaks_*.h5 *.npy *.czi *.ome.tiff *.tiff *.scn *.tif *.svs *.ndpi"

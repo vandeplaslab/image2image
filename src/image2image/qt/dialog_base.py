@@ -45,9 +45,6 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
         self.setAcceptDrops(True)
         self.setMinimumSize(1200, 800)
 
-        # load configuration
-        CONFIG.load()
-
         self._setup_ui()
         if not delay_events:
             self.setup_events()
