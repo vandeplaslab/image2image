@@ -23,6 +23,8 @@ from image2image.utils.utilities import style_form_layout
 if ty.TYPE_CHECKING:
     from qtextra._napari.image.wrapper import NapariImageView
 
+    from image2image.qt.dialog_base import Window
+
 
 class LoadMixin(QWidget):
     """Load data mixin."""
@@ -31,7 +33,12 @@ class LoadMixin(QWidget):
     INFO_TEXT = "Select data..."
 
     def __init__(
-        self, parent: ty.Optional[QWidget], view: "NapariImageView", n_max: int = 0, allow_geojson: bool = False
+        self,
+        parent: ty.Optional["Window"],
+        view: ty.Optional["NapariImageView"],
+        n_max: int = 0,
+        allow_geojson: bool = False,
+        select_channels: bool = True,
     ):
         """Init."""
         super().__init__(parent=parent)
@@ -40,7 +47,12 @@ class LoadMixin(QWidget):
         self.n_max = n_max
         self.allow_geojson = allow_geojson
         self.model: DataModel = DataModel(is_fixed=self.IS_FIXED)
-        self.dataset_dlg = SelectDataDialog(self, self.model, self.IS_FIXED, self.n_max, self.allow_geojson)
+        self.dataset_dlg = SelectDataDialog(
+            self, self.model, self.IS_FIXED, self.n_max, self.allow_geojson, select_channels
+        )
+
+        if hasattr(parent, "evt_dropped"):
+            connect(parent.evt_dropped, self.dataset_dlg.on_drop)
 
     def _setup_ui(self) -> QFormLayout:
         """Setup UI."""
@@ -80,9 +92,16 @@ class LoadWidget(LoadMixin):
 
     IS_FIXED: bool = True
 
-    def __init__(self, parent: ty.Optional[QWidget], view: "NapariImageView", n_max: int = 0):
+    def __init__(
+        self,
+        parent: ty.Optional["Window"],
+        view: ty.Optional["NapariImageView"],
+        n_max: int = 0,
+        allow_geojson: bool = False,
+        select_channels: bool = True,
+    ):
         """Init."""
-        super().__init__(parent, view, n_max)
+        super().__init__(parent, view, n_max, allow_geojson, select_channels)
         self.channel_dlg = OverlayChannelsDialog(self, self.model, self.view) if self.view else None
         if self.channel_dlg is None:
             self.select_btn.hide()
@@ -122,8 +141,15 @@ class MovingWidget(LoadWidget):
     evt_show_transformed = Signal(str)
     evt_view_type = Signal(object)
 
-    def __init__(self, parent: ty.Optional[QWidget], view: "NapariImageView"):
-        super().__init__(parent, view)
+    def __init__(
+        self,
+        parent: ty.Optional["Window"],
+        view: "NapariImageView",
+        n_max: int = 0,
+        allow_geojson: bool = False,
+        select_channels: bool = True,
+    ):
+        super().__init__(parent, view, n_max, allow_geojson, select_channels)
 
         # extra events
         connect(self.dataset_dlg.evt_loaded, self._on_update_choice)
@@ -188,9 +214,16 @@ class LoadWithTransformWidget(LoadMixin):
 
     IS_FIXED = True
 
-    def __init__(self, parent: ty.Optional[QWidget], view: "NapariImageView", allow_geojson: bool = False):
+    def __init__(
+        self,
+        parent: ty.Optional["Window"],
+        view: "NapariImageView",
+        n_max: int = 0,
+        allow_geojson: bool = False,
+        select_channels: bool = True,
+    ):
         """Init."""
-        super().__init__(parent, view, allow_geojson=allow_geojson)
+        super().__init__(parent, view, n_max, allow_geojson, select_channels)
         self.transform_model = TransformModel()
         self.transform_model.add_transform("Identity matrix", TransformData.from_array(np.eye(3, dtype=np.float64)))
         self.transform_dlg = SelectTransformDialog(self, self.model, self.transform_model, self.view)

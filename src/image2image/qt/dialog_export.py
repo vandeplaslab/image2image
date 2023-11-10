@@ -131,7 +131,8 @@ class ImageExportWindow(Window):
             if path is None:
                 logger.warning(f"Could not find path for {name}")
                 continue
-            output_path = self.output_dir / self.table.cellWidget(row, self.TABLE_CONFIG.path).text()
+            item: QLineEdit = self.table.cellWidget(row, self.TABLE_CONFIG.path)  # type: ignore[assignment]
+            output_path = self.output_dir / item.text()
             reader = self.data_model.get_reader(path)
             if reader:
                 logger.info(f"Exporting {name} to {output_path}...")
@@ -155,11 +156,11 @@ class ImageExportWindow(Window):
                 hp.disable_widgets(self.export_btn, disabled=True)
 
     @ensure_main_thread()
-    def _on_export_yield(self, *args):
+    def _on_export_yield(self, *args) -> None:
         """Update CSV."""
         self.__on_export_yield(*args)
 
-    def __on_export_yield(self, *args):
+    def __on_export_yield(self, *args: ty.Any) -> None:
         with suppress(ValueError):
             name, (current, total, remaining) = args
             row = hp.find_in_table(self.table, self.TABLE_CONFIG.name, name)
@@ -203,7 +204,7 @@ class ImageExportWindow(Window):
         """Create panel."""
         self.output_dir_label = hp.make_label(self, f"Output directory: {self.output_dir}")
 
-        self._image_widget = LoadWidget(self, None)
+        self._image_widget = LoadWidget(self, None, select_channels=False)
         self._image_widget.info_text.setVisible(False)
 
         self.table = QTableWidget(self)
@@ -235,7 +236,7 @@ class ImageExportWindow(Window):
         side_layout.addRow(hp.make_h_line())
         side_layout.addRow(self.table)
 
-        self.export_btn = hp.make_btn(self, "Export", tooltip="Export to csv file...", func=self.on_export)
+        self.export_btn = hp.make_btn(self, "Export to CSV", tooltip="Export to csv file...", func=self.on_export)
         side_layout.addRow(self.export_btn)
 
         widget = QWidget()
@@ -282,19 +283,13 @@ class ImageExportWindow(Window):
         return self._image_widget.model
 
     def _get_console_variables(self) -> dict:
-        return {
-            "data_model": self.data_model,
-            "window": self,
-        }
+        return {"data_model": self.data_model}
 
     def closeEvent(self, evt):
         """Close."""
         if self._console:
             self._console.close()
         CONFIG.save()
-        # if self.data_model.is_valid():
-        #     if hp.confirm(self, "There might be unsaved changes. Would you like to save them?"):
-        #         self.on_save()
 
 
 if __name__ == "__main__":  # pragma: no cover

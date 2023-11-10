@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import typing as ty
 from contextlib import contextmanager
-from functools import partial
 from math import ceil, floor
 from pathlib import Path
 
@@ -115,7 +114,7 @@ class ImageCropWindow(Window):
 
         for path, reader, cropped in self.data_model.crop(left, right, top, bottom):
             logger.info(f"Exporting {path} with shape {cropped.shape}...")
-            output_path = output_dir / f"{path.stem}_l={left}_r={right}_t={top}_b={bottom}".replace(".ome", "")
+            output_path = output_dir / f"{path.stem}_x={left}-{right}_y={top}-{bottom}".replace(".ome", "")
             filename = write_ome_tiff(output_path, cropped, reader)
             yield Path(filename)
 
@@ -333,10 +332,9 @@ class ImageCropWindow(Window):
         return self._image_widget.model
 
     def _get_console_variables(self) -> dict:
-        return {
-            "viewer": self.view.viewer,
-            "data_model": self.data_model,
-        }
+        variables = super()._get_console_variables()
+        variables.update({"viewer": self.view.viewer, "data_model": self.data_model})
+        return variables
 
     # noinspection PyAttributeOutsideInit
     @contextmanager

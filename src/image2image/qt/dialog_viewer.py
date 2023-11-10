@@ -325,11 +325,11 @@ class ImageViewerWindow(Window):
         self.setMenuBar(self.menubar)
 
     def _get_console_variables(self) -> dict:
-        return {
-            "transforms_model": self.transform_model,
-            "viewer": self.view.viewer,
-            "data_model": self.data_model,
-        }
+        variables = super()._get_console_variables()
+        variables.update(
+            {"transforms_model": self.transform_model, "viewer": self.view.viewer, "data_model": self.data_model}
+        )
+        return variables
 
     def closeEvent(self, evt):
         """Close."""

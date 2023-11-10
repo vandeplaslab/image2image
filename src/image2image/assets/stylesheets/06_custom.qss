@@ -331,3 +331,9 @@ QPushButton#update_btn{
     font-size: {{ increase(font_size, 1) }};
     font-weight: bold;
 }
+
+
+Window, QMainWindow[drag=true] {
+    border: 3px solid {{ highlight }};
+    border-radius: 2px;
+}

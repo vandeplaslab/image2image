@@ -12,7 +12,7 @@ from qtextra.utils.utilities import connect
 from qtextra.widgets.qt_dialog import QtDialog, QtFramelessTool
 from qtextra.widgets.qt_table_view import QtCheckableTableView
 from qtpy.QtCore import Qt, Signal  # type: ignore[attr-defined]
-from qtpy.QtGui import QDoubleValidator
+from qtpy.QtGui import QDoubleValidator, QDropEvent
 from qtpy.QtWidgets import QFormLayout, QHeaderView, QLineEdit, QTableWidget, QTableWidgetItem, QWidget
 from superqt.utils import create_worker
 
@@ -296,13 +296,20 @@ class SelectDataDialog(QtFramelessTool):
     )
 
     def __init__(
-        self, parent: QWidget, model: "DataModel", is_fixed: bool = False, n_max: int = 0, allow_geojson: bool = False
+        self,
+        parent: QWidget,
+        model: "DataModel",
+        is_fixed: bool = False,
+        n_max: int = 0,
+        allow_geojson: bool = False,
+        select_channels: bool = True,
     ):
         self.is_fixed = is_fixed
         super().__init__(parent)
         self.n_max = n_max
         self.model = model
         self.allow_geojson = allow_geojson
+        self.select_channels = select_channels
         self.setMinimumWidth(600)
         self.setMinimumHeight(400)
 
@@ -424,6 +431,18 @@ class SelectDataDialog(QtFramelessTool):
                     return
             self._on_load_dataset(paths)
 
+    def on_drop(self, event: QDropEvent) -> None:
+        """Handle drop event."""
+        filenames = []
+        for url in event.mimeData().urls():
+            if url.isLocalFile():
+                # directories get a trailing "/", Path conversion removes it
+                filenames.append(str(Path(url.toLocalFile())))
+            else:
+                filenames.append(url.toString())
+        if filenames:
+            self._on_load_dataset(filenames)
+
     def _on_close_dataset(self, force: bool = False) -> bool:
         """Close dataset."""
         from image2image.qt._dialogs import CloseDatasetDialog
@@ -445,7 +464,7 @@ class SelectDataDialog(QtFramelessTool):
 
     def _on_load_dataset(
         self,
-        path_or_paths: ty.Union[PathLike, ty.List[PathLike]],
+        path_or_paths: ty.Union[PathLike, ty.Sequence[PathLike]],
         transform_data: ty.Optional[ty.Dict[str, TransformData]] = None,
         resolution: ty.Optional[ty.Dict[str, float]] = None,
     ) -> None:
@@ -459,17 +478,24 @@ class SelectDataDialog(QtFramelessTool):
             transform_data=transform_data,
             resolution=resolution,
             _start_thread=True,
-            _connect={"returned": self._on_loaded_dataset, "errored": self._on_failed_dataset},
+            _connect={
+                "returned": self._on_loaded_dataset,
+                "errored": self._on_failed_dataset,
+            },
         )
         logger.info(f"Started loading dataset - '{self.model.paths}'")
 
     def _on_loaded_dataset(self, model: "DataModel") -> None:
         """Finished loading data."""
-        # select what should be loaded
-        dlg = SelectChannelsToLoadDialog(self, model)
         channel_list = []
-        if dlg.exec_():  # type: ignore
-            channel_list = dlg.channels
+        if not self.select_channels:
+            wrapper = model.get_wrapper()
+            if wrapper:
+                channel_list = wrapper.channel_names_for_names(model.just_added)
+        else:
+            dlg = SelectChannelsToLoadDialog(self, model)
+            if dlg.exec_():  # type: ignore
+                channel_list = dlg.channels
         logger.info(f"Selected channels: {channel_list}")
         if not channel_list:
             model.remove_paths(model.just_added)

@@ -12,7 +12,7 @@ from qtextra._napari.mixins import ImageViewMixin
 from qtextra.config import THEMES
 from qtextra.mixins import IndicatorMixin
 from qtextra.widgets.qt_image_button import QtThemeButton
-from qtpy.QtCore import Qt
+from qtpy.QtCore import Qt, Signal  # type: ignore[attr-defined]
 from qtpy.QtWidgets import QMainWindow, QMenu, QProgressBar, QStatusBar, QWidget
 from superqt.utils import create_worker, ensure_main_thread
 
@@ -33,12 +33,16 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
 
     _console = None
 
+    allow_drop: bool = True
+    evt_dropped = Signal("QEvent")
+
     def __init__(self, parent: ty.Optional[QWidget], title: str, delay_events: bool = False):
         super().__init__(parent)
         self.setAttribute(Qt.WA_DeleteOnClose)  # type: ignore[attr-defined]
         self.setWindowTitle(title)
         self.setUnifiedTitleAndToolBarOnMac(True)
         self.setMouseTracking(True)
+        self.setAcceptDrops(True)
         self.setMinimumSize(1200, 800)
 
         # load configuration
@@ -185,7 +189,7 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
 
     def _get_console_variables(self) -> dict:
         """Get variables for the console."""
-        raise NotImplementedError("Must implement method")
+        return {"window": self}
 
     def _make_icon(self) -> None:
         """Make icon."""
@@ -306,3 +310,46 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
 
     def on_show_tutorial(self) -> None:
         """Quick tutorial."""
+
+    def dragEnterEvent(self, event):
+        """Override Qt method.
+
+        Provide style updates on event.
+
+        Parameters
+        ----------
+        event : qtpy.QtCore.QDragEnterEvent
+            Event from the Qt context.
+        """
+        if self.allow_drop:
+            hp.toast(
+                self,
+                "Drag & drop",
+                "Drop the files in the app and we will try to open them..",
+                icon="info",
+                position="top_left",
+            )
+
+            if event.mimeData().hasUrls():
+                event.accept()
+            else:
+                event.ignore()
+        else:
+            hp.toast(
+                self,
+                "Drag & drop not allowed",
+                "Drag & drop is not allowed in this app.",
+                icon="error",
+                position="top_left",
+            )
+
+    def dragLeaveEvent(self, event):
+        """Override Qt method."""
+        if self.allow_drop:
+            hp.update_property(self, "drag", False)
+
+    def dropEvent(self, event):
+        """Override Qt method."""
+        if self.allow_drop:
+            hp.update_property(self, "drag", False)
+            self.evt_dropped.emit(event)

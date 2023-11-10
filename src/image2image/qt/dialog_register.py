@@ -51,6 +51,8 @@ if ty.TYPE_CHECKING:
 class ImageRegistrationWindow(Window):
     """Image registration dialog."""
 
+    allow_drop = False
+
     view_fixed: NapariImageView
     view_moving: NapariImageView
     fixed_image_layer: list[Image] | None = None
@@ -559,13 +561,17 @@ class ImageRegistrationWindow(Window):
         dlg.show()
 
     def _get_console_variables(self) -> dict:
-        return {
-            "transform_model": self.transform_model,
-            "fixed_viewer": self.view_fixed.viewer,
-            "fixed_model": self.fixed_model,
-            "moving_viewer": self.view_moving.viewer,
-            "moving_model": self.moving_model,
-        }
+        variables = super()._get_console_variables()
+        variables.update(
+            {
+                "transform_model": self.transform_model,
+                "fixed_viewer": self.view_fixed.viewer,
+                "fixed_model": self.fixed_model,
+                "moving_viewer": self.view_moving.viewer,
+                "moving_model": self.moving_model,
+            }
+        )
+        return variables
 
     @ensure_main_thread
     def on_apply(self, update_data: bool = False, name: str | None = None) -> None:
