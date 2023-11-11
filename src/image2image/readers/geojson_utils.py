@@ -31,7 +31,7 @@ GJ_SHAPE_TYPE_NAME = {
 
 def geojson_to_numpy(gj: dict) -> dict:
     """
-    Convert geojson representation to np.ndarray representation of shape
+    Convert geojson representation to np.ndarray representation of shape.
 
     Parameters
     ----------
@@ -126,7 +126,7 @@ def read_geojson(json_file: PathLike) -> tuple[list, list]:
 def numpy_to_geojson(
     np_array: np.ndarray, shape_type: str = "polygon", shape_name: str = "unnamed"
 ) -> tuple[dict, dict]:
-    """Convert np.ndarray to GeoJSON dict
+    """Convert np.ndarray to GeoJSON dict.
 
     Parameters
     ----------
@@ -177,10 +177,10 @@ def numpy_to_geojson(
 
 
 def shape_reader(shape_data: list, **kwargs: ty.Any) -> tuple[dict, dict]:
-    """
-    Read shape data for transformation
+    """Read shape data for transformation
+
     Shape data is stored as numpy arrays for operations but also as GeoJSON
-    to contain metadata and interface with QuPath
+    to contain metadata and interface with QuPath.
 
     Parameters
     ----------
@@ -241,7 +241,7 @@ def shape_reader(shape_data: list, **kwargs: ty.Any) -> tuple[dict, dict]:
 
 def scale_shape_coordinates(poly: dict, scale_factor: float):
     """
-    Scale coordinates by a factor
+    Scale coordinates by a factor.
 
     Parameters
     ----------
@@ -262,13 +262,13 @@ def scale_shape_coordinates(poly: dict, scale_factor: float):
 
 
 def invert_nonrigid_transforms(itk_transforms: list):
-    """
-    Check list of sequential ITK transforms for non-linear (i.e., bspline) transforms
+    """Check list of sequential ITK transforms for non-linear (i.e., bspline) transforms.
+
     Transformations need to be inverted to transform from moving to fixed space as transformations
     are mapped from fixed space to moving.
     This will first convert any non-linear transforms to a displacement field then invert the displacement field
     using ITK methods. It usually works quite well but is not an exact solution.
-    Linear transforms can be inverted on  the fly when transforming points
+    Linear transforms can be inverted on  the fly when transforming points.
 
     Parameters
     ----------
@@ -384,7 +384,7 @@ def invert_nonrigid_transforms(itk_transforms: list):
 
 def get_int_dtype(value: int):
     """
-    Determine the appropriate bit precision for indexed image
+    Determine the appropriate bit precision for indexed image.
 
     Parameters
     ----------

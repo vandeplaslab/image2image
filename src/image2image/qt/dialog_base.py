@@ -36,7 +36,7 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
     allow_drop: bool = True
     evt_dropped = Signal("QEvent")
 
-    def __init__(self, parent: ty.Optional[QWidget], title: str, delay_events: bool = False):
+    def __init__(self, parent: QWidget | None, title: str, delay_events: bool = False):
         super().__init__(parent)
         self.setAttribute(Qt.WA_DeleteOnClose)  # type: ignore[attr-defined]
         self.setWindowTitle(title)
@@ -108,7 +108,7 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
     def _plot_image_layers(
         model: DataModel,
         view_wrapper: NapariImageView,
-        channel_list: ty.Optional[list[str]] = None,
+        channel_list: list[str] | None = None,
         view_kind: str = "view",
         scale: bool = False,
     ) -> tuple[list[Image] | None, list[Shapes] | None]:

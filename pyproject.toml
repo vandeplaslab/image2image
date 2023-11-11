@@ -48,6 +48,8 @@ dependencies = [
     "ipykernel>=5.2.0",
     "sentry_sdk",
     "wsireg",
+    "rasterio",
+    "shapely",
     # "qtextra",
 ]
 

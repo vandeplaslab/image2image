@@ -193,7 +193,7 @@ class ImageCropWindow(Window):
     def _on_preview(
         data_model: DataModel, left: int, right: int, top: int, bottom: int
     ) -> ty.Generator[tuple[str, np.ndarray], None, None]:
-        for path, reader, cropped in data_model.crop(left, right, top, bottom):
+        for path, _reader, cropped in data_model.crop(left, right, top, bottom):
             name = f"{path.stem}_x={left}-{right}_y={top}-{bottom}".replace(".ome", "")
             yield name, cropped
 

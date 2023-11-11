@@ -173,6 +173,10 @@ class ImageViewerWindow(Window):
         """Export masks."""
         # Ask user which layer(s) to export (select layer(s) from list) - only shapes
         # Specify output dimensions (select layer(s) from list) - only images
+        from image2image.qt._dialogs._mask import MasksDialog
+
+        dlg = MasksDialog(self)
+        dlg.show()
 
     def _setup_ui(self):
         """Create panel."""

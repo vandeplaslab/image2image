@@ -5,6 +5,7 @@ from pathlib import Path
 import numpy as np
 import qtextra.helpers as hp
 from koyo.typing import PathLike
+from loguru import logger
 from qtextra.utils.utilities import connect
 from qtpy.QtCore import Qt, Signal
 from qtpy.QtWidgets import QFormLayout, QWidget
@@ -24,6 +25,9 @@ if ty.TYPE_CHECKING:
     from qtextra._napari.image.wrapper import NapariImageView
 
     from image2image.qt.dialog_base import Window
+
+
+logger = logger.bind(src="LoadDialog")
 
 
 class LoadMixin(QWidget):

@@ -22,6 +22,9 @@ if ty.TYPE_CHECKING:
     from image2image.qt._select import LoadWithTransformWidget
 
 
+logger = logger.bind(src="TransformDialog")
+
+
 class SelectTransformDialog(QtFramelessTool):
     """Dialog to enable creation of overlays."""
 

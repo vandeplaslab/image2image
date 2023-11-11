@@ -6,6 +6,7 @@ from pathlib import Path
 import numpy as np
 from koyo.typing import PathLike
 
+from image2image.enums import DEFAULT_TRANSFORM_NAME
 from image2image.models.transform import TransformData
 
 
@@ -13,7 +14,7 @@ class BaseReader:
     """Base class for some of the other image readers."""
 
     _pyramid = None
-    _image_shape: ty.Tuple[int, int]
+    _image_shape: ty.Tuple[int, int] = None
     reader_type: str = "image"
     lazy: bool = False
     fh = None
@@ -26,12 +27,39 @@ class BaseReader:
         self.path = Path(path)
         self.base_layer_idx = 0
         self.transform_data: TransformData = TransformData()
-        self.transform: np.ndarray = np.eye(3, dtype=np.float64)
-        self.transform_name = "Identity matrix"
+        self._transform: np.ndarray = np.eye(3, dtype=np.float64)
+        self.transform_name = DEFAULT_TRANSFORM_NAME
+
+    @property
+    def transform(self) -> np.ndarray:
+        """Return transform."""
+        if self.transform_data:
+            return self.transform_data.transform.params
+        return self._transform
+
+    @transform.setter
+    def transform(self, value: np.ndarray):
+        assert value.shape == (3, 3)
+        self.transform_data.affine = value
+
+    def is_identity_transform(self) -> bool:
+        """Return whether transform is identity."""
+        if self.transform_data.transform:
+            return np.allclose(self.transform_data.transform.params, np.eye(3))
+        return np.allclose(self.transform, np.eye(3))
+
+    @property
+    def inv_resolution(self) -> float:
+        """Return inverse resolution."""
+        return 1 / self.resolution
 
     @property
     def image_shape(self) -> tuple[int, int]:
         """Image shape."""
+        if self._image_shape is None:
+            from image2image.utils.utilities import get_shape_of_image
+
+            return get_shape_of_image(self.pyramid[0])[-1]
         return self._image_shape
 
     @image_shape.setter
@@ -111,30 +139,20 @@ class BaseReader:
         """Get dask representation of the pyramid."""
         raise NotImplementedError("Must implement method")
 
-    def to_csv(self, path: PathLike) -> str:
-        """Export data as CSV file."""
-        from image2image.utils.utilities import write_rgb_to_txt, write_xml_micro_metadata
-
-        path = Path(path)
-        write_xml_micro_metadata(self, path.with_suffix(".xml"))
-        yield from write_rgb_to_txt(path, self.pyramid[0])
-        return self.path.name
-
     def crop(self, left: int, right: int, top: int, bottom: int) -> np.ndarray:
         """Crop image."""
         top, bottom = sorted([top, bottom])
         left, right = sorted([left, right])
-        left = math.floor(left * 1 / self.resolution)
-        right = math.ceil(right * 1 / self.resolution)
-        top = math.floor(top * 1 / self.resolution)
-        bottom = math.ceil(bottom * 1 / self.resolution)
+        left = math.floor(left * self.inv_resolution)
+        right = math.ceil(right * self.inv_resolution)
+        top = math.floor(top * self.inv_resolution)
+        bottom = math.ceil(bottom * self.inv_resolution)
         array = self.pyramid[0]
         if array.ndim == 2:
             array_ = array[top:bottom, left:right]
         elif array.ndim == 3:
             shape = array.shape
             channel_axis = int(np.argmin(shape))
-            print(channel_axis, shape)
             if channel_axis == 0:
                 array_ = array[:, top:bottom, left:right]
             elif channel_axis == 1:
@@ -149,3 +167,11 @@ class BaseReader:
         if hasattr(array_, "compute"):
             array_ = array_.compute()
         return array_
+
+    def warp(self, array: np.ndarray) -> np.ndarray:
+        """Warp array."""
+        from image2image.utils.mask import transform_mask
+
+        transform = self.transform_data.compute(px=True).params
+        transformed_mask = transform_mask(array, transform, self.image_shape)
+        return transformed_mask

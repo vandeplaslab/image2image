@@ -35,7 +35,7 @@ class ImageWrapper:
     paths: list[Path]
     resolution: float = 1.0
 
-    def __init__(self, reader_or_array: ty.Optional[ty.Mapping[str, BaseReader]] = None):
+    def __init__(self, reader_or_array: ty.Mapping[str, BaseReader] | None = None):
         self.data = reader_or_array or {}
         self.paths = []
 
@@ -45,7 +45,7 @@ class ImageWrapper:
                 resolution.append(_reader_or_array.base_layer_pixel_res)
         self.resolution = np.min(resolution)
 
-    def add(self, key: str, array: ty.Union[np.ndarray, ty.Any]) -> None:
+    def add(self, key: str, array: np.ndarray | ty.Any) -> None:
         """Add data to wrapper."""
         self.data[key] = array
         logger.trace(f"Added '{key}' to wrapper data.")
@@ -245,10 +245,10 @@ def sanitize_path(path: PathLike) -> Path:
 
 def read_data(
     path: PathLike,
-    wrapper: ty.Optional[ImageWrapper] = None,
+    wrapper: ImageWrapper | None = None,
     is_fixed: bool = False,
-    transform_data: ty.Optional[TransformData] = None,
-    resolution: ty.Optional[float] = None,
+    transform_data: TransformData | None = None,
+    resolution: float | None = None,
 ) -> ImageWrapper:
     """Read image data."""
     path = Path(path)

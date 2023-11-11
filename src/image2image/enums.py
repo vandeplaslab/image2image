@@ -89,3 +89,7 @@ VIEW_TYPE_TRANSLATIONS = {
     ViewType.RANDOM: "Random",
     ViewType.OVERLAY: "Overlay",
 }
+
+DEFAULT_TRANSFORM_NAME: str = "Identity matrix"
+
+TIME_FORMAT = "%d/%m/%Y-%H:%M:%S:%f"

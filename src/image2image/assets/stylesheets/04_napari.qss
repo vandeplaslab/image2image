@@ -233,7 +233,8 @@ QtPlayButton[playing=True] {
 
 #QtModalPopup {
   /* required for rounded corners to not have background color */
-  background: {{ foreground }};
+  background: {{ background }};
+  color: {{ text }};
 }
 
 #QtPopupFrame {
@@ -241,7 +242,7 @@ QtPlayButton[playing=True] {
   border-radius: 5px;
 }
 
-#QtPopupFrame > QLabel {
-  color: {{ darken(text, 35) }};
+#QtPopupFrame > QLabel, #QtPopupFrame > QDoubleSpinBox {
+  color: {{ text }};
   font-size: 12px;
 }

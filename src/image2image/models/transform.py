@@ -5,6 +5,7 @@ from pathlib import Path
 import numpy as np
 from koyo.typing import PathLike
 from loguru import logger
+from pydantic import PrivateAttr
 from skimage.transform import AffineTransform, ProjectiveTransform
 
 from image2image.models.base import BaseModel
@@ -14,7 +15,7 @@ class TransformData(BaseModel):
     """Transformation data."""
 
     # Transformation object
-    _transform: ty.Optional[ProjectiveTransform] = None
+    _transform: ty.Optional[ProjectiveTransform] = PrivateAttr(None)
     # this value should never change
     fixed_resolution: float = 1.0
     # this value can change
@@ -169,8 +170,6 @@ class TransformModel(BaseModel):
             self.transforms = {}
 
         path = Path(name_or_path)
-        # matrix = np.asarray(matrix)
-        # assert matrix.shape == (3, 3), "Expected (3, 3) matrix"
         self.transforms[path] = transform_data
         logger.info(f"Added '{path.name}' to list of transformations")
 
