@@ -7,7 +7,7 @@ from koyo.typing import PathLike
 from loguru import logger
 
 from image2image.config import CONFIG
-from image2image.readers.base_reader import BaseImageReader
+from image2image.readers._base_reader import BaseImageReader
 from image2image.utilities import format_mz
 
 if ty.TYPE_CHECKING:
