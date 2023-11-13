@@ -12,8 +12,6 @@ from qtextra.widgets.qt_table_view import QtCheckableTableView
 from qtpy.QtCore import Qt, Signal  # type: ignore[attr-defined]
 from qtpy.QtWidgets import QFormLayout
 
-from image2image.utils.utilities import style_form_layout
-
 if ty.TYPE_CHECKING:
     from qtextra._napari.image.wrapper import NapariImageView
 
@@ -171,7 +169,7 @@ class OverlayChannelsDialog(QtFramelessTool):
         self.info = hp.make_label(self, "", enable_url=True)
 
         layout = hp.make_form_layout(self)
-        style_form_layout(layout)
+        hp.style_form_layout(layout)
         layout.addRow(header_layout)
         layout.addRow(self.table)
         layout.addRow(self.info)

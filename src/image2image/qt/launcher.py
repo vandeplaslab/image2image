@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import qtextra.helpers as hp
+from loguru import logger
 from qtextra.config import THEMES
 from qtextra.widgets.qt_dialog import QtDialog
 from qtpy.QtCore import Qt
@@ -93,6 +94,7 @@ class Launcher(QtDialog):
         """Open registration application."""
         from image2image.qt.dialog_export import ImageExportWindow
 
+        logger.debug("Opening export application.")
         dlg = ImageExportWindow(None)
         THEMES.set_theme_stylesheet(dlg)
         dlg.setMinimumSize(500, 500)
@@ -103,6 +105,7 @@ class Launcher(QtDialog):
         """Open registration application."""
         from image2image.qt.dialog_register import ImageRegistrationWindow
 
+        logger.debug("Opening registration application.")
         dlg = ImageRegistrationWindow(None)
         THEMES.set_theme_stylesheet(dlg)
         dlg.setMinimumSize(1200, 700)
@@ -113,6 +116,7 @@ class Launcher(QtDialog):
         """Open registration application."""
         from image2image.qt.dialog_viewer import ImageViewerWindow
 
+        logger.debug("Opening viewer application.")
         dlg = ImageViewerWindow(None)
         THEMES.set_theme_stylesheet(dlg)
         dlg.setMinimumSize(1200, 700)
@@ -123,6 +127,7 @@ class Launcher(QtDialog):
         """Open registration application."""
         from image2image.qt.dialog_crop import ImageCropWindow
 
+        logger.debug("Opening crop application.")
         dlg = ImageCropWindow(None)
         THEMES.set_theme_stylesheet(dlg)
         dlg.setMinimumSize(1200, 700)

@@ -13,7 +13,6 @@ from qtpy.QtGui import QKeyEvent
 from qtpy.QtWidgets import QFormLayout
 
 from image2image.config import CONFIG
-from image2image.utils.utilities import style_form_layout
 
 if ty.TYPE_CHECKING:
     from image2image.qt.dialog_register import ImageRegistrationWindow
@@ -149,7 +148,7 @@ class FiducialsDialog(QtFramelessTool):
         )
 
         layout = hp.make_form_layout(self)
-        style_form_layout(layout)
+        hp.style_form_layout(layout)
         layout.addRow(header_layout)
         layout.addRow(self.table)
         layout.addRow(

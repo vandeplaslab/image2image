@@ -14,7 +14,6 @@ from qtpy.QtWidgets import QFormLayout
 
 from image2image.models.data import DataModel
 from image2image.models.transform import TransformData, TransformModel
-from image2image.utils.utilities import style_form_layout
 
 if ty.TYPE_CHECKING:
     from qtextra._napari.image.wrapper import NapariImageView
@@ -179,7 +178,7 @@ class SelectTransformDialog(QtFramelessTool):
         self.info = hp.make_label(self, "", enable_url=True)
 
         layout = hp.make_form_layout(self)
-        style_form_layout(layout)
+        hp.style_form_layout(layout)
         layout.addRow(header_layout)
         layout.addRow(
             hp.make_label(self, "Transformation name"),

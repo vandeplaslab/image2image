@@ -8,6 +8,7 @@ import numpy as np
 from koyo.typing import PathLike
 from loguru import logger
 
+from image2image.exceptions import MultiSceneCziError, UnsupportedFileFormatError
 from image2image.models.transform import TransformData
 
 if ty.TYPE_CHECKING:
@@ -270,6 +271,11 @@ def read_data(
     if suffix in TIFF_EXTENSIONS:
         path, reader = _read_tiff(path)
     elif suffix in CZI_EXTENSIONS:
+        if _check_multiscene_czi(path):
+            raise MultiSceneCziError(
+                "Multi-scene CZI files are not supported. Please convert to OME-TIFF first using ZenHub or other"
+                " software."
+            )
         path, reader = _read_czi(path)
     elif suffix in IMAGE_EXTENSIONS:
         path, reader = _read_image(path)
@@ -287,7 +293,7 @@ def read_data(
     elif suffix in GEOJSON_EXTENSIONS:
         path, reader = _read_geojson(path)
     else:
-        raise ValueError(f"Unsupported file format: {suffix}")
+        raise UnsupportedFileFormatError(f"Unsupported file format: '{suffix}'")
 
     if transform_data is not None:
         reader.transform_data = transform_data
@@ -314,6 +320,17 @@ def _read_geojson(path: PathLike) -> tuple[Path, GeoJSONReader]:
     path = Path(path)
     assert path.exists(), f"File does not exist: {path}"
     return path, GeoJSONReader(path)
+
+
+def _check_multiscene_czi(path: PathLike) -> bool:
+    """Check whether this is a multi-scene CZI file."""
+    from image2image.readers._czi import CziFile
+
+    path = Path(path)
+    czi = CziFile(path)
+    axes = czi.axes
+    index = axes.index("S")
+    return czi.shape[index] > 1
 
 
 def _read_czi(path: PathLike) -> tuple[Path, CziImageReader]:

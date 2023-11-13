@@ -15,13 +15,12 @@ from napari.layers import Image
 from napari.layers.points.points import Mode, Points
 from napari.layers.utils._link_layers import link_layers
 from napari.utils.events import Event
-from PyQt6.QtWidgets import QDialog
 from qtextra._napari.image.wrapper import NapariImageView
 from qtextra.utils.utilities import connect
 from qtextra.widgets.qt_image_button import QtImagePushButton
 from qtextra.widgets.qt_mini_toolbar import QtMiniToolbar
 from qtpy.QtCore import Qt, Signal  # type: ignore[attr-defined]
-from qtpy.QtWidgets import QFormLayout, QHBoxLayout, QMenuBar, QSizePolicy, QVBoxLayout, QWidget
+from qtpy.QtWidgets import QDialog, QFormLayout, QHBoxLayout, QMenuBar, QSizePolicy, QVBoxLayout, QWidget
 from superqt.utils import ensure_main_thread, qdebounced
 
 # need to load to ensure all assets are loaded properly
@@ -43,7 +42,6 @@ from image2image.utils.utilities import (
     _get_text_format,
     get_colormap,
     init_points_layer,
-    style_form_layout,
 )
 
 if ty.TYPE_CHECKING:
@@ -772,7 +770,7 @@ class ImageRegistrationWindow(Window):
         )
 
         side_layout = hp.make_form_layout()
-        style_form_layout(side_layout)
+        hp.style_form_layout(side_layout)
         side_layout.addRow(
             hp.make_btn(
                 self,
@@ -906,7 +904,7 @@ class ImageRegistrationWindow(Window):
         )
 
         layout = hp.make_form_layout()
-        style_form_layout(layout)
+        hp.style_form_layout(layout)
         layout.addRow(hp.make_label(self, "Center (x)"), self.x_center)
         layout.addRow(hp.make_label(self, "Center (y)"), self.y_center)
         layout.addRow(hp.make_label(self, "Zoom"), self.zoom)
@@ -957,7 +955,7 @@ class ImageRegistrationWindow(Window):
         self.text_color.evt_color_changed.connect(self.on_update_text)  # noqa
 
         layout = hp.make_form_layout()
-        style_form_layout(layout)
+        hp.style_form_layout(layout)
         layout.addRow(hp.make_label(self, "Synchronize views"), self.synchronize_zoom)
         layout.addRow(hp.make_label(self, "Marker size (fixed)"), self.fixed_point_size)
         layout.addRow(hp.make_label(self, "Marker size (moving)"), self.moving_point_size)
@@ -1148,7 +1146,7 @@ class ImageRegistrationWindow(Window):
         """Override to handle closing app or just the window."""
         if (
             not force
-            or not CONFIG.confirm_close_viewer
+            or not CONFIG.confirm_close_register
             or ConfirmCloseDialog(
                 self,
                 "confirm_close_register",
@@ -1163,7 +1161,7 @@ class ImageRegistrationWindow(Window):
         """Close."""
         if (
             evt.spontaneous()
-            and CONFIG.confirm_close_viewer
+            and CONFIG.confirm_close_register
             and self.transform_model.is_valid()
             and ConfirmCloseDialog(
                 self,

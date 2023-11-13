@@ -18,8 +18,9 @@ from superqt.utils import create_worker
 
 from image2image.config import CONFIG
 from image2image.enums import ALLOWED_FORMATS, ALLOWED_FORMATS_WITH_GEOJSON
+from image2image.exceptions import MultiSceneCziError, UnsupportedFileFormatError
 from image2image.models.transform import TransformData
-from image2image.utils.utilities import log_exception
+from image2image.utils.utilities import log_exception_or_error
 
 if ty.TYPE_CHECKING:
     from image2image.models.data import DataModel
@@ -134,11 +135,18 @@ class SelectChannelsToLoadDialog(QtDialog):
         data = []
         wrapper = self.model.get_wrapper()
         if wrapper:
-            for name in wrapper.channel_names_for_names(self.model.just_added):
+            channel_list = list(wrapper.channel_names_for_names(self.model.just_added))
+            check = len(channel_list) < 10
+            if check > 10:
+                self.warning_label.show()
+            if not channel_list:
+                self.warning_no_channels_label.show()
+            for name in channel_list:
                 channel_name, _ = name.split(" | ")
-                data.append([True, channel_name, name])
+                data.append([check, channel_name, name])
         else:
             logger.warning(f"Wrapper was not specified - {wrapper}")
+            self.warning_no_channels_label.show()
         self.table.add_data(data)
 
     # noinspection PyAttributeOutsideInit
@@ -153,15 +161,34 @@ class SelectChannelsToLoadDialog(QtDialog):
             self.TABLE_CONFIG.header, self.TABLE_CONFIG.no_sort_columns, self.TABLE_CONFIG.hidden_columns
         )
 
+        self.warning_label = hp.make_label(
+            self,
+            "Warning: There are more than <b>10</b> channels to load which can result in a slow loading time. You"
+            " should probably load <b>some</b> of the channels now and can always add the others later.",
+            wrap=True,
+            alignment=Qt.AlignmentFlag.AlignHCenter,
+        )
+        self.warning_label.hide()
+
+        self.warning_no_channels_label = hp.make_label(
+            self,
+            "Warning: There are <b>no channels</b> to load. This most likely happened because we failed to read the"
+            " input image. Please check your image and if the issue persists, please report this as a bug.",
+            wrap=True,
+            alignment=Qt.AlignmentFlag.AlignHCenter,
+        )
+
         layout = hp.make_form_layout(self)
         hp.style_form_layout(layout)
+        layout.addRow(self.warning_no_channels_label)
+        layout.addRow(self.warning_label)
         layout.addRow(self.table)
         layout.addRow(
             hp.make_label(
                 self,
-                "<b>Tip.</b> You can quickly check/uncheck row by double-clicking on a row.<br>"
+                "<b>Tip.</b> You can quickly check/uncheck row by <b>double-clicking</b> on a row.<br>"
                 "<b>Tip.</b> Check/uncheck a row to select which channels should be immediately loaded.<br>"
-                "<b>Tip.</b> You can quickly check/uncheck all rows by clicking on the first column header.",
+                "<b>Tip.</b> You can quickly check/uncheck <b>all</b> rows by clicking on the first column header.",
                 alignment=Qt.AlignHCenter,  # type: ignore[attr-defined]
                 object_name="tip_label",
                 enable_url=True,
@@ -460,6 +487,8 @@ class SelectDataDialog(QtFramelessTool):
                 self.evt_closed.emit(self.model)  # noqa
             self.on_populate_table()
             return True
+        else:
+            logger.warning("There are no dataset to close.")
         return False
 
     def _on_load_dataset(
@@ -508,7 +537,11 @@ class SelectDataDialog(QtFramelessTool):
     def _on_failed_dataset(self, exception: Exception) -> None:
         """Failed to load dataset."""
         logger.error("Error occurred while loading dataset.")
-        log_exception(exception)
+        if isinstance(exception, UnsupportedFileFormatError):
+            hp.toast(self.parent(), "Unsupported file format", str(exception), icon="error")
+        elif isinstance(exception, MultiSceneCziError):
+            hp.toast(self.parent(), "Multi-scene CZI", str(exception), icon="error")
+        log_exception_or_error(exception)
         self.evt_loaded.emit(None, None)  # noqa
 
     def _on_extract_channels(self, path: PathLike) -> None:
@@ -551,7 +584,7 @@ class SelectDataDialog(QtFramelessTool):
     def _on_failed_update_dataset(exception: Exception) -> None:
         """Failed to load dataset."""
         logger.error("Error occurred while extracting images.", exception)
-        log_exception(exception)
+        log_exception_or_error(exception)
 
     # noinspection PyAttributeOutsideInit
     def make_panel(self) -> QFormLayout:

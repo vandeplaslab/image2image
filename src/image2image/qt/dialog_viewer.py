@@ -9,10 +9,9 @@ import qtextra.helpers as hp
 from koyo.timer import MeasureTimer
 from loguru import logger
 from napari.layers import Image, Shapes
-from PyQt6.QtWidgets import QDialog
 from qtextra.utils.utilities import connect
 from qtextra.widgets.qt_image_button import QtThemeButton
-from qtpy.QtWidgets import QHBoxLayout, QMenuBar, QStatusBar, QVBoxLayout, QWidget
+from qtpy.QtWidgets import QDialog, QHBoxLayout, QMenuBar, QStatusBar, QVBoxLayout, QWidget
 from superqt import ensure_main_thread
 
 from image2image import __version__
@@ -21,7 +20,6 @@ from image2image.enums import ALLOWED_VIEWER_FORMATS
 from image2image.qt._dialogs._close import ConfirmCloseDialog
 from image2image.qt._select import LoadWithTransformWidget
 from image2image.qt.dialog_base import Window
-from image2image.utils.utilities import style_form_layout
 
 if ty.TYPE_CHECKING:
     from image2image.models.data import DataModel
@@ -196,7 +194,7 @@ class ImageViewerWindow(Window):
         self._image_widget = LoadWithTransformWidget(self, self.view, allow_geojson=True)
 
         side_layout = hp.make_form_layout()
-        style_form_layout(side_layout)
+        hp.style_form_layout(side_layout)
         side_layout.addRow(
             hp.make_btn(self, "Import project...", tooltip="Load previous project", func=self.on_load_from_project)
         )
@@ -206,7 +204,7 @@ class ImageViewerWindow(Window):
         side_layout.addRow(
             hp.make_btn(
                 self,
-                "Export masks...",
+                "Export GeoJSON as masks...",
                 tooltip="Export masks/regions in a AutoIMS compatible format",
                 func=self.on_save_masks,
             )
@@ -239,6 +237,36 @@ class ImageViewerWindow(Window):
         self._make_menu()
         self._make_icon()
         self._make_statusbar()
+
+    # def _make_focus_layout(self) -> QFormLayout:
+    #     self.lock_btn = hp.make_lock_btn(
+    #         self,
+    #         func=self.on_lock,
+    #         normal=True,
+    #         tooltip="Lock the area of interest. Press <b>L</b> on your keyboard to lock.",
+    #     )
+    #     # self.set_current_focus_btn = hp.make_btn(self, "Set current range", func=self.on_set_focus)
+    #     self.x_center = hp.make_double_spin_box(
+    #         self, -1e5, 1e5, step_size=500, tooltip="Center of the area of interest along the x-axis."
+    #     )
+    #     self.y_center = hp.make_double_spin_box(
+    #         self, -1e5, 1e5, step_size=500, tooltip="Center of the area of interest along the y-axis."
+    #     )
+    #     self.zoom = hp.make_double_spin_box(self, -1e5, 1e5, step_size=0.5, n_decimals=4, tooltip="Zoom factor.")
+    #     self.use_focus_btn = hp.make_btn(
+    #         self,
+    #         "Zoom-in",
+    #         func=self.on_apply_focus,
+    #         tooltip="Zoom-in to an area of interest. Press <b>Z</b> on your keyboard to zoom-in.",
+    #     )
+    #
+    #     layout = hp.make_form_layout()
+    #     hp.style_form_layout(layout)
+    #     layout.addRow(hp.make_label(self, "Center (x)"), self.x_center)
+    #     layout.addRow(hp.make_label(self, "Center (y)"), self.y_center)
+    #     layout.addRow(hp.make_label(self, "Zoom"), self.zoom)
+    #     layout.addRow(hp.make_h_layout(self.lock_btn, self.use_focus_btn, stretch_id=1))
+    #     return layout
 
     def _make_statusbar(self) -> None:
         """Make statusbar."""
@@ -275,11 +303,6 @@ class ImageViewerWindow(Window):
             )
         )
 
-        self.tutorial_btn = hp.make_qta_btn(
-            self, "help", tooltip="Give me a quick tutorial!", func=self.on_show_tutorial, small=True
-        )
-        self.statusbar.addPermanentWidget(self.tutorial_btn)
-
         self.statusbar.addPermanentWidget(
             hp.make_qta_btn(
                 self,
@@ -307,6 +330,10 @@ class ImageViewerWindow(Window):
                 func=self.on_show_console,
             )
         )
+        self.tutorial_btn = hp.make_qta_btn(
+            self, "help", tooltip="Give me a quick tutorial!", func=self.on_show_tutorial, small=True
+        )
+        self.statusbar.addPermanentWidget(self.tutorial_btn)
 
         self.update_status_btn = hp.make_btn(
             self,

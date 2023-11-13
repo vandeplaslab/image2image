@@ -11,8 +11,6 @@ from qtextra.widgets.qt_table_view import QtCheckableTableView
 from qtpy.QtCore import Qt
 from qtpy.QtWidgets import QFormLayout
 
-from image2image.utils.utilities import style_form_layout
-
 
 class LocateFilesDialog(QtDialog):
     """Dialog to locate files."""
@@ -130,7 +128,7 @@ class LocateFilesDialog(QtDialog):
         self.table.setTextElideMode(Qt.TextElideMode.ElideLeft)
 
         layout = hp.make_form_layout(self)
-        style_form_layout(layout)
+        hp.style_form_layout(layout)
         layout.addRow(
             hp.make_label(
                 self,

@@ -114,14 +114,6 @@ def open_bug_report():
     open_link("https://github.com/vandeplaslab/image2image/issues/new")
 
 
-def style_form_layout(layout: QFormLayout) -> None:
-    """Override certain styles for macOS."""
-    from qtextra.utils.utilities import IS_MAC
-
-    if IS_MAC:
-        layout.setVerticalSpacing(4)
-
-
 def get_random_hex_color() -> str:
     """Return random hex color."""
     return "#%06x" % random.randint(0, 0xFFFFFF)

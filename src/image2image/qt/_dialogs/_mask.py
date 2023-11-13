@@ -13,7 +13,6 @@ from qtpy.QtWidgets import QFormLayout
 
 from image2image.config import CONFIG
 from image2image.enums import DEFAULT_TRANSFORM_NAME
-from image2image.utils.utilities import style_form_layout
 
 if ty.TYPE_CHECKING:
     from image2image.models.data import DataModel
@@ -39,6 +38,7 @@ class MasksDialog(QtFramelessTool):
         TableConfig()  # type: ignore[no-untyped-call]
         .add("", "check", "bool", 25, no_sort=True)
         .add("name", "name", "str", 100)
+        .add("output shape", "shape", "str", 100)
         .add("path", "path", "str", 0, hidden=True)
     )
 
@@ -58,7 +58,9 @@ class MasksDialog(QtFramelessTool):
         if wrapper:
             for reader in wrapper.reader_iter():
                 if reader.reader_type == "image":
-                    images.append([False, reader.name, reader.path])
+                    shape = reader.image_shape
+
+                    images.append([False, reader.name, f"{shape[0]} * {shape[1]}", reader.path])
                 if reader.reader_type == "shapes":
                     if not reader.is_identity_transform():
                         logger.warning(
@@ -68,10 +70,10 @@ class MasksDialog(QtFramelessTool):
                     masks.append([True, reader.name, reader.path])
         logger.debug(f"Discovered {len(images)} images and {len(masks)} masks.")
         # update table
-        self.table_image.reset_data()
-        self.table_image.add_data(images)
         self.table_geo.reset_data()
         self.table_geo.add_data(masks)
+        self.table_image.reset_data()
+        self.table_image.add_data(images)
 
     def _validate(self) -> tuple[bool, tuple | None]:
         parent: ImageViewerWindow = self.parent()  # type: ignore[assignment]
@@ -114,7 +116,7 @@ class MasksDialog(QtFramelessTool):
     def on_export(self) -> None:
         """Export masks."""
         valid, data = self._validate()
-        if not valid:
+        if not valid or data is None:
             return
         # export masks
         data_model, masks, images, mask_shape = data
@@ -127,7 +129,7 @@ class MasksDialog(QtFramelessTool):
     def on_preview(self) -> None:
         """Export masks."""
         valid, data = self._validate()
-        if not valid:
+        if not valid or data is None:
             return
         # export masks
         data_model, masks, images, mask_shape = data
@@ -210,7 +212,7 @@ class MasksDialog(QtFramelessTool):
         )
 
         layout = hp.make_form_layout(self)
-        style_form_layout(layout)
+        hp.style_form_layout(layout)
         layout.addRow(header_layout)
         layout.addRow(hp.make_h_line_with_text("Masks to export."))
         layout.addRow(self.table_geo)

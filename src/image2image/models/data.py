@@ -13,6 +13,7 @@ from image2image.models.base import BaseModel
 from image2image.models.transform import TransformData
 from image2image.models.utilities import _get_paths, _read_config_from_file
 from image2image.readers._base_reader import BaseReader
+from image2image.utils.utilities import log_exception_or_error
 
 I2V_METADATA = ty.Tuple[ty.List[Path], ty.List[Path], ty.Dict[str, TransformData], ty.Dict[str, float]]
 I2C_METADATA = ty.Tuple[
@@ -131,8 +132,9 @@ class DataModel(BaseModel):
                     self.wrapper = read_data(
                         path, self.wrapper, self.is_fixed, transform_data=transform_data, resolution=pixel_size
                     )
-                except Exception:  # noqa
-                    logger.exception(f"Failed to read '{path}'")
+                except Exception as e:  # noqa
+                    log_exception_or_error(e)
+                    logger.error(f"Failed to load '{path}'")
                     self.remove_paths(path)
                     continue
                 just_added.append(path)

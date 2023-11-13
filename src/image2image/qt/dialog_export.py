@@ -19,7 +19,7 @@ from image2image import __version__
 from image2image.config import CONFIG
 from image2image.qt._select import LoadWidget
 from image2image.qt.dialog_base import Window
-from image2image.utils.utilities import style_form_layout
+from image2image.utils.utilities import log_exception_or_error
 
 if ty.TYPE_CHECKING:
     from image2image.models.data import DataModel
@@ -180,7 +180,7 @@ class ImageExportWindow(Window):
             item = self.table.item(row, self.TABLE_CONFIG.progress)
             item.setText("Export failed!")
         self.on_toggle_export_btn(force=True)
-        logger.exception(exc)
+        log_exception_or_error(exc)
 
     def on_toggle_export_btn(self, force: bool = False) -> None:
         """Toggle export button."""
@@ -221,7 +221,7 @@ class ImageExportWindow(Window):
         )
 
         side_layout = hp.make_form_layout()
-        style_form_layout(side_layout)
+        hp.style_form_layout(side_layout)
         side_layout.addRow(
             hp.make_btn(
                 self,

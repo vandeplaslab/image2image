@@ -15,16 +15,17 @@ from napari.layers.shapes._shapes_constants import Box
 from qtextra.utils.utilities import connect
 from qtpy.QtCore import Qt
 from qtpy.QtGui import QIntValidator
-from qtpy.QtWidgets import QFormLayout, QHBoxLayout, QMenuBar, QVBoxLayout, QWidget
+from qtpy.QtWidgets import QDialog, QFormLayout, QHBoxLayout, QMenuBar, QVBoxLayout, QWidget
 from superqt import ensure_main_thread
 from superqt.utils import create_worker
 
 from image2image import __version__
 from image2image.config import CONFIG
 from image2image.enums import ALLOWED_CROP_FORMATS
+from image2image.qt._dialogs._close import ConfirmCloseDialog
 from image2image.qt._select import LoadWidget
 from image2image.qt.dialog_base import Window
-from image2image.utils.utilities import init_shapes_layer, log_exception_or_error, style_form_layout, write_project
+from image2image.utils.utilities import init_shapes_layer, log_exception_or_error, write_project
 
 if ty.TYPE_CHECKING:
     from image2image.models.data import DataModel
@@ -387,7 +388,7 @@ class ImageCropWindow(Window):
         )
 
         side_layout = hp.make_form_layout()
-        style_form_layout(side_layout)
+        hp.style_form_layout(side_layout)
         side_layout.addRow(
             hp.make_btn(self, "Import project...", tooltip="Load previous project", func=self.on_load_from_project)
         )
@@ -486,14 +487,41 @@ class ImageCropWindow(Window):
         yield
         self._editing = False
 
+    def close(self, force=False):
+        """Override to handle closing app or just the window."""
+        if (
+            not force
+            or not CONFIG.confirm_close_crop
+            or ConfirmCloseDialog(
+                self,
+                "confirm_close_crop",
+                self.on_save_to_project,
+            ).exec_()  # type: ignore[attr-defined]
+            == QDialog.DialogCode.Accepted
+        ):
+            return super().close()
+        return None
+
     def closeEvent(self, evt):
         """Close."""
+        if (
+            evt.spontaneous()
+            and CONFIG.confirm_close_crop
+            and self.data_model.is_valid()
+            and ConfirmCloseDialog(
+                self,
+                "confirm_close_crop",
+                self.on_save_to_project,
+            ).exec_()  # type: ignore[attr-defined]
+            != QDialog.DialogCode.Accepted
+        ):
+            evt.ignore()
+            return
+
         if self._console:
             self._console.close()
         CONFIG.save()
-        if self.data_model.is_valid():
-            if hp.confirm(self, "There might be unsaved changes. Would you like to save them?"):
-                self.on_save_to_project()
+        evt.accept()
 
 
 def get_project_data(data_model: DataModel, left: int, right: int, top: int, bottom: int) -> dict:

@@ -19,7 +19,6 @@ from image2image.qt._dialogs import (
     SelectDataDialog,
     SelectTransformDialog,
 )
-from image2image.utils.utilities import style_form_layout
 
 if ty.TYPE_CHECKING:
     from qtextra._napari.image.wrapper import NapariImageView
@@ -38,6 +37,7 @@ class LoadMixin(QWidget):
 
     IS_FIXED: bool
     INFO_TEXT = "Select data..."
+    INFO_VISIBLE = True
 
     def __init__(
         self,
@@ -99,6 +99,7 @@ class LoadWidget(LoadMixin):
     """Widget for loading data."""
 
     IS_FIXED: bool = True
+    INFO_VISIBLE = False
 
     def __init__(
         self,
@@ -115,7 +116,8 @@ class LoadWidget(LoadMixin):
     def _setup_ui(self) -> QFormLayout:
         """Setup UI."""
         layout = hp.make_form_layout()
-        style_form_layout(layout)
+        layout.setContentsMargins(0, 0, 0, 0)
+        hp.style_form_layout(layout)
         self.info_text = hp.make_label(
             self,
             self.INFO_TEXT,
@@ -123,6 +125,7 @@ class LoadWidget(LoadMixin):
             wrap=True,
             alignment=Qt.AlignCenter,  # type: ignore[attr-defined]
         )
+        self.info_text.setVisible(self.INFO_VISIBLE)
         layout.addRow(self.info_text)  # noqa
         layout.addRow(
             hp.make_h_layout(
@@ -165,6 +168,7 @@ class MovingWidget(LoadWidget):
     # class attrs
     IS_FIXED = False
     INFO_TEXT = "Select 'moving' data..."
+    INFO_VISIBLE = True
 
     # events
     evt_show_transformed = Signal(str)
@@ -233,12 +237,14 @@ class FixedWidget(LoadWidget):
     # class attrs
     IS_FIXED = True
     INFO_TEXT = "Select 'fixed' data..."
+    INFO_VISIBLE = True
 
 
 class LoadWithTransformWidget(LoadWidget):
     """Widget for loading data."""
 
     IS_FIXED = True
+    INFO_VISIBLE = False
 
     def __init__(
         self,

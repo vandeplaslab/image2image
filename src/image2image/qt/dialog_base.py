@@ -22,7 +22,7 @@ from image2image.config import CONFIG
 from image2image.models.data import DataModel
 from image2image.qt._dialogs._update import check_version
 from image2image.qt._sentry import install_error_monitor
-from image2image.utils.utilities import get_colormap, log_exception
+from image2image.utils.utilities import get_colormap, log_exception_or_error
 
 if ty.TYPE_CHECKING:
     from qtextra._napari.image.wrapper import NapariImageView
@@ -195,7 +195,7 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
                     del view_wrapper.layers[name]
                     logger.trace(f"Removed '{name}' from {view_kind}.")
         except Exception as e:
-            log_exception(e)
+            log_exception_or_error(e)
 
     @staticmethod
     def _move_layer(view: NapariImageView, layer: Layer, new_index: int = -1, select: bool = True) -> None:
