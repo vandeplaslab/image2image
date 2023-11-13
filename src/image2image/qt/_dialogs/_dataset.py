@@ -443,7 +443,7 @@ class SelectDataDialog(QtFramelessTool):
         if filenames:
             self._on_load_dataset(filenames)
 
-    def _on_close_dataset(self, force: bool = False) -> bool:
+    def on_close_dataset(self, force: bool = False) -> bool:
         """Close dataset."""
         from image2image.qt._dialogs import CloseDatasetDialog
 
@@ -588,7 +588,7 @@ class SelectDataDialog(QtFramelessTool):
         layout.addRow(
             hp.make_h_layout(
                 hp.make_btn(self, "Add image...", func=self.on_select_dataset),
-                hp.make_btn(self, "Remove image...", func=self._on_close_dataset),
+                hp.make_btn(self, "Remove image...", func=self.on_close_dataset),
                 stretch_id=0,
             )
         )

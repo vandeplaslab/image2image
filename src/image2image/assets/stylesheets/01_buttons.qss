@@ -136,3 +136,16 @@ QtToolbarPushButton::hover{
     border-radius: 0px;
     background-color: {{ primary }};
 }
+
+QtImagePushButton[standout="true"]{
+    background-color: {{ foreground }};
+}
+
+QtImagePushButton[standout="true"]:hover {
+  background-color: {{ primary }};
+}
+
+QtImagePushButton[with_text="true"]{
+    max-width : 500px;
+    max-height : 500px;
+}

@@ -1,5 +1,8 @@
 """Coordinate wrapper."""
+from __future__ import annotations
+
 import typing as ty
+from pathlib import Path
 
 import numpy as np
 from koyo.timer import MeasureTimer
@@ -7,14 +10,14 @@ from koyo.typing import PathLike
 from loguru import logger
 
 from image2image.config import CONFIG
-from image2image.readers._base_reader import BaseImageReader
-from image2image.utilities import format_mz
+from image2image.readers._base_reader import BaseReader
+from image2image.utils.utilities import format_mz
 
 if ty.TYPE_CHECKING:
-    from imzy._readers._base import BaseReader
+    from imzy._readers._base import BaseReader as BaseImzyReader
 
 
-def set_dimensions(reader: "CoordinateReader"):
+def set_dimensions(reader: CoordinateImageReader) -> None:
     """Set dimension information."""
     x, y = reader.x, reader.y
     reader.xmin, reader.xmax = np.min(x), np.max(x)
@@ -22,23 +25,23 @@ def set_dimensions(reader: "CoordinateReader"):
     reader.image_shape = (reader.ymax - reader.ymin + 1, reader.xmax - reader.xmin + 1)
 
 
-def get_image(array_or_reader):
+def get_image(array_or_reader: ty.Union[np.ndarray, BaseImzyReader]) -> np.ndarray:
     """Return image for the array/image."""
     if isinstance(array_or_reader, np.ndarray):
         return array_or_reader
-    else:
-        return array_or_reader.reshape(array_or_reader.get_tic())
+    return array_or_reader.reshape(array_or_reader.get_tic())
 
 
-class CoordinateReader(BaseImageReader):
+class CoordinateImageReader(BaseReader):
     """Reader for data that has defined coordinates."""
 
     xmin: int
     xmax: int
     ymin: int
     ymax: int
-    image_shape: ty.Tuple[int, int]
+    image_shape: tuple[int, int]
     is_fixed: bool = False
+    lazy = True
 
     def __init__(
         self,
@@ -46,8 +49,8 @@ class CoordinateReader(BaseImageReader):
         x: np.ndarray,
         y: np.ndarray,
         resolution: float = 1.0,
-        array_or_reader: ty.Optional[ty.Union[np.ndarray, "BaseReader"]] = None,
-        data: ty.Optional[ty.Dict[str, np.ndarray]] = None,
+        array_or_reader: ty.Optional[ty.Union[np.ndarray, BaseImzyReader]] = None,
+        data: ty.Optional[dict[str, np.ndarray]] = None,
     ):
         super().__init__(path)
         self.x = x
@@ -62,16 +65,16 @@ class CoordinateReader(BaseImageReader):
         set_dimensions(self)
 
     @property
-    def channel_names(self) -> ty.List[str]:
+    def channel_names(self) -> list[str]:
         """List of channel names."""
         return list(self.data.keys())
 
     @property
-    def pyramid(self) -> ty.List:
+    def pyramid(self) -> list:
         """Pyramid."""
         return self.get_dask_pyr()
 
-    def extract(self, mzs: np.ndarray, ppm: float = 10.0):
+    def extract(self, mzs: np.ndarray, ppm: float = 10.0) -> tuple[Path, list[str]]:
         """Extract ion images."""
         if self.reader is None:
             raise ValueError("Cannot extract ion images from a numpy array.")
@@ -89,7 +92,7 @@ class CoordinateReader(BaseImageReader):
             labels.append(f"{label} | {self.name}")
         return self.path, labels
 
-    def get_dask_pyr(self) -> ty.List[np.ndarray]:
+    def get_dask_pyr(self) -> list[np.ndarray]:
         """Get dask representation of the pyramid."""
         if not self.is_fixed and CONFIG.view_type == "random":
             return [self.get_random_image()]

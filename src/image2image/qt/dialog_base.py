@@ -104,6 +104,33 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
         """Additional setup."""
         raise NotImplementedError("Must implement method")
 
+    def _toggle_channel(
+        self, model: DataModel, view_wrapper: NapariImageView, name: str, state: bool, view_kind: str
+    ) -> None:
+        if name not in view_wrapper.layers:
+            logger.warning(f"Layer '{name}' not found in the view.")
+            self.image_layer, self.shape_layer = self._plot_image_layers(model, view_wrapper, [name], view_kind, True)
+            return
+        view_wrapper.layers[name].visible = state
+
+    def _toggle_all_channels(
+        self, model: DataModel, view_wrapper: NapariImageView, state: bool, view_kind: str
+    ) -> None:
+        wrapper = model.get_wrapper()
+        if not wrapper:
+            for layer in view_wrapper.layers:
+                if isinstance(layer, (Image, Shapes)):
+                    layer.visible = state
+        else:
+            for name in wrapper.channel_names():
+                if name not in view_wrapper.layers:
+                    logger.warning(f"Layer '{name}' not found in the view.")
+                    self.image_layer, self.shape_layer = self._plot_image_layers(
+                        model, view_wrapper, [name], view_kind, True
+                    )
+                    continue
+                view_wrapper.layers[name].visible = state
+
     @staticmethod
     def _plot_image_layers(
         model: DataModel,
@@ -120,6 +147,8 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
             channel_list = wrapper.channel_names()
         image_layer, shape_layer = [], []
         for index, (name, array, reader) in enumerate(wrapper.channel_image_reader_iter()):
+            if name not in channel_list:
+                continue
             logger.trace(f"Adding '{name}' to view...")
             with MeasureTimer() as timer:
                 if name in view_wrapper.layers:

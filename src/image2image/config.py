@@ -43,10 +43,15 @@ class Config(BaseModel):
 
     # visuals
     theme: str = Field("light", title="Theme", description="Theme of the application.", options=["light", "dark"])
+
     first_time_crop: bool = Field(True, title="First time", description="First time running the crop app.")
+    confirm_close_crop: bool = Field(True, title="Confirm close", description="Confirm close crop app.")
     first_time_reader: bool = Field(True, title="First time", description="First time running the reader app.")
+    confirm_close_reader: bool = Field(True, title="Confirm close", description="Confirm close reader app.")
     first_time_export: bool = Field(True, title="First time", description="First time running the export app.")
+    confirm_close_export: bool = Field(True, title="Confirm close", description="Confirm close export app.")
     first_time_viewer: bool = Field(True, title="First time", description="First time running the viewer app.")
+    confirm_close_viewer: bool = Field(True, title="Confirm close", description="Confirm close viewer app.")
 
     # paths
     fixed_dir: str = Field("", title="Fixed directory", description="Directory with fixed images.")

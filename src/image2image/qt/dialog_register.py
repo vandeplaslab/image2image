@@ -15,6 +15,7 @@ from napari.layers import Image
 from napari.layers.points.points import Mode, Points
 from napari.layers.utils._link_layers import link_layers
 from napari.utils.events import Event
+from PyQt6.QtWidgets import QDialog
 from qtextra._napari.image.wrapper import NapariImageView
 from qtextra.utils.utilities import connect
 from qtextra.widgets.qt_image_button import QtImagePushButton
@@ -34,6 +35,7 @@ from image2image.enums import (
 )
 from image2image.models.data import DataModel
 from image2image.models.transformation import Transformation
+from image2image.qt._dialogs._close import ConfirmCloseDialog
 from image2image.qt._select import FixedWidget, MovingWidget
 from image2image.qt.dialog_base import Window
 from image2image.utils.utilities import (
@@ -176,6 +178,13 @@ class ImageRegistrationWindow(Window):
         """Return transform model."""
         return self._moving_widget.model
 
+    def _on_add_channel(self, which: str, name: str) -> None:
+        """Add the missing channel if it's available in the reader/wrapper."""
+        if which == "fixed":
+            self._plot_fixed_layers([name])
+        else:
+            self._plot_moving_layers([name])
+
     @ensure_main_thread
     def on_load_fixed(self, model: DataModel, channel_list: list[str]) -> None:
         """Load fixed image."""
@@ -211,6 +220,7 @@ class ImageRegistrationWindow(Window):
         view = self.view_fixed if which == "fixed" else self.view_moving
         if name not in view.layers:
             logger.warning(f"Layer '{name}' not found in the {which} view.")
+            self._on_add_channel(which, name)
             return
         view.layers[name].visible = state
 
@@ -369,8 +379,8 @@ class ImageRegistrationWindow(Window):
         if hp.confirm(self, "Are you sure you want to remove <b>all</b> images and data points?"):
             self.on_clear("fixed", force=True)
             self.on_clear("moving", force=True)
-            self._moving_widget.dataset_dlg._on_close_dataset(force=True)
-            self._fixed_widget.dataset_dlg._on_close_dataset(force=True)
+            self._moving_widget.dataset_dlg.on_close_dataset(force=True)
+            self._fixed_widget.dataset_dlg.on_close_dataset(force=True)
 
     def on_clear(self, which: str, force: bool = True) -> None:
         """Remove point to the image."""
@@ -486,9 +496,9 @@ class ImageRegistrationWindow(Window):
 
                 # reset all widgets
                 if config["fixed_image"]:
-                    self._fixed_widget.dataset_dlg._on_close_dataset(force=True)
+                    self._fixed_widget.dataset_dlg.on_close_dataset(force=True)
                 if config["moving_image"]:
-                    self._moving_widget.dataset_dlg._on_close_dataset(force=True)
+                    self._moving_widget.dataset_dlg.on_close_dataset(force=True)
 
                 # load data from config file
                 try:
@@ -1106,13 +1116,6 @@ class ImageRegistrationWindow(Window):
         layout.addWidget(self.view_moving.widget, stretch=True)
         return layout
 
-    def closeEvent(self, evt: ty.Any) -> None:
-        """Close."""
-        CONFIG.save()
-        if self.transform_model.is_valid():
-            if hp.confirm(self, "There might be unsaved changes. Would you like to save it?"):
-                self.on_save_to_project()
-
     def keyPressEvent(self, evt: ty.Any) -> None:
         """Key press event."""
         if hasattr(evt, "native"):
@@ -1140,6 +1143,42 @@ class ImageRegistrationWindow(Window):
             evt.ignore()
         else:
             super().keyPressEvent(evt)
+
+    def close(self, force=False):
+        """Override to handle closing app or just the window."""
+        if (
+            not force
+            or not CONFIG.confirm_close_viewer
+            or ConfirmCloseDialog(
+                self,
+                "confirm_close_register",
+                self.on_save_to_project,
+            ).exec_()  # type: ignore[attr-defined]
+            == QDialog.DialogCode.Accepted
+        ):
+            return super().close()
+        return None
+
+    def closeEvent(self, evt):
+        """Close."""
+        if (
+            evt.spontaneous()
+            and CONFIG.confirm_close_viewer
+            and self.transform_model.is_valid()
+            and ConfirmCloseDialog(
+                self,
+                "confirm_close_register",
+                self.on_save_to_project,
+            ).exec_()  # type: ignore[attr-defined]
+            != QDialog.DialogCode.Accepted
+        ):
+            evt.ignore()
+            return
+
+        if self._console:
+            self._console.close()
+        CONFIG.save()
+        evt.accept()
 
 
 if __name__ == "__main__":  # pragma: no cover

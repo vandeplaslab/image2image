@@ -33,6 +33,9 @@ logger = logger.bind(src="LoadDialog")
 class LoadMixin(QWidget):
     """Load data mixin."""
 
+    evt_toggle_channel = Signal(str, bool)
+    evt_toggle_all_channels = Signal(bool)
+
     IS_FIXED: bool
     INFO_TEXT = "Select data..."
 
@@ -77,22 +80,23 @@ class LoadMixin(QWidget):
         """Load data."""
         self.dataset_dlg.on_select_dataset()
 
+    def on_close_dataset(self, _evt: ty.Any = None) -> None:
+        """Load data."""
+        self.dataset_dlg.on_close_dataset()
+
     def on_clear_data(self, _evt: ty.Any = None) -> None:
         """Clear data."""
         if hp.confirm(self, "Are you sure you want to clear all data?"):
             while self.dataset_dlg.model.n_paths > 0:
-                self.dataset_dlg._on_close_dataset(force=True)
+                self.dataset_dlg.on_close_dataset(force=True)
 
-    def _on_add_dataset(self) -> None:
+    def on_open_dataset_dialog(self) -> None:
         """Select channels from the list."""
         self.dataset_dlg.show()
 
 
 class LoadWidget(LoadMixin):
     """Widget for loading data."""
-
-    evt_toggle_channel = Signal(str, bool)
-    evt_toggle_all_channels = Signal(bool)
 
     IS_FIXED: bool = True
 
@@ -107,8 +111,6 @@ class LoadWidget(LoadMixin):
         """Init."""
         super().__init__(parent, view, n_max, allow_geojson, select_channels)
         self.channel_dlg = OverlayChannelsDialog(self, self.model, self.view) if self.view else None
-        if self.channel_dlg is None:
-            self.select_btn.hide()
 
     def _setup_ui(self) -> QFormLayout:
         """Setup UI."""
@@ -122,10 +124,33 @@ class LoadWidget(LoadMixin):
             alignment=Qt.AlignCenter,  # type: ignore[attr-defined]
         )
         layout.addRow(self.info_text)  # noqa
-        layout.addRow(hp.make_btn(self, "Add/remove dataset...", func=self._on_add_dataset))
-
-        self.select_btn = hp.make_btn(self, "Select channels...", func=self._on_select_channels)
-        layout.addRow(self.select_btn)
+        layout.addRow(
+            hp.make_h_layout(
+                hp.make_qta_btn(
+                    self,
+                    "add",
+                    func=self.on_select_dataset,
+                    tooltip="Add image(s) to the viewer.",
+                    properties={"standout": True},
+                ),
+                hp.make_qta_btn(
+                    self,
+                    "delete",
+                    func=self.on_close_dataset,
+                    tooltip="Remove image(s) from the viewer.",
+                    properties={"standout": True},
+                ),
+                hp.make_btn(
+                    self,
+                    "More options...",
+                    func=self.on_open_dataset_dialog,
+                    tooltip="Open dialog to add/remove images or adjust pixel size.",
+                ),
+                stretch_id=2,
+                spacing=2,
+            ),
+        )
+        layout.addRow(hp.make_btn(self, "Select channels...", func=self._on_select_channels))
         self.setLayout(layout)
         return layout
 
@@ -188,10 +213,7 @@ class MovingWidget(LoadWidget):
             tooltip="Select which image should be displayed on the fixed modality.",
             func=self._on_toggle_transformed,
         )
-        layout.addRow(
-            hp.make_label(self, "Overlay"),
-            self.transformed_choice,
-        )
+        layout.addRow(hp.make_label(self, "Overlay"), self.transformed_choice)
         return layout
 
     def _on_update_view_type(self, value: str) -> None:
@@ -213,7 +235,7 @@ class FixedWidget(LoadWidget):
     INFO_TEXT = "Select 'fixed' data..."
 
 
-class LoadWithTransformWidget(LoadMixin):
+class LoadWithTransformWidget(LoadWidget):
     """Widget for loading data."""
 
     IS_FIXED = True
@@ -234,21 +256,14 @@ class LoadWithTransformWidget(LoadMixin):
 
     def _setup_ui(self) -> QFormLayout:
         """Setup UI."""
-        layout = hp.make_form_layout(self)
-        style_form_layout(layout)
-        layout.addRow(
-            hp.make_label(
-                self,
-                self.INFO_TEXT,
-                bold=True,
-                wrap=True,
-                alignment=Qt.AlignCenter,  # type: ignore[attr-defined]
-            )
-        )
-        layout.addRow(hp.make_btn(self, "Add/remove dataset...", func=self._on_add_dataset))
-        layout.addRow(hp.make_btn(self, "Select transformation...", func=self._on_select_transform))
+        layout = super()._setup_ui()
+        layout.addRow(hp.make_btn(self, "Select transformation...", func=self.on_open_transform_dialog))
         return layout
 
-    def _on_select_transform(self) -> None:
+    def _on_select_channels(self) -> None:
+        """Select channels from the list."""
+        self.channel_dlg.show()
+
+    def on_open_transform_dialog(self) -> None:
         """Select transformation data."""
         self.transform_dlg.show()

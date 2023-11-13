@@ -162,7 +162,7 @@ class MasksDialog(QtFramelessTool):
                     raise ValueError(f"Could not find image reader for '{image_path}'")
                 transformed_mask = image_reader.warp(mask)
                 # at um level
-                transform = image_reader.transform_data.affine
+                transform = image_reader.transform
                 # preview
                 if preview:
                     parent.view.add_image(

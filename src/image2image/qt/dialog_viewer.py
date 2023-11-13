@@ -8,7 +8,8 @@ from pathlib import Path
 import qtextra.helpers as hp
 from koyo.timer import MeasureTimer
 from loguru import logger
-from napari.layers import Image
+from napari.layers import Image, Shapes
+from PyQt6.QtWidgets import QDialog
 from qtextra.utils.utilities import connect
 from qtextra.widgets.qt_image_button import QtThemeButton
 from qtpy.QtWidgets import QHBoxLayout, QMenuBar, QStatusBar, QVBoxLayout, QWidget
@@ -17,6 +18,7 @@ from superqt import ensure_main_thread
 from image2image import __version__
 from image2image.config import CONFIG
 from image2image.enums import ALLOWED_VIEWER_FORMATS
+from image2image.qt._dialogs._close import ConfirmCloseDialog
 from image2image.qt._select import LoadWithTransformWidget
 from image2image.qt.dialog_base import Window
 from image2image.utils.utilities import style_form_layout
@@ -30,7 +32,7 @@ class ImageViewerWindow(Window):
     """Image viewer dialog."""
 
     image_layer: list[Image] | None = None
-    shape_layer: list[Image] | None = None
+    shape_layer: list[Shapes] | None = None
     _console = None
 
     def __init__(self, parent: QWidget | None):
@@ -43,6 +45,8 @@ class ImageViewerWindow(Window):
         connect(self._image_widget.dataset_dlg.evt_closed, self.on_close_image, state=state)
         connect(self._image_widget.dataset_dlg.evt_resolution, self.on_update_transform, state=state)
         connect(self._image_widget.transform_dlg.evt_transform, self.on_update_transform, state=state)
+        connect(self._image_widget.evt_toggle_channel, self.on_toggle_channel, state=state)
+        connect(self._image_widget.evt_toggle_all_channels, self.on_toggle_all_channels, state=state)
 
     @property
     def data_model(self) -> DataModel:
@@ -81,6 +85,14 @@ class ImageViewerWindow(Window):
     def on_close_image(self, model: DataModel) -> None:
         """Close fixed image."""
         self._close_model(model, self.view, "view")
+
+    def on_toggle_channel(self, name: str, state: bool) -> None:
+        """Toggle channel."""
+        self._toggle_channel(self.data_model, self.view, name, state, "view")
+
+    def on_toggle_all_channels(self, state: bool) -> None:
+        """Toggle channel."""
+        self._toggle_all_channels(self.data_model, self.view, state, "view")
 
     def on_update_transform(self, path: Path) -> None:
         """Update affine transformation."""
@@ -125,7 +137,7 @@ class ImageViewerWindow(Window):
                 from image2image.qt._dialogs import LocateFilesDialog
 
                 locate_dlg = LocateFilesDialog(self, paths_missing)
-                if locate_dlg.exec_():  # noqa
+                if locate_dlg.exec_():  # type: ignore[attr-defined]
                     paths = locate_dlg.fix_missing_paths(paths_missing, paths)
 
             # clean-up affine matrices
@@ -135,7 +147,7 @@ class ImageViewerWindow(Window):
             if paths:
                 self._image_widget.on_set_path(paths, transform_data, resolution)
 
-            # add affine matrices to transform object
+            # add affine matrices to the transform model
             for name, matrix in transform_data.items():
                 self.transform_model.add_transform(name, matrix)
 
@@ -154,15 +166,15 @@ class ImageViewerWindow(Window):
             return
         # get filename which is based on the moving dataset
         filename = model.get_filename() + ".i2v.json"
-        path = hp.get_save_filename(
+        path_ = hp.get_save_filename(
             self,
             "Save i2v project",
             base_dir=CONFIG.output_dir,
             file_filter=ALLOWED_VIEWER_FORMATS,
             base_filename=filename,
         )
-        if path:
-            path = Path(path)
+        if path_:
+            path = Path(path_)
             CONFIG.output_dir = str(path.parent)
             model.to_file(path)
             hp.toast(
@@ -355,14 +367,41 @@ class ImageViewerWindow(Window):
         )
         return variables
 
+    def close(self, force=False):
+        """Override to handle closing app or just the window."""
+        if (
+            not force
+            or not CONFIG.confirm_close_viewer
+            or ConfirmCloseDialog(
+                self,
+                "confirm_close_viewer",
+                self.on_save_to_project,
+            ).exec_()  # type: ignore[attr-defined]
+            == QDialog.DialogCode.Accepted
+        ):
+            return super().close()
+        return None
+
     def closeEvent(self, evt):
         """Close."""
+        if (
+            evt.spontaneous()
+            and CONFIG.confirm_close_viewer
+            and self.data_model.is_valid()
+            and ConfirmCloseDialog(
+                self,
+                "confirm_close_viewer",
+                self.on_save_to_project,
+            ).exec_()  # type: ignore[attr-defined]
+            != QDialog.DialogCode.Accepted
+        ):
+            evt.ignore()
+            return
+
         if self._console:
             self._console.close()
         CONFIG.save()
-        if self.data_model.is_valid():
-            if hp.confirm(self, "There might be unsaved changes. Would you like to save them?"):
-                self.on_save_to_project()
+        evt.accept()
 
 
 if __name__ == "__main__":  # pragma: no cover

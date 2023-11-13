@@ -1,19 +1,27 @@
 """Select channels."""
 import typing as ty
+from contextlib import contextmanager
 
+from loguru import logger
+from napari.utils.events import Event
 from qtextra import helpers as hp
 from qtextra.utils.table_config import TableConfig
 from qtextra.utils.utilities import connect
 from qtextra.widgets.qt_dialog import QtFramelessTool
 from qtextra.widgets.qt_table_view import QtCheckableTableView
-from qtpy.QtCore import Qt, Signal
+from qtpy.QtCore import Qt, Signal  # type: ignore[attr-defined]
 from qtpy.QtWidgets import QFormLayout
 
 from image2image.utils.utilities import style_form_layout
 
 if ty.TYPE_CHECKING:
+    from qtextra._napari.image.wrapper import NapariImageView
+
     from image2image.models.data import DataModel
     from image2image.qt._select import LoadWidget
+
+
+logger = logger.bind(src="ChannelsDialog")
 
 
 class OverlayChannelsDialog(QtFramelessTool):
@@ -24,40 +32,95 @@ class OverlayChannelsDialog(QtFramelessTool):
     # event emitted when the popup closes
     evt_close = Signal()
 
+    _editing: bool = False
+
     TABLE_CONFIG = (
-        TableConfig()
+        TableConfig()  # type: ignore[no-untyped-call]
         .add("", "check", "bool", 25, no_sort=True)
         .add("channel name", "channel_name", "str", 125, no_sort=True)
         .add("dataset", "dataset", "str", 250, no_sort=True)
     )
 
-    def __init__(self, parent: "LoadWidget", model: "DataModel", view):
+    def __init__(self, parent: "LoadWidget", model: "DataModel", view: "NapariImageView"):
         self.model = model
         self.view = view
         super().__init__(parent)
         self.setMinimumWidth(400)
         self.setMinimumHeight(400)
 
-    def connect_events(self, state: bool = True):
+    @contextmanager
+    def editing(self) -> ty.Generator[None, None, None]:
+        """Context manager to set editing."""
+        self._editing = True
+        yield
+        self._editing = False
+
+    def connect_events(self, state: bool = True) -> None:
         """Connect events."""
-        # TODO: connect event that updates checkbox state when user changes visibility in layer list
+        parent: "LoadWidget" = self.parent()
         # change of model events
-        connect(self.parent().dataset_dlg.evt_loaded, self.on_update_data_list, state=state)  # noqa
-        connect(self.parent().dataset_dlg.evt_closed, self.on_update_data_list, state=state)  # noqa
+        connect(parent.dataset_dlg.evt_loaded, self.on_update_data_list, state=state)
+        connect(parent.dataset_dlg.evt_closed, self.on_update_data_list, state=state)
         # table events
         connect(self.table.evt_checked, self.on_toggle_channel, state=state)
+        connect(self.view.layers.events, self.sync_layers, state=state)
 
-    def on_toggle_channel(self, index: int, state: bool):
+    def sync_layers(self, event: Event) -> None:
+        """Synchronize layers."""
+        if event.type == "visible":
+            self._sync_layer_visibility(event)
+            self.on_update_info()
+        elif event.type == "removed":
+            self._sync_layer_presence(event)
+            self.on_update_info()
+
+    def _sync_layer_presence(self, event: Event) -> None:
+        with hp.qt_signals_blocked(self), self.editing():
+            layer = event.value
+            name = layer.name
+            if " | " not in name:
+                return
+            channel_name, dataset = name.split(" | ")
+            row_id = self.table.get_row_id_for_values(
+                (self.TABLE_CONFIG.channel_name, channel_name), (self.TABLE_CONFIG.dataset, dataset)
+            )
+            if row_id != -1:
+                self.table.set_value(self.TABLE_CONFIG.check, row_id, False)
+
+    def _sync_layer_visibility(self, _event: Event) -> None:
+        with hp.qt_signals_blocked(self), self.editing():
+            for layer in self.view.layers:
+                name = layer.name
+                if " | " not in name:
+                    continue
+                channel_name, dataset = name.split(" | ")
+                row_id = self.table.get_row_id_for_values(
+                    (self.TABLE_CONFIG.channel_name, channel_name), (self.TABLE_CONFIG.dataset, dataset)
+                )
+                if row_id != -1:
+                    self.table.set_value(self.TABLE_CONFIG.check, row_id, layer.visible)
+
+    def on_toggle_channel(self, index: int, state: bool) -> None:
         """Toggle channel."""
-        if index == -1:
-            self.parent().evt_toggle_all_channels.emit(state)  # noqa
-        else:
-            channel_name = self.table.get_value(self.TABLE_CONFIG.channel_name, index)
-            dataset = self.table.get_value(self.TABLE_CONFIG.dataset, index)
-            self.parent().evt_toggle_channel.emit(f"{channel_name} | {dataset}", state)  # noqa
+        if self._editing:
+            return
+        parent: "LoadWidget" = self.parent()
+        # get number of selected channels
+        # n_checked = len(self.table.get_all_checked())
+        # if n_checked > 2:
+        #     logger.warning(f"Maximum number of channels ({n_checked}) reached.")
+        #     return
+
+        with self.view.layers.events.blocker(self.sync_layers):
+            if index == -1:
+                parent.evt_toggle_all_channels.emit(state)  # noqa
+            else:
+                channel_name = self.table.get_value(self.TABLE_CONFIG.channel_name, index)
+                dataset = self.table.get_value(self.TABLE_CONFIG.dataset, index)
+                parent.evt_toggle_channel.emit(f"{channel_name} | {dataset}", state)  # noqa
         self.on_update_info()
 
-    def on_update_info(self):
+    def on_update_info(self) -> None:
         """Update information about selected/total channels."""
         n_total = self.table.n_rows
         n_selected = len(self.table.get_all_checked())
@@ -66,7 +129,7 @@ class OverlayChannelsDialog(QtFramelessTool):
             f"Total number of channels: <b>{n_total}</b> out of which <b>{n_selected}</b> {verb} selected."
         )
 
-    def on_update_data_list(self, model: "DataModel"):
+    def on_update_data_list(self, model: "DataModel") -> None:
         """On load."""
         if not model:
             return
@@ -116,7 +179,7 @@ class OverlayChannelsDialog(QtFramelessTool):
             hp.make_label(
                 self,
                 "<b>Tip.</b> Check/uncheck a row to toggle visibility of the channel.",
-                alignment=Qt.AlignHCenter,  # noqa
+                alignment=Qt.AlignmentFlag.AlignHCenter,
                 object_name="tip_label",
                 enable_url=True,
             )
@@ -126,8 +189,7 @@ class OverlayChannelsDialog(QtFramelessTool):
     def keyPressEvent(self, evt):
         """Key press event."""
         key = evt.key()
-        print(key)
-        if key == Qt.Key_Escape:  # noqa
+        if key == Qt.Key.Key_Escape:  # noqa
             evt.ignore()
         else:
             super().keyPressEvent(evt)

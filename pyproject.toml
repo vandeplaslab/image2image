@@ -157,6 +157,7 @@ disallow_untyped_defs = false
 disable_error_code = [
     "no-redef",
     "assignment",
+    "variance"
 ]
 show_error_codes = true
 pretty = false

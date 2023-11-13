@@ -27,20 +27,18 @@ class BaseReader:
         self.path = Path(path)
         self.base_layer_idx = 0
         self.transform_data: TransformData = TransformData()
-        self._transform: np.ndarray = np.eye(3, dtype=np.float64)
         self.transform_name = DEFAULT_TRANSFORM_NAME
 
     @property
     def transform(self) -> np.ndarray:
         """Return transform."""
-        if self.transform_data:
-            return self.transform_data.transform.params
-        return self._transform
+        transform: np.ndarray = self.transform_data.transform.params
+        return transform
 
     @transform.setter
-    def transform(self, value: np.ndarray):
+    def transform(self, value: np.ndarray) -> None:
         assert value.shape == (3, 3)
-        self.transform_data.affine = value
+        self.transform_data._transform = value
 
     def is_identity_transform(self) -> bool:
         """Return whether transform is identity."""
@@ -63,7 +61,7 @@ class BaseReader:
         return self._image_shape
 
     @image_shape.setter
-    def image_shape(self, value: tuple[int, int]):
+    def image_shape(self, value: tuple[int, int]) -> None:
         self._image_shape = value
 
     @property
@@ -92,7 +90,7 @@ class BaseReader:
         return self.base_layer_pixel_res
 
     @resolution.setter
-    def resolution(self, value: float):
+    def resolution(self, value: float) -> None:
         self.base_layer_pixel_res = value
         if self.transform_data:
             self.transform_data.moving_resolution = value
@@ -163,10 +161,10 @@ class BaseReader:
                 raise ValueError(f"Array has unsupported shape: {array.shape}")
         else:
             raise ValueError(f"Array has unsupported shape: {array.shape}")
-        # check whether array is dask array - if so, we need to compute it
+        # check whether an array is dask array - if so, we need to compute it
         if hasattr(array_, "compute"):
             array_ = array_.compute()
-        return array_
+        return array_  # type: ignore[no-any-return]
 
     def warp(self, array: np.ndarray) -> np.ndarray:
         """Warp array."""
