@@ -337,7 +337,7 @@ class SelectDataDialog(QtFramelessTool):
     TABLE_CONFIG = (
         TableConfig()  # type: ignore
         .add("name", "name", "str", 0)
-        .add("resolution", "resolution", "str", 0)
+        .add("pixel size (um)", "resolution", "str", 0)
         .add("type", "type", "str", 0)
         .add("extract", "extract", "str", 0)
         .add("key", "key", "str", hidden=True, width=0)
@@ -389,11 +389,19 @@ class SelectDataDialog(QtFramelessTool):
         if self._editing:
             return
         value = float(item.text())
+        if value <= 0:
+            hp.toast(
+                self,
+                "Pixel size cannot be 0.",
+                "Pixel size cannot be 0. Please change to something reasonable.",
+                icon="error",
+            )
+            return
         reader = self.model.get_reader_for_key(key)
         if reader:
             reader.resolution = value
             self.evt_resolution.emit(reader.key)
-            logger.trace(f"Updated resolution of '{reader.name}' to {value:.2f}.")
+            logger.trace(f"Updated pixel size of '{reader.name}' to {value:.2f}.")
 
     def _clear_table(self) -> None:
         """Remove all rows."""

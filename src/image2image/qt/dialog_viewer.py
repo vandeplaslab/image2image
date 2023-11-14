@@ -35,6 +35,7 @@ class ImageViewerWindow(Window):
 
     def __init__(self, parent: QWidget | None):
         super().__init__(parent, f"image2viewer: Simple viewer app (v{__version__})")
+        CONFIG.view_type = "overlay"
 
     def setup_events(self, state: bool = True) -> None:
         """Setup events."""

@@ -121,8 +121,8 @@ class SelectTransformDialog(QtFramelessTool):
         data = []
         wrapper = self.model.get_wrapper()
         if wrapper:
-            for path, reader in wrapper.path_reader_iter():
-                data.append([False, path.name, path, reader.transform_name])
+            for reader in wrapper.reader_iter():
+                data.append([False, reader.name, reader.key, reader.transform_name])
         self.table.reset_data()
         self.table.add_data(data)
 

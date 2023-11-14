@@ -247,6 +247,14 @@ def sanitize_path(path: PathLike) -> Path:
     return path
 
 
+def get_alternative_path(path: PathLike) -> Path:
+    """Retrieve alternative name."""
+    path = Path(path)
+    if path.is_dir() and path.suffix == ".data":
+        return path / "dataset.metadata.h5"
+    return path
+
+
 def read_data(
     path: PathLike,
     wrapper: ImageWrapper | None = None,
@@ -310,7 +318,6 @@ def read_data(
         path, reader = _read_geojson(path)  # type: ignore
     else:
         raise UnsupportedFileFormatError(f"Unsupported file format: '{suffix}'")
-
     # add transformation information if provided
     if transform_data is not None:
         for reader_ in reader.values():
@@ -450,9 +457,7 @@ def _read_metadata_h5_coordinates(path: PathLike) -> tuple[Path, dict[str, Coord
         resolution = metadata["metadata.experimental"]["pixel_size"]
     key = get_key(path)
     return path, {
-        path.parent.name: CoordinateImageReader(
-            path, x, y, resolution=resolution, array_or_reader=reshape(x, y, tic), key=key
-        )
+        path.name: CoordinateImageReader(path, x, y, resolution=resolution, array_or_reader=reshape(x, y, tic), key=key)
     }
 
 

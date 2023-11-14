@@ -8,7 +8,7 @@ from koyo.typing import PathLike
 from loguru import logger
 from pydantic import Field, validator
 
-from image2image._reader import ImageWrapper, sanitize_path
+from image2image._reader import ImageWrapper, get_alternative_path, sanitize_path
 from image2image.models.base import BaseModel
 from image2image.models.transform import TransformData
 from image2image.models.utilities import _get_paths, _read_config_from_file
@@ -65,19 +65,21 @@ class DataModel(BaseModel):
             return
         if isinstance(key_or_keys, str):
             key_or_keys = [key_or_keys]
+        logger.trace(f"Removing keys... - {key_or_keys}")
         # make sure that paths are in sync
         wrapper = self.wrapper
         for key in key_or_keys:
             if key in self.keys:
                 self.keys.remove(key)
                 logger.trace(f"Removed '{key}' from model keys.")
-            if self.wrapper:
-                self.wrapper.remove(key)
+            if wrapper:
+                wrapper.remove(key)
                 logger.trace(f"Removed '{key}' from reader.")
                 if self.just_added_keys:
                     if key in self.just_added_keys:
                         self.just_added_keys.remove(key)
                         logger.trace(f"Removed '{key}' from just_added_keys.")
+        # synchronize paths
         if wrapper:
             all_paths = [reader.path for reader in wrapper.reader_iter()]
             paths = []
@@ -129,7 +131,7 @@ class DataModel(BaseModel):
 
     def get_wrapper(
         self,
-        affine: ty.Optional[ty.Dict[str, TransformData]] = None,
+        transform_data: ty.Optional[ty.Dict[str, TransformData]] = None,
         resolution: ty.Optional[ty.Dict[str, float]] = None,
     ) -> ty.Optional["ImageWrapper"]:
         """Read data from file."""
@@ -138,21 +140,29 @@ class DataModel(BaseModel):
         if not self.paths:
             return None
 
-        affine = affine or {}
+        transform_data = transform_data or {}
         resolution = resolution or {}
 
         just_added_keys = []
         for path in self.paths:
-            transform_data = affine.get(path.name, None)
-            pixel_size = resolution.get(path.name, None)
             if self.wrapper is None or not self.wrapper.is_loaded(path):
                 logger.trace(f"Loading '{path}'...")
+                transform_data_ = transform_data.get(path.name, None)
+                if not transform_data_:
+                    transform_data_ = transform_data.get(get_alternative_path(path).name, None)
+                if transform_data and not transform_data_:
+                    logger.trace(f"Failed to retrieve transform data for '{path}'")
+                pixel_size = resolution.get(path.name, None)
+                if not pixel_size:
+                    pixel_size = resolution.get(get_alternative_path(path).name, None)
+                if resolution and not pixel_size:
+                    logger.trace(f"Failed to retrieve resolution for '{path}'")
                 try:
                     self.wrapper, just_added_keys_, path_map = read_data(
                         path,
                         self.wrapper,
                         self.is_fixed,
-                        transform_data=transform_data,
+                        transform_data=transform_data_,
                         resolution=pixel_size,
                     )
                     just_added_keys.extend(just_added_keys_)
