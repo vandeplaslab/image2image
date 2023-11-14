@@ -431,10 +431,11 @@ class ImageRegistrationWindow(Window):
                     acceptable_error = self.transform_model.moving_model.resolution / 2
                     is_valid = error > acceptable_error if error != 0 else False
 
-                    error_label = f"{error:.2f}" + " (unlikely)" if error < 0.01 else ""
+                    error_label = f"{error:.2f}" + (" (unlikely)" if error < 0.01 else "")
                     error_style = "reg_error" if is_valid else "reg_success"
             self.transform_error.setText(error_label)
             hp.update_widget_style(self.transform_error, error_style)
+            print(error_label, error_style)
             logger.info(self.transform_model.about("; "))
             self.on_apply()
         else:

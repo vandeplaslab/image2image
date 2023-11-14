@@ -69,6 +69,7 @@ class LocateFilesDialog(QtDialog):
         """Zoom in."""
         row = index.row()
         path = self.paths[row]["old_path"]
+        logger.trace(f"Locating file: '{path}'")
         new_path = self.paths[row]["new_path"]
         if new_path and new_path.exists():
             path = new_path
@@ -85,12 +86,15 @@ class LocateFilesDialog(QtDialog):
                 base_filename=path.name,
                 file_filter=f"All files (*.*);; File type (*{suffix})",
             )
-            if not new_path:
-                logger.warning("No file selected.")
-                return
-            self.paths[row]["new_path"] = Path(new_path)
-            self.on_update_data_list()
-            logger.info(f"Located file - {new_path}")
+        else:
+            new_path = hp.get_directory(self, title="Locate directory...", base_dir=base_dir)
+
+        if not new_path:
+            logger.warning("No file selected.")
+            return
+        self.paths[row]["new_path"] = Path(new_path)
+        self.on_update_data_list()
+        logger.info(f"Located file - {new_path}")
 
     def on_update_data_list(self, _evt=None):
         """On load."""
@@ -141,7 +145,7 @@ class LocateFilesDialog(QtDialog):
         layout.addRow(
             hp.make_label(
                 self,
-                "<b>Tip.</b> Double-click on a row to zoom in on the point.",
+                "<b>Tip.</b> Double-click on a row to open search dialog.",
                 alignment=Qt.AlignHCenter,  # type: ignore[attr-defined]
                 object_name="tip_label",
                 enable_url=True,
