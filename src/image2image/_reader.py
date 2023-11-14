@@ -80,7 +80,7 @@ class ImageWrapper:
         """Check if the path is loaded."""
         path = Path(path)
         for reader in self.reader_iter():
-            if reader.path == path or reader.path == sanitize_path(path):
+            if reader.path == path or reader.path == sanitize_read_path(path, raise_error=False):
                 return True
         return False
 

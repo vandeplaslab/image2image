@@ -131,9 +131,9 @@ class OverlayChannelsDialog(QtFramelessTool):
 
         self.model = model
         data = []
-        reader = self.model.get_wrapper()
-        if reader:
-            for name in reader.channel_names():
+        wrapper = self.model.get_wrapper()
+        if wrapper:
+            for name in wrapper.channel_names():
                 channel_name, dataset = name.split(" | ")
                 data.append([False, channel_name, dataset])
         existing_data = self.table.get_data()
@@ -149,6 +149,7 @@ class OverlayChannelsDialog(QtFramelessTool):
         self.table.add_data(data)
         self.table.enable_all_check = len(data) < 20
         self.on_update_info()
+        logger.trace(f"Updated channel table - {len(data)} rows.")
 
     # noinspection PyAttributeOutsideInit
     def make_panel(self) -> QFormLayout:

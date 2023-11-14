@@ -141,9 +141,7 @@ class SelectChannelsToLoadDialog(QtDialog):
         data = []
         wrapper = self.model.get_wrapper()
         if wrapper:
-            print(self.model.just_added_keys)
             channel_list = list(wrapper.channel_names_for_names(self.model.just_added_keys))
-            print(channel_list)
             auto_check = len(channel_list) < 10
             if len(channel_list) > 10:
                 self.warning_label.show()
@@ -536,9 +534,9 @@ class SelectDataDialog(QtFramelessTool):
         self.evt_loading.emit()  # noqa
         if not isinstance(path_or_paths, list):
             path_or_paths = [path_or_paths]
-        self.model.add_paths(path_or_paths)
         create_worker(
             self.model.load,
+            paths=path_or_paths,
             transform_data=transform_data,
             resolution=resolution,
             _start_thread=True,

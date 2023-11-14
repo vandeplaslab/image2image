@@ -97,7 +97,6 @@ class ImageViewerWindow(Window):
         """Update affine transformation."""
         wrapper = self.data_model.get_wrapper()
         reader = self.data_model.get_reader_for_key(key)
-        print(key, reader)
         if wrapper and reader:
             channel_names = wrapper.channel_names_for_names([reader.key])
             for name in channel_names:
@@ -392,7 +391,8 @@ class ImageViewerWindow(Window):
     def _get_console_variables(self) -> dict:
         variables = super()._get_console_variables()
         variables.update(
-            {"transforms_model": self.transform_model, "viewer": self.view.viewer, "data_model": self.data_model}
+            {"transforms_model": self.transform_model, "viewer": self.view.viewer, "data_model": self.data_model,
+             "wrapper": self.data_model.wrapper}
         )
         return variables
 

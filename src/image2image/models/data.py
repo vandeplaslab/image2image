@@ -125,13 +125,14 @@ class DataModel(BaseModel):
 
     def load(
         self,
+        paths: ty.Union[PathLike, ty.Sequence[PathLike]],
         transform_data: ty.Optional[ty.Dict[str, TransformData]] = None,
         resolution: ty.Optional[ty.Dict[str, float]] = None,
     ) -> "DataModel":
         """Load data into memory."""
         logger.trace(f"Loading data for '{self.paths}'")
         with MeasureTimer() as timer:
-            self.get_wrapper(transform_data, resolution)
+            self.get_wrapper(transform_data, resolution, paths)
         logger.info(f"Loaded data in {timer()}")
         return self
 
@@ -139,39 +140,50 @@ class DataModel(BaseModel):
         self,
         transform_data: ty.Optional[ty.Dict[str, TransformData]] = None,
         resolution: ty.Optional[ty.Dict[str, float]] = None,
+        paths: ty.Union[PathLike, ty.Sequence[PathLike]] = None,
     ) -> ty.Optional["ImageWrapper"]:
         """Read data from file."""
         from image2image._reader import read_data
 
-        if not self.paths:
-            return None
-
         transform_data = transform_data or {}
         resolution = resolution or {}
 
+        if paths is None:
+            paths = self.paths
+        if isinstance(paths, (str, Path)):
+            paths = [paths]
+
+        if not paths:
+            logger.trace("No paths to load.")
+            return None
+
         just_added_keys = []
-        for path in self.paths:
+        for path in paths:
             if self.wrapper is None or not self.wrapper.is_loaded(path):
                 logger.trace(f"Loading '{path}'...")
+                # get transform and pixel size information if it was provided
                 transform_data_ = transform_data.get(path.name, None)
                 if not transform_data_:
                     transform_data_ = transform_data.get(get_alternative_path(path).name, None)
                 if transform_data and not transform_data_:
                     logger.trace(f"Failed to retrieve transform data for '{path}'")
-                pixel_size = resolution.get(path.name, None)
-                if not pixel_size:
-                    pixel_size = resolution.get(get_alternative_path(path).name, None)
-                if resolution and not pixel_size:
+                resolution_ = resolution.get(path.name, None)
+                if not resolution_:
+                    resolution_ = resolution.get(get_alternative_path(path).name, None)
+                if resolution and not resolution_:
                     logger.trace(f"Failed to retrieve resolution for '{path}'")
+                # read data
                 try:
                     self.wrapper, just_added_keys_, path_map = read_data(
                         path,
                         self.wrapper,
                         self.is_fixed,
                         transform_data=transform_data_,
-                        resolution=pixel_size,
+                        resolution=resolution_,
                     )
+                    self.add_paths(path)
                     just_added_keys.extend(just_added_keys_)
+                    # update paths
                     if path_map:
                         for original_path, new_path in path_map.items():
                             if original_path == new_path:
@@ -185,9 +197,12 @@ class DataModel(BaseModel):
                     logger.error(f"Failed to load '{path}'")
                     self.remove_paths(path)
 
+        # update resolution in the model
         if self.wrapper:
             self.resolution = self.wrapper.resolution
+        # keep track of what was just added
         if just_added_keys:
+            just_added_keys = list(set(just_added_keys))
             self.just_added_keys = just_added_keys
             logger.trace(f"Added keys: {just_added_keys}")
         return self.wrapper
