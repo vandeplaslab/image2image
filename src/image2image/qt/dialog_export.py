@@ -89,7 +89,7 @@ class ImageExportWindow(Window):
     def on_populate_table(self) -> None:
         """Load data."""
         self.on_depopulate_table()
-        wrapper = self.data_model.get_wrapper()
+        wrapper = self.data_model.wrapper
         if wrapper:
             for reader in wrapper.reader_iter():
                 index = hp.find_in_table(self.table, self.TABLE_CONFIG.key, reader.key)

@@ -119,7 +119,7 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
     def _toggle_all_channels(
         self, model: DataModel, view_wrapper: NapariImageView, state: bool, view_kind: str
     ) -> None:
-        wrapper = model.get_wrapper()
+        wrapper = model.wrapper
         if not wrapper:
             for layer in view_wrapper.layers:
                 if isinstance(layer, (Image, Shapes)):
@@ -142,7 +142,7 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
         view_kind: str = "view",
         scale: bool = False,
     ) -> tuple[list[Image] | None, list[Shapes] | None]:
-        wrapper = model.get_wrapper()
+        wrapper = model.wrapper
         if not wrapper:
             logger.error("Failed to get wrapper.")
             return None, None

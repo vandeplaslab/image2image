@@ -260,7 +260,7 @@ class ImageRegistrationWindow(Window):
     def _plot_moving_layers(self, channel_list: list[str] | None = None) -> None:
         CONFIG.view_type = ViewType(CONFIG.view_type)
         is_overlay = CONFIG.view_type == ViewType.OVERLAY
-        wrapper = self.moving_model.get_wrapper()
+        wrapper = self.moving_model.wrapper
         if not wrapper:
             return
         if channel_list is None:

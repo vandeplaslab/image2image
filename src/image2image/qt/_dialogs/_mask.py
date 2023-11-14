@@ -54,7 +54,7 @@ class MasksDialog(QtFramelessTool):
         """Load data."""
         parent: ImageViewerWindow = self.parent()  # type: ignore[assignment]
         data_model = parent.data_model
-        wrapper = data_model.get_wrapper()
+        wrapper = data_model.wrapper
         images, masks = [], []
         # get images
         if wrapper:
@@ -80,7 +80,7 @@ class MasksDialog(QtFramelessTool):
     def _validate(self) -> tuple[bool, tuple | None]:
         parent: ImageViewerWindow = self.parent()  # type: ignore[assignment]
         data_model = parent.data_model
-        wrapper = data_model.get_wrapper()
+        wrapper = data_model.wrapper
         if not wrapper:
             hp.toast(
                 self, "Could not export masks.", "Could not export masks - there is not data loaded.", icon="error"

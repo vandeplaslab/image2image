@@ -49,7 +49,7 @@ class CloseDatasetDialog(QtDialog):
         )
         # iterate over all available paths
         self.checkboxes = []
-        wrapper = self.model.get_wrapper()
+        wrapper = self.model.wrapper
         if wrapper:
             for reader in wrapper.reader_iter():
                 # make checkbox for each path
@@ -139,7 +139,7 @@ class SelectChannelsToLoadDialog(QtDialog):
     def on_load(self) -> None:
         """On load."""
         data = []
-        wrapper = self.model.get_wrapper()
+        wrapper = self.model.wrapper
         if wrapper:
             channel_list = list(wrapper.channel_names_for_names(self.model.just_added_keys))
             auto_check = len(channel_list) < 10
@@ -413,7 +413,7 @@ class SelectDataDialog(QtFramelessTool):
         """Load data."""
         self._clear_table()
 
-        wrapper = self.model.get_wrapper()
+        wrapper = self.model.wrapper
         if wrapper:
             with self._editing_table():
                 for path, reader in wrapper.path_reader_iter():
@@ -550,7 +550,7 @@ class SelectDataDialog(QtFramelessTool):
         """Finished loading data."""
         channel_list = []
         if not self.select_channels:
-            wrapper = model.get_wrapper()
+            wrapper = model.wrapper
             if wrapper:
                 channel_list = wrapper.channel_names_for_names(model.just_added_keys)
         else:

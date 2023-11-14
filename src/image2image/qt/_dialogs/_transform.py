@@ -120,7 +120,7 @@ class SelectTransformDialog(QtFramelessTool):
     def on_update_data_list(self) -> None:
         """Update the list of datasets."""
         data = []
-        wrapper = self.model.get_wrapper()
+        wrapper = self.model.wrapper
         if wrapper:
             for reader in wrapper.reader_iter():
                 data.append([False, reader.name, reader.key, reader.transform_name])
