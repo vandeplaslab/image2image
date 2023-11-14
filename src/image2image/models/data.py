@@ -159,6 +159,7 @@ class DataModel(BaseModel):
 
         just_added_keys = []
         for path in paths:
+            path = Path(path)
             if self.wrapper is None or not self.wrapper.is_loaded(path):
                 logger.trace(f"Loading '{path}'...")
                 # get transform and pixel size information if it was provided

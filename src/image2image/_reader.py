@@ -297,24 +297,11 @@ def read_data(
 ) -> tuple[ImageWrapper, list[str], dict[Path, Path]]:
     """Read image data."""
     path = Path(path)
-    if not path.exists():
-        raise FileNotFoundError(f"File does not exist: {path}")
-    suffix = path.suffix.lower()
-    if suffix not in (
-        TIFF_EXTENSIONS
-        + IMAGE_EXTENSIONS
-        + CZI_EXTENSIONS
-        + NPY_EXTENSIONS
-        + BRUKER_EXTENSIONS
-        + IMZML_EXTENSIONS
-        + H5_EXTENSIONS
-        + IMSPY_EXTENSIONS
-        + GEOJSON_EXTENSIONS
-    ):
-        raise ValueError(f"Unsupported file format: {path.suffix} ({path})")
+    path = sanitize_read_path(path)
 
     reader: dict[str, BaseReader]
     name = path.name
+    suffix = path.suffix.lower()
     original_path = path
     if suffix in TIFF_EXTENSIONS:
         logger.trace(f"Reading TIFF file: {path}")

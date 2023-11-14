@@ -154,6 +154,7 @@ class SelectChannelsToLoadDialog(QtDialog):
             logger.warning(f"Wrapper was not specified - {wrapper}")
             self.warning_no_channels_label.show()
         self.table.add_data(data)
+        self.on_select_channel(-1, None)
 
     # noinspection PyAttributeOutsideInit
     def make_panel(self) -> QFormLayout:
@@ -534,6 +535,7 @@ class SelectDataDialog(QtFramelessTool):
         self.evt_loading.emit()  # noqa
         if not isinstance(path_or_paths, list):
             path_or_paths = [path_or_paths]
+
         create_worker(
             self.model.load,
             paths=path_or_paths,

@@ -131,7 +131,7 @@ class OverlayChannelsDialog(QtFramelessTool):
 
         self.model = model
         data = []
-        wrapper = self.model.get_wrapper()
+        wrapper = self.model.wrapper
         if wrapper:
             for name in wrapper.channel_names():
                 channel_name, dataset = name.split(" | ")
