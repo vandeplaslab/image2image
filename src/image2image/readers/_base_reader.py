@@ -19,14 +19,17 @@ class BaseReader:
     _image_shape: tuple[int, int] | None = None
     reader_type: str = "image"
     lazy: bool = False
-    fh = None
+    fh: ty.Any | None = None
     allow_extraction: bool = False
     _resolution: float = 1.0
     _channel_names: list[str]
 
-    def __init__(self, path: PathLike):
+    def __init__(self, path: PathLike, key: str | None = None, reader_kws: dict | None = None):
+        # This is the direct path to the image
         self.path = Path(path)
-        self.base_layer_idx = 0
+        # This is the attribute we will use to identify the image
+        self.key = key or self.path.name
+        self.reader_kws = reader_kws or {}
         self.transform_data: TransformData = TransformData()
         self.transform_name = DEFAULT_TRANSFORM_NAME
 
@@ -120,7 +123,7 @@ class BaseReader:
             array = array.reshape(-1, 1)
         return array, shape
 
-    def close(self):
+    def close(self) -> None:
         """Close the file handle."""
         if self.fh and hasattr(self.fh, "close"):
             self.fh.close()

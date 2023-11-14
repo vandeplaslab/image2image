@@ -48,11 +48,12 @@ class CoordinateImageReader(BaseReader):
         path: PathLike,
         x: np.ndarray,
         y: np.ndarray,
+        key: str | None = None,
         resolution: float = 1.0,
         array_or_reader: ty.Optional[ty.Union[np.ndarray, BaseImzyReader]] = None,
         data: ty.Optional[dict[str, np.ndarray]] = None,
     ):
-        super().__init__(path)
+        super().__init__(path, key)
         self.x = x
         self.y = y
         self.resolution = resolution

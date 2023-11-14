@@ -121,29 +121,39 @@ class Transformation(BaseModel):
         )
         return transform
 
-    def about(self, sep: str = "\n") -> str:
+    def about(self, sep: str = "\n", error: bool = True, n: bool = True, split_by_dim: bool = False) -> str:
         """Retrieve information about the model in textual format."""
         info = ""
         if self.transformation_type:
-            info += f"Transformation type: {self.transformation_type}"
+            info += f"type: {self.transformation_type}"
         transform = self.transform
         if transform:
             if hasattr(transform, "scale"):
                 scale = transform.scale
                 scale = (scale, scale) if isinstance(scale, float) else scale
-                info += f"{sep}scale: {scale[0]:.3f}, {scale[1]:.3f}"
+                if split_by_dim:
+                    info += f"{sep}scale(y): {scale[0]:.3f}"
+                    info += f"{sep}scale(x): {scale[1]:.3f}"
+                else:
+                    info += f"{sep}scale: {scale[0]:.3f}, {scale[1]:.3f}"
             if hasattr(transform, "translation"):
                 translation = transform.translation
                 translation = (translation, translation) if isinstance(translation, float) else translation
-                info += f"{sep}translation: {translation[0]:.3f}, {translation[1]:.3f}"
+                if split_by_dim:
+                    info += f"{sep}translation(y): {translation[0]:.1f}"
+                    info += f"{sep}translation(x): {translation[1]:.1f}"
+                else:
+                    info += f"{sep}translation: {translation[0]:.1f}, {translation[1]:.1f}"
             if hasattr(transform, "rotation"):
                 rotation = transform.rotation
                 info += f"{sep}rotation: {rotation:.3f}"
-            info += f"{sep}error: {self.error():.2f}"
-        if self.fixed_points is not None:
-            info += f"{sep}no. fixed: {len(self.fixed_points)}"
-        if self.moving_points is not None:
-            info += f"{sep}no. moving: {len(self.moving_points)}"
+            if error:
+                info += f"{sep}error: {self.error():.2f}"
+        if n:
+            if self.fixed_points is not None:
+                info += f"{sep}no. fixed: {len(self.fixed_points)}"
+            if self.moving_points is not None:
+                info += f"{sep}no. moving: {len(self.moving_points)}"
         return info
 
     def to_dict(self) -> ty.Dict:

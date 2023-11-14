@@ -39,7 +39,9 @@ class OverlayChannelsDialog(QtFramelessTool):
         .add("dataset", "dataset", "str", 250)
     )
 
-    def __init__(self, parent: "LoadWidget", model: "DataModel", view: "NapariImageView", is_fixed: bool = False):
+    def __init__(
+        self, parent: "LoadWidget", model: "DataModel", view: "NapariImageView", is_fixed: ty.Optional[bool] = False
+    ):
         self.model = model
         self.view = view
         self.is_fixed = is_fixed

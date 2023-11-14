@@ -27,7 +27,7 @@ logger = logger.bind(src="TransformDialog")
 class SelectTransformDialog(QtFramelessTool):
     """Dialog to enable creation of overlays."""
 
-    evt_transform = Signal(Path)
+    evt_transform = Signal(str)
 
     HIDE_WHEN_CLOSE = True
 
@@ -35,7 +35,7 @@ class SelectTransformDialog(QtFramelessTool):
         TableConfig()  # type: ignore[no-untyped-call]
         .add("", "check", "bool", 25, no_sort=True)
         .add("dataset", "dataset", "str", 250)
-        .add("dataset_path", "dataset_path", "str", 0, no_sort=True, hidden=True)
+        .add("key", "key", "str", 0, no_sort=True, hidden=True)
         .add("transform", "transform", "str", 250)
     )
 
@@ -55,8 +55,6 @@ class SelectTransformDialog(QtFramelessTool):
 
     def connect_events(self, state: bool = True) -> None:
         """Connect events."""
-        # TODO: connect event that updates checkbox state when user changes visibility in layer list
-        # change of model events
         parent: "LoadWithTransformWidget" = self.parent()  # type: ignore[assignment]
         connect(parent.dataset_dlg.evt_loaded, self.on_update_data_list, state=state)
         connect(parent.dataset_dlg.evt_closed, self.on_update_data_list, state=state)
@@ -100,18 +98,18 @@ class SelectTransformDialog(QtFramelessTool):
                 return
             for index in indices:
                 self.table.set_value(self.TABLE_CONFIG.transform, index, transform_name)
-                reader_path = self.table.get_value(self.TABLE_CONFIG.dataset_path, index)
+                key = self.table.get_value(self.TABLE_CONFIG.key, index)
                 # get reader appropriate for the path
-                reader = self.model.get_reader(reader_path)
+                reader = self.model.get_reader_for_key(key)
                 if reader:
                     # transform information need to be updated
                     reader.transform_name = transform_name
                     reader.transform_data = deepcopy(transform_data)
                     self.table.update_value(index, self.TABLE_CONFIG.transform, transform_name)
-                    self.evt_transform.emit(reader_path)
-                    logger.trace(f"Updated transformation matrix for '{reader_path}'")
+                    self.evt_transform.emit(key)
+                    logger.trace(f"Updated transformation matrix for '{key}'")
                 else:
-                    logger.warning(f"Could not update transformation matrix for '{reader_path}'")
+                    logger.warning(f"Could not update transformation matrix for '{key}'")
 
     def on_update_transform_list(self) -> None:
         """Update list of transforms."""

@@ -435,7 +435,7 @@ class ImageRegistrationWindow(Window):
                     error_style = "reg_error" if is_valid else "reg_success"
             self.transform_error.setText(error_label)
             hp.update_widget_style(self.transform_error, error_style)
-            print(error_label, error_style)
+            self.transform_info.setText(self.transform_model.about("\n", error=False, n=False, split_by_dim=True))
             logger.info(self.transform_model.about("; "))
             self.on_apply()
         else:
@@ -769,6 +769,7 @@ class ImageRegistrationWindow(Window):
             tooltip="Error is estimated by computing the square root of the sum of squared errors. Value is <b>red</b>"
             " if the error is larger than half of the moving image resolution (off by half a pixel).",
         )
+        self.transform_info = hp.make_label(self, "")
 
         side_layout = hp.make_form_layout()
         hp.style_form_layout(side_layout)
@@ -789,6 +790,7 @@ class ImageRegistrationWindow(Window):
         side_layout.addRow(hp.make_h_line_with_text("Transformation"))
         # side_layout.addRow(hp.make_label(self, "Type of transformation"), self.transform_choice)
         side_layout.addRow(hp.make_label(self, "Estimated error"), self.transform_error)
+        side_layout.addRow(hp.make_label(self, "About transformation"), self.transform_info)
         side_layout.addRow(hp.make_btn(self, "Compute transformation", func=self.on_run))
         side_layout.addRow(
             hp.make_btn(

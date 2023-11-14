@@ -24,15 +24,16 @@ I2C_METADATA = ty.Tuple[
 class DataModel(BaseModel):
     """Base model."""
 
+    keys: ty.List[str] = Field(default_factory=list)
+    just_added_keys: ty.List[str] = Field(default_factory=list)
     paths: ty.List[Path] = Field(default_factory=list)
-    just_added: ty.List[Path] = Field(default_factory=list)
     resolution: float = 1.0
     wrapper: ty.Optional[ImageWrapper] = None
     is_fixed: bool = False
 
     # noinspection PyMethodFirstArgAssignment,PyMethodParameters
     @validator("paths", pre=True, allow_reuse=True)
-    def _validate_path(value: ty.Union[PathLike, ty.List[PathLike]]) -> ty.List[Path]:  # type-ignore[misc]
+    def _validate_path(value: ty.Union[PathLike, ty.List[PathLike]]) -> ty.List[Path]:  # type: ignore[misc]
         """Validate path."""
         if isinstance(value, (str, Path)):
             value = [Path(value)]
@@ -52,14 +53,38 @@ class DataModel(BaseModel):
         """Add paths to model."""
         if isinstance(path_or_paths, (str, Path)):
             path_or_paths = [path_or_paths]
-        just_added = []
         for path in path_or_paths:
             path = sanitize_path(path)
             if path not in self.paths:
                 self.paths.append(path)
-                just_added.append(path)
                 logger.trace(f"Added '{path}' to model paths.")
-        self.just_added = just_added
+
+    def remove_keys(self, key_or_keys: ty.Union[str, ty.Sequence[str]]) -> None:
+        """Remove keys."""
+        if not key_or_keys:
+            return
+        if isinstance(key_or_keys, str):
+            key_or_keys = [key_or_keys]
+        # make sure that paths are in sync
+        wrapper = self.wrapper
+        for key in key_or_keys:
+            if key in self.keys:
+                self.keys.remove(key)
+                logger.trace(f"Removed '{key}' from model keys.")
+            if self.wrapper:
+                self.wrapper.remove(key)
+                logger.trace(f"Removed '{key}' from reader.")
+                if self.just_added_keys:
+                    if key in self.just_added_keys:
+                        self.just_added_keys.remove(key)
+                        logger.trace(f"Removed '{key}' from just_added_keys.")
+        if wrapper:
+            all_paths = [reader.path for reader in wrapper.reader_iter()]
+            paths = []
+            for path in self.paths:
+                if path in all_paths:
+                    paths.append(path)
+            self.paths = paths
 
     def remove_paths(self, path_or_paths: ty.Union[PathLike, ty.Sequence[PathLike]]) -> None:
         """Remove paths."""
@@ -73,30 +98,23 @@ class DataModel(BaseModel):
                 self.paths.remove(path)
                 logger.trace(f"Removed '{path}' from model paths.")
             if self.wrapper:
-                self.wrapper.remove_path(path)
+                keys = self.wrapper.remove_path(path)
                 logger.trace(f"Removed '{path}' from reader.")
-            if self.just_added and path in self.just_added:
-                self.just_added.remove(path)
-                logger.trace(f"Removed '{path}' from just_added.")
+                if self.just_added_keys:
+                    for key in keys:
+                        if key in self.just_added_keys:
+                            self.just_added_keys.remove(key)
+                            logger.trace(f"Removed '{key}' from just_added_keys.")
         # remove wrapper
         if not self.paths:
             self.wrapper = None
 
-    def get_path(self, path: PathLike) -> ty.Optional[Path]:
-        """Get path."""
-        path = sanitize_path(path)
-        if path not in self.paths:
-            for path_ in self.paths:
-                if path_.name == path.name:
-                    return Path(path_)
-        if path.exists():
-            return path
-        return None
-
-    def has_path(self, path: PathLike) -> bool:
-        """Check if path is in model."""
-        path_ = self.get_path(path)
-        return path_ is not None
+    def has_key(self, key: str) -> bool:
+        """Check if key is in the model."""
+        wrapper = self.wrapper
+        if wrapper:
+            return key in wrapper.data
+        return False
 
     def load(
         self,
@@ -106,7 +124,7 @@ class DataModel(BaseModel):
         """Load data into memory."""
         with MeasureTimer() as timer:
             self.get_wrapper(transform_data, resolution)
-            logger.info(f"Loaded data in {timer()}")
+        logger.info(f"Loaded data in {timer()}")
         return self
 
     def get_wrapper(
@@ -123,39 +141,60 @@ class DataModel(BaseModel):
         affine = affine or {}
         resolution = resolution or {}
 
-        just_added = []
+        just_added_keys = []
         for path in self.paths:
             transform_data = affine.get(path.name, None)
             pixel_size = resolution.get(path.name, None)
             if self.wrapper is None or not self.wrapper.is_loaded(path):
+                logger.trace(f"Loading '{path}'...")
                 try:
-                    self.wrapper = read_data(
-                        path, self.wrapper, self.is_fixed, transform_data=transform_data, resolution=pixel_size
+                    self.wrapper, just_added_keys_, path_map = read_data(
+                        path,
+                        self.wrapper,
+                        self.is_fixed,
+                        transform_data=transform_data,
+                        resolution=pixel_size,
                     )
+                    just_added_keys.extend(just_added_keys_)
+                    if path_map:
+                        for original_path, new_path in path_map.items():
+                            if original_path in self.paths:
+                                index = self.paths.index(original_path)
+                                self.paths[index] = new_path
                 except Exception as e:  # noqa
                     log_exception_or_error(e)
                     logger.error(f"Failed to load '{path}'")
                     self.remove_paths(path)
                     continue
-                just_added.append(path)
         if self.wrapper:
             self.resolution = self.wrapper.resolution
-        if just_added:
-            self.just_added = just_added
+        # if just_added:
+        #     self.just_added = just_added
+        if just_added_keys:
+            self.just_added_keys = just_added_keys
         return self.wrapper
 
     def get_reader(self, path: PathLike) -> ty.Optional["BaseReader"]:
         """Get reader for the path."""
         path = Path(path)
-        wrapper = self.get_wrapper()
+        wrapper = self.wrapper
         if wrapper:
-            return wrapper.data[path.name]
+            for reader in wrapper.data.values():
+                if reader.path == path:
+                    return reader
+        return None
+
+    def get_reader_for_key(self, key: str) -> ty.Optional["BaseReader"]:
+        """Get reader for the specified key."""
+        wrapper = self.wrapper
+        if wrapper:
+            return wrapper.data[key]
         return None
 
     def get_extractable_paths(self) -> ty.List[Path]:
         """Get a list of paths which are extractable."""
         paths = []
-        wrapper = self.get_wrapper()
+        wrapper = self.wrapper
         if wrapper:
             for path, reader in wrapper.path_reader_iter():
                 if hasattr(reader, "allow_extraction") and reader.allow_extraction:
@@ -164,28 +203,27 @@ class DataModel(BaseModel):
 
     def path_resolution_iter(self) -> ty.Generator[ty.Tuple[Path, float], None, None]:
         """Iterator of path and pixel size."""
-        for path in self.paths:
-            reader = self.get_reader(path)
-            if reader is None:
-                raise ValueError(f"Cannot find reader for path '{path}'")
-            yield path, reader.resolution
+        wrapper = self.wrapper
+        if wrapper:
+            for reader in wrapper.reader_iter():
+                yield reader.path, reader.resolution
 
-    def export_iter(self) -> ty.Generator[dict[str, ty.Union[Path, float, str, tuple[int, int]]], None, None]:
+    def export_iter(self) -> ty.Generator[dict[str, ty.Union[Path, float, str, tuple[int, int], dict]], None, None]:
         """Export iterator."""
-        for path, resolution in self.path_resolution_iter():
-            reader = self.get_reader(path)
-            if reader is None:
-                raise ValueError(f"Cannot find reader for path '{path}'")
-            yield {
-                "path": path,
-                "pixel_size_um": resolution,
-                "image_shape": reader.image_shape,
-                "type": reader.reader_type,
-            }
+        wrapper = self.wrapper
+        if wrapper:
+            for reader in wrapper.reader_iter():
+                yield {
+                    "path": reader.path,
+                    "pixel_size_um": reader.resolution,
+                    "image_shape": reader.image_shape,
+                    "type": reader.reader_type,
+                    "reader_kws": reader.reader_kws,
+                }
 
     def channel_names(self) -> ty.List[str]:
         """Return list of channel names."""
-        wrapper = self.get_wrapper()
+        wrapper = self.wrapper
         if wrapper:
             return wrapper.channel_names()
         return []
@@ -209,14 +247,14 @@ class DataModel(BaseModel):
     @property
     def min_resolution(self) -> float:
         """Return minimum resolution."""
-        wrapper = self.get_wrapper()
+        wrapper = self.wrapper
         if wrapper:
             return wrapper.min_resolution
         return 1.0
 
     def to_dict(self) -> ty.Dict:
         """Return dictionary of values to export."""
-        wrapper = self.get_wrapper()
+        wrapper = self.wrapper
         if not wrapper:
             raise ValueError("No wrapper found.")
         return {
@@ -239,7 +277,7 @@ class DataModel(BaseModel):
         self, left: int, right: int, top: int, bottom: int
     ) -> ty.Generator[ty.Tuple[Path, "BaseReader", np.ndarray], None, None]:
         """Crop image(s) to the specified region."""
-        wrapper = self.get_wrapper()
+        wrapper = self.wrapper
         if wrapper:
             for path, reader in wrapper.path_reader_iter():
                 cropped = reader.crop(left, right, top, bottom)

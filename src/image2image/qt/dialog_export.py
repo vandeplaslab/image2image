@@ -33,11 +33,16 @@ class ImageExportWindow(Window):
     _output_dir = None
 
     TABLE_CONFIG = (
-        TableConfig().add("name", "name", "str", 0).add("path", "path", "str", 0).add("progress", "progress", "str", 0)
+        TableConfig()  # type: ignore[no-untyped-call]
+        .add("name", "name", "str", 0)
+        .add("path (click to edit)", "path", "str", 0)
+        .add("progress", "progress", "str", 0)
+        .add("key", "key", "str", 0, hidden=True)
     )
 
     def __init__(self, parent: QWidget | None):
         super().__init__(parent, f"image2export: Export images in MATLAB fusion format (v{__version__})")
+        CONFIG.auto_pyramid = False
 
     def setup_events(self, state: bool = True) -> None:
         """Setup events."""
@@ -75,8 +80,8 @@ class ImageExportWindow(Window):
         """Remove items that are not present in the model."""
         to_remove = []
         for index in range(self.table.rowCount()):
-            name = self.table.item(index, self.TABLE_CONFIG.name).text()
-            if not self.data_model.has_path(name):
+            key = self.table.item(index, self.TABLE_CONFIG.key).text()
+            if not self.data_model.has_key(key):
                 to_remove.append(index)
         for index in reversed(to_remove):
             self.table.removeRow(index)
@@ -86,9 +91,8 @@ class ImageExportWindow(Window):
         self.on_depopulate_table()
         wrapper = self.data_model.get_wrapper()
         if wrapper:
-            for _path, reader in wrapper.path_reader_iter():
-                name = reader.name
-                index = hp.find_in_table(self.table, self.TABLE_CONFIG.name, name)
+            for reader in wrapper.reader_iter():
+                index = hp.find_in_table(self.table, self.TABLE_CONFIG.key, reader.key)
                 if index is not None:
                     continue
 
@@ -97,7 +101,7 @@ class ImageExportWindow(Window):
 
                 self.table.insertRow(index)
                 # add name item
-                table_item = QTableWidgetItem(name)
+                table_item = QTableWidgetItem(reader.key)
                 table_item.setFlags(table_item.flags() & ~Qt.ItemIsEditable)  # type: ignore[attr-defined]
                 table_item.setTextAlignment(Qt.AlignCenter)  # type: ignore[attr-defined]
                 self.table.setItem(index, self.TABLE_CONFIG.name, table_item)
@@ -113,6 +117,12 @@ class ImageExportWindow(Window):
                 table_item.setFlags(table_item.flags() & ~Qt.ItemIsEditable)  # type: ignore[attr-defined]
                 self.table.setItem(index, self.TABLE_CONFIG.progress, table_item)
 
+                # add secret key
+                name_item = QTableWidgetItem(reader.key)
+                name_item.setFlags(name_item.flags() & ~Qt.ItemIsEditable)  # type: ignore[attr-defined]
+                name_item.setTextAlignment(Qt.AlignCenter)  # type: ignore[attr-defined]
+                self.table.setItem(index, self.TABLE_CONFIG.key, name_item)
+
     def on_export(self):
         """Process data."""
         from image2image.utils.utilities import write_reader_to_txt, write_reader_to_xml
@@ -122,20 +132,19 @@ class ImageExportWindow(Window):
             return
 
         for row in range(self.table.rowCount()):
-            name = self.table.item(row, self.TABLE_CONFIG.name).text()
+            key = self.table.item(row, self.TABLE_CONFIG.key).text()
             is_exported = self.table.item(row, self.TABLE_CONFIG.progress).text() == "Exported!"
             if is_exported:
-                logger.info(f"Skipping {name} as it is already exported.")
+                logger.info(f"Skipping {key} as it is already exported.")
             #     continue
-            path = self.data_model.get_path(name)
-            if path is None:
-                logger.warning(f"Could not find path for {name}")
+            reader = self.data_model.get_reader_for_key(key)
+            if reader is None:
+                logger.warning(f"Could not find path for {key}")
                 continue
             item: QLineEdit = self.table.cellWidget(row, self.TABLE_CONFIG.path)  # type: ignore[assignment]
             output_path = self.output_dir / item.text()
-            reader = self.data_model.get_reader(path)
             if reader:
-                logger.info(f"Exporting {name} to {output_path}...")
+                logger.info(f"Exporting {key} to {output_path}...")
                 item = self.table.item(row, self.TABLE_CONFIG.progress)
                 item.setText("Exporting...")
                 write_reader_to_xml(reader, output_path.with_suffix(".xml"))
@@ -146,10 +155,13 @@ class ImageExportWindow(Window):
                     _start_thread=True,
                     _connect={
                         "started": lambda: hp.toast(
-                            self, "Exporting image...", f"Started export of {path}...", icon="success"
+                            self,
+                            "Exporting image...",
+                            f"Started export of {reader.path}...",  # type: ignore[union-attr]
+                            icon="success",
                         ),
-                        "yielded": partial(self._on_export_yield, name),
-                        "errored": partial(self._on_export_error, name),
+                        "yielded": partial(self._on_export_yield, key),
+                        "errored": partial(self._on_export_error, key),
                     },
                     _worker_class=GeneratorWorker,
                 )
@@ -162,8 +174,8 @@ class ImageExportWindow(Window):
 
     def __on_export_yield(self, *args: ty.Any) -> None:
         with suppress(ValueError):
-            name, (current, total, remaining) = args
-            row = hp.find_in_table(self.table, self.TABLE_CONFIG.name, name)
+            key, (current, total, remaining) = args
+            row = hp.find_in_table(self.table, self.TABLE_CONFIG.key, key)
             if row is not None:
                 item = self.table.item(row, self.TABLE_CONFIG.progress)
                 item.setText(f"{current/total:.1%} {remaining}")
@@ -174,8 +186,8 @@ class ImageExportWindow(Window):
     @ensure_main_thread()
     def _on_export_error(self, *args):
         """Failed exporting of the CSV."""
-        name, exc = args
-        row = hp.find_in_table(self.table, self.TABLE_CONFIG.name, name)
+        key, exc = args
+        row = hp.find_in_table(self.table, self.TABLE_CONFIG.key, key)
         if row is not None:
             item = self.table.item(row, self.TABLE_CONFIG.progress)
             item.setText("Export failed!")
@@ -207,18 +219,22 @@ class ImageExportWindow(Window):
         self._image_widget = LoadWidget(self, None, select_channels=False)
         self._image_widget.info_text.setVisible(False)
 
+        columns = ["name", "output name (click to edit)", "progress", "key"]
         self.table = QTableWidget(self)
-        self.table.setColumnCount(3)  # name, path, progress
-        self.table.setHorizontalHeaderLabels(["name", "path (click to edit)", "progress"])
+        self.table.setColumnCount(len(columns))  # name, path, progress, key
+        self.table.setHorizontalHeaderLabels(columns)
         self.table.setCornerButtonEnabled(False)
+        self.table.setTextElideMode(Qt.TextElideMode.ElideLeft)
 
         header = self.table.horizontalHeader()
-        header.setSectionResizeMode(self.TABLE_CONFIG.name, QHeaderView.Stretch)  # type: ignore[attr-defined]
-        header.setSectionResizeMode(self.TABLE_CONFIG.path, QHeaderView.Stretch)  # type: ignore[attr-defined]
+        header.setSectionResizeMode(self.TABLE_CONFIG.name, QHeaderView.ResizeMode.Stretch)
+        header.setSectionResizeMode(self.TABLE_CONFIG.path, QHeaderView.ResizeMode.Stretch)
         header.setSectionResizeMode(
             self.TABLE_CONFIG.progress,
             QHeaderView.ResizeToContents,  # type: ignore[attr-defined]
         )
+        header.setSectionResizeMode(self.TABLE_CONFIG.key, QHeaderView.ResizeMode.Fixed)
+        header.setSectionHidden(self.TABLE_CONFIG.key, True)
 
         side_layout = hp.make_form_layout()
         hp.style_form_layout(side_layout)

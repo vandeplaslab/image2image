@@ -3,12 +3,16 @@
 Copied from:
 https://github.com/NHPatterson/napari-imsmicrolink/blob/master/src/napari_imsmicrolink/data/tifffile_reader.py
 """
+from __future__ import annotations
+
 import warnings
 from pathlib import Path
 
+from loguru import logger
 from ome_types import from_xml
 from tifffile import TiffFile
 
+from image2image.config import CONFIG
 from image2image.readers._base_reader import BaseReader
 from image2image.readers.tiff_utils import (
     ometiff_ch_names,
@@ -23,23 +27,27 @@ from image2image.readers.utilities import (
     tifffile_to_dask,
 )
 
+logger = logger.bind(src="Tiff")
+
 
 class TiffImageReader(BaseReader):
     """TIFF image wrapper."""
 
-    def __init__(self, path, init_pyramid: bool = True):
-        super().__init__(path)
+    fh: TiffFile
+
+    def __init__(self, path, key: str | None = None, init_pyramid: bool = True):
+        super().__init__(path, key)
         self.fh = TiffFile(self.path)
         self.reader = "tifffile"
 
         self.im_dims, self.im_dtype, self.largest_series = self._get_image_info()
-
         self.im_dims = tuple(self.im_dims)
         self.is_rgb = guess_rgb(self.im_dims)
 
         self.resolution = self._get_im_res()
         self._channel_names = self._get_channel_names()
         self.channel_colors = None
+        logger.trace(f"{path}: RGB={self.is_rgb}; dims={self.im_dims}; px={self.resolution}")
 
         if init_pyramid:
             self._pyramid = self.pyramid
@@ -51,6 +59,7 @@ class TiffImageReader(BaseReader):
 
     def get_dask_pyr(self):
         """Get instance of Dask pyramid."""
+
         d_pyr = tifffile_to_dask(self.path, self.largest_series)
         if self.is_rgb and guess_rgb(d_pyr[0].shape) is True:
             d_pyr[0] = d_pyr[0].rechunk((2048, 2048, 1))
@@ -113,6 +122,8 @@ class TiffImageReader(BaseReader):
             )
 
         im_dims, im_dtype, largest_series = get_tifffile_info(self.path)
+        if not CONFIG.auto_pyramid:
+            largest_series = 0
 
         return im_dims, im_dtype, largest_series
 

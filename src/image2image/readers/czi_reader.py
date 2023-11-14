@@ -1,3 +1,6 @@
+"""CZI reader."""
+from __future__ import annotations
+
 import numpy as np
 import zarr
 from koyo.timer import MeasureTimer
@@ -5,6 +8,7 @@ from koyo.typing import PathLike
 from loguru import logger
 from tifffile import xml2dict
 
+from image2image.config import CONFIG
 from image2image.readers._base_reader import BaseReader
 from image2image.readers._czi import CziFile, CziSceneFile
 from image2image.readers.utilities import guess_rgb
@@ -17,8 +21,8 @@ class CziImageReader(BaseReader):
 
     fh: CziFile
 
-    def __init__(self, path: PathLike, init_pyramid: bool = True):
-        super().__init__(path)
+    def __init__(self, path: PathLike, key: str | None = None, init_pyramid: bool = True):
+        super().__init__(path, key)
         self.fh = CziFile(self.path)
 
         *_, self.im_dims, self.im_dtype = self._get_image_info()
@@ -30,11 +34,14 @@ class CziImageReader(BaseReader):
         pixel_scaling = float(pixel_scaling_str) * 1_000_000
         self.resolution = pixel_scaling
         channels_meta = czi_meta["ImageDocument"]["Metadata"]["DisplaySetting"]["Channels"]["Channel"]
-        logger.trace(f"{path}: RGB={self.is_rgb}; dims={self.im_dims}; px={pixel_scaling}")
+        logger.trace(f"{path}: RGB={self.is_rgb}; dims={self.im_dims}; px={self.resolution}")
 
         channel_names = []
         for ch in channels_meta:
-            channel_names.append(ch.get("ShortName"))
+            if isinstance(ch, dict):
+                channel_names.append(ch.get("ShortName"))
+            else:
+                channel_names.append(str(ch))
         self._channel_names = channel_names
 
         self.base_layer_idx = 0
@@ -45,7 +52,7 @@ class CziImageReader(BaseReader):
 
     def get_dask_pyr(self) -> list:
         """Get instance of Dask pyramid."""
-        return self.fh.zarr_pyramidalize_czi(zarr.storage.TempStore())
+        return self.fh.zarr_pyramidalize_czi(zarr.storage.TempStore(), CONFIG.auto_pyramid)
 
     def _get_image_info(self) -> tuple:
         # if RGB need to get 0
@@ -67,8 +74,8 @@ class CziSceneImageReader(BaseReader):
 
     fh: CziSceneFile
 
-    def __init__(self, path: PathLike, scene_index: int = 0, init_pyramid: bool = True):
-        super().__init__(path)
+    def __init__(self, path: PathLike, key: str | None = None, scene_index: int = 0, init_pyramid: bool = True):
+        super().__init__(path, key, reader_kws={"scene_index": scene_index})
         self.fh = CziSceneFile(self.path, scene_index=scene_index)
 
         *_, self.im_dims, self.im_dtype = self._get_image_info()
@@ -84,7 +91,10 @@ class CziSceneImageReader(BaseReader):
         channel_names = []
         channels_meta = czi_meta["ImageDocument"]["Metadata"]["DisplaySetting"]["Channels"]["Channel"]
         for ch in channels_meta:
-            channel_names.append(ch.get("ShortName"))
+            if isinstance(ch, dict):
+                channel_names.append(ch.get("ShortName"))
+            else:
+                channel_names.append(str(ch))
         self._channel_names = channel_names
 
         self.base_layer_idx = 0
@@ -95,7 +105,7 @@ class CziSceneImageReader(BaseReader):
 
     def get_dask_pyr(self) -> list:
         """Get instance of Dask pyramid."""
-        return self.fh.zarr_pyramidalize_czi(zarr.storage.TempStore())
+        return self.fh.zarr_pyramidalize_czi(zarr.storage.TempStore(), CONFIG.auto_pyramid)
 
     def _get_image_info(self) -> tuple:
         # if RGB need to get 0

@@ -25,6 +25,7 @@ CZI_EXTENSIONS = [".czi"]
 BRUKER_EXTENSIONS = [".tsf", ".tdf", ".d"]
 IMZML_EXTENSIONS = [".imzml"]
 H5_EXTENSIONS = [".h5", ".hdf5"]
+IMSPY_EXTENSIONS = [".data"]
 NPY_EXTENSIONS = [".npy"]
 GEOJSON_EXTENSIONS = [".geojson", ".json"]
 
@@ -33,12 +34,10 @@ class ImageWrapper:
     """Wrapper around image data."""
 
     data: dict[str, BaseReader]
-    paths: list[Path]
     resolution: float = 1.0
 
     def __init__(self, reader: ty.Mapping[str, BaseReader] | None = None):
         self.data = reader or {}
-        self.paths = []
 
         resolution = [1.0]
         for _, _reader_or_array in self.data.items():
@@ -46,38 +45,51 @@ class ImageWrapper:
                 resolution.append(_reader_or_array.resolution)
         self.resolution = np.min(resolution)
 
-    def add(self, key: str, reader: BaseReader) -> None:
+    def add(self, reader: BaseReader) -> None:
         """Add data to wrapper."""
-        self.data[key] = reader
-        logger.trace(f"Added '{key}' to wrapper data.")
+        self.data[reader.key] = reader
+        logger.trace(f"Added '{reader.key}' to ImageWrapper.")
 
-    def add_path(self, path: PathLike) -> None:
-        """Add the path to wrapper."""
-        self.paths.append(Path(path))
-        logger.trace(f"Added '{path}' to wrapper paths.")
-
-    def remove_path(self, path: PathLike) -> None:
-        """Remove the path from wrapper."""
-        path = Path(path)
-        if path in self.paths:
-            self.paths.remove(path)
-        path = str(path.name)
-        if path in self.data:
-            reader = self.data[path]
-            if hasattr(reader, "close"):
+    def remove(self, key_or_reader: str | BaseReader) -> None:
+        """Remove data from wrapper."""
+        if hasattr(key_or_reader, "key"):
+            key_or_reader = key_or_reader.key
+        if key_or_reader in self.data:
+            reader = self.data.pop(key_or_reader, None)
+            if reader and hasattr(reader, "close"):
                 reader.close()
-            del self.data[path]
+            del reader
+
+    def remove_path(self, path: PathLike) -> list[str]:
+        """Remove readers for specified path."""
+        keys = self.get_key_for_path(path)
+        for key in keys:
+            self.remove(key)
+        return keys
+
+    def get_key_for_path(self, path: PathLike) -> list[str]:
+        """Return key(s) for the specified path."""
+        path = Path(path)
+        keys = []
+        for reader in self.reader_iter():
+            if reader.path == path:
+                keys.append(reader.key)
+        return keys
 
     def is_loaded(self, path: PathLike) -> bool:
         """Check if the path is loaded."""
-        return Path(path) in self.paths
+        path = Path(path)
+        for reader in self.reader_iter():
+            if reader.path == path or reader.path == sanitize_path(path):
+                return True
+        return False
 
     @property
     def n_channels(self) -> int:
         """Return number of channels."""
         return len(self.channel_names())
 
-    def channel_names_for_names(self, names: ty.Sequence[PathLike]) -> list[str]:
+    def channel_names_for_names(self, names: ty.Sequence[str]) -> list[str]:
         """Return list of channel names for a given wrapper/dataset."""
         clean_names = []
         for name in names:
@@ -114,8 +126,8 @@ class ImageWrapper:
 
     def path_reader_iter(self) -> ty.Generator[tuple[Path, BaseReader], None, None]:
         """Iterator of a path + reader."""
-        for path in self.paths:
-            yield path, self.data[path.name]
+        for reader in self.reader_iter():
+            yield reader.path, reader
 
     def reader_channel_iter(
         self,
@@ -230,6 +242,8 @@ def sanitize_path(path: PathLike) -> Path:
     if path.is_file():
         if path.suffix in [".tsf", ".tdf"]:
             path = path.parent
+        elif path.name == "dataset.metadata.h5":
+            path = path.parent
     return path
 
 
@@ -239,25 +253,28 @@ def read_data(
     is_fixed: bool = False,
     transform_data: TransformData | None = None,
     resolution: float | None = None,
-) -> ImageWrapper:
+) -> tuple[ImageWrapper, list[str], dict[Path, Path]]:
     """Read image data."""
     path = Path(path)
-    assert path.exists(), f"File does not exist: {path}"
-    assert (
-        path.suffix.lower()
-        in TIFF_EXTENSIONS
+    if not path.exists():
+        raise FileNotFoundError(f"File does not exist: {path}")
+    suffix = path.suffix.lower()
+    if suffix not in (
+        TIFF_EXTENSIONS
         + IMAGE_EXTENSIONS
         + CZI_EXTENSIONS
         + NPY_EXTENSIONS
         + BRUKER_EXTENSIONS
         + IMZML_EXTENSIONS
         + H5_EXTENSIONS
+        + IMSPY_EXTENSIONS
         + GEOJSON_EXTENSIONS
-    ), f"Unsupported file format: {path.suffix} ({path})"
+    ):
+        raise ValueError(f"Unsupported file format: {path.suffix} ({path})")
 
-    suffix = path.suffix.lower()
-    reader: dict[str, type[BaseReader]]
+    reader: dict[str, BaseReader]
     name = path.name
+    original_path = path
     if suffix in TIFF_EXTENSIONS:
         logger.trace(f"Reading TIFF file: {path}")
         path, reader = _read_tiff(path)  # type: ignore
@@ -280,8 +297,10 @@ def read_data(
     elif suffix in IMZML_EXTENSIONS:
         logger.trace(f"Reading imzML file: {path}")
         path, reader = _read_imzml_reader(path)  # type: ignore
-    elif suffix in H5_EXTENSIONS:
+    elif suffix in H5_EXTENSIONS + IMSPY_EXTENSIONS:
         logger.trace(f"Reading HDF5 file: {path}")
+        if path.suffix == ".data":
+            path = path / "dataset.metadata.h5"
         if path.name.startswith("dataset.metadata"):
             path, reader = _read_metadata_h5_coordinates(path)  # type: ignore
         else:
@@ -292,25 +311,46 @@ def read_data(
     else:
         raise UnsupportedFileFormatError(f"Unsupported file format: '{suffix}'")
 
+    # add transformation information if provided
     if transform_data is not None:
         for reader_ in reader.values():
             reader_.transform_data = transform_data
             reader_.transform_name = name
+    # add resolution information if provided
     if resolution is not None:
         for reader_ in reader.values():
             reader_.resolution = resolution
-
-    if wrapper is None:
-        wrapper = ImageWrapper(None)
-
     # specify whether the model is fixed
     if hasattr(reader, "is_fixed"):
         reader.is_fixed = is_fixed
 
-    for name, reader_ in reader.items():
-        wrapper.add(name, reader_)
-    wrapper.add_path(path)
-    return wrapper
+    # initialize image wrapper, unless it's been provided
+    if wrapper is None:
+        wrapper = ImageWrapper(None)
+    # add readers to the wrapper
+    just_added = []
+    for reader_ in reader.values():
+        wrapper.add(reader_)
+        just_added.append(reader_.key)
+    return wrapper, just_added, {original_path: path}
+
+
+def get_key(path: Path, scene_index: int | None = None) -> str:
+    """Return representative key."""
+    name = path.name
+    if name == "dataset.metadata.h5":
+        name = path.parent.name
+    if scene_index is not None:
+        name = f"Scene={scene_index}; {name}"
+    return name
+
+
+def _check_multi_scene_czi(path: PathLike) -> bool:
+    """Check whether this is a multi-scene CZI file."""
+    from image2image.readers._czi import CziSceneFile
+
+    path = Path(path)
+    return bool(CziSceneFile.get_num_scenes(path) > 1)
 
 
 def _read_geojson(path: PathLike) -> tuple[Path, dict[str, GeoJSONReader]]:
@@ -319,15 +359,8 @@ def _read_geojson(path: PathLike) -> tuple[Path, dict[str, GeoJSONReader]]:
 
     path = Path(path)
     assert path.exists(), f"File does not exist: {path}"
-    return path, {path.name: GeoJSONReader(path)}
-
-
-def _check_multi_scene_czi(path: PathLike) -> bool:
-    """Check whether this is a multi-scene CZI file."""
-    from image2image.readers._czi import CziSceneFile
-
-    path = Path(path)
-    return CziSceneFile.get_num_scenes(path) > 1
+    key = get_key(path)
+    return path, {path.name: GeoJSONReader(path, key=key)}
 
 
 def _read_single_scene_czi(path: PathLike) -> tuple[Path, dict[str, CziImageReader]]:
@@ -336,19 +369,23 @@ def _read_single_scene_czi(path: PathLike) -> tuple[Path, dict[str, CziImageRead
 
     path = Path(path)
     assert path.exists(), f"File does not exist: {path}"
-    return path, {path.name: CziImageReader(path)}
+    key = get_key(path)
+    return path, {path.name: CziImageReader(path, key=key)}
 
 
 def _read_multi_scene_czi(path: PathLike) -> tuple[Path, dict[str, CziSceneImageReader]]:
     """Read CZI file."""
-    from image2image.readers.czi_reader import CziSceneFile, CziSceneImageReader
+    from image2image.readers._czi import CziSceneFile
+    from image2image.readers.czi_reader import CziSceneImageReader
 
     path = Path(path)
     assert path.exists(), f"File does not exist: {path}"
     n = CziSceneFile.get_num_scenes(path)
     logger.trace(f"Found {n} scenes in CZI file: {path}")
-    return path, {path.name: CziSceneImageReader(path, scene_index=i) for i in range(1)}
-    # return path, {f"S{i}_{path.name}": CziSceneImageReader(path, scene_index=i) for i in range(n)}
+    return path, {
+        f"S{i}_{path.name}": CziSceneImageReader(path, scene_index=i, key=get_key(path, scene_index=i))
+        for i in range(n)
+    }
 
 
 def _read_tiff(path: PathLike) -> tuple[Path, dict[str, TiffImageReader]]:
@@ -357,7 +394,8 @@ def _read_tiff(path: PathLike) -> tuple[Path, dict[str, TiffImageReader]]:
 
     path = Path(path)
     assert path.exists(), f"File does not exist: {path}"
-    return path, {path.name: TiffImageReader(path)}
+    key = get_key(path)
+    return path, {path.name: TiffImageReader(path, key=key)}
 
 
 def _read_image(path: PathLike) -> tuple[Path, dict[str, ArrayImageReader]]:
@@ -368,7 +406,8 @@ def _read_image(path: PathLike) -> tuple[Path, dict[str, ArrayImageReader]]:
 
     path = Path(path)
     assert path.exists(), f"File does not exist: {path}"
-    return path, {path.name: ArrayImageReader(path, imread(path))}
+    key = get_key(path)
+    return path, {path.name: ArrayImageReader(path, imread(path), key=key)}
 
 
 def _read_npy_coordinates(path: PathLike) -> tuple[Path, dict[str, CoordinateImageReader]]:
@@ -380,7 +419,8 @@ def _read_npy_coordinates(path: PathLike) -> tuple[Path, dict[str, CoordinateIma
         image = np.load(f)  # noqa
     assert image.ndim == 2, "Only 2D images are supported"
     y, x = get_yx_coordinates_from_shape(image.shape)
-    return path, {path.name: CoordinateImageReader(path, x, y, array_or_reader=image)}
+    key = get_key(path)
+    return path, {path.name: CoordinateImageReader(path, x, y, array_or_reader=image, key=key)}
 
 
 def _read_metadata_h5_coordinates(path: PathLike) -> tuple[Path, dict[str, CoordinateImageReader]]:
@@ -408,7 +448,12 @@ def _read_metadata_h5_coordinates(path: PathLike) -> tuple[Path, dict[str, Coord
     if (path.parent / "metadata.json").exists():
         metadata = read_json_data(path.parent / "metadata.json")
         resolution = metadata["metadata.experimental"]["pixel_size"]
-    return path, {path.parent.name: CoordinateImageReader(path, x, y, resolution, array_or_reader=reshape(x, y, tic))}
+    key = get_key(path)
+    return path, {
+        path.parent.name: CoordinateImageReader(
+            path, x, y, resolution=resolution, array_or_reader=reshape(x, y, tic), key=key
+        )
+    }
 
 
 def _read_centroids_h5_coordinates(path: PathLike) -> tuple[Path, dict[str, CoordinateImageReader]]:
@@ -463,7 +508,8 @@ def _read_centroids_h5_coordinates_without_metadata(path: Path) -> tuple[Path, d
         centroids = f["Array"]["array"][:]  # retrieve ion images
     tic = np.random.randint(128, 255, len(x), dtype=np.uint8)
     tic = reshape(x, y, tic)
-    reader = CoordinateImageReader(path, x, y, resolution, array_or_reader=tic)
+    key = get_key(path)
+    reader = CoordinateImageReader(path, x, y, resolution=resolution, array_or_reader=tic, key=key)
     mzs = [format_mz(mz) for mz in mzs]  # generate labels
     centroids = reshape_batch(x, y, centroids)  # reshape images
     reader.data.update(dict(zip(mzs, centroids)))
@@ -508,7 +554,10 @@ def _read_tsf_tdf_coordinates(path: PathLike) -> tuple[Path, dict[str, Coordinat
     cursor = conn.execute("SELECT SummedIntensities FROM Frames")  # noqa
     tic = np.array(cursor.fetchall())
     tic = tic[:, 0]
-    return path.parent, {path.name: CoordinateImageReader(path, x, y, resolution, array_or_reader=reshape(x, y, tic))}
+    key = get_key(path)
+    return path.parent, {
+        path.name: CoordinateImageReader(path, x, y, resolution=resolution, array_or_reader=reshape(x, y, tic), key=key)
+    }
 
 
 def _read_tsf_tdf_reader(path: PathLike) -> tuple[Path, dict[str, CoordinateImageReader]]:
@@ -541,7 +590,10 @@ def _read_tsf_tdf_reader(path: PathLike) -> tuple[Path, dict[str, CoordinateImag
     reader = get_reader(path)
     x = reader.x_coordinates
     y = reader.y_coordinates
-    return path, {path.name: CoordinateImageReader(path.parent, x, y, resolution, array_or_reader=reader)}
+    key = get_key(path)
+    return path, {
+        path.name: CoordinateImageReader(path.parent, x, y, resolution=resolution, array_or_reader=reader, key=key)
+    }
 
 
 def _read_imzml_coordinates(path: PathLike) -> tuple[Path, dict[str, CoordinateImageReader]]:
@@ -560,7 +612,8 @@ def _read_imzml_coordinates(path: PathLike) -> tuple[Path, dict[str, CoordinateI
     y = reader.y_coordinates
     y = y - np.min(y)  # minimized
     tic = reader.get_tic()
-    return path, {path.name: CoordinateImageReader(path, x, y, array_or_reader=reshape(x, y, tic))}
+    key = get_key(path)
+    return path, {path.name: CoordinateImageReader(path, x, y, array_or_reader=reshape(x, y, tic), key=key)}
 
 
 def _read_imzml_reader(path: PathLike) -> tuple[Path, dict[str, CoordinateImageReader]]:
@@ -578,7 +631,8 @@ def _read_imzml_reader(path: PathLike) -> tuple[Path, dict[str, CoordinateImageR
     x = x - np.min(x)  # minimized
     y = reader.y_coordinates
     y = y - np.min(y)  # minimized
-    return path, {path.name: CoordinateImageReader(path, x, y, array_or_reader=reader)}
+    key = get_key(path)
+    return path, {path.name: CoordinateImageReader(path, x, y, array_or_reader=reader, key=key)}
 
 
 def reshape(x: np.ndarray, y: np.ndarray, array: np.ndarray, fill_value: float = 0) -> np.ndarray:

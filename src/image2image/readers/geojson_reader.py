@@ -16,8 +16,8 @@ class GeoJSONReader(BaseReader):
     reader_type = "shapes"
     _channel_names: list[str]
 
-    def __init__(self, path: PathLike):
-        super().__init__(path)
+    def __init__(self, path: PathLike, key: str | None = None):
+        super().__init__(path, key=key)
         self._channel_names = [self.path.stem]
 
         self.geojson_data, self.shape_data = read_geojson(self.path)

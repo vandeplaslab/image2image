@@ -60,6 +60,9 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
         # synchronize themes
         THEMES.evt_theme_changed.connect(self.on_changed_theme)
 
+        # most apps will benefit from this
+        CONFIG.auto_pyramid = True
+
     def on_toggle_theme(self) -> None:
         """Toggle theme."""
         THEMES.theme = "dark" if self.theme_btn.dark else "light"
@@ -215,7 +218,7 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
 
     def _get_console_variables(self) -> dict:
         """Get variables for the console."""
-        return {"window": self}
+        return {"window": self, "config": CONFIG}
 
     def _make_icon(self) -> None:
         """Make icon."""
@@ -344,11 +347,6 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
         """Override Qt method.
 
         Provide style updates on event.
-
-        Parameters
-        ----------
-        event : qtpy.QtCore.QDragEnterEvent
-            Event from the Qt context.
         """
         if self.allow_drop:
             hp.toast(
@@ -358,7 +356,7 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
                 icon="info",
                 position="top_left",
             )
-
+            hp.update_property(self.centralWidget(), "drag", True)
             if event.mimeData().hasUrls():
                 event.accept()
             else:
@@ -375,10 +373,10 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
     def dragLeaveEvent(self, event):
         """Override Qt method."""
         if self.allow_drop:
-            hp.update_property(self, "drag", False)
+            hp.update_property(self.centralWidget(), "drag", False)
 
     def dropEvent(self, event):
         """Override Qt method."""
         if self.allow_drop:
-            hp.update_property(self, "drag", False)
+            hp.update_property(self.centralWidget(), "drag", False)
             self.evt_dropped.emit(event)

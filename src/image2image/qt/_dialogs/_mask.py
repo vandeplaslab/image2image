@@ -32,6 +32,7 @@ class MasksDialog(QtFramelessTool):
         .add("", "check", "bool", 25, no_sort=True)
         .add("name", "name", "str", 100)
         .add("path", "path", "str", 0, hidden=True)
+        .add("key", "key", "str", 0, hidden=True)
     )
 
     TABLE_IMAGE_CONFIG = (
@@ -40,6 +41,7 @@ class MasksDialog(QtFramelessTool):
         .add("name", "name", "str", 100)
         .add("output shape", "shape", "str", 100)
         .add("path", "path", "str", 0, hidden=True)
+        .add("key", "key", "str", 0, hidden=True)
     )
 
     def __init__(self, parent: ImageViewerWindow):
@@ -60,14 +62,14 @@ class MasksDialog(QtFramelessTool):
                 if reader.reader_type == "image":
                     shape = reader.image_shape
 
-                    images.append([False, reader.name, f"{shape[0]} * {shape[1]}", reader.path])
+                    images.append([False, reader.name, f"{shape[0]} * {shape[1]}", reader.path, reader.key])
                 if reader.reader_type == "shapes":
                     if not reader.is_identity_transform():
                         logger.warning(
                             f"For the time being, only masks with '{DEFAULT_TRANSFORM_NAME}' transform are compatible."
                         )
                         continue
-                    masks.append([True, reader.name, reader.path])
+                    masks.append([True, reader.name, reader.path, reader.key])
         logger.debug(f"Discovered {len(images)} images and {len(masks)} masks.")
         # update table
         self.table_geo.reset_data()
@@ -98,11 +100,11 @@ class MasksDialog(QtFramelessTool):
                 icon="error",
             )
             return False, None
-        masks: list[Path] = [
-            self.table_geo.get_value(self.TABLE_GEO_CONFIG.path, index) for index in self.table_geo.get_all_checked()
+        masks: list[str] = [
+            self.table_geo.get_value(self.TABLE_GEO_CONFIG.key, index) for index in self.table_geo.get_all_checked()
         ]
-        images: list[Path] = [
-            self.table_image.get_value(self.TABLE_IMAGE_CONFIG.path, index)
+        images: list[str] = [
+            self.table_image.get_value(self.TABLE_IMAGE_CONFIG.key, index)
             for index in self.table_image.get_all_checked()
         ]
         if not masks:
@@ -139,8 +141,8 @@ class MasksDialog(QtFramelessTool):
     def _on_export(
         self,
         mask_shape: tuple[int, int],
-        masks: list[Path],
-        images: list[Path],
+        masks: list[str],
+        images: list[str],
         data_model: DataModel,
         output_dir: Path | None = None,
         preview: bool = False,
@@ -152,16 +154,16 @@ class MasksDialog(QtFramelessTool):
             raise ValueError("Must provide output directory if exporting.")
 
         parent: ImageViewerWindow = self.parent()  # type: ignore[assignment]
-        for mask_path in masks:
-            mask_reader: GeoJSONReader = data_model.get_reader(mask_path)
+        for mask_key in masks:
+            mask_reader: GeoJSONReader = data_model.get_reader_for_key(mask_key)  # type: ignore[assignment]
             if not mask_reader:
-                raise ValueError(f"Could not find mask reader for '{mask_path}'")
+                raise ValueError(f"Could not find mask reader for '{mask_key}'")
             mask = mask_reader.to_mask(mask_shape)
             display_name, shapes = mask_reader.to_shapes()
-            for image_path in images:
-                image_reader = data_model.get_reader(image_path)
+            for image_key in images:
+                image_reader = data_model.get_reader_for_key(image_key)
                 if not image_reader:
-                    raise ValueError(f"Could not find image reader for '{image_path}'")
+                    raise ValueError(f"Could not find image reader for '{image_key}'")
                 transformed_mask = image_reader.warp(mask)
                 # at um level
                 transform = image_reader.transform

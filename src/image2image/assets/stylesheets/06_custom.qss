@@ -333,7 +333,7 @@ QPushButton#update_btn{
 }
 
 
-Window, QMainWindow[drag=true] {
-    border: 3px solid {{ highlight }};
+QWidget[drag=true] {
+    border: 6px solid {{ success }};
     border-radius: 2px;
 }

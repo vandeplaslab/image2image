@@ -6,16 +6,24 @@ import dask.array as da
 import numpy as np
 import SimpleITK as sitk
 import zarr
+from koyo.timer import MeasureTimer
+from loguru import logger
 from tifffile import TiffFile, imread, xml2dict
+
+logger = logger.bind(src="Tiff")
 
 
 def tifffile_to_dask(im_fp: ty.Union[str, Path], largest_series: int):
     """Convert a tifffile to a dask array."""
-    imdata = zarr.open(imread(im_fp, aszarr=True, series=largest_series))
-    if isinstance(imdata, zarr.hierarchy.Group):
-        imdata = [da.from_zarr(imdata[z]) for z in imdata.array_keys()]
-    else:
-        imdata = [da.from_zarr(imdata)]
+    with MeasureTimer() as timer:
+        imdata = zarr.open(imread(im_fp, aszarr=True, series=largest_series))
+    logger.trace(f"Loaded OME-TIFF data in {timer()}")
+    with MeasureTimer() as timer:
+        if isinstance(imdata, zarr.hierarchy.Group):
+            imdata = [da.from_zarr(imdata[z]) for z in imdata.array_keys()]
+        else:
+            imdata = [da.from_zarr(imdata)]
+    logger.trace(f"Converted OME-TIFF data to dask in {timer()}")
     return imdata
 
 

@@ -14,53 +14,104 @@ class Config(BaseModel):
     """Configuration of few parameters."""
 
     # view parameters
-    sync_views: bool = Field(True, title="Sync views", description="Sync views.")
+    sync_views: bool = Field(True, title="Sync views", description="Sync views.", in_app=False)
     opacity_fixed: int = Field(
-        100, ge=0, le=100, step_size=10, title="Opacity (fixed)", description="Opacity of the fixed image"
+        100, ge=0, le=100, step_size=10, title="Opacity (fixed)", description="Opacity of the fixed image", in_app=False
     )
     opacity_moving: int = Field(
-        75, ge=0, le=100, step_size=10, title="Opacity (moving)", description="Opacity of the moving image"
+        75,
+        ge=0,
+        le=100,
+        step_size=10,
+        title="Opacity (moving)",
+        description="Opacity of the moving image",
+        in_app=False,
     )
     size_fixed: int = Field(
-        3, ge=1, le=40, step_size=1, title="Size (fixed)", description="Size of the points shown in the fixed image."
+        3,
+        ge=1,
+        le=40,
+        step_size=1,
+        title="Size (fixed)",
+        description="Size of the points shown in the fixed image.",
+        in_app=False,
     )
     size_moving: int = Field(
-        10, ge=1, le=40, step_size=1, title="Size (moving)", description="Size of the points shown in the moving image."
+        10,
+        ge=1,
+        le=40,
+        step_size=1,
+        title="Size (moving)",
+        description="Size of the points shown in the moving image.",
+        in_app=False,
     )
     label_size: int = Field(
-        12, ge=4, le=60, step_size=4, title="Label size", description="Size of the text associated with each label."
+        12,
+        ge=4,
+        le=60,
+        step_size=4,
+        title="Label size",
+        description="Size of the text associated with each label.",
+        in_app=False,
     )
     label_color: str = Field(
-        "#FFFF00", title="Label color", description="Color of the text associated with each label."
+        "#FFFF00", title="Label color", description="Color of the text associated with each label.", in_app=False
     )
     viewer_orientation: ViewerOrientation = Field(
-        ViewerOrientation.VERTICAL, title="Viewer orientation", description="Orientation of the viewer."
+        ViewerOrientation.VERTICAL, title="Viewer orientation", description="Orientation of the viewer.", in_app=False
     )
-    view_type: ViewType = Field(ViewType.RANDOM, title="View type", description="IMS view type.")
+    view_type: ViewType = Field(ViewType.RANDOM, title="View type", description="IMS view type.", in_app=False)
     show_transformed: bool = Field(
-        True, title="Show transformed", description="If checked, transformed moving image will be shown."
+        True, title="Show transformed", description="If checked, transformed moving image will be shown.", in_app=False
+    )
+
+    # paths
+    fixed_dir: str = Field("", title="Fixed directory", description="Directory with fixed images.", in_app=False)
+    moving_dir: str = Field("", title="Moving directory", description="Directory with moving images.", in_app=False)
+    output_dir: str = Field(
+        "", title="Output directory", description="Directory where output should be saved.", in_app=False
     )
 
     # visuals
-    theme: str = Field("light", title="Theme", description="Theme of the application.", options=["light", "dark"])
+    theme: str = Field(
+        "light", title="Theme", description="Theme of the application.", options=["light", "dark"], in_app=True
+    )
 
-    first_time_crop: bool = Field(True, title="First time", description="First time running the crop app.")
-    confirm_close_crop: bool = Field(True, title="Confirm close", description="Confirm close crop app.")
-    first_time_reader: bool = Field(True, title="First time", description="First time running the reader app.")
-    confirm_close_reader: bool = Field(True, title="Confirm close", description="Confirm close reader app.")
-    first_time_export: bool = Field(True, title="First time", description="First time running the export app.")
-    confirm_close_export: bool = Field(True, title="Confirm close", description="Confirm close export app.")
-    first_time_viewer: bool = Field(True, title="First time", description="First time running the viewer app.")
-    confirm_close_viewer: bool = Field(True, title="Confirm close", description="Confirm close viewer app.")
+    auto_pyramid: bool = Field(True, title="Auto pyramid", description="Automatically create pyramid.", in_app=True)
 
-    # paths
-    fixed_dir: str = Field("", title="Fixed directory", description="Directory with fixed images.")
-    moving_dir: str = Field("", title="Moving directory", description="Directory with moving images.")
-    output_dir: str = Field("", title="Output directory", description="Directory where output should be saved.")
+    # Crop-app parameters
+    first_time_crop: bool = Field(True, title="First time", description="First time running the crop app.", in_app=True)
+    confirm_close_crop: bool = Field(True, title="Confirm close", description="Confirm close crop app.", in_app=True)
+
+    # Register-app parameters
+    first_time_register: bool = Field(
+        True, title="First time", description="First time running the register app.", in_app=True
+    )
+    confirm_close_register: bool = Field(
+        True, title="Confirm close", description="Confirm close register app.", in_app=True
+    )
+
+    # Export-app parameters
+    first_time_export: bool = Field(
+        True, title="First time", description="First time running the export app.", in_app=True
+    )
+    confirm_close_export: bool = Field(
+        True, title="Confirm close", description="Confirm close export app.", in_app=True
+    )
+
+    # Viewer-app parameters
+    first_time_viewer: bool = Field(
+        True, title="First time", description="First time running the viewer app.", in_app=True
+    )
+    confirm_close_viewer: bool = Field(
+        True, title="Confirm close", description="Confirm close viewer app.", in_app=True
+    )
 
     # telemetry
-    telemetry_enabled: bool = Field(True, title="Enable telemetry", description="Enable telemetry.")
-    telemetry_with_locals: bool = Field(True, title="Send locals", description="Send locals with telemetry.")
+    telemetry_enabled: bool = Field(True, title="Enable telemetry", description="Enable telemetry.", in_app=True)
+    telemetry_with_locals: bool = Field(
+        True, title="Send locals", description="Send locals with telemetry.", in_app=True
+    )
 
     @validator("fixed_dir", "moving_dir", "output_dir", pre=True, allow_reuse=True)
     def _validate_path(value: PathLike) -> str:  # type: ignore[misc]

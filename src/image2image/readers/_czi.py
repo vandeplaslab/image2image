@@ -163,7 +163,7 @@ class CziMixin:
             out.flush()
         return out
 
-    def zarr_pyramidalize_czi(self, zarr_fp):
+    def zarr_pyramidalize_czi(self, zarr_fp, pyramid: bool = True):
         """Create a pyramidal zarr store from a CZI file."""
         dask_pyr = []
         root = zarr.open_group(zarr_fp, mode="a")
@@ -180,10 +180,12 @@ class CziMixin:
 
         with MeasureTimer() as timer:
             self.sub_asarray(zarr_fp=zarr_fp, resize=True, order=0, ds_factor=1, max_workers=4)
-        logger.trace(f"Down-sampled 1 in {timer()}")
+        logger.trace(f"Down-sampled 0 in {timer()}")
 
         zarray = da.squeeze(da.from_zarr(zarr.open(zarr_fp)[0]))
         dask_pyr.append(da.squeeze(zarray))
+        if not pyramid:
+            return dask_pyr
         for ds_factor in range(1, ds):
             with MeasureTimer() as timer:
                 zres = zarr.storage.TempStore()

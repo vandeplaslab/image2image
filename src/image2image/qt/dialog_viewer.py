@@ -92,12 +92,12 @@ class ImageViewerWindow(Window):
         """Toggle channel."""
         self._toggle_all_channels(self.data_model, self.view, state, "view")
 
-    def on_update_transform(self, path: Path) -> None:
+    def on_update_transform(self, key: str) -> None:
         """Update affine transformation."""
         wrapper = self.data_model.get_wrapper()
-        reader = self.data_model.get_reader(path)
+        reader = self.data_model.get_reader_for_key(key)
         if wrapper and reader:
-            channel_names = wrapper.channel_names_for_names([path])
+            channel_names = wrapper.channel_names_for_names([reader.key])
             for name in channel_names:
                 if name not in self.view.layers:
                     continue

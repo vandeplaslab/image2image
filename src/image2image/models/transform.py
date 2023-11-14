@@ -8,6 +8,7 @@ from loguru import logger
 from pydantic import PrivateAttr
 from skimage.transform import AffineTransform, ProjectiveTransform
 
+from image2image.enums import DEFAULT_TRANSFORM_NAME
 from image2image.models.base import BaseModel
 
 
@@ -15,6 +16,7 @@ class TransformData(BaseModel):
     """Transformation data."""
 
     # Transformation object
+    name: str = DEFAULT_TRANSFORM_NAME
     _transform: ty.Optional[ProjectiveTransform] = PrivateAttr(None)
     # this value should never change
     fixed_resolution: float = 1.0
