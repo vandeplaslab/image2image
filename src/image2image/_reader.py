@@ -43,7 +43,7 @@ class ImageWrapper:
         resolution = [1.0]
         for _, _reader_or_array in self.data.items():
             if hasattr(_reader_or_array, "base_layer_pixel_res"):
-                resolution.append(_reader_or_array.base_layer_pixel_res)
+                resolution.append(_reader_or_array.resolution)
         self.resolution = np.min(resolution)
 
     def add(self, key: str, reader: BaseReader) -> None:
@@ -265,10 +265,6 @@ def read_data(
         if _check_multi_scene_czi(path):
             logger.trace(f"Reading multi-scene CZI file: {path}")
             path, reader = _read_multi_scene_czi(path)  # type: ignore
-            # raise MultiSceneCziError(
-            #     "Multi-scene CZI files are not supported. Please convert to OME-TIFF first using ZenHub or other"
-            #     " software."
-            # )
         else:
             logger.trace(f"Reading single-scene CZI file: {path}")
             path, reader = _read_single_scene_czi(path)  # type: ignore

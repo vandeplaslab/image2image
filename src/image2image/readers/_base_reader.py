@@ -1,4 +1,6 @@
 """Base image wrapper."""
+from __future__ import annotations
+
 import math
 import typing as ty
 from pathlib import Path
@@ -14,13 +16,13 @@ class BaseReader:
     """Base class for some of the other image readers."""
 
     _pyramid = None
-    _image_shape: ty.Tuple[int, int] = None
+    _image_shape: tuple[int, int] | None = None
     reader_type: str = "image"
     lazy: bool = False
     fh = None
     allow_extraction: bool = False
-    base_layer_pixel_res: float = 1.0
-    _channel_names: ty.List[str]
+    _resolution: float = 1.0
+    _channel_names: list[str]
 
     def __init__(self, path: PathLike):
         self.path = Path(path)
@@ -64,7 +66,7 @@ class BaseReader:
         self._image_shape = value
 
     @property
-    def channel_names(self) -> ty.List[str]:
+    def channel_names(self) -> list[str]:
         """Return channel names."""
         return self._channel_names
 
@@ -79,18 +81,18 @@ class BaseReader:
         return self.pyramid[0].dtype
 
     @property
-    def scale(self) -> ty.Tuple[float, float]:
+    def scale(self) -> tuple[float, float]:
         """Return scale."""
         return self.resolution, self.resolution
 
     @property
     def resolution(self) -> float:
         """Return resolution."""
-        return self.base_layer_pixel_res
+        return self._resolution
 
     @resolution.setter
     def resolution(self, value: float) -> None:
-        self.base_layer_pixel_res = value
+        self._resolution = value
         if self.transform_data:
             self.transform_data.moving_resolution = value
 
@@ -126,13 +128,13 @@ class BaseReader:
         self._pyramid = None
 
     @property
-    def pyramid(self) -> ty.List:
+    def pyramid(self) -> list:
         """Pyramid."""
         if self._pyramid is None:
             self._pyramid = self.get_dask_pyr()
         return self._pyramid
 
-    def get_dask_pyr(self) -> ty.List[ty.Any]:
+    def get_dask_pyr(self) -> list[ty.Any]:
         """Get dask representation of the pyramid."""
         raise NotImplementedError("Must implement method")
 
@@ -173,7 +175,7 @@ class BaseReader:
         transformed_mask = transform_mask(array, transform, self.image_shape)
         return transformed_mask
 
-    def get_channel_axis_and_n_channels(self) -> ty.Tuple[ty.Optional[int], int]:
+    def get_channel_axis_and_n_channels(self) -> tuple[int | None, int]:
         """Return channel axis and number of channels."""
         shape = self.pyramid[0].shape
         ndim = len(shape)
