@@ -168,20 +168,21 @@ class DataModel(BaseModel):
                     just_added_keys.extend(just_added_keys_)
                     if path_map:
                         for original_path, new_path in path_map.items():
+                            if original_path == new_path:
+                                continue
                             if original_path in self.paths:
                                 index = self.paths.index(original_path)
                                 self.paths[index] = new_path
+                                logger.trace(f"Updated path '{original_path}' to '{new_path}'")
                 except Exception as e:  # noqa
                     log_exception_or_error(e)
                     logger.error(f"Failed to load '{path}'")
                     self.remove_paths(path)
-                    continue
         if self.wrapper:
             self.resolution = self.wrapper.resolution
-        # if just_added:
-        #     self.just_added = just_added
         if just_added_keys:
             self.just_added_keys = just_added_keys
+            logger.trace(f"Added keys: {just_added_keys}")
         return self.wrapper
 
     def get_reader(self, path: PathLike) -> ty.Optional["BaseReader"]:

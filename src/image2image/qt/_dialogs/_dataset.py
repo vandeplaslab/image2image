@@ -141,7 +141,9 @@ class SelectChannelsToLoadDialog(QtDialog):
         data = []
         wrapper = self.model.get_wrapper()
         if wrapper:
+            print(self.model.just_added_keys)
             channel_list = list(wrapper.channel_names_for_names(self.model.just_added_keys))
+            print(channel_list)
             auto_check = len(channel_list) < 10
             if len(channel_list) > 10:
                 self.warning_label.show()

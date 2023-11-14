@@ -97,6 +97,7 @@ class ImageViewerWindow(Window):
         """Update affine transformation."""
         wrapper = self.data_model.get_wrapper()
         reader = self.data_model.get_reader_for_key(key)
+        print(key, reader)
         if wrapper and reader:
             channel_names = wrapper.channel_names_for_names([reader.key])
             for name in channel_names:
