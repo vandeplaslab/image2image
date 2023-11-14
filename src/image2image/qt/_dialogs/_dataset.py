@@ -10,7 +10,7 @@ from qtextra import helpers as hp
 from qtextra.utils.table_config import TableConfig
 from qtextra.utils.utilities import connect
 from qtextra.widgets.qt_dialog import QtDialog, QtFramelessTool
-from qtextra.widgets.qt_table_view import QtCheckableTableView
+from qtextra.widgets.qt_table_view import FilterProxyModel, QtCheckableTableView
 from qtpy.QtCore import Qt, Signal  # type: ignore[attr-defined]
 from qtpy.QtGui import QDoubleValidator, QDropEvent
 from qtpy.QtWidgets import QFormLayout, QHeaderView, QLineEdit, QTableWidget, QTableWidgetItem, QWidget
@@ -136,12 +136,13 @@ class SelectChannelsToLoadDialog(QtDialog):
         wrapper = self.model.get_wrapper()
         if wrapper:
             channel_list = list(wrapper.channel_names_for_names(self.model.just_added))
-            check = len(channel_list) < 10
-            if check > 10:
+            auto_check = len(channel_list) < 10
+            if len(channel_list) > 10:
                 self.warning_label.show()
             if not channel_list:
                 self.warning_no_channels_label.show()
-            for name in channel_list:
+            for i, name in enumerate(channel_list):
+                check = True if auto_check else i < 5
                 channel_name, _ = name.split(" | ")
                 data.append([check, channel_name, name])
         else:
@@ -160,6 +161,9 @@ class SelectChannelsToLoadDialog(QtDialog):
         self.table.setup_model(
             self.TABLE_CONFIG.header, self.TABLE_CONFIG.no_sort_columns, self.TABLE_CONFIG.hidden_columns
         )
+        self.table_proxy = FilterProxyModel(self)
+        self.table_proxy.setSourceModel(self.table.model())
+        self.table.setModel(self.table_proxy)
 
         self.warning_label = hp.make_label(
             self,
@@ -177,11 +181,19 @@ class SelectChannelsToLoadDialog(QtDialog):
             wrap=True,
             alignment=Qt.AlignmentFlag.AlignHCenter,
         )
+        self.warning_no_channels_label.hide()
+
+        self.filter_by_name = hp.make_line_edit(
+            self,
+            placeholder="Filter by channel name...",
+            func_changed=lambda text, col=self.TABLE_CONFIG.channel_name: self.table_proxy.setFilterByColumn(text, col),
+        )
 
         layout = hp.make_form_layout(self)
         hp.style_form_layout(layout)
         layout.addRow(self.warning_no_channels_label)
         layout.addRow(self.warning_label)
+        layout.addRow(hp.make_label(self, "Filter by channel name:"), self.filter_by_name)
         layout.addRow(self.table)
         layout.addRow(
             hp.make_label(

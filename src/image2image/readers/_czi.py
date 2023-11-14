@@ -1,5 +1,4 @@
 import multiprocessing
-import warnings
 from concurrent.futures import ThreadPoolExecutor
 
 import cv2
@@ -7,14 +6,17 @@ import dask.array as da
 import numpy as np
 import zarr
 from czifile import CziFile as _CziFile
+from koyo.timer import MeasureTimer
+from loguru import logger
+from napari_czifile2.io import CZISceneFile as _CZISceneFile
 from tifffile import create_output
 
 from image2image.readers.utilities import compute_sub_res
 
+logger = logger.bind(src="CZI")
 
-class CziFile(_CziFile):
-    """Sub-class of CziFile with added functionality to only read certain channels."""
 
+class CziMixin:
     def sub_asarray(
         self,
         resize=True,
@@ -161,100 +163,6 @@ class CziFile(_CziFile):
             out.flush()
         return out
 
-    def sub_asarray_rgb(
-        self,
-        resize=True,
-        order=0,
-        out=None,
-        max_workers=None,
-        channel_idx=None,
-        as_uint8=False,
-        greyscale=False,
-    ):
-        """Image data from file(s) as numpy array.
-
-        Parameters
-        ----------
-        resize : bool
-            If True (default), resize sub/supersampled subblock data.
-        order : int
-            The order of spline interpolation used to resize sub/supersampled
-            subblock data. Default is 0 (nearest neighbor).
-        out : numpy.ndarray, str, or file-like object; optional
-            Buffer where image data will be saved.
-            If numpy.ndarray, a writable array of compatible dtype and shape.
-            If str or open file, the file name or file object used to
-            create a memory-map to an array stored in a binary file on disk.
-        max_workers : int
-            Maximum number of threads to read and decode subblock data.
-            By default up to half the CPU cores are used.
-        channel_idx : int or list of int
-            The indices of the channels to extract
-        as_uint8 : bool
-            byte-scale image data to np.uint8 data type
-        greyscale : bool
-            return greyscale image data
-
-        Parameters
-        ----------
-        out:np.ndarray
-            image read with selected parameters as np.ndarray
-        """
-        out_shape = list(self.shape)
-        start = list(self.start)
-        ch_dim_idx = self.axes.index("0")
-
-        if channel_idx is not None:
-            if isinstance(channel_idx, int):
-                channel_idx = [channel_idx]
-            out_shape[ch_dim_idx] = len(channel_idx)
-
-        if greyscale is True:
-            out_shape[ch_dim_idx] = 1
-
-        if as_uint8 is True:
-            out_dtype = np.uint8
-        else:
-            out_dtype = self.dtype
-
-        if out is None:
-            out = create_output(None, tuple(out_shape), out_dtype)
-
-        if max_workers is None:
-            max_workers = multiprocessing.cpu_count() - 1
-
-        def func(directory_entry, resize=resize, order=order, start=start, out=out):
-            """Read, decode, and copy subblock data."""
-            subblock = directory_entry.data_segment()
-            dvstart = list(directory_entry.start)
-            tile = subblock.data(resize=resize, order=order)
-
-            if greyscale is True:
-                tile = czi_tile_grayscale(tile)
-
-            if channel_idx is not None:
-                tile = tile[:, :, :, :, :, channel_idx]
-
-            index = tuple(slice(i - j, i - j + k) for i, j, k in zip(tuple(dvstart), tuple(start), tile.shape))
-
-            try:
-                out[index] = tile
-            except ValueError as e:
-                warnings.warn(str(e), stacklevel=1)
-
-        if max_workers > 1:
-            self._fh.lock = True
-            with ThreadPoolExecutor(max_workers) as executor:
-                executor.map(func, self.filtered_subblock_directory)
-            self._fh.lock = None
-        else:
-            for directory_entry in self.filtered_subblock_directory:
-                func(directory_entry)
-
-        if hasattr(out, "flush"):
-            out.flush()
-        return out
-
     def zarr_pyramidalize_czi(self, zarr_fp):
         """Create a pyramidal zarr store from a CZI file."""
         dask_pyr = []
@@ -270,21 +178,30 @@ class CziFile(_CziFile):
         while np.min(yx_shape) // 2**ds >= 512:
             ds += 1
 
-        self.sub_asarray(zarr_fp=zarr_fp, resize=True, order=0, ds_factor=1, max_workers=4)
+        with MeasureTimer() as timer:
+            self.sub_asarray(zarr_fp=zarr_fp, resize=True, order=0, ds_factor=1, max_workers=4)
+        logger.trace(f"Down-sampled 1 in {timer()}")
+
         zarray = da.squeeze(da.from_zarr(zarr.open(zarr_fp)[0]))
         dask_pyr.append(da.squeeze(zarray))
         for ds_factor in range(1, ds):
-            zres = zarr.storage.TempStore()
-            rgb_chunk = self.shape[-1] if self.shape[-1] > 2 else 1
-            is_rgb = True if rgb_chunk > 1 else False
-
-            sub_res_image = compute_sub_res(zarray, ds_factor, 512, is_rgb, self.dtype)
-
-            da.to_zarr(sub_res_image, zres, component="0")
-
-            dask_pyr.append(da.squeeze(da.from_zarr(zres, component="0")))
-
+            with MeasureTimer() as timer:
+                zres = zarr.storage.TempStore()
+                rgb_chunk = self.shape[-1] if self.shape[-1] > 2 else 1
+                is_rgb = True if rgb_chunk > 1 else False
+                sub_res_image = compute_sub_res(zarray, ds_factor, 512, is_rgb, self.dtype)
+                da.to_zarr(sub_res_image, zres, component="0")
+                dask_pyr.append(da.squeeze(da.from_zarr(zres, component="0")))
+            logger.trace(f"Down-sampled {ds_factor} in {timer()}")
         return dask_pyr
+
+
+class CziFile(_CziFile, CziMixin):
+    """Sub-class of CziFile with added functionality to only read certain channels."""
+
+
+class CziSceneFile(_CZISceneFile, CziMixin):
+    """Scene file."""
 
 
 def czi_tile_grayscale(rgb_image):

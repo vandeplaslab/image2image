@@ -15,7 +15,7 @@ def tifffile_to_dask(im_fp: ty.Union[str, Path], largest_series: int):
     if isinstance(imdata, zarr.hierarchy.Group):
         imdata = [da.from_zarr(imdata[z]) for z in imdata.array_keys()]
     else:
-        imdata = da.from_zarr(imdata)
+        imdata = [da.from_zarr(imdata)]
     return imdata
 
 

@@ -23,9 +23,9 @@ class ConfirmCloseDialog(QDialog):
 
         cancel_btn = hp.make_btn(self, "Cancel")
         save_btn = hp.make_qta_btn(self, "save", label="Save", standout=True)
-        close_btn = hp.make_qta_btn(self, "warning", color="red", label="Close", standout=True)
+        close_btn = hp.make_qta_btn(self, "warning", color="orange", label="Close", standout=True)
 
-        icon_label = hp.make_qta_label(self, "warning", color="red")
+        icon_label = hp.make_qta_label(self, "warning", color="orange")
         icon_label.set_xxlarge()
 
         self.do_not_ask = hp.make_checkbox(self, "Do not ask in future")

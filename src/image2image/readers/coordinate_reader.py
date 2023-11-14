@@ -98,6 +98,10 @@ class CoordinateImageReader(BaseReader):
             return [self.get_random_image()]
         return [self.get_image()]
 
+    def get_channel_axis_and_n_channels(self) -> tuple[ty.Optional[int], int]:
+        """Return channel axis and number of channels."""
+        return 2, len(self.data)
+
     def get_random_image(self):
         """Return random ion image."""
         array = np.full(self.image_shape, np.nan)

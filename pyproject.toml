@@ -50,6 +50,7 @@ dependencies = [
     "wsireg",
     "rasterio",
     "shapely",
+    "napari-czifile2",
     # "qtextra",
 ]
 

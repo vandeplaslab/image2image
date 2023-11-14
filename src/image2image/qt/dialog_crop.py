@@ -46,6 +46,16 @@ class ImageCropWindow(Window):
         """Setup events."""
         connect(self._image_widget.dataset_dlg.evt_loaded, self.on_load_image, state=state)
         connect(self._image_widget.dataset_dlg.evt_closed, self.on_close_image, state=state)
+        connect(self._image_widget.evt_toggle_channel, self.on_toggle_channel, state=state)
+        connect(self._image_widget.evt_toggle_all_channels, self.on_toggle_all_channels, state=state)
+
+    def on_toggle_channel(self, name: str, state: bool) -> None:
+        """Toggle channel."""
+        self._toggle_channel(self.data_model, self.view, name, state, "view")
+
+    def on_toggle_all_channels(self, state: bool) -> None:
+        """Toggle channel."""
+        self._toggle_all_channels(self.data_model, self.view, state, "view")
 
     @ensure_main_thread
     def on_load_image(self, model: DataModel, channel_list: list[str]) -> None:
@@ -259,7 +269,7 @@ class ImageCropWindow(Window):
         return left, right, top, bottom  # type: ignore
 
     def _get_default_crop_area(self) -> tuple[int, int, int, int]:
-        (_, x, y) = self.view.viewer.camera.center
+        (_, y, x) = self.view.viewer.camera.center
         top, bottom = y - 256, y + 256
         left, right = x - 256, x + 256
         return max(0, left), max(0, right), max(0, top), max(0, bottom)
@@ -285,8 +295,10 @@ class ImageCropWindow(Window):
             self.bottom_edit.setText(f"{bottom:.0f}")
         self.on_update_rect_from_ui()
         self.crop_layer.mode = "select"
+        self.crop_layer.selected_data = (0,)
+        self._move_layer(self.view, self.crop_layer)
 
-    def on_update_rect_from_ui(self) -> None:
+    def on_update_rect_from_ui(self, _: ty.Optional[int] = None) -> None:
         """Update crop rect."""
         if self.crop_layer.data:
             self.crop_layer.data = []
@@ -335,6 +347,7 @@ class ImageCropWindow(Window):
                 name="Crop rectangle",
                 face_color="green",
                 edge_color="white",
+                opacity=0.5,
             )
             visual = self.view.widget.layer_to_visual[layer]
             init_shapes_layer(layer, visual)
@@ -345,6 +358,14 @@ class ImageCropWindow(Window):
         """Create panel."""
         self.view = self._make_image_view(self, add_toolbars=False, allow_extraction=False, disable_controls=True)
         self._image_widget = LoadWidget(self, self.view)
+
+        # self.index_choice = hp.make_int_spin_box(
+        #     self,
+        #     -1,
+        #     0,
+        #     tooltip="Index of the drawn shape. Value of -1 means that the last shape is used.",
+        #     func=self.on_update_rect_from_ui,
+        # )
 
         self.left_edit = hp.make_line_edit(
             self, placeholder="Left", validator=QIntValidator(0, 75_000), func=self.on_update_rect_from_ui
@@ -364,6 +385,7 @@ class ImageCropWindow(Window):
         self.bottom_edit.setAlignment(Qt.AlignCenter)  # type: ignore[attr-defined]
 
         crop_layout = QFormLayout()  # noqa
+        # crop_layout.addRow(hp.make_label(self, "Shape index"), self.index_choice)
         crop_layout.addRow(
             hp.make_label(self, "Horizontal"),
             hp.make_h_layout(self.left_edit, hp.make_label(self, "-"), self.right_edit),
@@ -377,7 +399,7 @@ class ImageCropWindow(Window):
             self, "Initialize crop area", tooltip="Edit crop area (interactively)", func=self.on_edit_crop
         )
         self.reset_btn = hp.make_btn(
-            self, "Reset crop area", tooltip="Reset crop area (to full image)", func=self.on_reset_crop
+            self, "Reset crop area", tooltip="Reset crop area to center of the image.", func=self.on_reset_crop
         )
         self.sync_btn = hp.make_btn(
             self,

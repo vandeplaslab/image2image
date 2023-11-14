@@ -21,7 +21,6 @@ class BaseReader:
     allow_extraction: bool = False
     base_layer_pixel_res: float = 1.0
     _channel_names: ty.List[str]
-    channel_colors: ty.Optional[ty.List[str]]
 
     def __init__(self, path: PathLike):
         self.path = Path(path)
@@ -173,3 +172,17 @@ class BaseReader:
         transform = self.transform_data.compute(px=True).params
         transformed_mask = transform_mask(array, transform, self.image_shape)
         return transformed_mask
+
+    def get_channel_axis_and_n_channels(self) -> ty.Tuple[ty.Optional[int], int]:
+        """Return channel axis and number of channels."""
+        shape = self.pyramid[0].shape
+        ndim = len(shape)
+        # 2D images will be returned as they are
+        if ndim == 2:
+            channel_axis = None
+            n_channels = 1
+        # 3D images will be split into channels
+        else:
+            channel_axis = int(np.argmin(shape))
+            n_channels = shape[channel_axis]
+        return channel_axis, n_channels

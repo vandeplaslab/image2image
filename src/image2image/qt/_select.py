@@ -48,11 +48,13 @@ class LoadMixin(QWidget):
         select_channels: bool = True,
     ):
         """Init."""
+        self.allow_geojson = allow_geojson
+        self.select_channels = select_channels
+
         super().__init__(parent=parent)
         self._setup_ui()
         self.view = view
         self.n_max = n_max
-        self.allow_geojson = allow_geojson
         self.model: DataModel = DataModel(is_fixed=self.IS_FIXED)
         self.dataset_dlg = SelectDataDialog(
             self, self.model, self.IS_FIXED, self.n_max, self.allow_geojson, select_channels
@@ -99,6 +101,7 @@ class LoadWidget(LoadMixin):
     """Widget for loading data."""
 
     IS_FIXED: bool = True
+    CHANNEL_FIXED: ty.Optional[bool] = None
     INFO_VISIBLE = False
 
     def __init__(
@@ -111,7 +114,7 @@ class LoadWidget(LoadMixin):
     ):
         """Init."""
         super().__init__(parent, view, n_max, allow_geojson, select_channels)
-        self.channel_dlg = OverlayChannelsDialog(self, self.model, self.view) if self.view else None
+        self.channel_dlg = OverlayChannelsDialog(self, self.model, self.view, self.CHANNEL_FIXED) if self.view else None
 
     def _setup_ui(self) -> QFormLayout:
         """Setup UI."""
@@ -153,13 +156,15 @@ class LoadWidget(LoadMixin):
                 spacing=2,
             ),
         )
-        layout.addRow(hp.make_btn(self, "Select channels...", func=self._on_select_channels))
+        if self.select_channels:
+            layout.addRow(hp.make_btn(self, "Select channels...", func=self._on_select_channels))
         self.setLayout(layout)
         return layout
 
     def _on_select_channels(self) -> None:
         """Select channels from the list."""
-        self.channel_dlg.show()
+        if self.channel_dlg:
+            self.channel_dlg.show()
 
 
 class MovingWidget(LoadWidget):
@@ -167,6 +172,7 @@ class MovingWidget(LoadWidget):
 
     # class attrs
     IS_FIXED = False
+    CHANNEL_FIXED = False
     INFO_TEXT = "Select 'moving' data..."
     INFO_VISIBLE = True
 
@@ -244,6 +250,7 @@ class LoadWithTransformWidget(LoadWidget):
     """Widget for loading data."""
 
     IS_FIXED = True
+    CHANNEL_FIXED = None
     INFO_VISIBLE = False
 
     def __init__(

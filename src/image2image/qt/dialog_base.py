@@ -283,10 +283,6 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
         self.statusbar.addPermanentWidget(self.progress_bar)
         self.progress_bar.hide()
 
-        self.tutorial_btn = hp.make_qta_btn(
-            self, "help", tooltip="Give me a quick tutorial!", func=self.on_show_tutorial, small=True
-        )
-        self.statusbar.addPermanentWidget(self.tutorial_btn)
         self.feedback_btn = hp.make_qta_btn(
             self,
             "feedback",
@@ -313,6 +309,12 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
                 func=self.on_show_console,
             )
         )
+
+        self.tutorial_btn = hp.make_qta_btn(
+            self, "help", tooltip="Give me a quick tutorial!", func=self.on_show_tutorial, small=True
+        )
+        self.statusbar.addPermanentWidget(self.tutorial_btn)
+
         self.update_status_btn = hp.make_btn(
             self,
             "Update available - click here to download!",
@@ -336,6 +338,7 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
 
     def on_show_tutorial(self) -> None:
         """Quick tutorial."""
+        hp.toast(self, "Tutorial", "Coming soon...", icon="info", position="top_left")
 
     def dragEnterEvent(self, event):
         """Override Qt method.

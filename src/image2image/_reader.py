@@ -8,14 +8,14 @@ import numpy as np
 from koyo.typing import PathLike
 from loguru import logger
 
-from image2image.exceptions import MultiSceneCziError, UnsupportedFileFormatError
+from image2image.exceptions import UnsupportedFileFormatError
 from image2image.models.transform import TransformData
 
 if ty.TYPE_CHECKING:
     from image2image.readers._base_reader import BaseReader
     from image2image.readers.array_reader import ArrayImageReader
     from image2image.readers.coordinate_reader import CoordinateImageReader
-    from image2image.readers.czi_reader import CziImageReader
+    from image2image.readers.czi_reader import CziImageReader, CziSceneImageReader
     from image2image.readers.geojson_reader import GeoJSONReader
     from image2image.readers.tiff_reader import TiffImageReader
 
@@ -36,8 +36,8 @@ class ImageWrapper:
     paths: list[Path]
     resolution: float = 1.0
 
-    def __init__(self, reader_or_array: ty.Mapping[str, BaseReader] | None = None):
-        self.data = reader_or_array or {}
+    def __init__(self, reader: ty.Mapping[str, BaseReader] | None = None):
+        self.data = reader or {}
         self.paths = []
 
         resolution = [1.0]
@@ -46,9 +46,9 @@ class ImageWrapper:
                 resolution.append(_reader_or_array.base_layer_pixel_res)
         self.resolution = np.min(resolution)
 
-    def add(self, key: str, array: np.ndarray | ty.Any) -> None:
+    def add(self, key: str, reader: BaseReader) -> None:
         """Add data to wrapper."""
-        self.data[key] = array
+        self.data[key] = reader
         logger.trace(f"Added '{key}' to wrapper data.")
 
     def add_path(self, path: PathLike) -> None:
@@ -145,19 +145,14 @@ class ImageWrapper:
         for reader_name, reader_or_array in self.data.items():
             yield from self._reader_image_iter(reader_name, reader_or_array)
 
+    @staticmethod
     def _reader_image_iter(
-        self, reader_name: str, reader_or_array: BaseReader
+        reader_name: str, reader: BaseReader
     ) -> ty.Generator[tuple[str, BaseReader, list[np.ndarray], int], None, None]:
         # image is a numpy array
-        if isinstance(reader_or_array, np.ndarray):
-            logger.error("THIS SHOULD NOT HAPPEN!")
-            if reader_or_array.ndim == 2:
-                reader_or_array = np.atleast_3d(reader_or_array, axis=-1)
-                self.data[reader_name] = reader_or_array  # replace to ensure it's 3d array
-            array = [reader_or_array]
         # microscopy or ims data wrapper
-        elif hasattr(reader_or_array, "pyramid"):
-            temp = reader_or_array.pyramid
+        if hasattr(reader, "pyramid"):
+            temp = reader.pyramid
             array = temp if isinstance(temp, list) else [temp]
         else:
             raise ValueError("Cannot read image")
@@ -166,27 +161,21 @@ class ImageWrapper:
         shape = array[0].shape
         # get the number of dimensions, which determines how images are split into channels
         ndim = len(shape)
-        # 2D images will be returned as they are
-        if ndim == 2:
-            channel_axis = None
-            n_channels = 1
-        # 3D images will be split into channels
-        else:
-            channel_axis = int(np.argmin(shape))
-            n_channels = shape[channel_axis]
+        channel_axis, n_channels = reader.get_channel_axis_and_n_channels()
+
         for channel_index in range(n_channels):
             # 2D image
             if channel_axis is None:
-                yield reader_name, reader_or_array, array, channel_index
+                yield reader_name, reader, array, channel_index
             # 3D image where the first axis corresponds to different channels
             elif channel_axis == 0:
-                yield reader_name, reader_or_array, [a[channel_index] for a in array], channel_index
+                yield reader_name, reader, [a[channel_index] for a in array], channel_index
             # 3D image where the second axis corresponds to different channels
             elif channel_axis == 1:
-                yield reader_name, reader_or_array, [a[:, channel_index] for a in array], channel_index
+                yield reader_name, reader, [a[:, channel_index] for a in array], channel_index
             # 3D image where the last axis corresponds to different channels
             elif channel_axis == 2:
-                yield reader_name, reader_or_array, [a[..., channel_index] for a in array], channel_index
+                yield reader_name, reader, [a[..., channel_index] for a in array], channel_index
             else:
                 raise ValueError(f"Cannot read image with {ndim} dimensions")
 
@@ -267,39 +256,53 @@ def read_data(
     ), f"Unsupported file format: {path.suffix} ({path})"
 
     suffix = path.suffix.lower()
-    reader: BaseReader
+    reader: dict[str, type[BaseReader]]
+    name = path.name
     if suffix in TIFF_EXTENSIONS:
-        path, reader = _read_tiff(path)
+        logger.trace(f"Reading TIFF file: {path}")
+        path, reader = _read_tiff(path)  # type: ignore
     elif suffix in CZI_EXTENSIONS:
-        if _check_multiscene_czi(path):
-            raise MultiSceneCziError(
-                "Multi-scene CZI files are not supported. Please convert to OME-TIFF first using ZenHub or other"
-                " software."
-            )
-        path, reader = _read_czi(path)
-    elif suffix in IMAGE_EXTENSIONS:
-        path, reader = _read_image(path)
-    elif suffix in NPY_EXTENSIONS:
-        path, reader = _read_npy_coordinates(path)
-    elif suffix in BRUKER_EXTENSIONS:
-        path, reader = _read_tsf_tdf_reader(path)
-    elif suffix in IMZML_EXTENSIONS:
-        path, reader = _read_imzml_reader(path)
-    elif suffix in H5_EXTENSIONS:
-        if path.name.startswith("peaks_"):
-            path, reader = _read_centroids_h5_coordinates(path)
+        if _check_multi_scene_czi(path):
+            logger.trace(f"Reading multi-scene CZI file: {path}")
+            path, reader = _read_multi_scene_czi(path)  # type: ignore
+            # raise MultiSceneCziError(
+            #     "Multi-scene CZI files are not supported. Please convert to OME-TIFF first using ZenHub or other"
+            #     " software."
+            # )
         else:
-            path, reader = _read_metadata_h5_coordinates(path)
+            logger.trace(f"Reading single-scene CZI file: {path}")
+            path, reader = _read_single_scene_czi(path)  # type: ignore
+    elif suffix in IMAGE_EXTENSIONS:
+        logger.trace(f"Reading image file: {path}")
+        path, reader = _read_image(path)  # type: ignore
+    elif suffix in NPY_EXTENSIONS:
+        logger.trace(f"Reading NPY file: {path}")
+        path, reader = _read_npy_coordinates(path)  # type: ignore
+    elif suffix in BRUKER_EXTENSIONS:
+        logger.trace(f"Reading Bruker file: {path}")
+        path, reader = _read_tsf_tdf_reader(path)  # type: ignore
+    elif suffix in IMZML_EXTENSIONS:
+        logger.trace(f"Reading imzML file: {path}")
+        path, reader = _read_imzml_reader(path)  # type: ignore
+    elif suffix in H5_EXTENSIONS:
+        logger.trace(f"Reading HDF5 file: {path}")
+        if path.name.startswith("dataset.metadata"):
+            path, reader = _read_metadata_h5_coordinates(path)  # type: ignore
+        else:
+            path, reader = _read_centroids_h5_coordinates(path)  # type: ignore
     elif suffix in GEOJSON_EXTENSIONS:
-        path, reader = _read_geojson(path)
+        logger.trace(f"Reading GeoJSON file: {path}")
+        path, reader = _read_geojson(path)  # type: ignore
     else:
         raise UnsupportedFileFormatError(f"Unsupported file format: '{suffix}'")
 
     if transform_data is not None:
-        reader.transform_data = transform_data
-        reader.transform_name = path.name
+        for reader_ in reader.values():
+            reader_.transform_data = transform_data
+            reader_.transform_name = name
     if resolution is not None:
-        reader.resolution = resolution
+        for reader_ in reader.values():
+            reader_.resolution = resolution
 
     if wrapper is None:
         wrapper = ImageWrapper(None)
@@ -308,50 +311,60 @@ def read_data(
     if hasattr(reader, "is_fixed"):
         reader.is_fixed = is_fixed
 
-    wrapper.add(path.name, reader)
+    for name, reader_ in reader.items():
+        wrapper.add(name, reader_)
     wrapper.add_path(path)
     return wrapper
 
 
-def _read_geojson(path: PathLike) -> tuple[Path, GeoJSONReader]:
+def _read_geojson(path: PathLike) -> tuple[Path, dict[str, GeoJSONReader]]:
     """Read GeoJSON file."""
     from image2image.readers.geojson_reader import GeoJSONReader
 
     path = Path(path)
     assert path.exists(), f"File does not exist: {path}"
-    return path, GeoJSONReader(path)
+    return path, {path.name: GeoJSONReader(path)}
 
 
-def _check_multiscene_czi(path: PathLike) -> bool:
+def _check_multi_scene_czi(path: PathLike) -> bool:
     """Check whether this is a multi-scene CZI file."""
-    from image2image.readers._czi import CziFile
+    from image2image.readers._czi import CziSceneFile
 
     path = Path(path)
-    czi = CziFile(path)
-    axes = czi.axes
-    index = axes.index("S")
-    return czi.shape[index] > 1
+    return CziSceneFile.get_num_scenes(path) > 1
 
 
-def _read_czi(path: PathLike) -> tuple[Path, CziImageReader]:
+def _read_single_scene_czi(path: PathLike) -> tuple[Path, dict[str, CziImageReader]]:
     """Read CZI file."""
     from image2image.readers.czi_reader import CziImageReader
 
     path = Path(path)
     assert path.exists(), f"File does not exist: {path}"
-    return path, CziImageReader(path)
+    return path, {path.name: CziImageReader(path)}
 
 
-def _read_tiff(path: PathLike) -> tuple[Path, TiffImageReader]:
+def _read_multi_scene_czi(path: PathLike) -> tuple[Path, dict[str, CziSceneImageReader]]:
+    """Read CZI file."""
+    from image2image.readers.czi_reader import CziSceneFile, CziSceneImageReader
+
+    path = Path(path)
+    assert path.exists(), f"File does not exist: {path}"
+    n = CziSceneFile.get_num_scenes(path)
+    logger.trace(f"Found {n} scenes in CZI file: {path}")
+    return path, {path.name: CziSceneImageReader(path, scene_index=i) for i in range(1)}
+    # return path, {f"S{i}_{path.name}": CziSceneImageReader(path, scene_index=i) for i in range(n)}
+
+
+def _read_tiff(path: PathLike) -> tuple[Path, dict[str, TiffImageReader]]:
     """Read TIFF file."""
     from image2image.readers.tiff_reader import TiffImageReader
 
     path = Path(path)
     assert path.exists(), f"File does not exist: {path}"
-    return path, TiffImageReader(path)
+    return path, {path.name: TiffImageReader(path)}
 
 
-def _read_image(path: PathLike) -> tuple[Path, ArrayImageReader]:
+def _read_image(path: PathLike) -> tuple[Path, dict[str, ArrayImageReader]]:
     """Read image."""
     from skimage.io import imread
 
@@ -359,10 +372,10 @@ def _read_image(path: PathLike) -> tuple[Path, ArrayImageReader]:
 
     path = Path(path)
     assert path.exists(), f"File does not exist: {path}"
-    return path, ArrayImageReader(path, imread(path))
+    return path, {path.name: ArrayImageReader(path, imread(path))}
 
 
-def _read_npy_coordinates(path: PathLike) -> tuple[Path, CoordinateImageReader]:
+def _read_npy_coordinates(path: PathLike) -> tuple[Path, dict[str, CoordinateImageReader]]:
     """Read data from npz or npy file."""
     from image2image.readers.coordinate_reader import CoordinateImageReader
 
@@ -371,10 +384,10 @@ def _read_npy_coordinates(path: PathLike) -> tuple[Path, CoordinateImageReader]:
         image = np.load(f)  # noqa
     assert image.ndim == 2, "Only 2D images are supported"
     y, x = get_yx_coordinates_from_shape(image.shape)
-    return path, CoordinateImageReader(path, x, y, array_or_reader=image)
+    return path, {path.name: CoordinateImageReader(path, x, y, array_or_reader=image)}
 
 
-def _read_metadata_h5_coordinates(path: PathLike) -> tuple[Path, CoordinateImageReader]:
+def _read_metadata_h5_coordinates(path: PathLike) -> tuple[Path, dict[str, CoordinateImageReader]]:
     """Read coordinates from HDF5 file."""
     import h5py
     from koyo.json import read_json_data
@@ -399,10 +412,10 @@ def _read_metadata_h5_coordinates(path: PathLike) -> tuple[Path, CoordinateImage
     if (path.parent / "metadata.json").exists():
         metadata = read_json_data(path.parent / "metadata.json")
         resolution = metadata["metadata.experimental"]["pixel_size"]
-    return path, CoordinateImageReader(path, x, y, resolution, array_or_reader=reshape(x, y, tic))
+    return path, {path.parent.name: CoordinateImageReader(path, x, y, resolution, array_or_reader=reshape(x, y, tic))}
 
 
-def _read_centroids_h5_coordinates(path: PathLike) -> tuple[Path, CoordinateImageReader]:
+def _read_centroids_h5_coordinates(path: PathLike) -> tuple[Path, dict[str, CoordinateImageReader]]:
     """Read centroids data from HDF5 file."""
     path = Path(path)
     assert path.suffix in H5_EXTENSIONS, "Only .h5 files are supported"
@@ -413,58 +426,55 @@ def _read_centroids_h5_coordinates(path: PathLike) -> tuple[Path, CoordinateImag
         metadata_file = data_dir / "dataset.metadata.h5"
     if metadata_file.exists():
         return _read_centroids_h5_coordinates_with_metadata(path, metadata_file)
-    raise NotImplementedError("Not implemented yet.")
-    # return _read_centroids_h5_coordinates_without_metadata(path)
+    return _read_centroids_h5_coordinates_without_metadata(path)
 
 
-def _read_centroids_h5_coordinates_with_metadata(path: Path, metadata_file: Path) -> tuple[Path, CoordinateImageReader]:
+def _read_centroids_h5_coordinates_with_metadata(
+    path: Path, metadata_file: Path
+) -> tuple[Path, dict[str, CoordinateImageReader]]:
     import h5py
 
     from image2image.utils.utilities import format_mz
 
     assert metadata_file.exists(), f"File does not exist: {metadata_file}"
-    _, reader = _read_metadata_h5_coordinates(metadata_file)
+    _, reader_ = _read_metadata_h5_coordinates(metadata_file)
+    reader = reader_[path.name]
+
     x = reader.x  # noqa
     y = reader.y  # noqa
 
     with h5py.File(path, "r") as f:
-        ys = f["Array"]["ys"][:]
-        indices = np.argsort(ys)[::-1]
-        indices = indices[0:10]  # take the top 10 images
-        indices = np.sort(indices)  # sort so they are ordered otherwise h5py will throw an error
-        mzs = f["Array"]["xs"][indices]  # retrieve m/zs
-        centroids = f["Array"]["array"][:, indices]  # retrieve ion images
+        mzs = f["Array"]["xs"][:]  # retrieve m/zs
+        centroids = f["Array"]["array"][:]  # retrieve ion images
     mzs = [format_mz(mz) for mz in mzs]  # generate labels
     centroids = reshape_batch(x, y, centroids)  # reshape images
     reader.data.update(dict(zip(mzs, centroids)))
-    return path, reader
+    return path, {path.name: reader}
 
 
-def _read_centroids_h5_coordinates_without_metadata(path: Path) -> tuple[Path, CoordinateImageReader]:
-    # TODO: implement this
-    pass
-    # import h5py
-    #
-    # from image2image.utils.utilities import format_mz
-    #
-    # _, reader = _read_metadata_h5_coordinates(metadata_file)
-    # x = reader.x  # noqa
-    # y = reader.y  # noqa
-    #
-    # with h5py.File(path, "r") as f:
-    #     ys = f["Array"]["ys"][:]
-    #     indices = np.argsort(ys)[::-1]
-    #     indices = indices[0:10]  # take the top 10 images
-    #     indices = np.sort(indices)  # sort so they are ordered otherwise h5py will throw an error
-    #     mzs = f["Array"]["xs"][indices]  # retrieve m/zs
-    #     centroids = f["Array"]["array"][:, indices]  # retrieve ion images
-    # mzs = [format_mz(mz) for mz in mzs]  # generate labels
-    # centroids = reshape_batch(x, y, centroids)  # reshape images
-    # reader.data.update(dict(zip(mzs, centroids)))
-    # return path, reader
+def _read_centroids_h5_coordinates_without_metadata(path: Path) -> tuple[Path, dict[str, CoordinateImageReader]]:
+    import h5py
+
+    from image2image.readers.coordinate_reader import CoordinateImageReader
+    from image2image.utils.utilities import format_mz
+
+    with h5py.File(path, "r") as f:
+        # get coordinate metadata
+        x = f["Misc/Spatial/x_coordinates"][:]
+        y = f["Misc/Spatial/y_coordinates"][:]
+        resolution = float(f["Misc/Spatial"].attrs["pixel_size"])
+        mzs = f["Array"]["xs"][:]  # retrieve m/zs
+        centroids = f["Array"]["array"][:]  # retrieve ion images
+    tic = np.random.randint(128, 255, len(x), dtype=np.uint8)
+    tic = reshape(x, y, tic)
+    reader = CoordinateImageReader(path, x, y, resolution, array_or_reader=tic)
+    mzs = [format_mz(mz) for mz in mzs]  # generate labels
+    centroids = reshape_batch(x, y, centroids)  # reshape images
+    reader.data.update(dict(zip(mzs, centroids)))
+    return path, {path.name: reader}
 
 
-def _read_tsf_tdf_coordinates(path: PathLike) -> tuple[Path, CoordinateImageReader]:
+def _read_tsf_tdf_coordinates(path: PathLike) -> tuple[Path, dict[str, CoordinateImageReader]]:
     """Read coordinates from TSF file."""
     import sqlite3
 
@@ -502,10 +512,10 @@ def _read_tsf_tdf_coordinates(path: PathLike) -> tuple[Path, CoordinateImageRead
     cursor = conn.execute("SELECT SummedIntensities FROM Frames")  # noqa
     tic = np.array(cursor.fetchall())
     tic = tic[:, 0]
-    return path.parent, CoordinateImageReader(path, x, y, resolution, array_or_reader=reshape(x, y, tic))
+    return path.parent, {path.name: CoordinateImageReader(path, x, y, resolution, array_or_reader=reshape(x, y, tic))}
 
 
-def _read_tsf_tdf_reader(path: PathLike) -> tuple[Path, CoordinateImageReader]:
+def _read_tsf_tdf_reader(path: PathLike) -> tuple[Path, dict[str, CoordinateImageReader]]:
     """Read coordinates from Bruker file."""
     import sqlite3
 
@@ -535,10 +545,10 @@ def _read_tsf_tdf_reader(path: PathLike) -> tuple[Path, CoordinateImageReader]:
     reader = get_reader(path)
     x = reader.x_coordinates
     y = reader.y_coordinates
-    return path, CoordinateImageReader(path.parent, x, y, resolution, array_or_reader=reader)
+    return path, {path.name: CoordinateImageReader(path.parent, x, y, resolution, array_or_reader=reader)}
 
 
-def _read_imzml_coordinates(path: PathLike) -> tuple[Path, CoordinateImageReader]:
+def _read_imzml_coordinates(path: PathLike) -> tuple[Path, dict[str, CoordinateImageReader]]:
     """Read coordinates from imzML file."""
     from imzy import get_reader
 
@@ -554,10 +564,10 @@ def _read_imzml_coordinates(path: PathLike) -> tuple[Path, CoordinateImageReader
     y = reader.y_coordinates
     y = y - np.min(y)  # minimized
     tic = reader.get_tic()
-    return path, CoordinateImageReader(path, x, y, array_or_reader=reshape(x, y, tic))
+    return path, {path.name: CoordinateImageReader(path, x, y, array_or_reader=reshape(x, y, tic))}
 
 
-def _read_imzml_reader(path: PathLike) -> tuple[Path, CoordinateImageReader]:
+def _read_imzml_reader(path: PathLike) -> tuple[Path, dict[str, CoordinateImageReader]]:
     """Read coordinates from imzML file."""
     from imzy import get_reader
 
@@ -572,7 +582,7 @@ def _read_imzml_reader(path: PathLike) -> tuple[Path, CoordinateImageReader]:
     x = x - np.min(x)  # minimized
     y = reader.y_coordinates
     y = y - np.min(y)  # minimized
-    return path, CoordinateImageReader(path, x, y, array_or_reader=reader)
+    return path, {path.name: CoordinateImageReader(path, x, y, array_or_reader=reader)}
 
 
 def reshape(x: np.ndarray, y: np.ndarray, array: np.ndarray, fill_value: float = 0) -> np.ndarray:
@@ -610,13 +620,13 @@ def get_yx_coordinates_from_shape(shape: tuple[int, int]) -> tuple[np.ndarray, n
     return yx_coordinates[:, 0], yx_coordinates[:, 1]
 
 
-def write_ome_tiff(path: PathLike, array: np.ndarray, reader: BaseReader):
+def write_ome_tiff(path: PathLike, array: np.ndarray, reader: BaseReader) -> Path:
     """Write OME-TIFF."""
     from wsireg.reg_images import NumpyRegImage
     from wsireg.writers.ome_tiff_writer import OmeTiffWriter
 
     if array.ndim == 2:
-        array = np.atleast_3d(array, axis=-1)
+        array = np.atleast_3d(array)
 
     reg = NumpyRegImage(
         array,
@@ -628,82 +638,3 @@ def write_ome_tiff(path: PathLike, array: np.ndarray, reader: BaseReader):
     writer = OmeTiffWriter(reg)
     filename = writer.write_image_by_plane(path.stem, path.parent, write_pyramid=True)
     return filename
-
-
-# def write_ome_tiff(
-#     path: PathLike,
-#     array: np.ndarray,
-#     reader: BaseReader,
-#     tile_size: int = 512,
-#     compression: str = "default",
-#     pyramid: bool = True,
-# ) -> None:
-#     """Write OME-TIFF."""
-#     from image2image.readers.utilities import get_pyramid_info, guess_rgb
-#
-#     # from skimage.io import imsave
-#
-#     # path = Path(path)
-#     # assert path.suffix.lower() in TIFF_EXTENSIONS, "Only TIFF files are supported"
-#     # assert array.ndim == 3, "Only 3D images are supported"
-#     # assert array.shape[-1] in [1, 3], "Only grayscale or RGB images are supported"
-#     # imsave(path, array, resolution=resolution)
-#
-#     if array.ndim == 2:
-#         np.atleast_3d(array, axis=-1)
-#     if array.ndim == 3:
-#         channel_axis = int(np.argmin(array.shape))
-#         temp = list(array.shape)
-#         del temp[channel_axis]
-#         y_size, x_size = temp
-#         n_ch = array.shape[channel_axis]
-#     else:
-#         raise ValueError(f"Cannot write image with {array.ndim} dimensions")
-#
-#     # protect against too large tile size
-#     while y_size / tile_size <= 1 or x_size / tile_size <= 1:
-#         tile_size = tile_size // 2
-#     pyr_levels, _ = get_pyramid_info(y_size, x_size, n_ch, tile_size)
-#     n_pyr_levels = len(pyr_levels)
-#
-#     name = reader.name
-#     channel_names = reader.channel_names
-#     is_rgb = guess_rgb(array.shape)
-#     from wsireg.utils.im_utils import prepare_ome_xml_str
-#
-#     omexml = prepare_ome_xml_str(
-#         y_size,
-#         x_size,
-#         n_ch,
-#         array.dtype,
-#         is_rgb,
-#         PhysicalSizeX=reader.resolution,
-#         PhysicalSizeY=reader.resolution,
-#         PhysicalSizeXUnit="µm",
-#         PhysicalSizeYUnit="µm",
-#         Name=name,
-#         Channel=None if is_rgb else {"Name": channel_names},
-#     )
-#
-#
-# def prepare_ome_xml_str(y_size: int, x_size: int, n_ch: int, im_dtype, is_rgb: bool, **ome_metadata) -> str:
-#     """Prepare data to write to OME-XML."""
-#     from tifffile import OmeXml
-#
-#     ome_xml = OmeXml()
-#     if is_rgb:
-#         stored_shape = (1, 1, 1, y_size, x_size, n_ch)
-#         im_shape = (y_size, x_size, n_ch)
-#     else:
-#         stored_shape = (n_ch, 1, 1, y_size, x_size, 1)
-#         im_shape = (n_ch, y_size, x_size)
-#
-#     ome_xml.addimage(
-#         dtype=im_dtype,
-#         shape=im_shape,
-#         # specify how the image is stored in the TIFF file
-#         storedshape=stored_shape,
-#         **ome_metadata,
-#     )
-#
-#     return ome_xml.tostring().encode("utf8")

@@ -8,8 +8,8 @@ from qtextra import helpers as hp
 from qtextra.utils.table_config import TableConfig
 from qtextra.utils.utilities import connect
 from qtextra.widgets.qt_dialog import QtFramelessTool
-from qtextra.widgets.qt_table_view import QtCheckableTableView
-from qtpy.QtCore import Qt, Signal  # type: ignore[attr-defined]
+from qtextra.widgets.qt_table_view import FilterProxyModel, QtCheckableTableView
+from qtpy.QtCore import QRegularExpression, Qt, Signal  # type: ignore[attr-defined]
 from qtpy.QtWidgets import QFormLayout
 
 if ty.TYPE_CHECKING:
@@ -35,13 +35,14 @@ class OverlayChannelsDialog(QtFramelessTool):
     TABLE_CONFIG = (
         TableConfig()  # type: ignore[no-untyped-call]
         .add("", "check", "bool", 25, no_sort=True)
-        .add("channel name", "channel_name", "str", 125, no_sort=True)
-        .add("dataset", "dataset", "str", 250, no_sort=True)
+        .add("channel name", "channel_name", "str", 125)
+        .add("dataset", "dataset", "str", 250)
     )
 
-    def __init__(self, parent: "LoadWidget", model: "DataModel", view: "NapariImageView"):
+    def __init__(self, parent: "LoadWidget", model: "DataModel", view: "NapariImageView", is_fixed: bool = False):
         self.model = model
         self.view = view
+        self.is_fixed = is_fixed
         super().__init__(parent)
         self.setMinimumWidth(400)
         self.setMinimumHeight(400)
@@ -65,7 +66,7 @@ class OverlayChannelsDialog(QtFramelessTool):
 
     def sync_layers(self, event: Event) -> None:
         """Synchronize layers."""
-        if event.type == "visible":
+        if event.type in ["visible", "inserted"]:
             self._sync_layer_visibility(event)
             self.on_update_info()
         elif event.type == "removed":
@@ -103,12 +104,6 @@ class OverlayChannelsDialog(QtFramelessTool):
         if self._editing:
             return
         parent: "LoadWidget" = self.parent()
-        # get number of selected channels
-        # n_checked = len(self.table.get_all_checked())
-        # if n_checked > 2:
-        #     logger.warning(f"Maximum number of channels ({n_checked}) reached.")
-        #     return
-
         with self.view.layers.events.blocker(self.sync_layers):
             if index == -1:
                 parent.evt_toggle_all_channels.emit(state)  # noqa
@@ -138,7 +133,7 @@ class OverlayChannelsDialog(QtFramelessTool):
         if reader:
             for name in reader.channel_names():
                 channel_name, dataset = name.split(" | ")
-                data.append([True, channel_name, dataset])
+                data.append([False, channel_name, dataset])
         existing_data = self.table.get_data()
         if existing_data:
             for exist_row in existing_data:
@@ -150,14 +145,19 @@ class OverlayChannelsDialog(QtFramelessTool):
                         new_row[self.TABLE_CONFIG.check] = exist_row[self.TABLE_CONFIG.check]
         self.table.reset_data()
         self.table.add_data(data)
+        self.table.enable_all_check = len(data) < 20
         self.on_update_info()
 
     # noinspection PyAttributeOutsideInit
     def make_panel(self) -> QFormLayout:
         """Make panel."""
         _, header_layout = self._make_hide_handle()
-        which = "Fixed" if self.model.is_fixed else "Moving"
-        self._title_label.setText(f"'{which}' Channel Selection")
+        if self.is_fixed:
+            which = "Fixed" if self.is_fixed else "Moving"
+            title = f"'{which}' Channel Selection"
+        else:
+            title = "Channel Selection"
+        self._title_label.setText(title)
 
         self.table = QtCheckableTableView(self, config=self.TABLE_CONFIG, enable_all_check=True, sortable=True)
         self.table.setCornerButtonEnabled(False)
@@ -165,12 +165,28 @@ class OverlayChannelsDialog(QtFramelessTool):
         self.table.setup_model(
             self.TABLE_CONFIG.header, self.TABLE_CONFIG.no_sort_columns, self.TABLE_CONFIG.hidden_columns
         )
+        self.table_proxy = FilterProxyModel(self)
+        self.table_proxy.setSourceModel(self.table.model())
+        self.table.setModel(self.table_proxy)
 
-        self.info = hp.make_label(self, "", enable_url=True)
+        self.filter_by_name = hp.make_line_edit(
+            self,
+            placeholder="Filter by channel name...",
+            func_changed=lambda text, col=self.TABLE_CONFIG.channel_name: self.table_proxy.setFilterByColumn(text, col),
+        )
+        self.filter_by_dataset = hp.make_line_edit(
+            self,
+            placeholder="Filter by dataset name...",
+            func_changed=lambda text, col=self.TABLE_CONFIG.dataset: self.table_proxy.setFilterByColumn(text, col),
+        )
+
+        self.info = hp.make_label(self, "", enable_url=True, alignment=Qt.AlignmentFlag.AlignHCenter)
 
         layout = hp.make_form_layout(self)
         hp.style_form_layout(layout)
         layout.addRow(header_layout)
+        layout.addRow(hp.make_label(self, "Filter by channel name:"), self.filter_by_name)
+        layout.addRow(hp.make_label(self, "Filter by dataset name:"), self.filter_by_dataset)
         layout.addRow(self.table)
         layout.addRow(self.info)
         layout.addRow(
