@@ -8,7 +8,7 @@ from koyo.typing import PathLike
 from loguru import logger
 from pydantic import Field, validator
 
-from image2image._reader import ImageWrapper, get_alternative_path, sanitize_path
+from image2image._reader import ImageWrapper, get_alternative_path, sanitize_path, sanitize_read_path
 from image2image.models.base import BaseModel
 from image2image.models.transform import TransformData
 from image2image.models.utilities import _get_paths, _read_config_from_file
@@ -54,10 +54,15 @@ class DataModel(BaseModel):
         if isinstance(path_or_paths, (str, Path)):
             path_or_paths = [path_or_paths]
         for path in path_or_paths:
-            path = sanitize_path(path)
-            if path not in self.paths:
+            path_ = path
+            path = sanitize_read_path(path, raise_error=False)
+            if path is None:
+                logger.warning(f"Failed to add '{path_}' to model paths.")
+            elif path not in self.paths:
                 self.paths.append(path)
                 logger.trace(f"Added '{path}' to model paths.")
+            else:
+                logger.warning(f"Path '{path}' already in model paths.")
 
     def remove_keys(self, key_or_keys: ty.Union[str, ty.Sequence[str]]) -> None:
         """Remove keys."""
@@ -124,6 +129,7 @@ class DataModel(BaseModel):
         resolution: ty.Optional[ty.Dict[str, float]] = None,
     ) -> "DataModel":
         """Load data into memory."""
+        logger.trace(f"Loading data for '{self.paths}'")
         with MeasureTimer() as timer:
             self.get_wrapper(transform_data, resolution)
         logger.info(f"Loaded data in {timer()}")
@@ -178,6 +184,7 @@ class DataModel(BaseModel):
                     log_exception_or_error(e)
                     logger.error(f"Failed to load '{path}'")
                     self.remove_paths(path)
+
         if self.wrapper:
             self.resolution = self.wrapper.resolution
         if just_added_keys:

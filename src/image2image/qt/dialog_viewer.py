@@ -364,7 +364,7 @@ class ImageViewerWindow(Window):
             self,
             "Clear data",
             menu=menu_file,
-            func=self._image_widget.on_clear_data,
+            func=self._image_widget.on_close_dataset,
         )
         menu_file.addSeparator()
         hp.make_menu_item(self, "Quit", menu=menu_file, func=self.close)

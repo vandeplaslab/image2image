@@ -255,6 +255,39 @@ def get_alternative_path(path: PathLike) -> Path:
     return path
 
 
+def sanitize_read_path(path: PathLike, raise_error: bool = True) -> Path | None:
+    """Sanitize path that can be read by the reader."""
+    path = Path(path)
+    if not path.exists():
+        if raise_error:
+            raise FileNotFoundError(f"File does not exist: {path}")
+        return None
+    suffix = path.suffix.lower()
+    if suffix not in (
+        TIFF_EXTENSIONS
+        + IMAGE_EXTENSIONS
+        + CZI_EXTENSIONS
+        + NPY_EXTENSIONS
+        + BRUKER_EXTENSIONS
+        + IMZML_EXTENSIONS
+        + H5_EXTENSIONS
+        + IMSPY_EXTENSIONS
+        + GEOJSON_EXTENSIONS
+    ):
+        if raise_error:
+            raise ValueError(f"Unsupported file format: {path.suffix} ({path})")
+        return None
+    if suffix in BRUKER_EXTENSIONS:
+        if path.suffix == ".d":
+            if (path / "analysis.tsf").exists():
+                path = path / "analysis.tsf"
+            else:
+                path = path / "analysis.tdf"
+    elif suffix in IMSPY_EXTENSIONS:
+        path = path / "dataset.metadata.h5"
+    return path
+
+
 def read_data(
     path: PathLike,
     wrapper: ImageWrapper | None = None,
