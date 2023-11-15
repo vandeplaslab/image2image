@@ -99,7 +99,7 @@ class ImageRegistrationWindow(Window):
                 symbol="ring",
             )
             visual = self.view_fixed.widget.layer_to_visual[layer]
-            init_points_layer(layer, visual)
+            init_points_layer(layer, visual, False)
             connect(layer.events.data, self.on_run, state=True)
             connect(layer.events.add_point, partial(self.on_predict, "fixed"), state=True)
         return self.view_fixed.layers["Fixed (points)"]
@@ -117,7 +117,7 @@ class ImageRegistrationWindow(Window):
                 symbol="ring",
             )
             visual = self.view_moving.widget.layer_to_visual[layer]
-            init_points_layer(layer, visual)
+            init_points_layer(layer, visual, True)
             connect(layer.events.data, self.on_run, state=True)
             connect(layer.events.add_point, partial(self.on_predict, "moving"), state=True)
         return self.view_moving.layers["Moving (points)"]
@@ -443,6 +443,8 @@ class ImageRegistrationWindow(Window):
                 logger.warning("There must be at least three points before we can compute the transformation.")
                 self.transform_error.setText("<need more points>")
                 hp.update_widget_style(self.transform_error, "reg_error")
+                self.transform_info.setText("")
+                self.transform_model.clear(False)
             elif n_fixed != n_moving:
                 logger.warning("The number of `fixed` and `moving` points must be the same.")
 
@@ -560,6 +562,7 @@ class ImageRegistrationWindow(Window):
             from image2image.qt._dialogs import FiducialsDialog
 
             self._table = FiducialsDialog(self)
+            self._table.evt_update.connect(self.on_run)
         self._table.show()
 
     def on_show_shortcuts(self) -> None:
@@ -789,8 +792,6 @@ class ImageRegistrationWindow(Window):
         side_layout.addRow(self._make_focus_layout())
         side_layout.addRow(hp.make_h_line_with_text("Transformation"))
         # side_layout.addRow(hp.make_label(self, "Type of transformation"), self.transform_choice)
-        side_layout.addRow(hp.make_label(self, "Estimated error"), self.transform_error)
-        side_layout.addRow(hp.make_label(self, "About transformation"), self.transform_info)
         side_layout.addRow(hp.make_btn(self, "Compute transformation", func=self.on_run))
         side_layout.addRow(
             hp.make_btn(
@@ -808,6 +809,8 @@ class ImageRegistrationWindow(Window):
                 func=self.on_save_to_project,
             )
         )
+        side_layout.addRow(hp.make_label(self, "Estimated error"), self.transform_error)
+        side_layout.addRow(hp.make_label(self, "About transformation"), self.transform_info)
         side_layout.addRow(hp.make_spacer_widget())
         side_layout.addRow(hp.make_h_line_with_text("Settings"))
         side_layout.addRow(self._make_settings_layout())

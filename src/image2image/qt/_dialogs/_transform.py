@@ -101,7 +101,6 @@ class SelectTransformDialog(QtFramelessTool):
                 key = self.table.get_value(self.TABLE_CONFIG.key, index)
                 # get reader appropriate for the path
                 reader = self.model.get_reader_for_key(key)
-                print(key, reader)
                 if reader:
                     # transform information need to be updated
                     reader.transform_name = transform_name

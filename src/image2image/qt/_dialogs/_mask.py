@@ -159,12 +159,15 @@ class MasksDialog(QtFramelessTool):
             if not mask_reader:
                 raise ValueError(f"Could not find mask reader for '{mask_key}'")
             mask = mask_reader.to_mask(mask_shape)
+            mask_indexed = mask_reader.to_mask(mask_shape, with_index=True)
             display_name, shapes = mask_reader.to_shapes()
             for image_key in images:
                 image_reader = data_model.get_reader_for_key(image_key)
                 if not image_reader:
                     raise ValueError(f"Could not find image reader for '{image_key}'")
                 transformed_mask = image_reader.warp(mask)
+                transformed_mask_indexed = image_reader.warp(mask_indexed)
+
                 # at um level
                 transform = image_reader.transform
                 # preview
@@ -184,7 +187,14 @@ class MasksDialog(QtFramelessTool):
 
                     output_path = output_dir / f"{name}-{image_reader.path.stem}.h5"
                     logger.debug(f"Exporting mask to '{output_path}'")
-                    write_masks(output_path, display_name, transformed_mask, shapes, display_name)
+                    write_masks(
+                        output_path,
+                        display_name,
+                        transformed_mask,
+                        shapes,
+                        display_name,
+                        metadata={"polygon_index": transformed_mask_indexed},
+                    )
 
     # noinspection PyAttributeOutsideInit
     def make_panel(self) -> QFormLayout:

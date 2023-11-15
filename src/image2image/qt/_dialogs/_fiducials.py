@@ -25,6 +25,7 @@ class FiducialsDialog(QtFramelessTool):
 
     # event emitted when the popup closes
     evt_close = Signal()
+    evt_update = Signal()
 
     TABLE_CONFIG = (
         TableConfig()  # type: ignore[no-untyped-call]
@@ -82,7 +83,9 @@ class FiducialsDialog(QtFramelessTool):
                     with parent.fixed_points_layer.events.data.blocker(self.on_load):
                         parent.moving_points_layer.data = moving_points
                 logger.debug(f"Deleted index '{index}' from fiducial table")
-            self.on_load()
+                self.table.remove_row(index)
+            # self.on_load()
+            self.evt_update.emit()
 
     def on_double_click(self, index: QModelIndex) -> None:
         """Zoom in."""

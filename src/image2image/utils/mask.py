@@ -11,16 +11,24 @@ from shapely import Polygon
 from skimage.transform import AffineTransform
 
 from image2image.enums import TIME_FORMAT
+from loguru import logger
+
+logger = logger.bind(src="Mask")
 
 
-def shapes_to_polygons(shape_data: list[np.ndarray]) -> list[Polygon]:
+def shapes_to_polygons(
+    shape_data: list[np.ndarray], with_index: bool = False
+) -> list[Polygon] | list[tuple[Polygon, int]]:
     """Convert shapes to polygons."""
     polygons = []
-    for shape in shape_data:
+    for index, shape in enumerate(shape_data, start=1):
         if isinstance(shape, dict):
             shape = shape["array"]
         yx = shape
-        polygons.append(Polygon(yx))
+        if with_index:
+            polygons.append((Polygon(yx), index))
+        else:
+            polygons.append(Polygon(yx))
     return polygons
 
 
@@ -47,6 +55,7 @@ def write_masks(
     display_name: str | None = None,
     creation_date: datetime | None = None,
     color: np.ndarray | None = None,
+    metadata: dict[str, np.ndarray] | None = None,
 ) -> None:
     """Write masks to file."""
     import h5py
@@ -88,3 +97,13 @@ def write_masks(
                 grp = f.create_group(f"Mask/Shapes/{index}")
                 grp.attrs["shape_type"] = shape_type
                 grp.create_dataset("data", data=data)
+        # add extra data
+        if metadata:
+            grp = f.create_group("Mask/Metadata")
+            for meta_name, meta_data in metadata.items():
+                if meta_data.ndim != mask.ndim or meta_data.shape != mask.shape:
+                    logger.warning(
+                        f"Skipped metadata key={meta_name} as it had wrong shape or dimension. {meta_data.shape}"
+                    )
+                    continue
+                grp.create_dataset(f"{meta_name}", data=meta_data)

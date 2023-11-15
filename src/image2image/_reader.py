@@ -616,9 +616,7 @@ def _read_tsf_tdf_reader(path: PathLike) -> tuple[Path, dict[str, CoordinateImag
     x = reader.x_coordinates
     y = reader.y_coordinates
     key = get_key(path)
-    return path, {
-        path.name: CoordinateImageReader(path.parent, x, y, resolution=resolution, array_or_reader=reader, key=key)
-    }
+    return path, {path.name: CoordinateImageReader(path, x, y, resolution=resolution, array_or_reader=reader, key=key)}
 
 
 def _read_imzml_coordinates(path: PathLike) -> tuple[Path, dict[str, CoordinateImageReader]]:

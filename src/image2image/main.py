@@ -75,6 +75,8 @@ def run(
 
     # disable some annoying warnings from napari
     warnings.filterwarnings("ignore", message="RuntimeWarning: overflow encountered in multiply")
+    warnings.filterwarnings("ignore", message="RuntimeWarning: overflow encountered in square")
+    warnings.filterwarnings("ignore", message="RuntimeWarning: overflow encountered in cast")
 
     if dev:
         import faulthandler

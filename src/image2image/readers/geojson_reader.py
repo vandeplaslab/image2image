@@ -22,11 +22,11 @@ class GeoJSONReader(BaseReader):
 
         self.geojson_data, self.shape_data = read_geojson(self.path)
 
-    def to_mask(self, output_shape: tuple[int, int]) -> np.ndarray:
+    def to_mask(self, output_shape: tuple[int, int], with_index: bool = False) -> np.ndarray:
         """Convert to mask."""
         from image2image.utils.mask import polygons_to_mask, shapes_to_polygons
 
-        polygons = shapes_to_polygons(self.shape_data)
+        polygons = shapes_to_polygons(self.shape_data, with_index=with_index)
         mask = polygons_to_mask(polygons, output_shape)
         return mask
 
