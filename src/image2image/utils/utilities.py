@@ -15,7 +15,6 @@ from napari.layers.points.points import Mode as PointsMode
 from napari.utils.colormaps.colormap_utils import convert_vispy_colormap
 from napari.utils.colormaps.standardize_color import transform_color
 from napari.utils.events import Event
-from qtpy.QtWidgets import QFormLayout
 from vispy.color import Colormap as VispyColormap
 
 from image2image.config import CONFIG

@@ -13,6 +13,8 @@ def run(
     tool: ty.Literal["launcher", "register", "viewer", "crop", "export"] = "launcher",
 ):
     """Execute command."""
+    import warnings
+
     from koyo.logging import set_loguru_log
     from qtextra.config import THEMES
 
@@ -68,9 +70,11 @@ def run(
     else:
         raise ValueError("Launcher is not implemented yet.")
 
-    THEMES[THEMES.theme].font_size = "9pt"
     THEMES.set_theme_stylesheet(dlg)
     THEMES.evt_theme_changed.connect(lambda: THEMES.set_theme_stylesheet(dlg))
+
+    # disable some annoying warnings from napari
+    warnings.filterwarnings("ignore", message="RuntimeWarning: overflow encountered in multiply")
 
     if dev:
         import faulthandler
@@ -79,13 +83,25 @@ def run(
         from qtextra.utils.dev import qdev
 
         segfault_path = USER_LOG_DIR / "segfault.log"
+        if segfault_path.exists():
+            segfault_text = segfault_path.read_text()
+            if segfault_text:
+                from functools import partial
+
+                from qtextra.helpers import call_later
+
+                from image2image.utils.utilities import log_exception_or_error
+
+                logger.error("There was a previous segfault - submitting for review.")
+                call_later(dlg, partial(log_exception_or_error, f"Segfault detected\n\n{segfault_text}"), 10_000)
+
         segfault_file = open(segfault_path, "w+")
         faulthandler.enable(segfault_file, all_threads=True)
         logger.trace(f"Enabled fault handler - logging to '{segfault_path}'")
         logger.enable("qtextra")
         logging.getLogger("qtreload").setLevel(logging.DEBUG)
 
-        dev = qdev(dlg, modules=["qtextra", "image2image"])
+        dev = qdev(dlg, modules=["qtextra", "image2image", "koyo"])
         dev.evt_theme.connect(lambda: THEMES.set_theme_stylesheet(dlg))
         if hasattr(dlg, "centralWidget"):
             dlg.centralWidget().layout().addWidget(dev)
