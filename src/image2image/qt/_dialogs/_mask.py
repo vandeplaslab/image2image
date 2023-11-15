@@ -122,7 +122,6 @@ class MasksDialog(QtFramelessTool):
             return
         # export masks
         data_model, masks, images, mask_shape = data
-        logger.debug(f"Exporting {len(masks)} masks for {len(images)} images with {mask_shape} shape.")
         output_dir_ = hp.get_directory(self, "Select output directory", base_dir=CONFIG.output_dir)
         if output_dir_:
             output_dir = Path(output_dir_)
@@ -195,6 +194,7 @@ class MasksDialog(QtFramelessTool):
                         display_name,
                         metadata={"polygon_index": transformed_mask_indexed},
                     )
+                    logger.debug(f"Exported mask to '{output_path}'")
 
     # noinspection PyAttributeOutsideInit
     def make_panel(self) -> QFormLayout:
