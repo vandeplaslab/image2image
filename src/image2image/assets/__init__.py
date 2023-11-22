@@ -56,6 +56,8 @@ update_icon_mapping(
         "export": "mdi6.content-save-check-outline",
         "pan_zoom": "ei.move",
         "select_points": "fa5s.location-arrow",
+        "shortcut": "mdi.tooltip",
+        "fiducial": "fa5s.map-marker-alt",
     }
 )
 

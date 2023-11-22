@@ -20,6 +20,8 @@ I2C_METADATA = ty.Tuple[
     ty.List[Path], ty.List[Path], ty.Dict[str, TransformData], ty.Dict[str, float], list[dict[str, int]]
 ]
 
+SCHEMA_VERSION: str = "1.1"
+
 
 class DataModel(BaseModel):
     """Base model."""
@@ -235,12 +237,12 @@ class DataModel(BaseModel):
                     paths.append(path)
         return paths
 
-    def path_resolution_iter(self) -> ty.Generator[ty.Tuple[Path, float], None, None]:
+    def path_resolution_shape_iter(self) -> ty.Generator[ty.Tuple[Path, float, ty.Tuple[int, int]], None, None]:
         """Iterator of path and pixel size."""
         wrapper = self.wrapper
         if wrapper:
             for reader in wrapper.reader_iter():
-                yield reader.path, reader.resolution
+                yield reader.path, reader.resolution, reader.image_shape
 
     def export_iter(self) -> ty.Generator[dict[str, ty.Union[Path, float, str, tuple[int, int], dict]], None, None]:
         """Export iterator."""
@@ -292,7 +294,7 @@ class DataModel(BaseModel):
         if not wrapper:
             raise ValueError("No wrapper found.")
         return {
-            "schema_version": "1.1",
+            "schema_version": SCHEMA_VERSION,
             "images": [
                 {
                     "path": str(path),

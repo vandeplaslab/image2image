@@ -13,6 +13,7 @@ from loguru import logger
 from napari.layers import Image, Shapes
 from napari.layers.shapes._shapes_constants import Box
 from qtextra.utils.utilities import connect
+from qtextra.widgets.qt_close_window import QtConfirmCloseDialog
 from qtpy.QtCore import Qt
 from qtpy.QtGui import QIntValidator
 from qtpy.QtWidgets import QDialog, QFormLayout, QHBoxLayout, QMenuBar, QVBoxLayout, QWidget
@@ -22,10 +23,9 @@ from superqt.utils import create_worker
 from image2image import __version__
 from image2image.config import CONFIG
 from image2image.enums import ALLOWED_CROP_FORMATS
-from image2image.qt._dialogs._close import ConfirmCloseDialog
 from image2image.qt._select import LoadWidget
 from image2image.qt.dialog_base import Window
-from image2image.utils.utilities import init_shapes_layer, log_exception_or_error, write_project
+from image2image.utils.utilities import ensure_extension, init_shapes_layer, log_exception_or_error, write_project
 
 if ty.TYPE_CHECKING:
     from image2image.models.data import DataModel
@@ -140,6 +140,7 @@ class ImageCropWindow(Window):
         )
         if path_:
             path = Path(path_)
+            path = ensure_extension(path, "i2c")
             CONFIG.output_dir = str(path.parent)
             left, right, top, bottom = self._get_crop_area()
             config = get_project_data(self.data_model, left, right, top, bottom)
@@ -147,7 +148,7 @@ class ImageCropWindow(Window):
             hp.toast(
                 self,
                 "Exported project",
-                f"Saved project to<br><b>{path}</b>",
+                f"Saved project to<br><b>{hp.hyper(path)}</b>",
                 icon="success",
                 position="top_left",
             )
@@ -514,10 +515,11 @@ class ImageCropWindow(Window):
         if (
             not force
             or not CONFIG.confirm_close_crop
-            or ConfirmCloseDialog(
+            or QtConfirmCloseDialog(
                 self,
                 "confirm_close_crop",
                 self.on_save_to_project,
+                CONFIG,
             ).exec_()  # type: ignore[attr-defined]
             == QDialog.DialogCode.Accepted
         ):
@@ -530,10 +532,11 @@ class ImageCropWindow(Window):
             evt.spontaneous()
             and CONFIG.confirm_close_crop
             and self.data_model.is_valid()
-            and ConfirmCloseDialog(
+            and QtConfirmCloseDialog(
                 self,
                 "confirm_close_crop",
                 self.on_save_to_project,
+                CONFIG,
             ).exec_()  # type: ignore[attr-defined]
             != QDialog.DialogCode.Accepted
         ):
@@ -552,6 +555,7 @@ def get_project_data(data_model: DataModel, left: int, right: int, top: int, bot
     data_ = data_model.to_dict()
     data = {
         "schema_version": schema_version,
+        "tool": "crop",
         "version": __version__,
         "crop": [{"left": left, "right": right, "top": top, "bottom": bottom}],
         "images": data_["images"],

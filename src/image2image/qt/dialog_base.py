@@ -21,7 +21,6 @@ import image2image.assets  # noqa: F401
 from image2image.config import CONFIG
 from image2image.models.data import DataModel
 from image2image.qt._dialogs._update import check_version
-from image2image.qt._sentry import install_error_monitor
 from image2image.utils.utilities import get_colormap, log_exception_or_error
 
 if ty.TYPE_CHECKING:
@@ -51,8 +50,6 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
         else:
             hp.call_later(self, self.setup_events, 3000)
 
-        # delay asking for telemetry opt-in by 10s
-        hp.call_later(self, install_error_monitor, 5_000)
         # check for updates every now and in then every 4 hours
         hp.call_later(self, self.on_check_new_version, 5 * 1000)
         self.version_timer = hp.make_periodic_timer(self, self.on_check_new_version, 4 * 3600 * 1000)

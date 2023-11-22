@@ -17,10 +17,13 @@ def run(
 
     from koyo.logging import set_loguru_log
     from qtextra.config import THEMES
+    from qtextra.utils.context import _maybe_allow_interrupt
 
     from image2image.config import CONFIG
+    from image2image.qt._sentry import install_error_monitor
     from image2image.qt.event_loop import get_app
     from image2image.utils._appdirs import USER_LOG_DIR
+    from image2image.utils.utilities import install_segfault_handler, maybe_submit_segfault
 
     log_path = USER_LOG_DIR / f"log_tool={tool}.txt"
     set_loguru_log(log_path, level=level, no_color=True, diagnose=True, catch=True, logger=logger)
@@ -42,6 +45,12 @@ def run(
 
     # make app
     app = get_app()
+
+    # install error monitor
+    install_error_monitor()
+    maybe_submit_segfault()
+    install_segfault_handler()
+
     if tool == "launcher":
         from image2image.qt.launcher import Launcher
 
@@ -79,27 +88,10 @@ def run(
     warnings.filterwarnings("ignore", message="RuntimeWarning: overflow encountered in cast")
 
     if dev:
-        import faulthandler
         import logging
 
         from qtextra.utils.dev import qdev
 
-        segfault_path = USER_LOG_DIR / "segfault.log"
-        if segfault_path.exists():
-            segfault_text = segfault_path.read_text()
-            if segfault_text:
-                from functools import partial
-
-                from qtextra.helpers import call_later
-
-                from image2image.utils.utilities import log_exception_or_error
-
-                logger.error("There was a previous segfault - submitting for review.")
-                call_later(dlg, partial(log_exception_or_error, f"Segfault detected\n\n{segfault_text}"), 10_000)
-
-        segfault_file = open(segfault_path, "w+")
-        faulthandler.enable(segfault_file, all_threads=True)
-        logger.trace(f"Enabled fault handler - logging to '{segfault_path}'")
         logger.enable("qtextra")
         logging.getLogger("qtreload").setLevel(logging.DEBUG)
 
@@ -116,11 +108,8 @@ def run(
         os.environ["IMAGE2IMAGE_DEV_MODE"] = "0"
 
     dlg.show()
-    # if tool in ["launcher", "export", "crop"]:
-    #     dlg.show()
-    # else:
-    #     dlg.showMaximized()
-    sys.exit(app.exec_())
+    with _maybe_allow_interrupt(app):
+        sys.exit(app.exec_())
 
 
 if __name__ == "__main__":  # pragma: no cover

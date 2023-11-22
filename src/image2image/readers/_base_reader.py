@@ -174,7 +174,7 @@ class BaseReader:
         """Warp array."""
         from image2image.utils.mask import transform_mask
 
-        transform = self.transform_data.compute(px=True).params
+        transform = self.transform_data.compute(yx=True, px=True).params
         transformed_mask = transform_mask(array, transform, self.image_shape)
         return transformed_mask
 

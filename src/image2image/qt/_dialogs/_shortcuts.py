@@ -7,6 +7,7 @@ from qtpy.QtWidgets import QWidget
 class ShortcutsDialog(QtFramelessTool):
     """Provide shortcuts information."""
 
+    TITLE = "Shortcuts"
     SHORTCUTS = ""
 
     def __init__(self, parent: QWidget):
@@ -18,7 +19,7 @@ class ShortcutsDialog(QtFramelessTool):
     def make_panel(self):
         """Make panel."""
         return hp.make_v_layout(
-            self._make_hide_handle("Shortcuts")[1],
+            self._make_hide_handle(self.TITLE)[1],
             hp.make_label(self, self.SHORTCUTS),
             # stretch_id=1,
         )
@@ -27,9 +28,8 @@ class ShortcutsDialog(QtFramelessTool):
 class RegisterShortcutsDialog(ShortcutsDialog):
     """Provide shortcuts information."""
 
+    TITLE = "Registration App Shortcuts"
     SHORTCUTS = """
-    <h3>image2register shortcuts</h3>
-    <br>
     <br><b>F1</b> - Open documentation in the browser.
     <br>
     <br><b>Ctrl+T</b> - Open the IPython console.
@@ -42,6 +42,8 @@ class RegisterShortcutsDialog(ShortcutsDialog):
     <br><b>3</b> - Activate move-points mode in both images.
     <br><b>L</b> - Use currently shown area in the 'Fixed' image as the 'Area of interest'.
     <br><b>Z</b> - Zoom-in on the currently set 'Area of interest'.
+    <br><b>T</b> - Toggle between each of the transformed 'moving' images.
+    <br><b>V</b> - Toggle visibility of the  transformed 'moving' images.
     """
     # <br><b>A</b> - Zoom-in on previous point in both images.
     # <br><b>D</b> - Zoom-in on next point in both images.

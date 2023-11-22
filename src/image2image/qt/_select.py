@@ -167,6 +167,28 @@ class LoadWidget(LoadMixin):
             self.channel_dlg.show()
 
 
+class FixedWidget(LoadWidget):
+    """Widget for loading fixed data."""
+
+    # class attrs
+    IS_FIXED = True
+    INFO_TEXT = "Select 'fixed' data..."
+    INFO_VISIBLE = True
+
+    def __init__(
+        self,
+        parent: ty.Optional["Window"],
+        view: "NapariImageView",
+        n_max: int = 0,
+        allow_geojson: bool = False,
+        select_channels: bool = True,
+    ):
+        super().__init__(parent, view, n_max, allow_geojson, select_channels)
+
+        if hasattr(parent, "evt_fixed_dropped"):
+            connect(parent.evt_fixed_dropped, self.dataset_dlg.on_drop)
+
+
 class MovingWidget(LoadWidget):
     """Widget for loading moving data."""
 
@@ -193,6 +215,9 @@ class MovingWidget(LoadWidget):
         # extra events
         connect(self.dataset_dlg.evt_loaded, self._on_update_choice)
         connect(self.dataset_dlg.evt_closed, self._on_clear_choice)
+
+        if hasattr(parent, "evt_moving_dropped"):
+            connect(parent.evt_moving_dropped, self.dataset_dlg.on_drop)
 
     def _on_update_choice(self, _model: object, _channel_list: list[str]) -> None:
         """Update list of available options."""
@@ -231,19 +256,21 @@ class MovingWidget(LoadWidget):
         CONFIG.view_type = value  # type: ignore
         self.evt_view_type.emit(value)  # noqa
 
+    def toggle_transformed(self) -> None:
+        """Toggle visibility of transformed image."""
+        index = self.transformed_choice.currentIndex()
+        n = self.transformed_choice.count()
+        if n == 1:
+            return
+        index += 1
+        if index >= n:
+            index = 0
+        self.transformed_choice.setCurrentIndex(index)
+
     def _on_toggle_transformed(self, value: str) -> None:
         """Toggle visibility of transformed."""
         CONFIG.show_transformed = value != "None"
         self.evt_show_transformed.emit(value)  # noqa
-
-
-class FixedWidget(LoadWidget):
-    """Widget for loading fixed data."""
-
-    # class attrs
-    IS_FIXED = True
-    INFO_TEXT = "Select 'fixed' data..."
-    INFO_VISIBLE = True
 
 
 class LoadWithTransformWidget(LoadWidget):

@@ -24,6 +24,8 @@ I2R_METADATA = ty.Tuple[
     float,
 ]
 
+SCHEMA_VERSION: str = "1.3"
+
 
 class Transformation(BaseModel):
     """Temporary object that holds transformation information."""
@@ -169,7 +171,8 @@ class Transformation(BaseModel):
         fixed_pts = self.fixed_points
         moving_pts = self.moving_points
         return {
-            "schema_version": "1.2",
+            "schema_version": SCHEMA_VERSION,
+            "tool": "register",
             "time_created": self.time_created.strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
             "fixed_points_yx_px": fixed_pts.tolist(),  # type: ignore[union-attr]
             "fixed_points_yx_um": (fixed_pts * fixed_mdl.resolution).tolist(),  # type: ignore[operator, union-attr]
@@ -180,15 +183,17 @@ class Transformation(BaseModel):
                 {
                     "path": str(path),
                     "pixel_size_um": resolution,
+                    "image_shape": tuple(map(int, image_shape)),
                 }
-                for (path, resolution) in fixed_mdl.path_resolution_iter()
+                for (path, resolution, image_shape) in fixed_mdl.path_resolution_shape_iter()
             ],
             "moving_paths": [
                 {
                     "path": str(path),
                     "pixel_size_um": resolution,
+                    "image_shape": tuple(map(int, image_shape)),
                 }
-                for (path, resolution) in moving_mdl.path_resolution_iter()
+                for (path, resolution, image_shape) in moving_mdl.path_resolution_shape_iter()
             ],
             "matrix_yx_px": self.compute(yx=True, px=True).params.tolist(),
             "matrix_yx_um": self.compute(yx=True, px=False).params.tolist(),
@@ -288,6 +293,7 @@ def _read_image2register_config(config: ty.Dict) -> I2R_METADATA:
         return _read_image2register_v1_0_config(config)
     elif schema_version == "1.1":
         return _read_image2register_v1_1_config(config)
+    # accept 1.2 and 1.3
     return _read_image2register_latest_config(config)
 
 

@@ -17,6 +17,7 @@ from napari.layers.utils._link_layers import link_layers
 from napari.utils.events import Event
 from qtextra._napari.image.wrapper import NapariImageView
 from qtextra.utils.utilities import connect
+from qtextra.widgets.qt_close_window import QtConfirmCloseDialog
 from qtextra.widgets.qt_image_button import QtImagePushButton
 from qtextra.widgets.qt_mini_toolbar import QtMiniToolbar
 from qtpy.QtCore import Qt, Signal  # type: ignore[attr-defined]
@@ -34,12 +35,12 @@ from image2image.enums import (
 )
 from image2image.models.data import DataModel
 from image2image.models.transformation import Transformation
-from image2image.qt._dialogs._close import ConfirmCloseDialog
 from image2image.qt._select import FixedWidget, MovingWidget
 from image2image.qt.dialog_base import Window
 from image2image.utils.utilities import (
     _get_text_data,
     _get_text_format,
+    ensure_extension,
     get_colormap,
     init_points_layer,
 )
@@ -51,8 +52,6 @@ if ty.TYPE_CHECKING:
 class ImageRegistrationWindow(Window):
     """Image registration dialog."""
 
-    allow_drop = False
-
     view_fixed: NapariImageView
     view_moving: NapariImageView
     fixed_image_layer: list[Image] | None = None
@@ -61,6 +60,8 @@ class ImageRegistrationWindow(Window):
 
     # events
     evt_predicted = Signal()
+    evt_fixed_dropped = Signal("QEvent")
+    evt_moving_dropped = Signal("QEvent")
 
     def __init__(self, parent: QWidget | None):
         super().__init__(parent, f"image2image: Simple image registration tool (v{__version__})", delay_events=True)
@@ -338,13 +339,6 @@ class ImageRegistrationWindow(Window):
         layer = self.fixed_points_layer if which == "fixed" else self.moving_points_layer
         layer.mode = "pan_zoom"
 
-    def on_move(self, which: str, _evt: ty.Any = None) -> None:
-        """Move points."""
-        self._select_layer(which)
-        widget = self.fixed_move_btn if which == "fixed" else self.moving_move_btn
-        layer = self.fixed_points_layer if which == "fixed" else self.moving_points_layer
-        layer.mode = "select" if widget.isChecked() else "pan_zoom"
-
     def on_add(self, which: str, _evt: ty.Any = None) -> None:
         """Add point to the image."""
         self._select_layer(which)
@@ -353,6 +347,14 @@ class ImageRegistrationWindow(Window):
         layer = self.fixed_points_layer if which == "fixed" else self.moving_points_layer
         # make sure the 'add' mode is active
         layer.mode = "add" if widget.isChecked() else "pan_zoom"
+
+    def on_move(self, which: str, _evt: ty.Any = None) -> None:
+        """Move points."""
+        self._select_layer(which)
+        widget = self.fixed_move_btn if which == "fixed" else self.moving_move_btn
+        layer = self.fixed_points_layer if which == "fixed" else self.moving_points_layer
+        layer.mode = "select" if widget.isChecked() else "pan_zoom"
+        layer.selected_data = []
 
     def on_remove(self, which: str, _evt: ty.Any = None) -> None:
         """Remove point to the image."""
@@ -466,12 +468,13 @@ class ImageRegistrationWindow(Window):
         )
         if path_:
             path = Path(path_)
+            path = ensure_extension(path, "i2r")
             CONFIG.output_dir = str(path.parent)
             transform.to_file(path)
             hp.toast(
                 self,
                 "Exported transformation",
-                f"Saved transformation to<br><b>{path}</b>",
+                f"Saved project to<br><b>{hp.hyper(path)}</b>",
                 icon="success",
                 position="top_left",
             )
@@ -722,6 +725,19 @@ class ImageRegistrationWindow(Window):
             f" zoom={self.zoom.value():.3f}"
         )
 
+    @qdebounced(timeout=50)
+    def on_toggle_transformed_visibility(self) -> None:
+        """Toggle visibility of transformed image."""
+        if self.transformed_moving_image_layer:
+            CONFIG.show_transformed = not CONFIG.show_transformed
+            self.transformed_moving_image_layer.visible = CONFIG.show_transformed
+
+    @qdebounced(timeout=50)
+    def on_toggle_transformed_image(self) -> None:
+        """Toggle visibility of transformed image."""
+        if self.transformed_moving_image_layer:
+            self._moving_widget.toggle_transformed()
+
     def on_update_settings(self):
         """Update config."""
         CONFIG.sync_views = self.synchronize_zoom.isChecked()
@@ -872,8 +888,12 @@ class ImageRegistrationWindow(Window):
         hp.make_menu_item(
             self, "Select moving channels...", menu=menu_tools, func=self._moving_widget._on_select_channels
         )
-        hp.make_menu_item(self, "Show fiducials table...", menu=menu_tools, func=self.on_show_fiducials)
-        hp.make_menu_item(self, "Show shortcuts...", menu=menu_tools, func=self.on_show_shortcuts)
+        hp.make_menu_item(
+            self, "Show fiducials table...", "Ctrl+F", menu=menu_tools, func=self.on_show_fiducials, icon="fiducial"
+        )
+        hp.make_menu_item(
+            self, "Show shortcuts...", "Ctrl+S", menu=menu_tools, func=self.on_show_shortcuts, icon="shortcut"
+        )
         menu_tools.addSeparator()
         hp.make_menu_item(self, "Show IPython console...", "Ctrl+T", menu=menu_tools, func=self.on_show_console)
 
@@ -1125,25 +1145,31 @@ class ImageRegistrationWindow(Window):
         if hasattr(evt, "native"):
             evt = evt.native
         key = evt.key()
-        if key == Qt.Key_Escape:  # type: ignore[attr-defined]
+        if key == Qt.Key.Key_Escape:
             evt.ignore()
-        elif key == Qt.Key_1:  # type: ignore[attr-defined]
+        elif key == Qt.Key.Key_1:
             self.on_mode("fixed", mode=Mode.PAN_ZOOM)
             self.on_mode("moving", mode=Mode.PAN_ZOOM)
             evt.ignore()
-        elif key == Qt.Key_2:  # type: ignore[attr-defined]
+        elif key == Qt.Key.Key_2:
             self.on_mode("fixed", mode=Mode.ADD)
             self.on_mode("moving", mode=Mode.ADD)
             evt.ignore()
-        elif key == Qt.Key_3:  # type: ignore[attr-defined]
+        elif key == Qt.Key.Key_3:
             self.on_mode("fixed", mode=Mode.SELECT)
             self.on_mode("moving", mode=Mode.SELECT)
             evt.ignore()
-        elif key == Qt.Key_Z:  # type: ignore[attr-defined]
+        elif key == Qt.Key.Key_Z:
             self.on_apply_focus()
             evt.ignore()
-        elif key == Qt.Key_L:  # type: ignore[attr-defined]
+        elif key == Qt.Key.Key_L:
             self.on_set_focus()
+            evt.ignore()
+        elif key == Qt.Key.Key_T:
+            self.on_toggle_transformed_image()  # type: ignore[call-arg]
+            evt.ignore()
+        elif key == Qt.Key.Key_V:
+            self.on_toggle_transformed_visibility()  # type: ignore[call-arg]
             evt.ignore()
         else:
             super().keyPressEvent(evt)
@@ -1153,10 +1179,8 @@ class ImageRegistrationWindow(Window):
         if (
             not force
             or not CONFIG.confirm_close_register
-            or ConfirmCloseDialog(
-                self,
-                "confirm_close_register",
-                self.on_save_to_project,
+            or QtConfirmCloseDialog(
+                self, "confirm_close_register", self.on_save_to_project, CONFIG
             ).exec_()  # type: ignore[attr-defined]
             == QDialog.DialogCode.Accepted
         ):
@@ -1169,10 +1193,8 @@ class ImageRegistrationWindow(Window):
             evt.spontaneous()
             and CONFIG.confirm_close_register
             and self.transform_model.is_valid()
-            and ConfirmCloseDialog(
-                self,
-                "confirm_close_register",
-                self.on_save_to_project,
+            and QtConfirmCloseDialog(
+                self, "confirm_close_register", self.on_save_to_project, CONFIG
             ).exec_()  # type: ignore[attr-defined]
             != QDialog.DialogCode.Accepted
         ):
@@ -1183,6 +1205,28 @@ class ImageRegistrationWindow(Window):
             self._console.close()
         CONFIG.save()
         evt.accept()
+
+    def dropEvent(self, event):
+        """Override Qt method."""
+        from qtextra.widgets.qt_pick_option import QtPickOption
+
+        if self.allow_drop:
+            hp.update_property(self.centralWidget(), "drag", False)
+
+            dlg = QtPickOption(
+                self,
+                "Please select which view would you like to add the image(s) to?",
+                {"fixed": "Fixed image", "moving": "Moving image"},
+            )
+            which = None
+            if dlg.exec_() == QDialog.DialogCode.Accepted:  # type: ignore[attr-defined]
+                which = dlg.option
+            if which == "fixed":
+                self.evt_fixed_dropped.emit(event)
+            elif which == "moving":
+                self.evt_moving_dropped.emit(event)
+            else:
+                event.ignore()
 
 
 if __name__ == "__main__":  # pragma: no cover

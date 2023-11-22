@@ -1,8 +1,7 @@
 """Utilities."""
-from functools import partial
-
 import random
 import typing as ty
+from functools import partial
 from pathlib import Path
 
 import numba
@@ -41,7 +40,56 @@ PREFERRED_COLORMAPS = [
 ]
 
 
-def log_exception_or_error(exc_or_error: Exception):
+def install_segfault_handler() -> None:
+    """Install segfault handler."""
+    import faulthandler
+
+    from image2image.utils._appdirs import USER_LOG_DIR
+
+    segfault_path = USER_LOG_DIR / "segfault.log"
+    segfault_file = open(segfault_path, "w+")
+    faulthandler.enable(segfault_file, all_threads=True)
+    logger.trace(f"Enabled fault handler - logging to '{segfault_path}'")
+
+
+# noinspection PyBroadException
+def maybe_submit_segfault() -> None:
+    """Submit segfault to Sentry if there is an existing segfault file."""
+    from datetime import datetime
+
+    from image2image.utils._appdirs import USER_LOG_DIR
+
+    segfault_path = USER_LOG_DIR / "segfault.log"
+    if not segfault_path.exists():
+        return
+
+    try:
+        # read segfault data
+        segfault_text = segfault_path.read_text()
+        if not segfault_text:
+            return
+
+        logger.error("There was a segmentation fault previously - submitting to Sentry if it's available.")
+
+        # create backup of the segfault file
+        segfault_backup_path = USER_LOG_DIR / f"segfault_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
+        segfault_path.rename(segfault_backup_path)
+
+        # submit to Sentry
+        submit_sentry_attachment("Segfault detected", segfault_backup_path)
+    except Exception:
+        logger.exception("Failed to submit segfault to Sentry.")
+
+
+def submit_sentry_attachment(message: str, path: PathLike):
+    """Submit attachment to Sentry."""
+    from sentry_sdk import capture_message
+
+    with open(path, "rb") as f:
+        capture_message(message, attachments=[{"filename": path.name, "content": f.read()}])
+
+
+def log_exception_or_error(exc_or_error: Exception) -> None:
     """Log exception or error and send it to Sentry."""
     from sentry_sdk import capture_exception, capture_message
 
@@ -211,7 +259,7 @@ def _get_text_data(data: np.ndarray) -> ty.Dict[str, ty.List[str]]:
     return {"name": [str(i + 1) for i in range(n_pts)]}
 
 
-def add(layer, event, snap = True) -> None:
+def add(layer, event, snap=True) -> None:
     """Add a new point at the clicked position."""
     start_pos = event.pos
     dist = 0
@@ -235,7 +283,6 @@ def add(layer, event, snap = True) -> None:
         layer.properties = _get_text_data(layer.data)
         layer.text = _get_text_format()
         layer.events.add_point()
-
 
 
 def compute_transform(src: np.ndarray, dst: np.ndarray, transform_type: str = "affine") -> "ProjectiveTransform":
@@ -473,3 +520,12 @@ def write_project(path: PathLike, data: dict) -> None:
         write_toml_data(path, data)
     else:
         raise ValueError(f"Unsupported file format: {path.suffix}")
+
+
+def ensure_extension(path: PathLike, extension: str) -> Path:
+    """Ensure that path has a specific extension."""
+    path = Path(path)
+    if extension not in path.name:
+        suffix = path.suffix
+        path = path.with_suffix(f".{extension}.{suffix}")
+    return path
