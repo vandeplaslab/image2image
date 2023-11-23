@@ -26,7 +26,7 @@ from image2image.utils.utilities import log_exception_or_error
 
 if ty.TYPE_CHECKING:
     from image2image.models.data import DataModel
-    from image2image.readers.coordinate_reader import CoordinateImageReader
+    from image2image_reader.readers.coordinate_reader import CoordinateImageReader
 
 
 class CloseDatasetDialog(QtDialog):
