@@ -19,14 +19,15 @@ from qtpy.QtWidgets import QFormLayout, QHeaderView, QLineEdit, QTableWidget, QT
 from superqt.utils import create_worker
 
 from image2image.config import CONFIG
-from image2image.enums import ALLOWED_FORMATS, ALLOWED_FORMATS_WITH_GEOJSON
+from image2image.enums import ALLOWED_IMAGE_FORMATS, ALLOWED_IMAGE_FORMATS_WITH_GEOJSON
 from image2image.exceptions import MultiSceneCziError, UnsupportedFileFormatError
 from image2image.models.transform import TransformData
-from image2image.utils.utilities import log_exception_or_error
+from image2image.utils.utilities import extract_extension, log_exception_or_error
 
 if ty.TYPE_CHECKING:
-    from image2image.models.data import DataModel
     from image2image_reader.readers.coordinate_reader import CoordinateImageReader
+
+    from image2image.models.data import DataModel
 
 
 class CloseDatasetDialog(QtDialog):
@@ -147,7 +148,7 @@ class SelectChannelsToLoadDialog(QtDialog):
                 self.warning_label.show()
             if not channel_list:
                 self.warning_no_channels_label.show()
-            for i, channel_name in enumerate(channel_list):
+            for _i, channel_name in enumerate(channel_list):
                 check = auto_check
                 data.append([check, channel_name])
         else:
@@ -352,6 +353,7 @@ class SelectDataDialog(QtFramelessTool):
         n_max: int = 0,
         allow_geojson: bool = False,
         select_channels: bool = True,
+        available_formats: str | None = None,
     ):
         self.is_fixed = is_fixed
         super().__init__(parent)
@@ -359,6 +361,8 @@ class SelectDataDialog(QtFramelessTool):
         self.model = model
         self.allow_geojson = allow_geojson
         self.select_channels = select_channels
+        self.available_formats = available_formats
+
         self.setMinimumWidth(600)
         self.setMinimumHeight(400)
 
@@ -417,7 +421,7 @@ class SelectDataDialog(QtFramelessTool):
         wrapper = self.model.wrapper
         if wrapper:
             with self._editing_table():
-                for path, reader in wrapper.path_reader_iter():
+                for _path, reader in wrapper.path_reader_iter():
                     index = hp.find_in_table(self.table, self.TABLE_CONFIG.key, reader.key)
                     if index is not None:
                         continue
@@ -468,13 +472,25 @@ class SelectDataDialog(QtFramelessTool):
                     name_item.setTextAlignment(Qt.AlignCenter)  # type: ignore[attr-defined]
                     self.table.setItem(index, self.TABLE_CONFIG.key, name_item)
 
+    @property
+    def available_formats_filter(self) -> str:
+        """Return string of available formats."""
+        return self.available_formats or (
+            ALLOWED_IMAGE_FORMATS if not self.allow_geojson else ALLOWED_IMAGE_FORMATS_WITH_GEOJSON
+        )
+
+    @property
+    def allowed_extensions(self) -> list[str]:
+        """Return list of available extensions based on the specified filter."""
+        return extract_extension(self.available_formats_filter)
+
     def on_select_dataset(self) -> None:
         """Load path."""
         paths = hp.get_filename(
             self,
             title="Select data...",
             base_dir=CONFIG.fixed_dir if self.is_fixed else CONFIG.moving_dir,
-            file_filter=ALLOWED_FORMATS if not self.allow_geojson else ALLOWED_FORMATS_WITH_GEOJSON,
+            file_filter=self.available_formats_filter,
             multiple=True,
         )
         if paths:
@@ -496,6 +512,7 @@ class SelectDataDialog(QtFramelessTool):
 
     def on_drop(self, event: QDropEvent) -> None:
         """Handle drop event."""
+        allowed_extensions = tuple(self.allowed_extensions)
         filenames = []
         for url in event.mimeData().urls():
             if url.isLocalFile():
@@ -503,8 +520,18 @@ class SelectDataDialog(QtFramelessTool):
                 filenames.append(str(Path(url.toLocalFile())))
             else:
                 filenames.append(url.toString())
-        if filenames:
-            self._on_load_dataset(filenames)
+        # clear filenames by removing those that might not be permitted
+        filenames_ = []
+        for filename in filenames:
+            if filename.endswith(allowed_extensions):
+                filenames_.append(filename)
+            else:
+                logger.warning(
+                    f"File '{filename}' is not in a supported format. Permitted: {', '.join(allowed_extensions)}"
+                )
+        if filenames_:
+            logger.trace(f"Dropped {filenames_} file(s)...")
+            self._on_load_dataset(filenames_)
 
     def on_close_dataset(self, force: bool = False) -> bool:
         """Close dataset."""
@@ -527,9 +554,9 @@ class SelectDataDialog(QtFramelessTool):
 
     def _on_load_dataset(
         self,
-        path_or_paths: ty.Union[PathLike, ty.Sequence[PathLike]],
-        transform_data: ty.Optional[dict[str, TransformData]] = None,
-        resolution: ty.Optional[dict[str, float]] = None,
+        path_or_paths: PathLike | ty.Sequence[PathLike],
+        transform_data: dict[str, TransformData] | None = None,
+        resolution: dict[str, float] | None = None,
     ) -> None:
         """Load data."""
         self.evt_loading.emit()  # noqa

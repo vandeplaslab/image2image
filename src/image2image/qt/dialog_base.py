@@ -5,6 +5,7 @@ import typing as ty
 from functools import partial
 
 import qtextra.helpers as hp
+from image2image_reader.config import CONFIG as READER_CONFIG
 from koyo.timer import MeasureTimer
 from loguru import logger
 from napari.layers import Image, Layer, Shapes
@@ -16,8 +17,6 @@ from qtpy.QtCore import Qt, Signal  # type: ignore[attr-defined]
 from qtpy.QtWidgets import QMainWindow, QMenu, QProgressBar, QStatusBar, QWidget
 from superqt.utils import create_worker, ensure_main_thread
 
-# need to load to ensure all assets are loaded properly
-import image2image.assets  # noqa: F401
 from image2image.config import CONFIG
 from image2image.models.data import DataModel
 from image2image.qt._dialogs._update import check_version
@@ -58,7 +57,7 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
         THEMES.evt_theme_changed.connect(self.on_changed_theme)
 
         # most apps will benefit from this
-        CONFIG.auto_pyramid = True
+        READER_CONFIG.auto_pyramid = True
 
     def on_toggle_theme(self) -> None:
         """Toggle theme."""
@@ -224,6 +223,18 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
         icon = hp.get_icon_from_img(ICON_ICO)
         if icon:
             self.setWindowIcon(icon)
+
+    def _make_config_menu(self) -> QMenu:
+        from koyo.path import open_directory_alt
+
+        from image2image.utils._appdirs import USER_CONFIG_DIR, USER_LOG_DIR
+
+        menu_config = hp.make_menu(self, "Config")
+        hp.make_menu_item(
+            self, "Open 'Config' directory", menu=menu_config, func=lambda: open_directory_alt(USER_CONFIG_DIR)
+        )
+        hp.make_menu_item(self, "Open 'Log' directory", menu=menu_config, func=lambda: open_directory_alt(USER_LOG_DIR))
+        return menu_config
 
     def _make_help_menu(self) -> QMenu:
         from image2image.qt._dialogs import open_about

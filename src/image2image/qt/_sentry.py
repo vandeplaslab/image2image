@@ -35,7 +35,7 @@ from qtextra.dialogs.sentry import (  # noqa: E402
 )
 
 
-def install_error_monitor():
+def install_error_monitor() -> None:
     """Initialize the error monitor with sentry.io."""
     from image2image.config import CONFIG
 

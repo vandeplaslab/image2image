@@ -1,9 +1,12 @@
 """Widget for loading data."""
+from __future__ import annotations
+
 import typing as ty
 from pathlib import Path
 
 import numpy as np
 import qtextra.helpers as hp
+from image2image_reader.config import CONFIG as READER_CONFIG
 from koyo.typing import PathLike
 from loguru import logger
 from qtextra.utils.utilities import connect
@@ -41,11 +44,12 @@ class LoadMixin(QWidget):
 
     def __init__(
         self,
-        parent: ty.Optional["Window"],
-        view: ty.Optional["NapariImageView"],
+        parent: Window | None,
+        view: NapariImageView | None,
         n_max: int = 0,
         allow_geojson: bool = False,
         select_channels: bool = True,
+        available_formats: str | None = None,
     ):
         """Init."""
         self.allow_geojson = allow_geojson
@@ -57,10 +61,16 @@ class LoadMixin(QWidget):
         self.n_max = n_max
         self.model: DataModel = DataModel(is_fixed=self.IS_FIXED)
         self.dataset_dlg = SelectDataDialog(
-            self, self.model, self.IS_FIXED, self.n_max, self.allow_geojson, select_channels
+            self,
+            self.model,
+            self.IS_FIXED,
+            self.n_max,
+            allow_geojson=self.allow_geojson,
+            select_channels=select_channels,
+            available_formats=available_formats,
         )
 
-        if hasattr(parent, "evt_dropped"):
+        if parent is not None and hasattr(parent, "evt_dropped"):
             connect(parent.evt_dropped, self.dataset_dlg.on_drop)
 
     def _setup_ui(self) -> QFormLayout:
@@ -69,9 +79,9 @@ class LoadMixin(QWidget):
 
     def on_set_path(
         self,
-        paths: ty.Union[PathLike, ty.Sequence[PathLike]],
-        transform_data: ty.Optional[ty.Dict[str, TransformData]] = None,
-        resolution: ty.Optional[ty.Dict[str, float]] = None,
+        paths: PathLike | ty.Sequence[PathLike],
+        transform_data: dict[str, TransformData] | None = None,
+        resolution: dict[str, float] | None = None,
     ) -> None:
         """Set the path and immediately load it."""
         if isinstance(paths, (str, Path)):
@@ -101,19 +111,20 @@ class LoadWidget(LoadMixin):
     """Widget for loading data."""
 
     IS_FIXED: bool = True
-    CHANNEL_FIXED: ty.Optional[bool] = None
+    CHANNEL_FIXED: bool | None = None
     INFO_VISIBLE = False
 
     def __init__(
         self,
-        parent: ty.Optional["Window"],
-        view: ty.Optional["NapariImageView"],
+        parent: Window | None,
+        view: NapariImageView | None,
         n_max: int = 0,
         allow_geojson: bool = False,
         select_channels: bool = True,
+        available_formats: str | None = None,
     ):
         """Init."""
-        super().__init__(parent, view, n_max, allow_geojson, select_channels)
+        super().__init__(parent, view, n_max, allow_geojson, select_channels, available_formats)
         self.channel_dlg = OverlayChannelsDialog(self, self.model, self.view, self.CHANNEL_FIXED) if self.view else None
 
     def _setup_ui(self) -> QFormLayout:
@@ -177,15 +188,15 @@ class FixedWidget(LoadWidget):
 
     def __init__(
         self,
-        parent: ty.Optional["Window"],
-        view: "NapariImageView",
+        parent: Window | None,
+        view: NapariImageView,
         n_max: int = 0,
         allow_geojson: bool = False,
         select_channels: bool = True,
     ):
         super().__init__(parent, view, n_max, allow_geojson, select_channels)
 
-        if hasattr(parent, "evt_fixed_dropped"):
+        if parent is not None and hasattr(parent, "evt_fixed_dropped"):
             connect(parent.evt_fixed_dropped, self.dataset_dlg.on_drop)
 
 
@@ -204,8 +215,8 @@ class MovingWidget(LoadWidget):
 
     def __init__(
         self,
-        parent: ty.Optional["Window"],
-        view: "NapariImageView",
+        parent: Window | None,
+        view: NapariImageView,
         n_max: int = 0,
         allow_geojson: bool = False,
         select_channels: bool = True,
@@ -216,7 +227,7 @@ class MovingWidget(LoadWidget):
         connect(self.dataset_dlg.evt_loaded, self._on_update_choice)
         connect(self.dataset_dlg.evt_closed, self._on_clear_choice)
 
-        if hasattr(parent, "evt_moving_dropped"):
+        if parent is not None and hasattr(parent, "evt_moving_dropped"):
             connect(parent.evt_moving_dropped, self.dataset_dlg.on_drop)
 
     def _on_update_choice(self, _model: object, _channel_list: list[str]) -> None:
@@ -236,7 +247,7 @@ class MovingWidget(LoadWidget):
         self.view_type_choice = hp.make_combobox(
             self,
             data=VIEW_TYPE_TRANSLATIONS,
-            value=str(CONFIG.view_type),
+            value=str(READER_CONFIG.view_type),
             func=self._on_update_view_type,
             tooltip="Select what kind of image should be displayed.<br><b>Overlay</b> will use the 'true' image and can"
             " be overlaid with other images.<br><b>Random</b> will display single image with random intensity.",
@@ -269,7 +280,7 @@ class MovingWidget(LoadWidget):
 
     def _on_toggle_transformed(self, value: str) -> None:
         """Toggle visibility of transformed."""
-        CONFIG.show_transformed = value != "None"
+        READER_CONFIG.show_transformed = value != "None"
         self.evt_show_transformed.emit(value)  # noqa
 
 
@@ -282,8 +293,8 @@ class LoadWithTransformWidget(LoadWidget):
 
     def __init__(
         self,
-        parent: ty.Optional["Window"],
-        view: "NapariImageView",
+        parent: Window | None,
+        view: NapariImageView,
         n_max: int = 0,
         allow_geojson: bool = False,
         select_channels: bool = True,

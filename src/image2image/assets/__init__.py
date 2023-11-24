@@ -30,6 +30,7 @@ update_icon_mapping(
         "add": "ri.add-circle-fill",
         "remove": "ri.indeterminate-circle-line",
         "remove_single": "mdi.close-circle",
+        "cancel": "mdi.close-circle",
         "remove_multiple": "mdi.close-circle-multiple",
         "remove_all": "fa5s.trash-alt",
         "zoom": "mdi.magnify",
@@ -58,6 +59,7 @@ update_icon_mapping(
         "select_points": "fa5s.location-arrow",
         "shortcut": "mdi.tooltip",
         "fiducial": "fa5s.map-marker-alt",
+        "change": "fa5s.arrow-alt-circle-right",
     }
 )
 

@@ -8,6 +8,7 @@ from pathlib import Path
 
 import numpy as np
 import qtextra.helpers as hp
+from image2image_reader.config import CONFIG as READER_CONFIG
 from koyo.timer import MeasureTimer
 from loguru import logger
 from napari.layers import Image, Shapes
@@ -119,10 +120,11 @@ class ImageCropWindow(Window):
                 self._image_widget.on_set_path(paths, transform_data, resolution)
             # add crop
             with hp.qt_signals_blocked(self.left_edit, self.right_edit, self.top_edit, self.bottom_edit):
-                self.left_edit.setText(str(crop["left"]))
-                self.right_edit.setText(str(crop["right"]))
-                self.top_edit.setText(str(crop["top"]))
-                self.bottom_edit.setText(str(crop["bottom"]))
+                crop_ = crop[0]
+                self.left_edit.setText(str(crop_["left"]))
+                self.right_edit.setText(str(crop_["right"]))
+                self.top_edit.setText(str(crop_["top"]))
+                self.bottom_edit.setText(str(crop_["bottom"]))
         self.on_update_rect_from_ui()
 
     def on_save_to_project(self) -> None:
@@ -546,6 +548,7 @@ class ImageCropWindow(Window):
         if self._console:
             self._console.close()
         CONFIG.save()
+        READER_CONFIG.save()
         evt.accept()
 
 

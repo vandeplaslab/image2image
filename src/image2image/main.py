@@ -10,15 +10,17 @@ def run(
     level: int = 10,
     no_color: bool = False,
     dev: bool = False,
-    tool: ty.Literal["launcher", "register", "viewer", "crop", "export"] = "launcher",
-):
+    tool: ty.Literal["launcher", "register", "viewer", "crop", "export", "convert"] = "launcher",
+) -> None:
     """Execute command."""
     import warnings
 
+    from image2image_reader.config import CONFIG as READER_CONFIG
     from koyo.logging import set_loguru_log
     from qtextra.config import THEMES
     from qtextra.utils.context import _maybe_allow_interrupt
 
+    import image2image.assets  # noqa: F401
     from image2image.config import CONFIG
     from image2image.qt._sentry import install_error_monitor
     from image2image.qt.event_loop import get_app
@@ -29,6 +31,7 @@ def run(
     set_loguru_log(log_path, level=level, no_color=True, diagnose=True, catch=True, logger=logger)
     set_loguru_log(level=level, no_color=no_color, diagnose=True, catch=True, logger=logger, remove=False)
     logger.enable("image2image")
+    logger.enable("image2image_reader")
     logger.info(f"Enabled logger - logging to '{log_path}' at level={level}")
 
     if dev:
@@ -37,6 +40,7 @@ def run(
         install_debugger_hook()
 
     # load config
+    READER_CONFIG.load()
     CONFIG.load()
     # setup theme
     for theme in THEMES.themes:
@@ -76,6 +80,11 @@ def run(
 
         dlg = ImageExportWindow(None)  # type: ignore[assignment]
         dlg.setMinimumSize(600, 500)
+    elif tool == "convert":
+        from image2image.qt.dialog_convert import ImageConvertWindow
+
+        dlg = ImageConvertWindow(None)  # type: ignore[assignment]
+        dlg.setMinimumSize(600, 500)
     else:
         raise ValueError("Launcher is not implemented yet.")
 
@@ -95,7 +104,7 @@ def run(
         logger.enable("qtextra")
         logging.getLogger("qtreload").setLevel(logging.DEBUG)
 
-        dev = qdev(dlg, modules=["qtextra", "image2image", "koyo"])
+        dev = qdev(dlg, modules=["qtextra", "image2image", "image2image_reader", "koyo"])
         dev.evt_theme.connect(lambda: THEMES.set_theme_stylesheet(dlg))
         if hasattr(dlg, "centralWidget"):
             dlg.centralWidget().layout().addWidget(dev)

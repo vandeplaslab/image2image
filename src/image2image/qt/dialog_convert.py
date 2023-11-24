@@ -2,8 +2,6 @@
 from __future__ import annotations
 
 import typing as ty
-from contextlib import suppress
-from functools import partial
 from pathlib import Path
 
 import qtextra.helpers as hp
@@ -12,12 +10,13 @@ from loguru import logger
 from qtextra.utils.table_config import TableConfig
 from qtextra.utils.utilities import connect
 from qtpy.QtCore import Qt
-from qtpy.QtWidgets import QHeaderView, QLineEdit, QMenuBar, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget
+from qtpy.QtWidgets import QHeaderView, QMenuBar, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget
 from superqt import ensure_main_thread
 from superqt.utils import GeneratorWorker, create_worker
 
 from image2image import __version__
 from image2image.config import CONFIG
+from image2image.enums import ALLOWED_IMAGE_FORMATS_CZI_ONLY
 from image2image.qt._select import LoadWidget
 from image2image.qt.dialog_base import Window
 from image2image.utils.utilities import log_exception_or_error
@@ -26,7 +25,7 @@ if ty.TYPE_CHECKING:
     from image2image.models.data import DataModel
 
 
-class ImageExportWindow(Window):
+class ImageConvertWindow(Window):
     """Image viewer dialog."""
 
     _console = None
@@ -37,12 +36,13 @@ class ImageExportWindow(Window):
     TABLE_CONFIG = (
         TableConfig()  # type: ignore[no-untyped-call]
         .add("name", "name", "str", 0)
+        .add("no. scenes", "n_scenes", "int", 0)
         .add("progress", "progress", "str", 0)
         .add("key", "key", "str", 0, hidden=True)
     )
 
     def __init__(self, parent: QWidget | None):
-        super().__init__(parent, f"image2export: Export images in MATLAB fusion format (v{__version__})")
+        super().__init__(parent, f"czi2tiff: Convert CZI file to OME-TIFF (v{__version__})")
         READER_CONFIG.auto_pyramid = False
         READER_CONFIG.init_pyramid = False
         READER_CONFIG.split_czi = False
@@ -109,6 +109,10 @@ class ImageExportWindow(Window):
                 table_item.setTextAlignment(Qt.AlignCenter)  # type: ignore[attr-defined]
                 self.table.setItem(index, self.TABLE_CONFIG.name, table_item)
 
+                table_item = QTableWidgetItem(str(reader.n_scenes))
+                table_item.setFlags(table_item.flags() & ~Qt.ItemIsEditable)  # type: ignore[attr-defined]
+                self.table.setItem(index, self.TABLE_CONFIG.n_scenes, table_item)
+
                 table_item = QTableWidgetItem("Ready!")
                 table_item.setFlags(table_item.flags() & ~Qt.ItemIsEditable)  # type: ignore[attr-defined]
                 self.table.setItem(index, self.TABLE_CONFIG.progress, table_item)
@@ -119,9 +123,9 @@ class ImageExportWindow(Window):
                 name_item.setTextAlignment(Qt.AlignCenter)  # type: ignore[attr-defined]
                 self.table.setItem(index, self.TABLE_CONFIG.key, name_item)
 
-    def on_export(self):
+    def on_convert(self):
         """Process data."""
-        from image2image_reader._writer import images_to_fusion
+        from image2image_reader._writer import czis_to_ome_tiff
 
         if self.output_dir is None:
             hp.warn(self, "No output directory was selected. Please select directory where to save data.")
@@ -140,7 +144,7 @@ class ImageExportWindow(Window):
         output_dir = self.output_dir
         if paths:
             self.worker = create_worker(
-                images_to_fusion,
+                czis_to_ome_tiff,
                 paths=paths,
                 output_dir=output_dir,
                 _start_thread=True,
@@ -173,20 +177,20 @@ class ImageExportWindow(Window):
                 item.setText("Aborted!")
 
     @ensure_main_thread()
-    def _on_export_yield(self, args: tuple[str, int, int, str]) -> None:
+    def _on_export_yield(self, args: tuple[str, int, int]) -> None:
         """Update CSV."""
         self.__on_export_yield(args)
 
-    def __on_export_yield(self, args: tuple[str, int, int, str]) -> None:
-        with suppress(ValueError):
-            key, current, total, remaining = args
-            row = hp.find_in_table(self.table, self.TABLE_CONFIG.key, key)
-            if row is not None:
-                item = self.table.item(row, self.TABLE_CONFIG.progress)
-                item.setText(f"{current/total:.1%} {remaining}")
-                if current == total:
-                    item.setText("Exported!")
-                    self.on_toggle_export_btn()
+    def __on_export_yield(self, args: tuple[str, int, int]) -> None:
+        # with suppress(ValueError):
+        key, current, total = args
+        row = hp.find_in_table(self.table, self.TABLE_CONFIG.key, key)
+        if row is not None:
+            item = self.table.item(row, self.TABLE_CONFIG.progress)
+            item.setText(f"{current}/{total} scenes exported...")
+            if current == total:
+                item.setText("Exported!")
+                self.on_toggle_export_btn()
 
     @ensure_main_thread()
     def _on_export_error(self, exc: Exception) -> None:
@@ -201,9 +205,8 @@ class ImageExportWindow(Window):
         self.on_toggle_export_btn(force=True)
         self.worker = None
 
-    def on_toggle_export_btn(self, force: bool = False) -> None:
+    def on_toggle_export_btn(self, force: bool = False, disabled: bool = False) -> None:
         """Toggle export button."""
-        disabled = False
         if not force:
             for row in range(self.table.rowCount()):
                 text = self.table.item(row, self.TABLE_CONFIG.progress).text()
@@ -218,25 +221,28 @@ class ImageExportWindow(Window):
         if directory:
             self._output_dir = directory
             CONFIG.output_dir = directory
-            self.output_dir_label.setText(f"<b>Output directory</b>: {hp.hyper(self.output_dir)}")
+            self.output_dir_label.setText(f"Output directory: {hp.hyper(self.output_dir)}")
             logger.debug(f"Output directory set to {self._output_dir}")
 
     def _setup_ui(self):
         """Create panel."""
-        self.output_dir_label = hp.make_label(self, f"<b>Output directory</b>: {hp.hyper(self.output_dir)}")
+        self.output_dir_label = hp.make_label(self, f"Output directory: {hp.hyper(self.output_dir)}", enable_url=True)
 
-        self._image_widget = LoadWidget(self, None, select_channels=False)
+        self._image_widget = LoadWidget(
+            self, None, select_channels=False, available_formats=ALLOWED_IMAGE_FORMATS_CZI_ONLY
+        )
         self._image_widget.info_text.setVisible(False)
 
-        columns = ["name", "progress", "key"]
+        columns = ["name", "no. scenes", "progress", "key"]
         self.table = QTableWidget(self)
-        self.table.setColumnCount(len(columns))  # name, progress, key
+        self.table.setColumnCount(len(columns))  # name, n_scenes, progress, key
         self.table.setHorizontalHeaderLabels(columns)
         self.table.setCornerButtonEnabled(False)
         self.table.setTextElideMode(Qt.TextElideMode.ElideLeft)
 
         header = self.table.horizontalHeader()
         header.setSectionResizeMode(self.TABLE_CONFIG.name, QHeaderView.ResizeMode.Stretch)
+        header.setSectionResizeMode(self.TABLE_CONFIG.n_scenes, QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(self.TABLE_CONFIG.progress, QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(self.TABLE_CONFIG.key, QHeaderView.ResizeMode.Fixed)
         header.setSectionHidden(self.TABLE_CONFIG.key, True)
@@ -258,7 +264,7 @@ class ImageExportWindow(Window):
         side_layout.addRow(self.output_dir_label)
 
         self.export_btn = hp.make_active_btn(
-            self, "Export to CSV", tooltip="Export to csv file...", func=self.on_export
+            self, "Convert to OME-TIFF", tooltip="Convert to OME-TIFF...", func=self.on_convert
         )
         self.cancel_btn = hp.make_qta_btn(
             self, "cancel", tooltip="Cancel conversion...", func=self.on_cancel, average=True
@@ -281,7 +287,7 @@ class ImageExportWindow(Window):
         menu_file = hp.make_menu(self, "File")
         hp.make_menu_item(
             self,
-            "Add image (.tiff, .png, .jpg, .imzML, .tdf, .tsf, + others)...",
+            "Add image (.czi,)...",
             "Ctrl+I",
             menu=menu_file,
             func=self._image_widget.on_select_dataset,
@@ -292,13 +298,17 @@ class ImageExportWindow(Window):
         # Tools menu
         menu_tools = hp.make_menu(self, "Tools")
         hp.make_menu_item(self, "Show IPython console...", "Ctrl+T", menu=menu_tools, func=self.on_show_console)
+        # Config menu
+        menu_config = self._make_config_menu()
+        # Help menu
+        menu_help = self._make_help_menu()
 
         # set actions
         self.menubar = QMenuBar(self)
         self.menubar.addAction(menu_file.menuAction())
         self.menubar.addAction(menu_tools.menuAction())
-        self.menubar.addAction(self._make_config_menu().menuAction())
-        self.menubar.addAction(self._make_help_menu().menuAction())
+        self.menubar.addAction(menu_config.menuAction())
+        self.menubar.addAction(menu_help.menuAction())
         self.setMenuBar(self.menubar)
 
     @property

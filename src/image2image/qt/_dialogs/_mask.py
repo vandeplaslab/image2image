@@ -12,7 +12,7 @@ from qtextra.widgets.qt_table_view import QtCheckableTableView
 from qtpy.QtWidgets import QFormLayout
 
 from image2image.config import CONFIG
-from image2image.enums import DEFAULT_TRANSFORM_NAME
+from image2image_reader.enums import DEFAULT_TRANSFORM_NAME
 
 if ty.TYPE_CHECKING:
     from image2image.models.data import DataModel

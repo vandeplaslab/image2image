@@ -39,6 +39,16 @@ PREFERRED_COLORMAPS = [
 ]
 
 
+def extract_extension(available_formats: str) -> list[str]:
+    """Extract suffix/extension from available formats."""
+    res = []
+    for row in available_formats.split(";;"):
+        for row_ in row.split("*"):
+            if row_.startswith("."):
+                res.append(row_.replace("(", "").replace(")", "").replace(" ", "").replace("*", ""))
+    return list(set(res))
+
+
 def install_segfault_handler() -> None:
     """Install segfault handler."""
     import faulthandler
@@ -323,63 +333,6 @@ def write_xml_registration(output_path: PathLike, affine: np.ndarray):
         f.write(parseString(xml).toprettyxml())
 
 
-def write_reader_to_xml(path_or_tiff: ty.Union[PathLike, "BaseReader"], filename: PathLike):
-    """Get filename."""
-    from xml.dom.minidom import parseString
-
-    from dicttoxml import dicttoxml
-
-    if isinstance(path_or_tiff, (str, Path)):
-        from image2image_reader.readers.tiff_reader import TiffImageReader
-
-        reader = TiffImageReader(path_or_tiff)
-    else:
-        reader = path_or_tiff
-
-    _, _, image_shape = get_shape_of_image(reader.pyramid[0])
-    shape = get_flat_shape_of_image(reader.pyramid[0])
-
-    meta = {
-        "modality": "microscopy",
-        "data_label": reader.path.stem,
-        "nr_spatial_dims": 2,
-        "spatial_grid_size": f"{image_shape[0]} {image_shape[1]}",
-        "nr_spatial_grid_elems": image_shape[0] * image_shape[1],
-        "spatial_resolution_um": reader.resolution,
-        "nr_obs": shape[0],
-        "nr_vars": shape[1],
-    }
-    xml = dicttoxml(meta, custom_root="data_source", attr_type=False)
-
-    # filename = xml_output_path.parent / (reader.path.stem + ".xml")
-    filename = Path(filename).with_suffix(".xml")
-    with open(filename, "w") as f:
-        f.write(parseString(xml).toprettyxml())
-    logger.debug(f"Saved XML file to {filename}")
-
-
-def reshape_fortran(x: np.ndarray, shape: ty.Tuple[int, int]) -> np.ndarray:
-    """Reshape data to Fortran (MATLAB) ordering."""
-    return x.T.reshape(shape[::-1]).T
-
-
-@numba.njit(nogil=True, cache=True)
-def int_format_to_row(row: np.ndarray) -> str:
-    """Format string to row."""
-    return ",".join([str(v) for v in row]) + ",\n"
-
-
-def float_format_to_row(row: np.ndarray) -> str:
-    """Format string to row."""
-    return ",".join(
-        [
-            ",".join([str(int(v)) for v in row[0:2]]),
-            ",".join([f"{v:.2f}" for v in row[2:]]),
-            "\n",
-        ]
-    )
-
-
 def get_shape_of_image(array: np.ndarray) -> tuple[int, ty.Optional[int], tuple[int, ...]]:
     """Return shape of an image."""
     if array.ndim == 3:
@@ -392,118 +345,6 @@ def get_shape_of_image(array: np.ndarray) -> tuple[int, ty.Optional[int], tuple[
         n_channels = 1
         channel_axis = None
     return n_channels, channel_axis, tuple(shape)
-
-
-def get_flat_shape_of_image(array: np.ndarray) -> tuple[int, int]:
-    """Return shape of an image."""
-    n_channels, _, shape = get_shape_of_image(array)
-    n_px = int(np.prod(shape))
-    return n_channels, n_px
-
-
-def get_dtype_for_array(array: np.ndarray) -> np.dtype:
-    """Return smallest possible data type for shape."""
-    n = array.shape[1]
-    if np.issubdtype(array.dtype, np.integer):
-        if n < np.iinfo(np.uint8).max:
-            return np.uint8
-        elif n < np.iinfo(np.uint16).max:
-            return np.uint16
-        elif n < np.iinfo(np.uint32).max:
-            return np.uint32
-        elif n < np.iinfo(np.uint64).max:
-            return np.uint64
-    else:
-        if n < np.finfo(np.float32).max:
-            return np.float32
-        elif n < np.finfo(np.float64).max:
-            return np.float64
-
-
-def _insert_indices(array: np.ndarray, shape: ty.Tuple[int, int]) -> np.ndarray:
-    n = array.shape[1]
-    y, x = np.indices(shape)
-    y = y.ravel(order="F")
-    x = x.ravel(order="F")
-    dtype = get_dtype_for_array(array)
-    res = np.zeros((x.size, n + 2), dtype=dtype)
-    res[:, 0] = y + 1
-    res[:, 1] = x + 1
-    res[:, 2:] = reshape_fortran(array, (-1, n))
-    return res
-
-
-def write_reader_to_txt(
-    reader: "BaseReader", path: PathLike, update_freq: int = 100_000
-) -> ty.Generator[tuple[int, int, str], None, None]:
-    """Write image data to text."""
-    array, shape = reader.flat_array()
-    array = _insert_indices(array, shape)
-
-    if reader.n_channels == 3 and reader.dtype == np.uint8:
-        yield from write_rgb_to_txt(path, array, update_freq=update_freq)
-    elif np.issubdtype(reader.dtype, np.integer):
-        yield from write_int_to_txt(path, array, reader.channel_names, update_freq=update_freq)
-    else:
-        yield from write_float_to_txt(path, array, reader.channel_names, update_freq=update_freq)
-
-
-def write_rgb_to_txt(
-    path: PathLike, array: np.ndarray, update_freq: int = 100_000
-) -> ty.Generator[tuple[int, int, str], None, None]:
-    """Write IMS data to text."""
-    columns = ["row", "col", "Red (R)", "Green (G)", "Blue (B)"]
-    yield from _write_txt(path, columns, array, int_format_to_row, update_freq=update_freq)
-
-
-def write_int_to_txt(
-    path: PathLike, array: np.ndarray, channel_names: ty.List[str], update_freq: int = 100_000
-) -> ty.Generator[tuple[int, int, str], None, None]:
-    """Write IMS data to text."""
-    columns = ["row", "col", *channel_names]
-    yield from _write_txt(path, columns, array, int_format_to_row, update_freq=update_freq)
-
-
-def write_float_to_txt(
-    path: PathLike, array: np.ndarray, channel_names: ty.List[str], update_freq: int = 100_000
-) -> ty.Generator[tuple[int, int, str], None, None]:
-    """Write IMS data to text."""
-    columns = ["row", "col", *channel_names]
-    yield from _write_txt(path, columns, array, float_format_to_row, update_freq=update_freq)
-
-
-def _write_txt(
-    path: PathLike,
-    columns: ty.List[str],
-    array: np.ndarray,
-    str_func: ty.Callable,
-    update_freq: int = 100_000,
-) -> ty.Generator[tuple[int, int, str], None, None]:
-    """Write data to csv file."""
-    from tqdm import tqdm
-
-    path = Path(path)
-    assert path.suffix == ".txt", "Path must have .txt extension."
-
-    n = array.shape[0]
-    logger.debug(
-        f"Exporting array with {array.shape[0]:,} observations, {array.shape[1]:,} features and {array.dtype} data"
-        f" type to '{path}'"
-    )
-    with open(path, "w", newline="\n", encoding="cp1252") as f:
-        f.write(",".join(columns) + ",\n")
-        with tqdm(array, total=n, mininterval=1) as pbar:
-            for i, row in enumerate(pbar):
-                f.write(str_func(row))
-                if i % update_freq == 0:
-                    if i != 0:
-                        d = pbar.format_dict
-                        if d["rate"]:
-                            eta = pbar.format_interval((d["total"] - d["n"]) / d["rate"])
-                        else:
-                            eta = ""
-                        yield i, n, eta
-        yield n, n, ""
 
 
 def write_project(path: PathLike, data: dict) -> None:

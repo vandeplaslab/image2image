@@ -9,6 +9,8 @@ from pathlib import Path
 
 import numpy as np
 import qtextra.helpers as hp
+from image2image_reader.config import CONFIG as READER_CONFIG
+from image2image_reader.enums import ViewType
 from koyo.timer import MeasureTimer
 from loguru import logger
 from napari.layers import Image
@@ -24,15 +26,9 @@ from qtpy.QtCore import Qt, Signal  # type: ignore[attr-defined]
 from qtpy.QtWidgets import QDialog, QFormLayout, QHBoxLayout, QMenuBar, QSizePolicy, QVBoxLayout, QWidget
 from superqt.utils import ensure_main_thread, qdebounced
 
-# need to load to ensure all assets are loaded properly
-import image2image.assets  # noqa: F401
 from image2image import __version__
 from image2image.config import CONFIG
-from image2image.enums import (
-    ALLOWED_EXPORT_REGISTER_FORMATS,
-    ALLOWED_IMPORT_REGISTER_FORMATS,
-    ViewType,
-)
+from image2image.enums import ALLOWED_EXPORT_REGISTER_FORMATS, ALLOWED_IMPORT_REGISTER_FORMATS
 from image2image.models.data import DataModel
 from image2image.models.transformation import Transformation
 from image2image.qt._select import FixedWidget, MovingWidget
@@ -259,8 +255,8 @@ class ImageRegistrationWindow(Window):
         logger.info(f"Loaded moving data in {timer()}")
 
     def _plot_moving_layers(self, channel_list: list[str] | None = None) -> None:
-        CONFIG.view_type = ViewType(CONFIG.view_type)
-        is_overlay = CONFIG.view_type == ViewType.OVERLAY
+        READER_CONFIG.view_type = ViewType(READER_CONFIG.view_type)
+        is_overlay = READER_CONFIG.view_type == ViewType.OVERLAY
         wrapper = self.moving_model.wrapper
         if not wrapper:
             return
@@ -287,7 +283,7 @@ class ImageRegistrationWindow(Window):
                 )
             logger.trace(f"Added '{name}' to fixed view in {timer()}.")
         # hide away other layers if user selected 'random' view
-        if CONFIG.view_type == ViewType.RANDOM:
+        if READER_CONFIG.view_type == ViewType.RANDOM:
             for index, layer in enumerate(moving_image_layer):
                 if index > 0:
                     layer.visible = False
@@ -620,7 +616,7 @@ class ImageRegistrationWindow(Window):
                 colormap=moving_image_layer.colormap,
                 opacity=CONFIG.opacity_moving / 100,
             )
-        self.transformed_moving_image_layer.visible = CONFIG.show_transformed
+        self.transformed_moving_image_layer.visible = READER_CONFIG.show_transformed
         self._move_layer(self.view_fixed, self.transformed_moving_image_layer, -1, False)
         self._select_layer("fixed")
 
@@ -729,8 +725,8 @@ class ImageRegistrationWindow(Window):
     def on_toggle_transformed_visibility(self) -> None:
         """Toggle visibility of transformed image."""
         if self.transformed_moving_image_layer:
-            CONFIG.show_transformed = not CONFIG.show_transformed
-            self.transformed_moving_image_layer.visible = CONFIG.show_transformed
+            READER_CONFIG.show_transformed = not READER_CONFIG.show_transformed
+            self.transformed_moving_image_layer.visible = READER_CONFIG.show_transformed
 
     @qdebounced(timeout=50)
     def on_toggle_transformed_image(self) -> None:
@@ -1204,6 +1200,7 @@ class ImageRegistrationWindow(Window):
         if self._console:
             self._console.close()
         CONFIG.save()
+        READER_CONFIG.save()
         evt.accept()
 
     def dropEvent(self, event):

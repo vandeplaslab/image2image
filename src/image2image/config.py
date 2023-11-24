@@ -5,7 +5,7 @@ from koyo.config import BaseConfig
 from koyo.typing import PathLike
 from pydantic import Field, validator
 
-from image2image.enums import ViewerOrientation, ViewType
+from image2image.enums import ViewerOrientation
 from image2image.utils._appdirs import USER_CONFIG_DIR
 
 
@@ -60,10 +60,6 @@ class Config(BaseConfig):
     )
     viewer_orientation: ViewerOrientation = Field(
         ViewerOrientation.VERTICAL, title="Viewer orientation", description="Orientation of the viewer.", in_app=False
-    )
-    view_type: ViewType = Field(ViewType.RANDOM, title="View type", description="IMS view type.", in_app=False)
-    show_transformed: bool = Field(
-        True, title="Show transformed", description="If checked, transformed moving image will be shown.", in_app=False
     )
 
     # paths
@@ -121,11 +117,6 @@ class Config(BaseConfig):
     def _validate_orientation(value: ty.Union[str, ViewerOrientation]) -> ViewerOrientation:  # type: ignore[misc]
         """Validate path."""
         return ViewerOrientation(value)
-
-    @validator("view_type", pre=True, allow_reuse=True)
-    def _validate_view_type(value: ty.Union[str, ViewType]) -> ViewType:  # type: ignore[misc]
-        """Validate view_type."""
-        return ViewType(value)
 
 
 CONFIG: Config = Config()  # type: ignore[call-arg]
