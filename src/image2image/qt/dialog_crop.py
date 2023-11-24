@@ -242,7 +242,7 @@ class ImageCropWindow(Window):
     def _on_export(
         data_model: DataModel, output_dir: Path, left: int, right: int, top: int, bottom: int
     ) -> ty.Generator[Path, None, None]:
-        from image2image._reader import write_ome_tiff
+        from image2image_reader._writer import write_ome_tiff
 
         for path, reader, cropped in data_model.crop(left, right, top, bottom):
             logger.info(f"Exporting {path} with shape {cropped.shape}...")

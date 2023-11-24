@@ -17,7 +17,7 @@ from image2image.enums import DEFAULT_TRANSFORM_NAME
 if ty.TYPE_CHECKING:
     from image2image.models.data import DataModel
     from image2image.qt.dialog_viewer import ImageViewerWindow
-    from image2image.readers.geojson_reader import GeoJSONReader
+    from image2image_reader.readers.geojson_reader import GeoJSONReader
 
 logger = logger.bind(src="MaskDialog")
 

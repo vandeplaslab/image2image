@@ -21,9 +21,8 @@ from vispy.color import Colormap as VispyColormap
 from image2image.config import CONFIG
 
 if ty.TYPE_CHECKING:
+    from image2image_reader.readers._base_reader import BaseReader
     from skimage.transform import ProjectiveTransform
-
-    from image2image.readers._base_reader import BaseReader
 
 
 DRAG_DIST_THRESHOLD = 5
@@ -331,7 +330,7 @@ def write_reader_to_xml(path_or_tiff: ty.Union[PathLike, "BaseReader"], filename
     from dicttoxml import dicttoxml
 
     if isinstance(path_or_tiff, (str, Path)):
-        from image2image._reader import TiffImageReader
+        from image2image_reader.readers.tiff_reader import TiffImageReader
 
         reader = TiffImageReader(path_or_tiff)
     else:
