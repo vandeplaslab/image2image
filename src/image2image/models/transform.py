@@ -10,7 +10,7 @@ class TransformData(_TransformData):
     """Transformation data."""
 
     @classmethod
-    def from_i2r(cls, path: PathLike) -> "TransformData":
+    def from_i2r(cls, path: PathLike, validate_paths: bool = True) -> "TransformData":
         """Load directly from i2r."""
         from image2image.models.transformation import load_transform_from_file
 
@@ -24,7 +24,7 @@ class TransformData(_TransformData):
             moving_points,
             fixed_resolution,
             _moving_resolution,
-        ) = load_transform_from_file(path)
+        ) = load_transform_from_file(path, validate_paths=validate_paths)
         return TransformData(
             fixed_points=fixed_points,
             moving_points=moving_points,

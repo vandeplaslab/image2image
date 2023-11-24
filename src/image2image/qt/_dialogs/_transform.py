@@ -146,7 +146,7 @@ class SelectTransformDialog(QtFramelessTool):
             # load data from config file
             try:
                 with MeasureTimer() as timer:
-                    transform_data = TransformData.from_i2r(path_)
+                    transform_data = TransformData.from_i2r(path_, validate_paths=False)
                 logger.trace(f"Loaded transform data in {timer()}")
             except ValueError as e:
                 hp.warn(self, f"Failed to load transformation from {path_}\n{e}", "Failed to load transformation")

@@ -42,3 +42,8 @@ QWidget[drag=true] {
     border: 6px solid {{ success }};
     border-radius: 2px;
 }
+
+QLabel#crop_label {
+    font-weight: bold;
+    min-width: 60px;
+}

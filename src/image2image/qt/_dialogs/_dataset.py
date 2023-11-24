@@ -335,6 +335,7 @@ class SelectDataDialog(QtFramelessTool):
     evt_loaded = Signal(object, object)
     evt_closed = Signal(object)
     evt_resolution = Signal(str)
+    evt_project = Signal(str)
 
     TABLE_CONFIG = (
         TableConfig()  # type: ignore
@@ -354,6 +355,7 @@ class SelectDataDialog(QtFramelessTool):
         allow_geojson: bool = False,
         select_channels: bool = True,
         available_formats: str | None = None,
+        project_extension: str | None = None,
     ):
         self.is_fixed = is_fixed
         super().__init__(parent)
@@ -362,6 +364,7 @@ class SelectDataDialog(QtFramelessTool):
         self.allow_geojson = allow_geojson
         self.select_channels = select_channels
         self.available_formats = available_formats
+        self.project_extension = project_extension
 
         self.setMinimumWidth(600)
         self.setMinimumHeight(400)
@@ -385,11 +388,11 @@ class SelectDataDialog(QtFramelessTool):
         # remove from table
         self.table.removeRow(row)
 
-        # remove from model
+        # remove from the model
         self.model.remove_paths(Path(path))
         self.evt_closed.emit(self.model)  # noqa
 
-    def on_resolution(self, item, key: str) -> None:
+    def on_resolution(self, item: QTableWidgetItem, key: str) -> None:
         """Table item changed."""
         if self._editing:
             return
@@ -525,6 +528,8 @@ class SelectDataDialog(QtFramelessTool):
         for filename in filenames:
             if filename.endswith(allowed_extensions):
                 filenames_.append(filename)
+            elif self.project_extension and filename.endswith(self.project_extension):
+                self.evt_project.emit(filename)
             else:
                 logger.warning(
                     f"File '{filename}' is not in a supported format. Permitted: {', '.join(allowed_extensions)}"

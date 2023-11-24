@@ -35,6 +35,7 @@ logger = logger.bind(src="LoadDialog")
 class LoadMixin(QWidget):
     """Load data mixin."""
 
+    evt_project = Signal(str)
     evt_toggle_channel = Signal(str, bool)
     evt_toggle_all_channels = Signal(bool)
 

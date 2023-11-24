@@ -269,7 +269,7 @@ class ImageConvertWindow(Window):
         self.cancel_btn = hp.make_qta_btn(
             self, "cancel", tooltip="Cancel conversion...", func=self.on_cancel, average=True
         )
-        side_layout.addRow(hp.make_h_layout(self.export_btn, self.cancel_btn))
+        side_layout.addRow(hp.make_h_layout(self.export_btn, self.cancel_btn, spacing=2))
 
         widget = QWidget()
         self.setCentralWidget(widget)
