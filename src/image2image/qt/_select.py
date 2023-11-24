@@ -10,7 +10,8 @@ from image2image_reader.config import CONFIG as READER_CONFIG
 from koyo.typing import PathLike
 from loguru import logger
 from qtextra.utils.utilities import connect
-from qtpy.QtCore import Qt, Signal
+from qtextra.widgets.qt_icon_label import QtActiveIcon
+from qtpy.QtCore import Qt, Signal  # type: ignore[attr-defined]
 from qtpy.QtWidgets import QFormLayout, QWidget
 
 from image2image.config import CONFIG
@@ -127,6 +128,8 @@ class LoadWidget(LoadMixin):
         """Init."""
         super().__init__(parent, view, n_max, allow_geojson, select_channels, available_formats)
         self.channel_dlg = OverlayChannelsDialog(self, self.model, self.view, self.CHANNEL_FIXED) if self.view else None
+        self.dataset_dlg.evt_loading.connect(lambda: self.active_icon.set_active(True))
+        self.dataset_dlg.evt_loaded.connect(lambda _: self.active_icon.set_active(False))
 
     def _setup_ui(self) -> QFormLayout:
         """Setup UI."""
@@ -142,6 +145,7 @@ class LoadWidget(LoadMixin):
         )
         self.info_text.setVisible(self.INFO_VISIBLE)
         layout.addRow(self.info_text)  # noqa
+        self.active_icon = QtActiveIcon()
         layout.addRow(
             hp.make_h_layout(
                 hp.make_qta_btn(
@@ -164,6 +168,7 @@ class LoadWidget(LoadMixin):
                     func=self.on_open_dataset_dialog,
                     tooltip="Open dialog to add/remove images or adjust pixel size.",
                 ),
+                self.active_icon,
                 stretch_id=2,
                 spacing=2,
             ),

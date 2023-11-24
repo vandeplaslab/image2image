@@ -57,7 +57,9 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
         THEMES.evt_theme_changed.connect(self.on_changed_theme)
 
         # most apps will benefit from this
+        READER_CONFIG.init_pyramid = True
         READER_CONFIG.auto_pyramid = True
+        READER_CONFIG.split_czi = True
 
     def on_toggle_theme(self) -> None:
         """Toggle theme."""
