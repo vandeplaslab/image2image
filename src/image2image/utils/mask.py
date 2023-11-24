@@ -82,6 +82,7 @@ def write_masks(
 
     # write to file
     with h5py.File(path, "w") as f:
+        f.attrs["VERSION"] = "2.0"
         # write attributes first
         grp = f.create_group("Mask")
         grp.attrs["shape"] = tuple(shape)

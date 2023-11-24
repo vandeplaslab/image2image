@@ -504,7 +504,8 @@ def _read_centroids_h5_coordinates_with_metadata(
 
     assert metadata_file.exists(), f"File does not exist: {metadata_file}"
     _, reader_ = _read_metadata_h5_coordinates(metadata_file)
-    reader = reader_[path.name]
+    key = list(reader_.keys())[0]
+    reader = reader_[key]
 
     x = reader.x  # noqa
     y = reader.y  # noqa

@@ -83,10 +83,10 @@ def maybe_submit_segfault() -> None:
 
 def submit_sentry_attachment(message: str, path: PathLike):
     """Submit attachment to Sentry."""
-    from sentry_sdk import capture_message
+    from sentry_sdk import capture_message, configure_scope
 
-    with open(path, "rb") as f:
-        capture_message(message, attachments=[{"filename": path.name, "content": f.read()}])
+    configure_scope(lambda scope: scope.add_attachment(path=str(path)))
+    capture_message(message)
 
 
 def log_exception_or_error(exc_or_error: Exception) -> None:

@@ -11,6 +11,7 @@ from qtextra.widgets.qt_dialog import QtFramelessTool
 from qtextra.widgets.qt_table_view import FilterProxyModel, QtCheckableTableView
 from qtpy.QtCore import QRegularExpression, Qt, Signal  # type: ignore[attr-defined]
 from qtpy.QtWidgets import QFormLayout
+from superqt.utils import ensure_main_thread
 
 if ty.TYPE_CHECKING:
     from qtextra._napari.image.wrapper import NapariImageView
@@ -66,8 +67,12 @@ class OverlayChannelsDialog(QtFramelessTool):
         connect(self.table.evt_checked, self.on_toggle_channel, state=state)
         connect(self.view.layers.events, self.sync_layers, state=state)
 
+    @ensure_main_thread
     def sync_layers(self, event: Event) -> None:
         """Synchronize layers."""
+        self._sync_layers(event)
+
+    def _sync_layers(self, event):
         if event.type in ["visible", "inserted"]:
             self._sync_layer_visibility(event)
             self.on_update_info()
