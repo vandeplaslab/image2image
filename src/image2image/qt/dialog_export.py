@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import typing as ty
 from contextlib import suppress
-from functools import partial
 from pathlib import Path
 
 import qtextra.helpers as hp
@@ -12,7 +11,7 @@ from loguru import logger
 from qtextra.utils.table_config import TableConfig
 from qtextra.utils.utilities import connect
 from qtpy.QtCore import Qt
-from qtpy.QtWidgets import QHeaderView, QLineEdit, QMenuBar, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget
+from qtpy.QtWidgets import QHeaderView, QMenuBar, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget
 from superqt import ensure_main_thread
 from superqt.utils import GeneratorWorker, create_worker
 

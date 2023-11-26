@@ -129,6 +129,7 @@ class ImageRegistrationWindow(Window):
         connect(
             self._fixed_widget.evt_toggle_all_channels, partial(self.on_toggle_all_channels, which="fixed"), state=state
         )
+        connect(self._fixed_widget.evt_swap, self.on_swap, state=state)
         # imaging widget
         connect(self._moving_widget.dataset_dlg.evt_loading, partial(self.on_indicator, which="moving"), state=state)
         connect(self._moving_widget.dataset_dlg.evt_loaded, self.on_load_moving, state=state)
@@ -140,6 +141,7 @@ class ImageRegistrationWindow(Window):
             partial(self.on_toggle_all_channels, which="moving"),
             state=state,
         )
+        connect(self._moving_widget.evt_swap, self.on_swap, state=state)
         connect(self._moving_widget.evt_view_type, self.on_change_view_type, state=state)
         # views
         connect(
@@ -295,6 +297,15 @@ class ImageRegistrationWindow(Window):
             self._plot_moving_layers()
             self.on_apply(update_data=True)
 
+    def on_swap(self, key: str, source: str) -> None:
+        """Swap fixed and moving images."""
+        # # swap image from 'fixed' to 'moving' or vice versa
+        # if source == "fixed":
+        #     wrapper = self.fixed_model.wrapper
+        #     if not wrapper:
+        #         return
+        #     wrapper = wrapper.pop
+
     def on_toggle_transformed_moving(self, value: str) -> None:
         """Toggle visibility of transformed moving image."""
         self.on_apply(update_data=True, name=value)
@@ -400,7 +411,7 @@ class ImageRegistrationWindow(Window):
         self._on_run()
 
     def _on_run(self) -> None:
-        from image2image.utils.utilities import compute_transform
+        from image2image.utils.transform import compute_transform
 
         if not self.fixed_points_layer or not self.moving_points_layer:
             return
@@ -769,8 +780,8 @@ class ImageRegistrationWindow(Window):
         """Create panel."""
         view_layout = self._make_image_layout()
 
-        self._fixed_widget = FixedWidget(self, self.view_fixed)
-        self._moving_widget = MovingWidget(self, self.view_moving)
+        self._fixed_widget = FixedWidget(self, self.view_fixed, allow_swap=False)
+        self._moving_widget = MovingWidget(self, self.view_moving, allow_swap=False)
 
         # self.transform_choice = hp.make_combobox(self, tooltip="Type of transformation to compute.")
         # hp.set_combobox_data(self.transform_choice, TRANSFORMATION_TRANSLATIONS, "Affine")

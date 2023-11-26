@@ -102,7 +102,7 @@ class Transformation(BaseModel):
 
     def compute(self, yx: bool = True, px: bool = True) -> ProjectiveTransform:
         """Compute transformation matrix."""
-        from image2image.utils.utilities import compute_transform
+        from image2image.utils.transform import compute_transform
 
         moving_points = self.moving_points
         fixed_points = self.fixed_points

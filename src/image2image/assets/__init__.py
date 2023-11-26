@@ -60,6 +60,7 @@ update_icon_mapping(
         "shortcut": "mdi.tooltip",
         "fiducial": "fa5s.map-marker-alt",
         "change": "fa5s.arrow-alt-circle-right",
+        "swap": "mdi6.swap-vertical-bold",
     }
 )
 

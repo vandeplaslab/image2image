@@ -336,13 +336,17 @@ class SelectDataDialog(QtFramelessTool):
     evt_closed = Signal(object)
     evt_resolution = Signal(str)
     evt_project = Signal(str)
+    evt_swap = Signal(str, str)
 
     TABLE_CONFIG = (
         TableConfig()  # type: ignore
         .add("name", "name", "str", 0)
         .add("pixel size (um)", "resolution", "str", 0)
         .add("type", "type", "str", 0)
+        .add("rotation", "rotation", "str", 0)
+        .add("flip", "flip", "str", 0)
         .add("extract", "extract", "str", 0)
+        .add("swap", "swap", "str", 0)
         .add("key", "key", "str", hidden=True, width=0)
     )
 
@@ -356,19 +360,22 @@ class SelectDataDialog(QtFramelessTool):
         select_channels: bool = True,
         available_formats: str | None = None,
         project_extension: str | None = None,
+        allow_flip_rotation: bool = False,
+        allow_swap: bool = False,
     ):
         self.is_fixed = is_fixed
-        super().__init__(parent)
-        self.n_max = n_max
-        self.model = model
+        self.allow_flip_rotation = allow_flip_rotation
+        self.allow_swap = allow_swap
         self.allow_geojson = allow_geojson
         self.select_channels = select_channels
         self.available_formats = available_formats
         self.project_extension = project_extension
+        super().__init__(parent)
+        self.n_max = n_max
+        self.model = model
 
         self.setMinimumWidth(600)
         self.setMinimumHeight(400)
-
         self.on_populate_table()
 
     def on_remove(self, name: str, path: str) -> None:
@@ -392,25 +399,6 @@ class SelectDataDialog(QtFramelessTool):
         self.model.remove_paths(Path(path))
         self.evt_closed.emit(self.model)  # noqa
 
-    def on_resolution(self, item: QTableWidgetItem, key: str) -> None:
-        """Table item changed."""
-        if self._editing:
-            return
-        value = float(item.text())
-        if value <= 0:
-            hp.toast(
-                self,
-                "Pixel size cannot be 0.",
-                "Pixel size cannot be 0. Please change to something reasonable.",
-                icon="error",
-            )
-            return
-        reader = self.model.get_reader_for_key(key)
-        if reader:
-            reader.resolution = value
-            self.evt_resolution.emit(reader.key)
-            logger.trace(f"Updated pixel size of '{reader.name}' to {value:.2f}.")
-
     def _clear_table(self) -> None:
         """Remove all rows."""
         with self._editing_table():
@@ -420,7 +408,6 @@ class SelectDataDialog(QtFramelessTool):
     def on_populate_table(self) -> None:
         """Load data."""
         self._clear_table()
-
         wrapper = self.model.wrapper
         if wrapper:
             with self._editing_table():
@@ -450,7 +437,7 @@ class SelectDataDialog(QtFramelessTool):
                     res_item = QLineEdit(f"{resolution:.2f}")
                     res_item.setObjectName("table_cell")
                     res_item.setAlignment(Qt.AlignCenter)  # type: ignore[attr-defined]
-                    res_item.setValidator(QDoubleValidator(0, 100, 2))
+                    res_item.setValidator(QDoubleValidator(0, 1000, 2))
                     res_item.editingFinished.connect(partial(self.on_resolution, key=reader.key, item=res_item))
                     self.table.setCellWidget(index, self.TABLE_CONFIG.resolution, res_item)
 
@@ -468,6 +455,13 @@ class SelectDataDialog(QtFramelessTool):
                         item.setFlags(item.flags() & ~Qt.ItemIsEditable)  # type: ignore[attr-defined]
                         item.setTextAlignment(Qt.AlignCenter)  # type: ignore[attr-defined]
                         self.table.setItem(index, self.TABLE_CONFIG.extract, item)
+
+                    # add swap button
+                    self.table.setCellWidget(
+                        index,
+                        self.TABLE_CONFIG.swap,
+                        hp.make_qta_btn(self, "swap", normal=True, func=partial(self.on_swap, key=reader.key)),
+                    )
 
                     # add secret key
                     name_item = QTableWidgetItem(reader.key)
@@ -512,6 +506,41 @@ class SelectDataDialog(QtFramelessTool):
                     )
                     return
             self._on_load_dataset(paths)
+
+    def on_swap(self, key: str) -> None:
+        """Swap from fixed to moving or vice versa."""
+        reader = self.model.get_reader_for_key(key)
+        if reader:
+            source = "fixed" if self.is_fixed else "moving"
+            target = "moving" if self.is_fixed else "fixed"
+            if not hp.confirm(
+                self,
+                f"Are you sure you wish to swap this image from <b>{source}</b> to <b>{target}</b>?",
+                title="Swap?",
+            ):
+                logger.trace(f"User cancelled swap of '{reader.name}'")
+                return
+            logger.trace(f"Swapping '{reader.name}' from '{source}' to '{target}'")
+            self.evt_swap.emit(key, source)
+
+    def on_resolution(self, item: QTableWidgetItem, key: str) -> None:
+        """Table item changed."""
+        if self._editing:
+            return
+        value = float(item.text())
+        if value <= 0:
+            hp.toast(
+                self,
+                "Pixel size cannot be 0.",
+                "Pixel size cannot be 0. Please change to something reasonable.",
+                icon="error",
+            )
+            return
+        reader = self.model.get_reader_for_key(key)
+        if reader:
+            reader.resolution = value
+            self.evt_resolution.emit(reader.key)
+            logger.trace(f"Updated pixel size of '{reader.name}' to {value:.2f}.")
 
     def on_drop(self, event: QDropEvent) -> None:
         """Handle drop event."""
@@ -657,7 +686,7 @@ class SelectDataDialog(QtFramelessTool):
         """Make panel."""
         _, header_layout = self._make_hide_handle()
         self._title_label.setText("Images")
-        column_names = ["name", "pixel size (μm)", "type", "extract", "key"]
+        column_names = ["name", "pixel size (μm)", "type", "rotation", "flip", "extract", "swap", "key"]
         self.table = QTableWidget(self)
         self.table.setColumnCount(len(column_names))  # name, resolution, layer type, extract, key
         self.table.setHorizontalHeaderLabels(column_names)
@@ -670,9 +699,24 @@ class SelectDataDialog(QtFramelessTool):
             QHeaderView.ResizeToContents,  # type: ignore[attr-defined]
         )
         header.setSectionResizeMode(
+            self.TABLE_CONFIG.rotation,
+            QHeaderView.ResizeToContents,  # type: ignore[attr-defined]
+        )
+        header.setSectionHidden(self.TABLE_CONFIG.rotation, not self.allow_flip_rotation)
+        header.setSectionResizeMode(
+            self.TABLE_CONFIG.flip,
+            QHeaderView.ResizeToContents,  # type: ignore[attr-defined]
+        )
+        header.setSectionHidden(self.TABLE_CONFIG.flip, not self.allow_flip_rotation)
+        header.setSectionResizeMode(
             self.TABLE_CONFIG.type,
             QHeaderView.ResizeToContents,  # type: ignore[attr-defined]
         )
+        header.setSectionResizeMode(
+            self.TABLE_CONFIG.swap,
+            QHeaderView.ResizeToContents,  # type: ignore[attr-defined]
+        )
+        header.setSectionHidden(self.TABLE_CONFIG.swap, not self.allow_swap)
         header.setSectionResizeMode(
             self.TABLE_CONFIG.extract,
             QHeaderView.ResizeToContents,  # type: ignore[attr-defined]

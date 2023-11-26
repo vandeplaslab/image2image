@@ -4,7 +4,6 @@ import typing as ty
 from functools import partial
 from pathlib import Path
 
-import numba
 import numpy as np
 from koyo.typing import PathLike
 from loguru import logger
@@ -19,11 +18,6 @@ from napari.utils.events import Event
 from vispy.color import Colormap as VispyColormap
 
 from image2image.config import CONFIG
-
-if ty.TYPE_CHECKING:
-    from image2image_reader.readers._base_reader import BaseReader
-    from skimage.transform import ProjectiveTransform
-
 
 DRAG_DIST_THRESHOLD = 5
 
@@ -123,11 +117,6 @@ def update_affine(matrix: np.ndarray, min_resolution: float, resolution: float) 
     # affine.scale = affine.scale.astype(np.float64) / (resolution / min_resolution)
     # affine.translate = affine.translate * min_resolution
     return affine.affine_matrix
-
-
-def format_mz(mz: float) -> str:
-    """Format m/z value."""
-    return f"m/z {mz:.3f}"
 
 
 def is_debug() -> bool:
@@ -294,22 +283,6 @@ def add(layer, event, snap=True) -> None:
         layer.events.add_point()
 
 
-def compute_transform(src: np.ndarray, dst: np.ndarray, transform_type: str = "affine") -> "ProjectiveTransform":
-    """Compute transform."""
-    from skimage.transform import estimate_transform
-
-    if len(dst) != len(src):
-        raise ValueError(f"The number of fixed and moving points is not equal. (moving={len(dst)}; fixed={len(src)})")
-    return estimate_transform(transform_type, src, dst)
-
-
-def transform_image(moving_image: np.ndarray, transform) -> np.ndarray:
-    """Transform an image."""
-    from skimage.transform import warp
-
-    return warp(moving_image, transform, clip=False)
-
-
 def write_xml_registration(output_path: PathLike, affine: np.ndarray):
     """Export affine matrix as XML file."""
     from xml.dom.minidom import parseString
@@ -331,20 +304,6 @@ def write_xml_registration(output_path: PathLike, affine: np.ndarray):
 
     with open(output_path, "w") as f:
         f.write(parseString(xml).toprettyxml())
-
-
-def get_shape_of_image(array: np.ndarray) -> tuple[int, ty.Optional[int], tuple[int, ...]]:
-    """Return shape of an image."""
-    if array.ndim == 3:
-        shape = list(array.shape)
-        channel_axis = int(np.argmin(shape))
-        n_channels = int(shape[channel_axis])
-        shape.pop(channel_axis)
-    else:
-        shape = list(array.shape)
-        n_channels = 1
-        channel_axis = None
-    return n_channels, channel_axis, tuple(shape)
 
 
 def write_project(path: PathLike, data: dict) -> None:

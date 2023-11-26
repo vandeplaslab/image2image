@@ -33,16 +33,18 @@ if ty.TYPE_CHECKING:
 logger = logger.bind(src="LoadDialog")
 
 
-class LoadMixin(QWidget):
-    """Load data mixin."""
+class LoadWidget(QWidget):
+    """Widget for loading data."""
 
     evt_project = Signal(str)
     evt_toggle_channel = Signal(str, bool)
     evt_toggle_all_channels = Signal(bool)
+    evt_swap = Signal(str, str)
 
-    IS_FIXED: bool
+    IS_FIXED: bool = True
     INFO_TEXT = "Select data..."
-    INFO_VISIBLE = True
+    INFO_VISIBLE = False
+    CHANNEL_FIXED: bool | None = None
 
     def __init__(
         self,
@@ -52,13 +54,13 @@ class LoadMixin(QWidget):
         allow_geojson: bool = False,
         select_channels: bool = True,
         available_formats: str | None = None,
+        allow_flip_rotation: bool = False,
+        allow_swap: bool = False,
     ):
         """Init."""
         self.allow_geojson = allow_geojson
         self.select_channels = select_channels
-
-        super().__init__(parent=parent)
-        self._setup_ui()
+        super().__init__(parent)
         self.view = view
         self.n_max = n_max
         self.model: DataModel = DataModel(is_fixed=self.IS_FIXED)
@@ -70,66 +72,17 @@ class LoadMixin(QWidget):
             allow_geojson=self.allow_geojson,
             select_channels=select_channels,
             available_formats=available_formats,
+            allow_flip_rotation=allow_flip_rotation,
+            allow_swap=allow_swap,
         )
 
-        if parent is not None and hasattr(parent, "evt_dropped"):
-            connect(parent.evt_dropped, self.dataset_dlg.on_drop)
-
-    def _setup_ui(self) -> QFormLayout:
-        """Setup UI."""
-        raise NotImplementedError("Must implement method")
-
-    def on_set_path(
-        self,
-        paths: PathLike | ty.Sequence[PathLike],
-        transform_data: dict[str, TransformData] | None = None,
-        resolution: dict[str, float] | None = None,
-    ) -> None:
-        """Set the path and immediately load it."""
-        if isinstance(paths, (str, Path)):
-            paths = [paths]
-        self.dataset_dlg._on_load_dataset(paths, transform_data, resolution)
-
-    def on_select_dataset(self, _evt: ty.Any = None) -> None:
-        """Load data."""
-        self.dataset_dlg.on_select_dataset()
-
-    def on_close_dataset(self, _evt: ty.Any = None) -> None:
-        """Load data."""
-        self.dataset_dlg.on_close_dataset()
-
-    def on_clear_data(self, _evt: ty.Any = None) -> None:
-        """Clear data."""
-        if hp.confirm(self, "Are you sure you want to clear all data?"):
-            while self.dataset_dlg.model.n_paths > 0:
-                self.dataset_dlg.on_close_dataset(force=True)
-
-    def on_open_dataset_dialog(self) -> None:
-        """Select channels from the list."""
-        self.dataset_dlg.show()
-
-
-class LoadWidget(LoadMixin):
-    """Widget for loading data."""
-
-    IS_FIXED: bool = True
-    CHANNEL_FIXED: bool | None = None
-    INFO_VISIBLE = False
-
-    def __init__(
-        self,
-        parent: Window | None,
-        view: NapariImageView | None,
-        n_max: int = 0,
-        allow_geojson: bool = False,
-        select_channels: bool = True,
-        available_formats: str | None = None,
-    ):
-        """Init."""
-        super().__init__(parent, view, n_max, allow_geojson, select_channels, available_formats)
         self.channel_dlg = OverlayChannelsDialog(self, self.model, self.view, self.CHANNEL_FIXED) if self.view else None
         self.dataset_dlg.evt_loading.connect(lambda: self.active_icon.set_active(True))
         self.dataset_dlg.evt_loaded.connect(lambda _: self.active_icon.set_active(False))
+        connect(self.dataset_dlg.evt_swap, self.evt_swap.emit)
+        if parent is not None and hasattr(parent, "evt_dropped"):
+            connect(parent.evt_dropped, self.dataset_dlg.on_drop)
+        self._setup_ui()
 
     def _setup_ui(self) -> QFormLayout:
         """Setup UI."""
@@ -183,6 +136,35 @@ class LoadWidget(LoadMixin):
         if self.channel_dlg:
             self.channel_dlg.show()
 
+    def on_set_path(
+        self,
+        paths: PathLike | ty.Sequence[PathLike],
+        transform_data: dict[str, TransformData] | None = None,
+        resolution: dict[str, float] | None = None,
+    ) -> None:
+        """Set the path and immediately load it."""
+        if isinstance(paths, (str, Path)):
+            paths = [paths]
+        self.dataset_dlg._on_load_dataset(paths, transform_data, resolution)
+
+    def on_select_dataset(self, _evt: ty.Any = None) -> None:
+        """Load data."""
+        self.dataset_dlg.on_select_dataset()
+
+    def on_close_dataset(self, _evt: ty.Any = None) -> None:
+        """Load data."""
+        self.dataset_dlg.on_close_dataset()
+
+    def on_clear_data(self, _evt: ty.Any = None) -> None:
+        """Clear data."""
+        if hp.confirm(self, "Are you sure you want to clear all data?"):
+            while self.dataset_dlg.model.n_paths > 0:
+                self.dataset_dlg.on_close_dataset(force=True)
+
+    def on_open_dataset_dialog(self) -> None:
+        """Select channels from the list."""
+        self.dataset_dlg.show()
+
 
 class FixedWidget(LoadWidget):
     """Widget for loading fixed data."""
@@ -199,8 +181,18 @@ class FixedWidget(LoadWidget):
         n_max: int = 0,
         allow_geojson: bool = False,
         select_channels: bool = True,
+        allow_flip_rotation: bool = False,
+        allow_swap: bool = False,
     ):
-        super().__init__(parent, view, n_max, allow_geojson, select_channels)
+        super().__init__(
+            parent,
+            view,
+            n_max,
+            allow_geojson,
+            select_channels,
+            allow_flip_rotation=allow_flip_rotation,
+            allow_swap=allow_swap,
+        )
 
         if parent is not None and hasattr(parent, "evt_fixed_dropped"):
             connect(parent.evt_fixed_dropped, self.dataset_dlg.on_drop)
@@ -226,8 +218,18 @@ class MovingWidget(LoadWidget):
         n_max: int = 0,
         allow_geojson: bool = False,
         select_channels: bool = True,
+        allow_flip_rotation: bool = False,
+        allow_swap: bool = False,
     ):
-        super().__init__(parent, view, n_max, allow_geojson, select_channels)
+        super().__init__(
+            parent,
+            view,
+            n_max,
+            allow_geojson,
+            select_channels,
+            allow_flip_rotation=allow_flip_rotation,
+            allow_swap=allow_swap,
+        )
 
         # extra events
         connect(self.dataset_dlg.evt_loaded, self._on_update_choice)
@@ -270,7 +272,7 @@ class MovingWidget(LoadWidget):
 
     def _on_update_view_type(self, value: str) -> None:
         """Update view type."""
-        CONFIG.view_type = value  # type: ignore
+        READER_CONFIG.view_type = value  # type: ignore
         self.evt_view_type.emit(value)  # noqa
 
     def toggle_transformed(self) -> None:
@@ -304,9 +306,19 @@ class LoadWithTransformWidget(LoadWidget):
         n_max: int = 0,
         allow_geojson: bool = False,
         select_channels: bool = True,
+        allow_flip_rotation: bool = False,
+        allow_swap: bool = False,
     ):
         """Init."""
-        super().__init__(parent, view, n_max, allow_geojson, select_channels)
+        super().__init__(
+            parent,
+            view,
+            n_max,
+            allow_geojson,
+            select_channels,
+            allow_flip_rotation=allow_flip_rotation,
+            allow_swap=allow_swap,
+        )
         self.transform_model = TransformModel()
         self.transform_model.add_transform("Identity matrix", TransformData.from_array(np.eye(3, dtype=np.float64)))
         self.transform_dlg = SelectTransformDialog(self, self.model, self.transform_model, self.view)
