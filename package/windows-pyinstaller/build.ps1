@@ -46,6 +46,14 @@ if ($update) {
     echo "Reinstalled koyo"
 
     # Re-install image2image
+    echo "Re-installing image2image-reader..."
+    $new_dir = Join-Path $github_dir -ChildPath "image2image-reader" -Resolve
+    cd $new_dir
+    pip install -U .
+    cd $start_dir
+    echo "Reinstalled image2image-reader"
+
+    # Re-install image2image
     echo "Re-installing image2image..."
     $new_dir = Join-Path $github_dir -ChildPath "image2image" -Resolve
     cd $new_dir
@@ -53,17 +61,9 @@ if ($update) {
     cd $start_dir
     echo "Reinstalled image2image"
 
-    # Re-install image2image
-    echo "Re-installing napari-plot..."
-    $new_dir = Join-Path $github_dir -ChildPath "napari-1d" -Resolve
-    cd $new_dir
-    pip install -U .
-    cd $start_dir
-    echo "Reinstalled napari-plot"
-
     # Re-install napari (latest)
     echo "Re-installing napari..."
-    pip install -U napari==0.4.17
+    pip install -U napari==0.4.18
     echo "Reinstalled napari"
 
     # Re-install PySide2
@@ -79,6 +79,14 @@ if ($update) {
 
 # only update ionglow
 if ($update_i2i) {
+    # Re-install image2image
+    echo "Re-installing image2image-reader..."
+    $new_dir = Join-Path $github_dir -ChildPath "image2image-reader" -Resolve
+    cd $new_dir
+    pip install -U .
+    cd $start_dir
+    echo "Reinstalled image2image-reader"
+
     echo "Re-installing image2image..."
     $new_dir = Join-Path -Path $github_dir -ChildPath "image2image" -Resolve
     cd $new_dir
