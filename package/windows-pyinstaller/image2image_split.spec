@@ -52,60 +52,60 @@ def _make_analysis(path: str):
         [path],
         binaries=[],
         datas=[]
-              + collect_data_files("numba")
-              + collect_data_files("qtextra")
-              + collect_data_files("napari")
-              + collect_data_files("napari_plot")
-              + collect_data_files("xmlschema")
-              + collect_data_files("ome_types")
-              + collect_data_files("distributed")
-              + collect_data_files("imagecodecs")
-              + collect_data_files("imzy")
-              + collect_data_files("vispy")
-              + collect_data_files("napari")
-              + collect_data_files("image2image")
-              + collect_data_files("freetype")
-              + collect_data_files("xmlschema")
-              + [(os.path.dirname(debugpy._vendored.__file__), "debugpy/_vendored")],
+        + collect_data_files("numba")
+        + collect_data_files("qtextra")
+        + collect_data_files("napari")
+        + collect_data_files("napari_plot")
+        + collect_data_files("xmlschema")
+        + collect_data_files("ome_types")
+        + collect_data_files("distributed")
+        + collect_data_files("imagecodecs")
+        + collect_data_files("imzy")
+        + collect_data_files("vispy")
+        + collect_data_files("napari")
+        + collect_data_files("image2image")
+        + collect_data_files("freetype")
+        + collect_data_files("xmlschema")
+        + [(os.path.dirname(debugpy._vendored.__file__), "debugpy/_vendored")],
         hiddenimports=[]
-                      + [
-                          # scipy
-                          "scipy",
-                          "scipy.sparse.csgraph._validation",
-                          "scipy.linalg.cython_blas",
-                          "scipy.integrate",
-                          "scipy.special",
-                          "scipy.special._ufuncs_cxx",
-                          "scipy.special._ufuncs",
-                          "scipy.stats",
-                          "scipy._lib.messagestream",
-                          # numba - these actually don't work and the Jitclass must be disabled manually in numba
-                          "numba",
-                          "numba.core",
-                          "numba.experimental",
-                          "numba.experimental.jitclass",
-                          "numba.experimental.jitclass.base",
-                          "numba.experimental.jitclass.boxing",
-                          "numba.experimental.jitclass._box",
-                          "numba.core.typing.cffi_utils",
-                          # sklearn
-                          "sklearn.neighbors._partition_nodes",
-                          "sklearn.utils._cython_blas",
-                      ]
-                      + [f"imagecodecs.{y}" for y in (x if x[0] == "_" else f"_{x}" for x in imagecodecs._extensions())]
-                      + ["imagecodecs._shared"]
-                      + [
-                          "pkg_resources",
-                          "six",
-                          "psygnal",
-                          "psygnal._signal",
-                          "pyside2",
-                          "qtpy",
-                          "vispy.app.backends._pyside2",
-                          "freetype",
-                          "magicgui.backends._qtpy",
-                          "imzy",
-                      ],
+        + [
+            # scipy
+            "scipy",
+            "scipy.sparse.csgraph._validation",
+            "scipy.linalg.cython_blas",
+            "scipy.integrate",
+            "scipy.special",
+            "scipy.special._ufuncs_cxx",
+            "scipy.special._ufuncs",
+            "scipy.stats",
+            "scipy._lib.messagestream",
+            # numba - these actually don't work and the Jitclass must be disabled manually in numba
+            "numba",
+            "numba.core",
+            "numba.experimental",
+            "numba.experimental.jitclass",
+            "numba.experimental.jitclass.base",
+            "numba.experimental.jitclass.boxing",
+            "numba.experimental.jitclass._box",
+            "numba.core.typing.cffi_utils",
+            # sklearn
+            "sklearn.neighbors._partition_nodes",
+            "sklearn.utils._cython_blas",
+        ]
+        + [f"imagecodecs.{y}" for y in (x if x[0] == "_" else f"_{x}" for x in imagecodecs._extensions())]
+        + ["imagecodecs._shared"]
+        + [
+            "pkg_resources",
+            "six",
+            "psygnal",
+            "psygnal._signal",
+            "pyside2",
+            "qtpy",
+            "vispy.app.backends._pyside2",
+            "freetype",
+            "magicgui.backends._qtpy",
+            "imzy",
+        ],
         hookspath=[],
         runtime_hooks=[
             "runtimehooks/hook-bundle.py",
@@ -134,13 +134,13 @@ def _make_exe(pyz: PYZ, analysis: Analysis, name: str):
 
 # main app / launcher
 image2image_analysis = _make_analysis("../../src/image2image/__main__.py")
-image2image_pyz = PYZ(image2image_a.pure)
+image2image_pyz = PYZ(image2image_analysis.pure)
 image2image_exe = _make_exe(image2image_pyz, image2image_analysis, "image2image")
 image2image_coll = COLLECT(
     image2image_exe,
-    # image2image_analysis.binaries,
-    # image2image_analysis.zipfiles,
-    # image2image_analysis.datas,
+    image2image_analysis.binaries,
+    image2image_analysis.zipfiles,
+    image2image_analysis.datas,
     strip=False,
     debug="all",
     upx=True,

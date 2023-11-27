@@ -96,7 +96,8 @@ if ($update_i2i) {
 }
 
 # Get path
-$filename = "image2image.spec"
+#$filename = "image2image.spec"
+$filename = "image2image_split.spec"
 
 # Build bundle
 Write-Output "Debugging: $debug; Filename: $filename"
