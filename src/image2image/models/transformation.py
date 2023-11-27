@@ -225,8 +225,8 @@ class Transformation(BaseModel):
 
 def load_transform_from_file(
     path: PathLike,
-    fixed_image: bool = True,
-    moving_image: bool = True,
+    fixed_image: bool = False,
+    moving_image: bool = False,
     fixed_points: bool = True,
     moving_points: bool = True,
 ) -> I2R_METADATA:
