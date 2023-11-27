@@ -1,3 +1,9 @@
+QStatusBar {
+    background-color: {{ foreground }};
+    max-height: 28px;
+}
+
+
 QLabel#tip_label {
     color: {{ lighten(text, 30) }};
 }

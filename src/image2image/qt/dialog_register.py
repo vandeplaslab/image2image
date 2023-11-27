@@ -904,14 +904,12 @@ class ImageRegistrationWindow(Window):
         menu_tools.addSeparator()
         hp.make_menu_item(self, "Show IPython console...", "Ctrl+T", menu=menu_tools, func=self.on_show_console)
 
-        # Help menu
-        menu_help = self._make_help_menu()
-
         # set actions
         self.menubar = QMenuBar(self)
         self.menubar.addAction(menu_file.menuAction())
         self.menubar.addAction(menu_tools.menuAction())
-        self.menubar.addAction(menu_help.menuAction())
+        self.menubar.addAction(self._make_config_menu().menuAction())
+        self.menubar.addAction(self._make_help_menu().menuAction())
         self.setMenuBar(self.menubar)
 
     def _make_focus_layout(self) -> QFormLayout:

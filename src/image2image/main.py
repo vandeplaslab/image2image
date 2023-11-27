@@ -10,7 +10,7 @@ def run(
     level: int = 10,
     no_color: bool = False,
     dev: bool = False,
-    tool: ty.Literal["launcher", "register", "viewer", "crop", "export", "convert"] = "launcher",
+    tool: ty.Literal["launcher", "register", "viewer", "crop", "fusion", "convert"] = "launcher",
 ) -> None:
     """Execute command."""
     import warnings
@@ -75,16 +75,16 @@ def run(
 
         dlg = ImageCropWindow(None)  # type: ignore[assignment]
         dlg.setMinimumSize(1200, 800)
-    elif tool == "export":
+    elif tool == "fusion":
         from image2image.qt.dialog_export import ImageExportWindow
 
         dlg = ImageExportWindow(None)  # type: ignore[assignment]
-        dlg.setMinimumSize(600, 500)
+        dlg.setMinimumSize(600, 300)
     elif tool == "convert":
         from image2image.qt.dialog_convert import ImageConvertWindow
 
         dlg = ImageConvertWindow(None)  # type: ignore[assignment]
-        dlg.setMinimumSize(600, 500)
+        dlg.setMinimumSize(600, 300)
     else:
         raise ValueError("Launcher is not implemented yet.")
 

@@ -387,8 +387,6 @@ class ImageViewerWindow(Window):
             self, "Show IPython console...", "Ctrl+T", menu=menu_tools, icon="ipython", func=self.on_show_console
         )
 
-        # Help menu
-
         # set actions
         self.menubar = QMenuBar(self)
         self.menubar.addAction(menu_file.menuAction())
