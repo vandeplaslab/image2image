@@ -1018,7 +1018,7 @@ class ImageRegistrationWindow(Window):
         return view_layout
 
     def _make_fixed_view(self) -> QHBoxLayout:
-        self.view_fixed = self._make_image_view(self, add_toolbars=False)
+        self.view_fixed = self._make_image_view(self, add_toolbars=False, disable_new_layers=True)
         self.view_fixed.viewer.text_overlay.text = "Fixed"
         self.view_fixed.viewer.text_overlay.position = "top_left"
         self.view_fixed.viewer.text_overlay.font_size = 10
@@ -1083,7 +1083,7 @@ class ImageRegistrationWindow(Window):
         return layout
 
     def _make_moving_view(self) -> QHBoxLayout:
-        self.view_moving = self._make_image_view(self, add_toolbars=False)
+        self.view_moving = self._make_image_view(self, add_toolbars=False, disable_new_layers=True)
         self.view_moving.viewer.text_overlay.text = "Moving"
         self.view_moving.viewer.text_overlay.position = "top_left"
         self.view_moving.viewer.text_overlay.font_size = 10

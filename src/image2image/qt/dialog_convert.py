@@ -156,7 +156,7 @@ class ImageConvertWindow(Window):
                 },
                 _worker_class=GeneratorWorker,
             )
-            hp.disable_widgets(self.export_btn, disabled=True)
+            hp.disable_widgets(self.export_btn.active_btn, disabled=True)
             self.export_btn.active = True
 
     def on_cancel(self):
@@ -177,18 +177,20 @@ class ImageConvertWindow(Window):
                 item.setText("Aborted!")
 
     @ensure_main_thread()
-    def _on_export_yield(self, args: tuple[str, int, int]) -> None:
+    def _on_export_yield(self, args: tuple[str, int, int, int, int]) -> None:
         """Update CSV."""
         self.__on_export_yield(args)
 
-    def __on_export_yield(self, args: tuple[str, int, int]) -> None:
+    def __on_export_yield(self, args: tuple[str, int, int, int, int]) -> None:
         # with suppress(ValueError):
-        key, current, total = args
+        key, current_scene, total_scene, current, total = args
+        self.export_btn.setRange(0, total)
+        self.export_btn.setValue(current)
         row = hp.find_in_table(self.table, self.TABLE_CONFIG.key, key)
         if row is not None:
             item = self.table.item(row, self.TABLE_CONFIG.progress)
-            item.setText(f"{current}/{total} scenes exported...")
-            if current == total:
+            item.setText(f"{current_scene}/{total_scene} scenes exported...")
+            if current_scene == total_scene:
                 item.setText("Exported!")
                 self.on_toggle_export_btn()
 
@@ -212,7 +214,7 @@ class ImageConvertWindow(Window):
                 text = self.table.item(row, self.TABLE_CONFIG.progress).text()
                 if text not in ["Exported!", "Ready"]:
                     disabled = True
-        hp.disable_widgets(self.export_btn, disabled=disabled)
+        hp.disable_widgets(self.export_btn.active_btn, disabled=disabled)
         self.export_btn.active = disabled
 
     def on_set_output_dir(self):
@@ -263,13 +265,14 @@ class ImageConvertWindow(Window):
         )
         side_layout.addRow(self.output_dir_label)
 
-        self.export_btn = hp.make_active_btn(
-            self, "Convert to OME-TIFF", tooltip="Convert to OME-TIFF...", func=self.on_convert
+        self.export_btn = hp.make_active_progress_btn(
+            self,
+            "Convert to OME-TIFF",
+            tooltip="Convert to OME-TIFF...",
+            func=self.on_convert,
+            cancel_func=self.on_cancel,
         )
-        self.cancel_btn = hp.make_qta_btn(
-            self, "cancel", tooltip="Cancel conversion...", func=self.on_cancel, average=True
-        )
-        side_layout.addRow(hp.make_h_layout(self.export_btn, self.cancel_btn, spacing=2))
+        side_layout.addRow(self.export_btn)
 
         widget = QWidget()
         self.setCentralWidget(widget)

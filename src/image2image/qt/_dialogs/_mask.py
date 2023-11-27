@@ -2,22 +2,28 @@
 from __future__ import annotations
 
 import typing as ty
+from functools import partial
 from pathlib import Path
 
+import numpy as np
+from image2image_reader.enums import DEFAULT_TRANSFORM_NAME
 from loguru import logger
 from qtextra import helpers as hp
 from qtextra.utils.table_config import TableConfig
 from qtextra.widgets.qt_dialog import QtFramelessTool
 from qtextra.widgets.qt_table_view import QtCheckableTableView
 from qtpy.QtWidgets import QFormLayout
+from superqt.utils import GeneratorWorker, create_worker, ensure_main_thread
 
 from image2image.config import CONFIG
-from image2image_reader.enums import DEFAULT_TRANSFORM_NAME
+from image2image.utils.utilities import log_exception_or_error
 
 if ty.TYPE_CHECKING:
+    from image2image_reader.readers._base_reader import BaseReader
+    from image2image_reader.readers.geojson_reader import GeoJSONReader
+
     from image2image.models.data import DataModel
     from image2image.qt.dialog_viewer import ImageViewerWindow
-    from image2image_reader.readers.geojson_reader import GeoJSONReader
 
 logger = logger.bind(src="MaskDialog")
 
@@ -43,6 +49,9 @@ class MasksDialog(QtFramelessTool):
         .add("path", "path", "str", 0, hidden=True)
         .add("key", "key", "str", 0, hidden=True)
     )
+
+    worker_preview: GeneratorWorker | None = None
+    worker_export: GeneratorWorker | None = None
 
     def __init__(self, parent: ImageViewerWindow):
         super().__init__(parent)
@@ -115,44 +124,16 @@ class MasksDialog(QtFramelessTool):
             return False, None
         return True, (data_model, masks, images, mask_shape)
 
-    def on_export(self) -> None:
-        """Export masks."""
-        valid, data = self._validate()
-        if not valid or data is None:
-            return
-        # export masks
-        data_model, masks, images, mask_shape = data
-        output_dir_ = hp.get_directory(self, "Select output directory", base_dir=CONFIG.output_dir)
-        if output_dir_:
-            output_dir = Path(output_dir_)
-            self._on_export(mask_shape, masks, images, data_model, output_dir, preview=False)
-
-    def on_preview(self) -> None:
-        """Export masks."""
-        valid, data = self._validate()
-        if not valid or data is None:
-            return
-        # export masks
-        data_model, masks, images, mask_shape = data
-        logger.debug(f"Exporting {len(masks)} masks for {len(images)} images with {mask_shape} shape.")
-        self._on_export(mask_shape, masks, images, data_model, preview=True)
-
-    def _on_export(
-        self,
+    @staticmethod
+    def _on_transform_mask(
         mask_shape: tuple[int, int],
         masks: list[str],
         images: list[str],
         data_model: DataModel,
-        output_dir: Path | None = None,
-        preview: bool = False,
-    ) -> None:
+    ) -> ty.Generator[tuple[GeoJSONReader, BaseReader, np.ndarray, np.ndarray, str, dict, int, int], None, None]:
         """Export masks."""
-        from image2image.utils.mask import write_masks
-
-        if not preview and not output_dir:
-            raise ValueError("Must provide output directory if exporting.")
-
-        parent: ImageViewerWindow = self.parent()  # type: ignore[assignment]
+        n = int(len(masks) * len(images))
+        i = 1
         for mask_key in masks:
             mask_reader: GeoJSONReader = data_model.get_reader_for_key(mask_key)  # type: ignore[assignment]
             if not mask_reader:
@@ -166,35 +147,173 @@ class MasksDialog(QtFramelessTool):
                     raise ValueError(f"Could not find image reader for '{image_key}'")
                 transformed_mask = image_reader.warp(mask)
                 transformed_mask_indexed = image_reader.warp(mask_indexed)
+                yield (
+                    mask_reader,
+                    image_reader,
+                    transformed_mask,
+                    transformed_mask_indexed,
+                    display_name,
+                    shapes,
+                    i,
+                    n,
+                )
+                i += 1
 
-                # at um level
-                transform = image_reader.transform
-                # preview
-                if preview:
-                    parent.view.add_image(
-                        transformed_mask,
-                        name=f"{mask_reader.name} | {image_reader.name}",
-                        colormap="red",
-                        affine=transform,
-                        scale=image_reader.scale,
-                        contrast_limits=(0, 1),
-                        keep_auto_contrast=False,
-                    )
-                # export
-                elif output_dir:
-                    name = mask_reader.path.stem
+    def _on_export_run(
+        self,
+        mask_shape: tuple[int, int],
+        masks: list[str],
+        images: list[str],
+        data_model: DataModel,
+        output_dir: Path,
+    ) -> ty.Generator[tuple[int, int], None, None]:
+        from image2image_reader.utils.mask import write_masks
 
-                    output_path = output_dir / f"{name}-{image_reader.path.stem}.h5"
-                    logger.debug(f"Exporting mask to '{output_path}'")
-                    write_masks(
-                        output_path,
-                        display_name,
-                        transformed_mask,
-                        shapes,
-                        display_name,
-                        metadata={"polygon_index": transformed_mask_indexed},
-                    )
-                    logger.debug(f"Exported mask to '{output_path}'")
+        if output_dir is None:
+            raise ValueError("Output directory is None.")
+
+        for (
+            mask_reader,
+            image_reader,
+            transformed_mask,
+            transformed_mask_indexed,
+            display_name,
+            shapes,
+            current,
+            total,
+        ) in self._on_transform_mask(mask_shape, masks, images, data_model):
+            name = mask_reader.path.stem
+            output_dir = Path(output_dir)
+            output_path = output_dir / f"{name}-{image_reader.path.stem}.h5"
+            logger.debug(f"Exporting mask to '{output_path}'")
+            write_masks(
+                output_path,
+                display_name,
+                transformed_mask,
+                shapes,
+                display_name,
+                metadata={"polygon_index": transformed_mask_indexed},
+            )
+            logger.debug(f"Exported mask to '{output_path}'")
+            yield current, total
+
+    def on_cancel(self, which: str) -> None:
+        """Cancel cropping."""
+        if which == "preview" and self.worker_preview:
+            self.worker_preview.quit()
+            logger.trace("Requested aborting of the preview process.")
+        elif which == "export" and self.worker_export:
+            self.worker_export.quit()
+            logger.trace("Requested aborting of the export process.")
+
+    def on_export(self) -> None:
+        """Export masks."""
+        valid, data = self._validate()
+        if not valid or data is None:
+            return
+        # export masks
+        data_model, masks, images, mask_shape = data
+        output_dir_ = hp.get_directory(self, "Select output directory", base_dir=CONFIG.output_dir)
+        if output_dir_:
+            output_dir = Path(output_dir_)
+            self.worker_export = create_worker(
+                self._on_export_run,
+                mask_shape=mask_shape,
+                masks=masks,
+                images=images,
+                data_model=data_model,
+                output_dir=output_dir,
+                _connect={
+                    "yielded": self._on_export,
+                    "errored": self._on_error,
+                    "finished": partial(self._on_finished, which="export"),
+                    "aborted": partial(self._on_aborted, which="export"),
+                },
+                _worker_class=GeneratorWorker,
+            )
+            hp.disable_widgets(self.export_btn.active_btn, disabled=True)
+            self.export_btn.active = True
+
+    def on_preview(self) -> None:
+        """Export masks."""
+        valid, data = self._validate()
+        if not valid or data is None:
+            return
+        # export masks
+        data_model, masks, images, mask_shape = data
+        logger.debug(f"Exporting {len(masks)} masks for {len(images)} images with {mask_shape} shape.")
+        self.worker_preview = create_worker(
+            self._on_transform_mask,
+            mask_shape=mask_shape,
+            masks=masks,
+            images=images,
+            data_model=data_model,
+            _connect={
+                "yielded": self._on_preview,
+                "errored": self._on_error,
+                "finished": partial(self._on_finished, which="preview"),
+                "aborted": partial(self._on_aborted, which="preview"),
+            },
+            _worker_class=GeneratorWorker,
+        )
+
+        hp.disable_widgets(self.preview_btn.active_btn, disabled=True)
+        self.preview_btn.active = True
+
+    @ensure_main_thread()
+    def _on_preview(
+        self,
+        mask_reader: GeoJSONReader,
+        image_reader: BaseReader,
+        transformed_mask: np.ndarray,
+        _transformed_mask_indexed: np.ndarray,
+        _display_name: str,
+        _shapes: dict,
+        current: int,
+        total: int,
+    ) -> None:
+        parent: ImageViewerWindow = self.parent()  # type: ignore[assignment]
+        transform = image_reader.transform
+        parent.view.add_image(
+            transformed_mask,
+            name=f"{mask_reader.name} | {image_reader.name}",
+            colormap="red",
+            affine=transform,
+            scale=image_reader.scale,
+            contrast_limits=(0, 1),
+            keep_auto_contrast=False,
+        )
+        self.preview_btn.setRange(0, total)
+        self.preview_btn.setValue(current)
+
+    def _on_export(self, args: tuple[int, int]) -> None:
+        current, total = args
+        self.export_btn.setRange(0, total)
+        self.export_btn.setValue(current)
+
+    @ensure_main_thread()
+    def _on_aborted(self, which: str) -> None:
+        """Update CSV."""
+        if which == "preview":
+            self.worker_preview = None
+        else:
+            self.worker_export = None
+
+    @ensure_main_thread()
+    def _on_finished(self, which: str) -> None:
+        """Failed exporting of the CSV."""
+        if which == "preview":
+            self.worker_preview = None
+            btn = self.preview_btn
+        else:
+            self.worker_export = None
+            btn = self.export_btn
+        hp.disable_widgets(btn.active_btn, disabled=False)
+        btn.active = False
+
+    def _on_error(self, exc: Exception) -> None:
+        hp.toast(self, "Failed", f"Failed export or preview: {exc}", icon="error")
+        log_exception_or_error(exc)
 
     # noinspection PyAttributeOutsideInit
     def make_panel(self) -> QFormLayout:
@@ -223,6 +342,22 @@ class MasksDialog(QtFramelessTool):
             self.TABLE_IMAGE_CONFIG.hidden_columns,
         )
 
+        self.preview_btn = hp.make_active_progress_btn(
+            self,
+            "Preview",
+            tooltip="Preview mask in the viewer.",
+            func=self.on_preview,
+            cancel_func=partial(self.on_cancel, which="preview"),
+        )
+
+        self.export_btn = hp.make_active_progress_btn(
+            self,
+            "Export mask to HDF5...",
+            tooltip="Export mask as a AutoIMS compatible HDF5 file.",
+            func=self.on_export,
+            cancel_func=partial(self.on_cancel, which="export"),
+        )
+
         layout = hp.make_form_layout(self)
         hp.style_form_layout(layout)
         layout.addRow(header_layout)
@@ -231,6 +366,8 @@ class MasksDialog(QtFramelessTool):
         layout.addRow(hp.make_h_line_with_text("Images to export masks for."))
         layout.addRow(self.table_image)
         layout.addRow(hp.make_h_line_with_text("Export"))
-        layout.addRow(hp.make_btn(self, "Preview", func=self.on_preview))
-        layout.addRow(hp.make_btn(self, "Export", func=self.on_export))
+        layout.addRow(self.preview_btn)
+        layout.addRow(self.export_btn)
+        # layout.addRow(hp.make_h_layout(self.preview_btn, self.preview_cancel_btn, spacing=2))
+        # layout.addRow(hp.make_h_layout(self.export_btn, self.export_cancel_btn, spacing=2))
         return layout

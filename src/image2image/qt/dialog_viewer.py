@@ -198,7 +198,9 @@ class ImageViewerWindow(Window):
 
     def _setup_ui(self):
         """Create panel."""
-        self.view = self._make_image_view(self, add_toolbars=False, allow_extraction=False, disable_controls=True)
+        self.view = self._make_image_view(
+            self, add_toolbars=False, allow_extraction=False, disable_controls=True, disable_new_layers=True
+        )
         self._image_widget = LoadWithTransformWidget(self, self.view, allow_geojson=True)
 
         side_layout = hp.make_form_layout()
@@ -386,13 +388,13 @@ class ImageViewerWindow(Window):
         )
 
         # Help menu
-        menu_help = self._make_help_menu()
 
         # set actions
         self.menubar = QMenuBar(self)
         self.menubar.addAction(menu_file.menuAction())
         self.menubar.addAction(menu_tools.menuAction())
-        self.menubar.addAction(menu_help.menuAction())
+        self.menubar.addAction(self._make_config_menu().menuAction())
+        self.menubar.addAction(self._make_help_menu().menuAction())
         self.setMenuBar(self.menubar)
 
     def _get_console_variables(self) -> dict:
