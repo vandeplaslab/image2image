@@ -6,10 +6,12 @@ from functools import partial
 from pathlib import Path
 
 import qtextra.helpers as hp
+from image2image_reader.config import CONFIG as CONFIG_READER
 from koyo.timer import MeasureTimer
 from loguru import logger
 from napari.layers import Image, Shapes
 from qtextra.utils.utilities import connect
+from qtextra.widgets.qt_close_window import QtConfirmCloseDialog
 from qtextra.widgets.qt_image_button import QtThemeButton
 from qtpy.QtWidgets import QDialog, QHBoxLayout, QMenuBar, QStatusBar, QVBoxLayout, QWidget
 from superqt import ensure_main_thread
@@ -17,9 +19,9 @@ from superqt import ensure_main_thread
 from image2image import __version__
 from image2image.config import CONFIG
 from image2image.enums import ALLOWED_VIEWER_FORMATS
-from image2image.qt._dialogs._close import ConfirmCloseDialog
 from image2image.qt._select import LoadWithTransformWidget
 from image2image.qt.dialog_base import Window
+from image2image.utils.utilities import ensure_extension
 
 if ty.TYPE_CHECKING:
     from image2image.models.data import DataModel
@@ -35,7 +37,7 @@ class ImageViewerWindow(Window):
 
     def __init__(self, parent: QWidget | None):
         super().__init__(parent, f"image2viewer: Simple viewer app (v{__version__})")
-        CONFIG.view_type = "overlay"
+        CONFIG_READER.view_type = "overlay"
 
     def setup_events(self, state: bool = True) -> None:
         """Setup events."""
@@ -174,10 +176,15 @@ class ImageViewerWindow(Window):
         )
         if path_:
             path = Path(path_)
+            path = ensure_extension(path, "i2v")
             CONFIG.output_dir = str(path.parent)
             model.to_file(path)
             hp.toast(
-                self, "Exported i2v project", f"Saved project to <br><b>{path}</b>", icon="success", position="top_left"
+                self,
+                "Exported i2v project",
+                f"Saved project to<br><b>{hp.hyper(path)}</b>",
+                icon="success",
+                position="top_left",
             )
 
     def on_save_masks(self) -> None:
@@ -191,7 +198,9 @@ class ImageViewerWindow(Window):
 
     def _setup_ui(self):
         """Create panel."""
-        self.view = self._make_image_view(self, add_toolbars=False, allow_extraction=False, disable_controls=True)
+        self.view = self._make_image_view(
+            self, add_toolbars=False, allow_extraction=False, disable_controls=True, disable_new_layers=True
+        )
         self._image_widget = LoadWithTransformWidget(self, self.view, allow_geojson=True)
 
         side_layout = hp.make_form_layout()
@@ -379,20 +388,24 @@ class ImageViewerWindow(Window):
         )
 
         # Help menu
-        menu_help = self._make_help_menu()
 
         # set actions
         self.menubar = QMenuBar(self)
         self.menubar.addAction(menu_file.menuAction())
         self.menubar.addAction(menu_tools.menuAction())
-        self.menubar.addAction(menu_help.menuAction())
+        self.menubar.addAction(self._make_config_menu().menuAction())
+        self.menubar.addAction(self._make_help_menu().menuAction())
         self.setMenuBar(self.menubar)
 
     def _get_console_variables(self) -> dict:
         variables = super()._get_console_variables()
         variables.update(
-            {"transforms_model": self.transform_model, "viewer": self.view.viewer, "data_model": self.data_model,
-             "wrapper": self.data_model.wrapper}
+            {
+                "transforms_model": self.transform_model,
+                "viewer": self.view.viewer,
+                "data_model": self.data_model,
+                "wrapper": self.data_model.wrapper,
+            }
         )
         return variables
 
@@ -401,10 +414,8 @@ class ImageViewerWindow(Window):
         if (
             not force
             or not CONFIG.confirm_close_viewer
-            or ConfirmCloseDialog(
-                self,
-                "confirm_close_viewer",
-                self.on_save_to_project,
+            or QtConfirmCloseDialog(
+                self, "confirm_close_viewer", self.on_save_to_project, CONFIG
             ).exec_()  # type: ignore[attr-defined]
             == QDialog.DialogCode.Accepted
         ):
@@ -417,10 +428,8 @@ class ImageViewerWindow(Window):
             evt.spontaneous()
             and CONFIG.confirm_close_viewer
             and self.data_model.is_valid()
-            and ConfirmCloseDialog(
-                self,
-                "confirm_close_viewer",
-                self.on_save_to_project,
+            and QtConfirmCloseDialog(
+                self, "confirm_close_viewer", self.on_save_to_project, CONFIG
             ).exec_()  # type: ignore[attr-defined]
             != QDialog.DialogCode.Accepted
         ):
@@ -430,6 +439,7 @@ class ImageViewerWindow(Window):
         if self._console:
             self._console.close()
         CONFIG.save()
+        CONFIG_READER.save()
         evt.accept()
 
 

@@ -1,17 +1,18 @@
 """Configuration."""
 import typing as ty
-from pathlib import Path
 
+from koyo.config import BaseConfig
 from koyo.typing import PathLike
-from loguru import logger
-from pydantic import BaseModel, Field, validator
+from pydantic import Field, validator
 
-from image2image.enums import ViewerOrientation, ViewType
+from image2image.enums import ViewerOrientation
 from image2image.utils._appdirs import USER_CONFIG_DIR
 
 
-class Config(BaseModel):
+class Config(BaseConfig):
     """Configuration of few parameters."""
+
+    USER_CONFIG_DIR = USER_CONFIG_DIR
 
     # view parameters
     sync_views: bool = Field(True, title="Sync views", description="Sync views.", in_app=False)
@@ -60,10 +61,6 @@ class Config(BaseModel):
     viewer_orientation: ViewerOrientation = Field(
         ViewerOrientation.VERTICAL, title="Viewer orientation", description="Orientation of the viewer.", in_app=False
     )
-    view_type: ViewType = Field(ViewType.RANDOM, title="View type", description="IMS view type.", in_app=False)
-    show_transformed: bool = Field(
-        True, title="Show transformed", description="If checked, transformed moving image will be shown.", in_app=False
-    )
 
     # paths
     fixed_dir: str = Field("", title="Fixed directory", description="Directory with fixed images.", in_app=False)
@@ -76,8 +73,6 @@ class Config(BaseModel):
     theme: str = Field(
         "light", title="Theme", description="Theme of the application.", options=["light", "dark"], in_app=True
     )
-
-    auto_pyramid: bool = Field(True, title="Auto pyramid", description="Automatically create pyramid.", in_app=True)
 
     # Crop-app parameters
     first_time_crop: bool = Field(True, title="First time", description="First time running the crop app.", in_app=True)
@@ -122,42 +117,6 @@ class Config(BaseModel):
     def _validate_orientation(value: ty.Union[str, ViewerOrientation]) -> ViewerOrientation:  # type: ignore[misc]
         """Validate path."""
         return ViewerOrientation(value)
-
-    @validator("view_type", pre=True, allow_reuse=True)
-    def _validate_view_type(value: ty.Union[str, ViewType]) -> ViewType:  # type: ignore[misc]
-        """Validate view_type."""
-        return ViewType(value)
-
-    @property
-    def output_path(self) -> Path:
-        """Get default output path."""
-        USER_CONFIG_DIR.mkdir(parents=True, exist_ok=True)
-        return USER_CONFIG_DIR / "config.json"
-
-    def save(self) -> None:
-        """Export configuration to file."""
-        try:
-            self.output_path.write_text(self.json(indent=4, exclude_unset=True))
-            logger.info(f"Saved configuration to {self.output_path}")
-        except Exception as e:
-            logger.warning(f"Failed to save configuration to {self.output_path}: {e}")
-
-    def load(self) -> None:
-        """Load configuration from file."""
-        from koyo.json import read_json_data
-
-        if self.output_path.exists():
-            try:
-                data = read_json_data(self.output_path)
-                for key, value in data.items():
-                    if hasattr(self, key):
-                        try:
-                            setattr(self, key, value)
-                        except Exception as e:
-                            logger.warning(f"Failed to set {key}={value}: {e}")
-                logger.info(f"Loaded configuration from {self.output_path}")
-            except Exception as e:
-                logger.warning(f"Failed to load configuration from {self.output_path}: {e}")
 
 
 CONFIG: Config = Config()  # type: ignore[call-arg]

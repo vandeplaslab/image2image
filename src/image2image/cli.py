@@ -43,7 +43,7 @@ def dev_options(func):
 @click.option(
     "-t",
     "--tool",
-    type=click.Choice(["launcher", "register", "viewer", "export", "crop"]),
+    type=click.Choice(["launcher", "register", "viewer", "export", "crop", "convert"]),
     default="launcher",
     show_default=True,
 )

@@ -24,6 +24,8 @@ I2R_METADATA = ty.Tuple[
     float,
 ]
 
+SCHEMA_VERSION: str = "1.3"
+
 
 class Transformation(BaseModel):
     """Temporary object that holds transformation information."""
@@ -100,7 +102,7 @@ class Transformation(BaseModel):
 
     def compute(self, yx: bool = True, px: bool = True) -> ProjectiveTransform:
         """Compute transformation matrix."""
-        from image2image.utils.utilities import compute_transform
+        from image2image.utils.transform import compute_transform
 
         moving_points = self.moving_points
         fixed_points = self.fixed_points
@@ -169,7 +171,8 @@ class Transformation(BaseModel):
         fixed_pts = self.fixed_points
         moving_pts = self.moving_points
         return {
-            "schema_version": "1.2",
+            "schema_version": SCHEMA_VERSION,
+            "tool": "register",
             "time_created": self.time_created.strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
             "fixed_points_yx_px": fixed_pts.tolist(),  # type: ignore[union-attr]
             "fixed_points_yx_um": (fixed_pts * fixed_mdl.resolution).tolist(),  # type: ignore[operator, union-attr]
@@ -180,15 +183,17 @@ class Transformation(BaseModel):
                 {
                     "path": str(path),
                     "pixel_size_um": resolution,
+                    "image_shape": tuple(map(int, image_shape)),
                 }
-                for (path, resolution) in fixed_mdl.path_resolution_iter()
+                for (path, resolution, image_shape) in fixed_mdl.path_resolution_shape_iter()
             ],
             "moving_paths": [
                 {
                     "path": str(path),
                     "pixel_size_um": resolution,
+                    "image_shape": tuple(map(int, image_shape)),
                 }
-                for (path, resolution) in moving_mdl.path_resolution_iter()
+                for (path, resolution, image_shape) in moving_mdl.path_resolution_shape_iter()
             ],
             "matrix_yx_px": self.compute(yx=True, px=True).params.tolist(),
             "matrix_yx_um": self.compute(yx=True, px=False).params.tolist(),
@@ -229,6 +234,7 @@ def load_transform_from_file(
     moving_image: bool = False,
     fixed_points: bool = True,
     moving_points: bool = True,
+    validate_paths: bool = True,
 ) -> I2R_METADATA:
     """Load registration from file."""
     path = Path(path)
@@ -246,7 +252,7 @@ def load_transform_from_file(
             _moving_points,
             fixed_resolution,
             moving_resolution,
-        ) = _read_image2register_config(data)
+        ) = _read_image2register_config(data, validate_paths)
     # imsmicrolink config
     elif "Project name" in data:
         (
@@ -259,7 +265,7 @@ def load_transform_from_file(
             _moving_points,
             fixed_resolution,
             moving_resolution,
-        ) = _read_imsmicrolink_config(data)
+        ) = _read_imsmicrolink_config(data, validate_paths)
     else:
         raise ValueError(f"Unknown file format: {path.suffix}.")
 
@@ -281,26 +287,31 @@ def load_transform_from_file(
     )
 
 
-def _read_image2register_config(config: ty.Dict) -> I2R_METADATA:
+def _read_image2register_config(config: ty.Dict, validate_paths: bool = True) -> I2R_METADATA:
     """Read image2image configuration file."""
     schema_version = config["schema_version"]
     if schema_version == "1.0":
-        return _read_image2register_v1_0_config(config)
+        return _read_image2register_v1_0_config(config, validate_paths)
     elif schema_version == "1.1":
-        return _read_image2register_v1_1_config(config)
-    return _read_image2register_latest_config(config)
+        return _read_image2register_v1_1_config(config, validate_paths)
+    # accept 1.2 and 1.3
+    return _read_image2register_latest_config(config, validate_paths)
 
 
-def _read_image2register_latest_config(config: ty.Dict) -> I2R_METADATA:
+def _read_image2register_latest_config(config: ty.Dict, validate_paths: bool = True) -> I2R_METADATA:
     # read important fields
+    fixed_paths, fixed_missing_paths, moving_paths, moving_missing_paths = [], [], [], []
     paths = [temp["path"] for temp in config["fixed_paths"]]
-    fixed_paths, fixed_missing_paths = _get_paths(paths)
+    if validate_paths:
+        fixed_paths, fixed_missing_paths = _get_paths(paths)
     fixed_res = [temp["pixel_size_um"] for temp in config["fixed_paths"]]
     fixed_resolution = float(np.min(fixed_res))
+
     paths = [temp["path"] for temp in config["moving_paths"]]
     moving_res = [temp["pixel_size_um"] for temp in config["moving_paths"]]
     moving_resolution = float(np.min(moving_res))
-    moving_paths, moving_missing_paths = _get_paths(paths)
+    if validate_paths:
+        moving_paths, moving_missing_paths = _get_paths(paths)
     fixed_points = np.array(config["fixed_points_yx_px"])
     moving_points = np.array(config["moving_points_yx_px"])
     transformation_type = config["transformation_type"]
@@ -317,10 +328,12 @@ def _read_image2register_latest_config(config: ty.Dict) -> I2R_METADATA:
     )
 
 
-def _read_image2register_v1_1_config(config: ty.Dict) -> I2R_METADATA:
+def _read_image2register_v1_1_config(config: ty.Dict, validate_paths: bool = True) -> I2R_METADATA:
     # read important fields
-    fixed_paths, fixed_missing_paths = _get_paths(config["fixed_paths"])
-    moving_paths, moving_missing_paths = _get_paths(config["moving_paths"])
+    fixed_paths, fixed_missing_paths, moving_paths, moving_missing_paths = [], [], [], []
+    if validate_paths:
+        fixed_paths, fixed_missing_paths = _get_paths(config["fixed_paths"])
+        moving_paths, moving_missing_paths = _get_paths(config["moving_paths"])
     fixed_points = np.array(config["fixed_points_yx_px"])
     moving_points = np.array(config["moving_points_yx_px"])
     transformation_type = config["transformation_type"]
@@ -337,10 +350,12 @@ def _read_image2register_v1_1_config(config: ty.Dict) -> I2R_METADATA:
     )
 
 
-def _read_image2register_v1_0_config(config: ty.Dict) -> I2R_METADATA:
+def _read_image2register_v1_0_config(config: ty.Dict, validate_paths: bool = True) -> I2R_METADATA:
     # read important fields
-    fixed_paths, fixed_missing_paths = _get_paths(config["micro_paths"])
-    moving_paths, moving_missing_paths = _get_paths(config["ims_paths"])
+    fixed_paths, fixed_missing_paths, moving_paths, moving_missing_paths = [], [], [], []
+    if validate_paths:
+        fixed_paths, fixed_missing_paths = _get_paths(config["micro_paths"])
+        moving_paths, moving_missing_paths = _get_paths(config["ims_paths"])
     fixed_points = np.array(config["fixed_points_yx_px"])
     moving_points = np.array(config["moving_points_yx_px"])
     transformation_type = config["transformation_type"]
@@ -357,10 +372,12 @@ def _read_image2register_v1_0_config(config: ty.Dict) -> I2R_METADATA:
     )
 
 
-def _read_imsmicrolink_config(config: ty.Dict) -> I2R_METADATA:
+def _read_imsmicrolink_config(config: ty.Dict, validate_paths: bool = True) -> I2R_METADATA:
     """Read imsmicrolink configuration file."""
-    fixed_paths, fixed_missing_paths = _get_paths([config["PostIMS microscopy image"]])  # need to be a list
-    moving_paths, moving_missing_paths = _get_paths(config["Pixel Map Datasets Files"])
+    fixed_paths, fixed_missing_paths, moving_paths, moving_missing_paths = [], [], [], []
+    if validate_paths:
+        fixed_paths, fixed_missing_paths = _get_paths([config["PostIMS microscopy image"]])  # need to be a list
+        moving_paths, moving_missing_paths = _get_paths(config["Pixel Map Datasets Files"])
     fixed_points = np.array(config["PAQ microscopy points (xy, px)"])[:, ::-1]
     moving_points = np.array(config["IMS pixel map points (xy, px)"])[:, ::-1]
     padding = config["padding"]

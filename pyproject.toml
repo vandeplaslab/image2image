@@ -31,27 +31,12 @@ dynamic = ["version"]
 dependencies = [
     "qtpy",
     "napari==0.4.18",
-    "imzy",
-    "zarr",
-    "SimpleITK",
-    "opencv-python",
-    "czifile",
-    "tifffile",
-    "imagecodecs",
-    "aicsimageio[bioformats]",
-    "ome_types",
     "toml",
-    "h5py",
-    "dicttoxml",
-    "czifile",
     "qtconsole>=4.5.1,!=4.7.6,!=5.4.2",
     "ipykernel>=5.2.0",
     "sentry_sdk",
-    "wsireg",
-    "rasterio",
-    "shapely",
-    "napari-czifile2",
     # "qtextra",
+    # "image2image_reader"
 ]
 
 

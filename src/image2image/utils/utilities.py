@@ -1,11 +1,9 @@
 """Utilities."""
-from functools import partial
-
 import random
 import typing as ty
+from functools import partial
 from pathlib import Path
 
-import numba
 import numpy as np
 from koyo.typing import PathLike
 from loguru import logger
@@ -21,12 +19,6 @@ from vispy.color import Colormap as VispyColormap
 
 from image2image.config import CONFIG
 
-if ty.TYPE_CHECKING:
-    from skimage.transform import ProjectiveTransform
-
-    from image2image.readers._base_reader import BaseReader
-
-
 DRAG_DIST_THRESHOLD = 5
 
 np.seterr(divide="ignore", invalid="ignore")
@@ -41,7 +33,66 @@ PREFERRED_COLORMAPS = [
 ]
 
 
-def log_exception_or_error(exc_or_error: Exception):
+def extract_extension(available_formats: str) -> list[str]:
+    """Extract suffix/extension from available formats."""
+    res = []
+    for row in available_formats.split(";;"):
+        for row_ in row.split("*"):
+            if row_.startswith("."):
+                res.append(row_.replace("(", "").replace(")", "").replace(" ", "").replace("*", ""))
+    return list(set(res))
+
+
+def install_segfault_handler() -> None:
+    """Install segfault handler."""
+    import faulthandler
+
+    from image2image.utils._appdirs import USER_LOG_DIR
+
+    segfault_path = USER_LOG_DIR / "segfault.log"
+    segfault_file = open(segfault_path, "w+")
+    faulthandler.enable(segfault_file, all_threads=True)
+    logger.trace(f"Enabled fault handler - logging to '{segfault_path}'")
+
+
+# noinspection PyBroadException
+def maybe_submit_segfault() -> None:
+    """Submit segfault to Sentry if there is an existing segfault file."""
+    from datetime import datetime
+
+    from image2image.utils._appdirs import USER_LOG_DIR
+
+    segfault_path = USER_LOG_DIR / "segfault.log"
+    if not segfault_path.exists():
+        return
+
+    try:
+        # read segfault data
+        segfault_text = segfault_path.read_text()
+        if not segfault_text:
+            return
+
+        logger.error("There was a segmentation fault previously - submitting to Sentry if it's available.")
+
+        # create backup of the segfault file
+        segfault_backup_path = USER_LOG_DIR / f"segfault_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
+        segfault_path.rename(segfault_backup_path)
+
+        # submit to Sentry
+        submit_sentry_attachment("Segfault detected", segfault_backup_path)
+    except Exception:
+        logger.exception("Failed to submit segfault to Sentry.")
+
+
+def submit_sentry_attachment(message: str, path: PathLike):
+    """Submit attachment to Sentry."""
+    from sentry_sdk import capture_message, configure_scope
+
+    configure_scope(lambda scope: scope.add_attachment(path=str(path)))
+    capture_message(message)
+
+
+def log_exception_or_error(exc_or_error: Exception) -> None:
     """Log exception or error and send it to Sentry."""
     from sentry_sdk import capture_exception, capture_message
 
@@ -66,11 +117,6 @@ def update_affine(matrix: np.ndarray, min_resolution: float, resolution: float) 
     # affine.scale = affine.scale.astype(np.float64) / (resolution / min_resolution)
     # affine.translate = affine.translate * min_resolution
     return affine.affine_matrix
-
-
-def format_mz(mz: float) -> str:
-    """Format m/z value."""
-    return f"m/z {mz:.3f}"
 
 
 def is_debug() -> bool:
@@ -211,7 +257,7 @@ def _get_text_data(data: np.ndarray) -> ty.Dict[str, ty.List[str]]:
     return {"name": [str(i + 1) for i in range(n_pts)]}
 
 
-def add(layer, event, snap = True) -> None:
+def add(layer, event, snap=True) -> None:
     """Add a new point at the clicked position."""
     start_pos = event.pos
     dist = 0
@@ -237,23 +283,6 @@ def add(layer, event, snap = True) -> None:
         layer.events.add_point()
 
 
-
-def compute_transform(src: np.ndarray, dst: np.ndarray, transform_type: str = "affine") -> "ProjectiveTransform":
-    """Compute transform."""
-    from skimage.transform import estimate_transform
-
-    if len(dst) != len(src):
-        raise ValueError(f"The number of fixed and moving points is not equal. (moving={len(dst)}; fixed={len(src)})")
-    return estimate_transform(transform_type, src, dst)
-
-
-def transform_image(moving_image: np.ndarray, transform) -> np.ndarray:
-    """Transform an image."""
-    from skimage.transform import warp
-
-    return warp(moving_image, transform, clip=False)
-
-
 def write_xml_registration(output_path: PathLike, affine: np.ndarray):
     """Export affine matrix as XML file."""
     from xml.dom.minidom import parseString
@@ -277,189 +306,6 @@ def write_xml_registration(output_path: PathLike, affine: np.ndarray):
         f.write(parseString(xml).toprettyxml())
 
 
-def write_reader_to_xml(path_or_tiff: ty.Union[PathLike, "BaseReader"], filename: PathLike):
-    """Get filename."""
-    from xml.dom.minidom import parseString
-
-    from dicttoxml import dicttoxml
-
-    if isinstance(path_or_tiff, (str, Path)):
-        from image2image._reader import TiffImageReader
-
-        reader = TiffImageReader(path_or_tiff)
-    else:
-        reader = path_or_tiff
-
-    _, _, image_shape = get_shape_of_image(reader.pyramid[0])
-    shape = get_flat_shape_of_image(reader.pyramid[0])
-
-    meta = {
-        "modality": "microscopy",
-        "data_label": reader.path.stem,
-        "nr_spatial_dims": 2,
-        "spatial_grid_size": f"{image_shape[0]} {image_shape[1]}",
-        "nr_spatial_grid_elems": image_shape[0] * image_shape[1],
-        "spatial_resolution_um": reader.resolution,
-        "nr_obs": shape[0],
-        "nr_vars": shape[1],
-    }
-    xml = dicttoxml(meta, custom_root="data_source", attr_type=False)
-
-    # filename = xml_output_path.parent / (reader.path.stem + ".xml")
-    filename = Path(filename).with_suffix(".xml")
-    with open(filename, "w") as f:
-        f.write(parseString(xml).toprettyxml())
-    logger.debug(f"Saved XML file to {filename}")
-
-
-def reshape_fortran(x: np.ndarray, shape: ty.Tuple[int, int]) -> np.ndarray:
-    """Reshape data to Fortran (MATLAB) ordering."""
-    return x.T.reshape(shape[::-1]).T
-
-
-@numba.njit(nogil=True, cache=True)
-def int_format_to_row(row: np.ndarray) -> str:
-    """Format string to row."""
-    return ",".join([str(v) for v in row]) + ",\n"
-
-
-def float_format_to_row(row: np.ndarray) -> str:
-    """Format string to row."""
-    return ",".join(
-        [
-            ",".join([str(int(v)) for v in row[0:2]]),
-            ",".join([f"{v:.2f}" for v in row[2:]]),
-            "\n",
-        ]
-    )
-
-
-def get_shape_of_image(array: np.ndarray) -> tuple[int, ty.Optional[int], tuple[int, ...]]:
-    """Return shape of an image."""
-    if array.ndim == 3:
-        shape = list(array.shape)
-        channel_axis = int(np.argmin(shape))
-        n_channels = int(shape[channel_axis])
-        shape.pop(channel_axis)
-    else:
-        shape = list(array.shape)
-        n_channels = 1
-        channel_axis = None
-    return n_channels, channel_axis, tuple(shape)
-
-
-def get_flat_shape_of_image(array: np.ndarray) -> tuple[int, int]:
-    """Return shape of an image."""
-    n_channels, _, shape = get_shape_of_image(array)
-    n_px = int(np.prod(shape))
-    return n_channels, n_px
-
-
-def get_dtype_for_array(array: np.ndarray) -> np.dtype:
-    """Return smallest possible data type for shape."""
-    n = array.shape[1]
-    if np.issubdtype(array.dtype, np.integer):
-        if n < np.iinfo(np.uint8).max:
-            return np.uint8
-        elif n < np.iinfo(np.uint16).max:
-            return np.uint16
-        elif n < np.iinfo(np.uint32).max:
-            return np.uint32
-        elif n < np.iinfo(np.uint64).max:
-            return np.uint64
-    else:
-        if n < np.finfo(np.float32).max:
-            return np.float32
-        elif n < np.finfo(np.float64).max:
-            return np.float64
-
-
-def _insert_indices(array: np.ndarray, shape: ty.Tuple[int, int]) -> np.ndarray:
-    n = array.shape[1]
-    y, x = np.indices(shape)
-    y = y.ravel(order="F")
-    x = x.ravel(order="F")
-    dtype = get_dtype_for_array(array)
-    res = np.zeros((x.size, n + 2), dtype=dtype)
-    res[:, 0] = y + 1
-    res[:, 1] = x + 1
-    res[:, 2:] = reshape_fortran(array, (-1, n))
-    return res
-
-
-def write_reader_to_txt(
-    reader: "BaseReader", path: PathLike, update_freq: int = 100_000
-) -> ty.Generator[tuple[int, int, str], None, None]:
-    """Write image data to text."""
-    array, shape = reader.flat_array()
-    array = _insert_indices(array, shape)
-
-    if reader.n_channels == 3 and reader.dtype == np.uint8:
-        yield from write_rgb_to_txt(path, array, update_freq=update_freq)
-    elif np.issubdtype(reader.dtype, np.integer):
-        yield from write_int_to_txt(path, array, reader.channel_names, update_freq=update_freq)
-    else:
-        yield from write_float_to_txt(path, array, reader.channel_names, update_freq=update_freq)
-
-
-def write_rgb_to_txt(
-    path: PathLike, array: np.ndarray, update_freq: int = 100_000
-) -> ty.Generator[tuple[int, int, str], None, None]:
-    """Write IMS data to text."""
-    columns = ["row", "col", "Red (R)", "Green (G)", "Blue (B)"]
-    yield from _write_txt(path, columns, array, int_format_to_row, update_freq=update_freq)
-
-
-def write_int_to_txt(
-    path: PathLike, array: np.ndarray, channel_names: ty.List[str], update_freq: int = 100_000
-) -> ty.Generator[tuple[int, int, str], None, None]:
-    """Write IMS data to text."""
-    columns = ["row", "col", *channel_names]
-    yield from _write_txt(path, columns, array, int_format_to_row, update_freq=update_freq)
-
-
-def write_float_to_txt(
-    path: PathLike, array: np.ndarray, channel_names: ty.List[str], update_freq: int = 100_000
-) -> ty.Generator[tuple[int, int, str], None, None]:
-    """Write IMS data to text."""
-    columns = ["row", "col", *channel_names]
-    yield from _write_txt(path, columns, array, float_format_to_row, update_freq=update_freq)
-
-
-def _write_txt(
-    path: PathLike,
-    columns: ty.List[str],
-    array: np.ndarray,
-    str_func: ty.Callable,
-    update_freq: int = 100_000,
-) -> ty.Generator[tuple[int, int, str], None, None]:
-    """Write data to csv file."""
-    from tqdm import tqdm
-
-    path = Path(path)
-    assert path.suffix == ".txt", "Path must have .txt extension."
-
-    n = array.shape[0]
-    logger.debug(
-        f"Exporting array with {array.shape[0]:,} observations, {array.shape[1]:,} features and {array.dtype} data"
-        f" type to '{path}'"
-    )
-    with open(path, "w", newline="\n", encoding="cp1252") as f:
-        f.write(",".join(columns) + ",\n")
-        with tqdm(array, total=n, mininterval=1) as pbar:
-            for i, row in enumerate(pbar):
-                f.write(str_func(row))
-                if i % update_freq == 0:
-                    if i != 0:
-                        d = pbar.format_dict
-                        if d["rate"]:
-                            eta = pbar.format_interval((d["total"] - d["n"]) / d["rate"])
-                        else:
-                            eta = ""
-                        yield i, n, eta
-        yield n, n, ""
-
-
 def write_project(path: PathLike, data: dict) -> None:
     """Export project in appropriate format."""
     path = Path(path)
@@ -473,3 +319,12 @@ def write_project(path: PathLike, data: dict) -> None:
         write_toml_data(path, data)
     else:
         raise ValueError(f"Unsupported file format: {path.suffix}")
+
+
+def ensure_extension(path: PathLike, extension: str) -> Path:
+    """Ensure that path has a specific extension."""
+    path = Path(path)
+    if extension not in path.name:
+        suffix = path.suffix
+        path = path.with_suffix(f".{extension}.{suffix}")
+    return path

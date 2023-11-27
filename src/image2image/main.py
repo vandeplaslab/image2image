@@ -10,22 +10,28 @@ def run(
     level: int = 10,
     no_color: bool = False,
     dev: bool = False,
-    tool: ty.Literal["launcher", "register", "viewer", "crop", "export"] = "launcher",
-):
+    tool: ty.Literal["launcher", "register", "viewer", "crop", "export", "convert"] = "launcher",
+) -> None:
     """Execute command."""
     import warnings
 
+    from image2image_reader.config import CONFIG as READER_CONFIG
     from koyo.logging import set_loguru_log
     from qtextra.config import THEMES
+    from qtextra.utils.context import _maybe_allow_interrupt
 
+    import image2image.assets  # noqa: F401
     from image2image.config import CONFIG
+    from image2image.qt._sentry import install_error_monitor
     from image2image.qt.event_loop import get_app
     from image2image.utils._appdirs import USER_LOG_DIR
+    from image2image.utils.utilities import install_segfault_handler, maybe_submit_segfault
 
     log_path = USER_LOG_DIR / f"log_tool={tool}.txt"
     set_loguru_log(log_path, level=level, no_color=True, diagnose=True, catch=True, logger=logger)
     set_loguru_log(level=level, no_color=no_color, diagnose=True, catch=True, logger=logger, remove=False)
     logger.enable("image2image")
+    logger.enable("image2image_reader")
     logger.info(f"Enabled logger - logging to '{log_path}' at level={level}")
 
     if dev:
@@ -34,6 +40,7 @@ def run(
         install_debugger_hook()
 
     # load config
+    READER_CONFIG.load()
     CONFIG.load()
     # setup theme
     for theme in THEMES.themes:
@@ -42,6 +49,12 @@ def run(
 
     # make app
     app = get_app()
+
+    # install error monitor
+    install_error_monitor()
+    maybe_submit_segfault()
+    install_segfault_handler()
+
     if tool == "launcher":
         from image2image.qt.launcher import Launcher
 
@@ -67,6 +80,11 @@ def run(
 
         dlg = ImageExportWindow(None)  # type: ignore[assignment]
         dlg.setMinimumSize(600, 500)
+    elif tool == "convert":
+        from image2image.qt.dialog_convert import ImageConvertWindow
+
+        dlg = ImageConvertWindow(None)  # type: ignore[assignment]
+        dlg.setMinimumSize(600, 500)
     else:
         raise ValueError("Launcher is not implemented yet.")
 
@@ -79,31 +97,14 @@ def run(
     warnings.filterwarnings("ignore", message="RuntimeWarning: overflow encountered in cast")
 
     if dev:
-        import faulthandler
         import logging
 
         from qtextra.utils.dev import qdev
 
-        segfault_path = USER_LOG_DIR / "segfault.log"
-        if segfault_path.exists():
-            segfault_text = segfault_path.read_text()
-            if segfault_text:
-                from functools import partial
-
-                from qtextra.helpers import call_later
-
-                from image2image.utils.utilities import log_exception_or_error
-
-                logger.error("There was a previous segfault - submitting for review.")
-                call_later(dlg, partial(log_exception_or_error, f"Segfault detected\n\n{segfault_text}"), 10_000)
-
-        segfault_file = open(segfault_path, "w+")
-        faulthandler.enable(segfault_file, all_threads=True)
-        logger.trace(f"Enabled fault handler - logging to '{segfault_path}'")
         logger.enable("qtextra")
         logging.getLogger("qtreload").setLevel(logging.DEBUG)
 
-        dev = qdev(dlg, modules=["qtextra", "image2image", "koyo"])
+        dev = qdev(dlg, modules=["qtextra", "image2image", "image2image_reader", "koyo"])
         dev.evt_theme.connect(lambda: THEMES.set_theme_stylesheet(dlg))
         if hasattr(dlg, "centralWidget"):
             dlg.centralWidget().layout().addWidget(dev)
@@ -116,11 +117,8 @@ def run(
         os.environ["IMAGE2IMAGE_DEV_MODE"] = "0"
 
     dlg.show()
-    # if tool in ["launcher", "export", "crop"]:
-    #     dlg.show()
-    # else:
-    #     dlg.showMaximized()
-    sys.exit(app.exec_())
+    with _maybe_allow_interrupt(app):
+        sys.exit(app.exec_())
 
 
 if __name__ == "__main__":  # pragma: no cover

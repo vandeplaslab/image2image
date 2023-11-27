@@ -10,8 +10,9 @@ from qtpy.QtWidgets import QVBoxLayout
 
 REGISTER_TEXT = "<b>Registration App</b><br>Co-register your microscopy and imaging mass spectrometry data."
 VIEWER_TEXT = "<b>Viewer App</b><br>Overlay your microscopy and imaging mass spectrometry data."
-EXPORT_TEXT = "<b>Export App</b><br>Export your data for Image Fusion in MATLAB compatible format."
 CROP_TEXT = "<b>Crop App</b><br>Crop your microscopy data to reduce it's size (handy for Image Fusion)."
+CONVERT_TEXT = "<b>CZI to OME-Tiff App</b><br>Convert your multi-scene CZI image to OME-TIFF."
+EXPORT_TEXT = "<b>Export App</b><br>Export your data for Image Fusion in MATLAB compatible format."
 SYNC_TEXT = "<b>Sync App</b><br>(coming)"
 
 
@@ -63,6 +64,17 @@ class Launcher(QtDialog):
                 alignment=Qt.AlignCenter,  # type: ignore[attr-defined]
             ),
         )
+        # convert app
+        btn = hp.make_qta_btn(self, "change", tooltip="Open czi2tiff application.", func=self.on_convert)
+        btn.set_xxlarge()
+        layout.addLayout(
+            hp.make_h_layout(
+                btn,
+                hp.make_label(self, CONVERT_TEXT, alignment=Qt.AlignHCenter, wrap=True),  # type: ignore[attr-defined]
+                stretch_id=0,
+                alignment=Qt.AlignCenter,  # type: ignore[attr-defined]
+            ),
+        )
         # export app
         btn = hp.make_qta_btn(self, "export", tooltip="Open export application.", func=self.on_export)
         btn.set_xxlarge()
@@ -74,20 +86,19 @@ class Launcher(QtDialog):
                 alignment=Qt.AlignCenter,  # type: ignore[attr-defined]
             ),
         )
-        # # sync app
-        # btn = hp.make_qta_btn(self, "sync", tooltip="Open sync application (coming).", func=self.on_viewer)
-        # hp.disable_widgets(btn, disabled=True)
-        # btn.set_xxlarge()
-        # layout.addLayout(
-        #     hp.make_h_layout(
-        #         btn,
-        #         hp.make_label(self, SYNC_TEXT, alignment=Qt.AlignHCenter, wrap=True),  # type: ignore[attr-defined]
-        #         stretch_id=0,
-        #         alignment=Qt.AlignCenter,  # type: ignore[attr-defined]
-        #     ),
-        # )
         layout.addStretch(1)
         return layout
+
+    @staticmethod
+    def on_convert():
+        """Open registration application."""
+        from image2image.qt.dialog_convert import ImageConvertWindow
+
+        logger.debug("Opening czi2tiff application.")
+        dlg = ImageConvertWindow(None)
+        THEMES.set_theme_stylesheet(dlg)
+        dlg.setMinimumSize(500, 500)
+        dlg.show()
 
     @staticmethod
     def on_export():

@@ -1,13 +1,17 @@
 """Widget for loading data."""
+from __future__ import annotations
+
 import typing as ty
 from pathlib import Path
 
 import numpy as np
 import qtextra.helpers as hp
+from image2image_reader.config import CONFIG as READER_CONFIG
 from koyo.typing import PathLike
 from loguru import logger
 from qtextra.utils.utilities import connect
-from qtpy.QtCore import Qt, Signal
+from qtextra.widgets.qt_icon_label import QtActiveIcon
+from qtpy.QtCore import Qt, Signal  # type: ignore[attr-defined]
 from qtpy.QtWidgets import QFormLayout, QWidget
 
 from image2image.config import CONFIG
@@ -29,49 +33,114 @@ if ty.TYPE_CHECKING:
 logger = logger.bind(src="LoadDialog")
 
 
-class LoadMixin(QWidget):
-    """Load data mixin."""
+class LoadWidget(QWidget):
+    """Widget for loading data."""
 
+    evt_project = Signal(str)
     evt_toggle_channel = Signal(str, bool)
     evt_toggle_all_channels = Signal(bool)
+    evt_swap = Signal(str, str)
 
-    IS_FIXED: bool
+    IS_FIXED: bool = True
     INFO_TEXT = "Select data..."
-    INFO_VISIBLE = True
+    INFO_VISIBLE = False
+    CHANNEL_FIXED: bool | None = None
 
     def __init__(
         self,
-        parent: ty.Optional["Window"],
-        view: ty.Optional["NapariImageView"],
+        parent: Window | None,
+        view: NapariImageView | None,
         n_max: int = 0,
         allow_geojson: bool = False,
         select_channels: bool = True,
+        available_formats: str | None = None,
+        allow_flip_rotation: bool = False,
+        allow_swap: bool = False,
     ):
         """Init."""
         self.allow_geojson = allow_geojson
         self.select_channels = select_channels
-
-        super().__init__(parent=parent)
-        self._setup_ui()
+        super().__init__(parent)
         self.view = view
         self.n_max = n_max
         self.model: DataModel = DataModel(is_fixed=self.IS_FIXED)
         self.dataset_dlg = SelectDataDialog(
-            self, self.model, self.IS_FIXED, self.n_max, self.allow_geojson, select_channels
+            self,
+            self.model,
+            self.IS_FIXED,
+            self.n_max,
+            allow_geojson=self.allow_geojson,
+            select_channels=select_channels,
+            available_formats=available_formats,
+            allow_flip_rotation=allow_flip_rotation,
+            allow_swap=allow_swap,
         )
 
-        if hasattr(parent, "evt_dropped"):
+        self.channel_dlg = OverlayChannelsDialog(self, self.model, self.view, self.CHANNEL_FIXED) if self.view else None
+        self.dataset_dlg.evt_loading.connect(lambda: self.active_icon.set_active(True))
+        self.dataset_dlg.evt_loaded.connect(lambda _: self.active_icon.set_active(False))
+        connect(self.dataset_dlg.evt_swap, self.evt_swap.emit)
+        if parent is not None and hasattr(parent, "evt_dropped"):
             connect(parent.evt_dropped, self.dataset_dlg.on_drop)
+        self._setup_ui()
 
     def _setup_ui(self) -> QFormLayout:
         """Setup UI."""
-        raise NotImplementedError("Must implement method")
+        layout = hp.make_form_layout()
+        layout.setContentsMargins(0, 0, 0, 0)
+        hp.style_form_layout(layout)
+        self.info_text = hp.make_label(
+            self,
+            self.INFO_TEXT,
+            bold=True,
+            wrap=True,
+            alignment=Qt.AlignCenter,  # type: ignore[attr-defined]
+        )
+        self.info_text.setVisible(self.INFO_VISIBLE)
+        layout.addRow(self.info_text)  # noqa
+        self.active_icon = QtActiveIcon()
+        layout.addRow(
+            hp.make_h_layout(
+                hp.make_qta_btn(
+                    self,
+                    "add",
+                    func=self.on_select_dataset,
+                    tooltip="Add image(s) to the viewer.",
+                    properties={"standout": True},
+                ),
+                hp.make_qta_btn(
+                    self,
+                    "delete",
+                    func=self.on_close_dataset,
+                    tooltip="Remove image(s) from the viewer.",
+                    properties={"standout": True},
+                ),
+                hp.make_btn(
+                    self,
+                    "More options...",
+                    func=self.on_open_dataset_dialog,
+                    tooltip="Open dialog to add/remove images or adjust pixel size.",
+                ),
+                self.active_icon,
+                stretch_id=2,
+                spacing=2,
+            ),
+        )
+        if self.select_channels:
+            layout.addRow(hp.make_btn(self, "Select channels...", func=self._on_select_channels))
+        self.setLayout(layout)
+        return layout
+
+    def _on_select_channels(self) -> None:
+        """Select channels from the list."""
+        if self.channel_dlg:
+            self.channel_dlg.show()
 
     def on_set_path(
         self,
-        paths: ty.Union[PathLike, ty.Sequence[PathLike]],
-        transform_data: ty.Optional[ty.Dict[str, TransformData]] = None,
-        resolution: ty.Optional[ty.Dict[str, float]] = None,
+        paths: PathLike | ty.Sequence[PathLike],
+        transform_data: dict[str, TransformData] | None = None,
+        resolution: dict[str, float] | None = None,
     ) -> None:
         """Set the path and immediately load it."""
         if isinstance(paths, (str, Path)):
@@ -97,74 +166,36 @@ class LoadMixin(QWidget):
         self.dataset_dlg.show()
 
 
-class LoadWidget(LoadMixin):
-    """Widget for loading data."""
+class FixedWidget(LoadWidget):
+    """Widget for loading fixed data."""
 
-    IS_FIXED: bool = True
-    CHANNEL_FIXED: ty.Optional[bool] = None
-    INFO_VISIBLE = False
+    # class attrs
+    IS_FIXED = True
+    INFO_TEXT = "Select 'fixed' data..."
+    INFO_VISIBLE = True
 
     def __init__(
         self,
-        parent: ty.Optional["Window"],
-        view: ty.Optional["NapariImageView"],
+        parent: Window | None,
+        view: NapariImageView,
         n_max: int = 0,
         allow_geojson: bool = False,
         select_channels: bool = True,
+        allow_flip_rotation: bool = False,
+        allow_swap: bool = False,
     ):
-        """Init."""
-        super().__init__(parent, view, n_max, allow_geojson, select_channels)
-        self.channel_dlg = OverlayChannelsDialog(self, self.model, self.view, self.CHANNEL_FIXED) if self.view else None
-
-    def _setup_ui(self) -> QFormLayout:
-        """Setup UI."""
-        layout = hp.make_form_layout()
-        layout.setContentsMargins(0, 0, 0, 0)
-        hp.style_form_layout(layout)
-        self.info_text = hp.make_label(
-            self,
-            self.INFO_TEXT,
-            bold=True,
-            wrap=True,
-            alignment=Qt.AlignCenter,  # type: ignore[attr-defined]
+        super().__init__(
+            parent,
+            view,
+            n_max,
+            allow_geojson,
+            select_channels,
+            allow_flip_rotation=allow_flip_rotation,
+            allow_swap=allow_swap,
         )
-        self.info_text.setVisible(self.INFO_VISIBLE)
-        layout.addRow(self.info_text)  # noqa
-        layout.addRow(
-            hp.make_h_layout(
-                hp.make_qta_btn(
-                    self,
-                    "add",
-                    func=self.on_select_dataset,
-                    tooltip="Add image(s) to the viewer.",
-                    properties={"standout": True},
-                ),
-                hp.make_qta_btn(
-                    self,
-                    "delete",
-                    func=self.on_close_dataset,
-                    tooltip="Remove image(s) from the viewer.",
-                    properties={"standout": True},
-                ),
-                hp.make_btn(
-                    self,
-                    "More options...",
-                    func=self.on_open_dataset_dialog,
-                    tooltip="Open dialog to add/remove images or adjust pixel size.",
-                ),
-                stretch_id=2,
-                spacing=2,
-            ),
-        )
-        if self.select_channels:
-            layout.addRow(hp.make_btn(self, "Select channels...", func=self._on_select_channels))
-        self.setLayout(layout)
-        return layout
 
-    def _on_select_channels(self) -> None:
-        """Select channels from the list."""
-        if self.channel_dlg:
-            self.channel_dlg.show()
+        if parent is not None and hasattr(parent, "evt_fixed_dropped"):
+            connect(parent.evt_fixed_dropped, self.dataset_dlg.on_drop)
 
 
 class MovingWidget(LoadWidget):
@@ -182,17 +213,30 @@ class MovingWidget(LoadWidget):
 
     def __init__(
         self,
-        parent: ty.Optional["Window"],
-        view: "NapariImageView",
+        parent: Window | None,
+        view: NapariImageView,
         n_max: int = 0,
         allow_geojson: bool = False,
         select_channels: bool = True,
+        allow_flip_rotation: bool = False,
+        allow_swap: bool = False,
     ):
-        super().__init__(parent, view, n_max, allow_geojson, select_channels)
+        super().__init__(
+            parent,
+            view,
+            n_max,
+            allow_geojson,
+            select_channels,
+            allow_flip_rotation=allow_flip_rotation,
+            allow_swap=allow_swap,
+        )
 
         # extra events
         connect(self.dataset_dlg.evt_loaded, self._on_update_choice)
         connect(self.dataset_dlg.evt_closed, self._on_clear_choice)
+
+        if parent is not None and hasattr(parent, "evt_moving_dropped"):
+            connect(parent.evt_moving_dropped, self.dataset_dlg.on_drop)
 
     def _on_update_choice(self, _model: object, _channel_list: list[str]) -> None:
         """Update list of available options."""
@@ -211,7 +255,7 @@ class MovingWidget(LoadWidget):
         self.view_type_choice = hp.make_combobox(
             self,
             data=VIEW_TYPE_TRANSLATIONS,
-            value=str(CONFIG.view_type),
+            value=str(READER_CONFIG.view_type),
             func=self._on_update_view_type,
             tooltip="Select what kind of image should be displayed.<br><b>Overlay</b> will use the 'true' image and can"
             " be overlaid with other images.<br><b>Random</b> will display single image with random intensity.",
@@ -228,22 +272,24 @@ class MovingWidget(LoadWidget):
 
     def _on_update_view_type(self, value: str) -> None:
         """Update view type."""
-        CONFIG.view_type = value  # type: ignore
+        READER_CONFIG.view_type = value  # type: ignore
         self.evt_view_type.emit(value)  # noqa
+
+    def toggle_transformed(self) -> None:
+        """Toggle visibility of transformed image."""
+        index = self.transformed_choice.currentIndex()
+        n = self.transformed_choice.count()
+        if n == 1:
+            return
+        index += 1
+        if index >= n:
+            index = 0
+        self.transformed_choice.setCurrentIndex(index)
 
     def _on_toggle_transformed(self, value: str) -> None:
         """Toggle visibility of transformed."""
-        CONFIG.show_transformed = value != "None"
+        READER_CONFIG.show_transformed = value != "None"
         self.evt_show_transformed.emit(value)  # noqa
-
-
-class FixedWidget(LoadWidget):
-    """Widget for loading fixed data."""
-
-    # class attrs
-    IS_FIXED = True
-    INFO_TEXT = "Select 'fixed' data..."
-    INFO_VISIBLE = True
 
 
 class LoadWithTransformWidget(LoadWidget):
@@ -255,14 +301,24 @@ class LoadWithTransformWidget(LoadWidget):
 
     def __init__(
         self,
-        parent: ty.Optional["Window"],
-        view: "NapariImageView",
+        parent: Window | None,
+        view: NapariImageView,
         n_max: int = 0,
         allow_geojson: bool = False,
         select_channels: bool = True,
+        allow_flip_rotation: bool = False,
+        allow_swap: bool = False,
     ):
         """Init."""
-        super().__init__(parent, view, n_max, allow_geojson, select_channels)
+        super().__init__(
+            parent,
+            view,
+            n_max,
+            allow_geojson,
+            select_channels,
+            allow_flip_rotation=allow_flip_rotation,
+            allow_swap=allow_swap,
+        )
         self.transform_model = TransformModel()
         self.transform_model.add_transform("Identity matrix", TransformData.from_array(np.eye(3, dtype=np.float64)))
         self.transform_dlg = SelectTransformDialog(self, self.model, self.transform_model, self.view)

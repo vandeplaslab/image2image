@@ -9,6 +9,8 @@ from pathlib import Path
 
 import numpy as np
 import qtextra.helpers as hp
+from image2image_reader.config import CONFIG as READER_CONFIG
+from image2image_reader.enums import ViewType
 from koyo.timer import MeasureTimer
 from loguru import logger
 from napari.layers import Image
@@ -17,29 +19,24 @@ from napari.layers.utils._link_layers import link_layers
 from napari.utils.events import Event
 from qtextra._napari.image.wrapper import NapariImageView
 from qtextra.utils.utilities import connect
+from qtextra.widgets.qt_close_window import QtConfirmCloseDialog
 from qtextra.widgets.qt_image_button import QtImagePushButton
 from qtextra.widgets.qt_mini_toolbar import QtMiniToolbar
 from qtpy.QtCore import Qt, Signal  # type: ignore[attr-defined]
 from qtpy.QtWidgets import QDialog, QFormLayout, QHBoxLayout, QMenuBar, QSizePolicy, QVBoxLayout, QWidget
 from superqt.utils import ensure_main_thread, qdebounced
 
-# need to load to ensure all assets are loaded properly
-import image2image.assets  # noqa: F401
 from image2image import __version__
 from image2image.config import CONFIG
-from image2image.enums import (
-    ALLOWED_EXPORT_REGISTER_FORMATS,
-    ALLOWED_IMPORT_REGISTER_FORMATS,
-    ViewType,
-)
+from image2image.enums import ALLOWED_EXPORT_REGISTER_FORMATS, ALLOWED_IMPORT_REGISTER_FORMATS
 from image2image.models.data import DataModel
 from image2image.models.transformation import Transformation
-from image2image.qt._dialogs._close import ConfirmCloseDialog
 from image2image.qt._select import FixedWidget, MovingWidget
 from image2image.qt.dialog_base import Window
 from image2image.utils.utilities import (
     _get_text_data,
     _get_text_format,
+    ensure_extension,
     get_colormap,
     init_points_layer,
 )
@@ -51,8 +48,6 @@ if ty.TYPE_CHECKING:
 class ImageRegistrationWindow(Window):
     """Image registration dialog."""
 
-    allow_drop = False
-
     view_fixed: NapariImageView
     view_moving: NapariImageView
     fixed_image_layer: list[Image] | None = None
@@ -61,6 +56,8 @@ class ImageRegistrationWindow(Window):
 
     # events
     evt_predicted = Signal()
+    evt_fixed_dropped = Signal("QEvent")
+    evt_moving_dropped = Signal("QEvent")
 
     def __init__(self, parent: QWidget | None):
         super().__init__(parent, f"image2image: Simple image registration tool (v{__version__})", delay_events=True)
@@ -132,6 +129,7 @@ class ImageRegistrationWindow(Window):
         connect(
             self._fixed_widget.evt_toggle_all_channels, partial(self.on_toggle_all_channels, which="fixed"), state=state
         )
+        connect(self._fixed_widget.evt_swap, self.on_swap, state=state)
         # imaging widget
         connect(self._moving_widget.dataset_dlg.evt_loading, partial(self.on_indicator, which="moving"), state=state)
         connect(self._moving_widget.dataset_dlg.evt_loaded, self.on_load_moving, state=state)
@@ -143,6 +141,7 @@ class ImageRegistrationWindow(Window):
             partial(self.on_toggle_all_channels, which="moving"),
             state=state,
         )
+        connect(self._moving_widget.evt_swap, self.on_swap, state=state)
         connect(self._moving_widget.evt_view_type, self.on_change_view_type, state=state)
         # views
         connect(
@@ -258,8 +257,8 @@ class ImageRegistrationWindow(Window):
         logger.info(f"Loaded moving data in {timer()}")
 
     def _plot_moving_layers(self, channel_list: list[str] | None = None) -> None:
-        CONFIG.view_type = ViewType(CONFIG.view_type)
-        is_overlay = CONFIG.view_type == ViewType.OVERLAY
+        READER_CONFIG.view_type = ViewType(READER_CONFIG.view_type)
+        is_overlay = READER_CONFIG.view_type == ViewType.OVERLAY
         wrapper = self.moving_model.wrapper
         if not wrapper:
             return
@@ -286,7 +285,7 @@ class ImageRegistrationWindow(Window):
                 )
             logger.trace(f"Added '{name}' to fixed view in {timer()}.")
         # hide away other layers if user selected 'random' view
-        if CONFIG.view_type == ViewType.RANDOM:
+        if READER_CONFIG.view_type == ViewType.RANDOM:
             for index, layer in enumerate(moving_image_layer):
                 if index > 0:
                     layer.visible = False
@@ -297,6 +296,15 @@ class ImageRegistrationWindow(Window):
         if self.moving_model.n_paths:
             self._plot_moving_layers()
             self.on_apply(update_data=True)
+
+    def on_swap(self, key: str, source: str) -> None:
+        """Swap fixed and moving images."""
+        # # swap image from 'fixed' to 'moving' or vice versa
+        # if source == "fixed":
+        #     wrapper = self.fixed_model.wrapper
+        #     if not wrapper:
+        #         return
+        #     wrapper = wrapper.pop
 
     def on_toggle_transformed_moving(self, value: str) -> None:
         """Toggle visibility of transformed moving image."""
@@ -338,13 +346,6 @@ class ImageRegistrationWindow(Window):
         layer = self.fixed_points_layer if which == "fixed" else self.moving_points_layer
         layer.mode = "pan_zoom"
 
-    def on_move(self, which: str, _evt: ty.Any = None) -> None:
-        """Move points."""
-        self._select_layer(which)
-        widget = self.fixed_move_btn if which == "fixed" else self.moving_move_btn
-        layer = self.fixed_points_layer if which == "fixed" else self.moving_points_layer
-        layer.mode = "select" if widget.isChecked() else "pan_zoom"
-
     def on_add(self, which: str, _evt: ty.Any = None) -> None:
         """Add point to the image."""
         self._select_layer(which)
@@ -353,6 +354,14 @@ class ImageRegistrationWindow(Window):
         layer = self.fixed_points_layer if which == "fixed" else self.moving_points_layer
         # make sure the 'add' mode is active
         layer.mode = "add" if widget.isChecked() else "pan_zoom"
+
+    def on_move(self, which: str, _evt: ty.Any = None) -> None:
+        """Move points."""
+        self._select_layer(which)
+        widget = self.fixed_move_btn if which == "fixed" else self.moving_move_btn
+        layer = self.fixed_points_layer if which == "fixed" else self.moving_points_layer
+        layer.mode = "select" if widget.isChecked() else "pan_zoom"
+        layer.selected_data = []
 
     def on_remove(self, which: str, _evt: ty.Any = None) -> None:
         """Remove point to the image."""
@@ -402,7 +411,7 @@ class ImageRegistrationWindow(Window):
         self._on_run()
 
     def _on_run(self) -> None:
-        from image2image.utils.utilities import compute_transform
+        from image2image.utils.transform import compute_transform
 
         if not self.fixed_points_layer or not self.moving_points_layer:
             return
@@ -466,12 +475,13 @@ class ImageRegistrationWindow(Window):
         )
         if path_:
             path = Path(path_)
+            path = ensure_extension(path, "i2r")
             CONFIG.output_dir = str(path.parent)
             transform.to_file(path)
             hp.toast(
                 self,
                 "Exported transformation",
-                f"Saved transformation to<br><b>{path}</b>",
+                f"Saved project to<br><b>{hp.hyper(path)}</b>",
                 icon="success",
                 position="top_left",
             )
@@ -617,7 +627,7 @@ class ImageRegistrationWindow(Window):
                 colormap=moving_image_layer.colormap,
                 opacity=CONFIG.opacity_moving / 100,
             )
-        self.transformed_moving_image_layer.visible = CONFIG.show_transformed
+        self.transformed_moving_image_layer.visible = READER_CONFIG.show_transformed
         self._move_layer(self.view_fixed, self.transformed_moving_image_layer, -1, False)
         self._select_layer("fixed")
 
@@ -722,6 +732,19 @@ class ImageRegistrationWindow(Window):
             f" zoom={self.zoom.value():.3f}"
         )
 
+    @qdebounced(timeout=50)
+    def on_toggle_transformed_visibility(self) -> None:
+        """Toggle visibility of transformed image."""
+        if self.transformed_moving_image_layer:
+            READER_CONFIG.show_transformed = not READER_CONFIG.show_transformed
+            self.transformed_moving_image_layer.visible = READER_CONFIG.show_transformed
+
+    @qdebounced(timeout=50)
+    def on_toggle_transformed_image(self) -> None:
+        """Toggle visibility of transformed image."""
+        if self.transformed_moving_image_layer:
+            self._moving_widget.toggle_transformed()
+
     def on_update_settings(self):
         """Update config."""
         CONFIG.sync_views = self.synchronize_zoom.isChecked()
@@ -757,8 +780,8 @@ class ImageRegistrationWindow(Window):
         """Create panel."""
         view_layout = self._make_image_layout()
 
-        self._fixed_widget = FixedWidget(self, self.view_fixed)
-        self._moving_widget = MovingWidget(self, self.view_moving)
+        self._fixed_widget = FixedWidget(self, self.view_fixed, allow_swap=False)
+        self._moving_widget = MovingWidget(self, self.view_moving, allow_swap=False)
 
         # self.transform_choice = hp.make_combobox(self, tooltip="Type of transformation to compute.")
         # hp.set_combobox_data(self.transform_choice, TRANSFORMATION_TRANSLATIONS, "Affine")
@@ -872,8 +895,12 @@ class ImageRegistrationWindow(Window):
         hp.make_menu_item(
             self, "Select moving channels...", menu=menu_tools, func=self._moving_widget._on_select_channels
         )
-        hp.make_menu_item(self, "Show fiducials table...", menu=menu_tools, func=self.on_show_fiducials)
-        hp.make_menu_item(self, "Show shortcuts...", menu=menu_tools, func=self.on_show_shortcuts)
+        hp.make_menu_item(
+            self, "Show fiducials table...", "Ctrl+F", menu=menu_tools, func=self.on_show_fiducials, icon="fiducial"
+        )
+        hp.make_menu_item(
+            self, "Show shortcuts...", "Ctrl+S", menu=menu_tools, func=self.on_show_shortcuts, icon="shortcut"
+        )
         menu_tools.addSeparator()
         hp.make_menu_item(self, "Show IPython console...", "Ctrl+T", menu=menu_tools, func=self.on_show_console)
 
@@ -991,7 +1018,7 @@ class ImageRegistrationWindow(Window):
         return view_layout
 
     def _make_fixed_view(self) -> QHBoxLayout:
-        self.view_fixed = self._make_image_view(self, add_toolbars=False)
+        self.view_fixed = self._make_image_view(self, add_toolbars=False, disable_new_layers=True)
         self.view_fixed.viewer.text_overlay.text = "Fixed"
         self.view_fixed.viewer.text_overlay.position = "top_left"
         self.view_fixed.viewer.text_overlay.font_size = 10
@@ -1056,7 +1083,7 @@ class ImageRegistrationWindow(Window):
         return layout
 
     def _make_moving_view(self) -> QHBoxLayout:
-        self.view_moving = self._make_image_view(self, add_toolbars=False)
+        self.view_moving = self._make_image_view(self, add_toolbars=False, disable_new_layers=True)
         self.view_moving.viewer.text_overlay.text = "Moving"
         self.view_moving.viewer.text_overlay.position = "top_left"
         self.view_moving.viewer.text_overlay.font_size = 10
@@ -1125,25 +1152,31 @@ class ImageRegistrationWindow(Window):
         if hasattr(evt, "native"):
             evt = evt.native
         key = evt.key()
-        if key == Qt.Key_Escape:  # type: ignore[attr-defined]
+        if key == Qt.Key.Key_Escape:
             evt.ignore()
-        elif key == Qt.Key_1:  # type: ignore[attr-defined]
+        elif key == Qt.Key.Key_1:
             self.on_mode("fixed", mode=Mode.PAN_ZOOM)
             self.on_mode("moving", mode=Mode.PAN_ZOOM)
             evt.ignore()
-        elif key == Qt.Key_2:  # type: ignore[attr-defined]
+        elif key == Qt.Key.Key_2:
             self.on_mode("fixed", mode=Mode.ADD)
             self.on_mode("moving", mode=Mode.ADD)
             evt.ignore()
-        elif key == Qt.Key_3:  # type: ignore[attr-defined]
+        elif key == Qt.Key.Key_3:
             self.on_mode("fixed", mode=Mode.SELECT)
             self.on_mode("moving", mode=Mode.SELECT)
             evt.ignore()
-        elif key == Qt.Key_Z:  # type: ignore[attr-defined]
+        elif key == Qt.Key.Key_Z:
             self.on_apply_focus()
             evt.ignore()
-        elif key == Qt.Key_L:  # type: ignore[attr-defined]
+        elif key == Qt.Key.Key_L:
             self.on_set_focus()
+            evt.ignore()
+        elif key == Qt.Key.Key_T:
+            self.on_toggle_transformed_image()  # type: ignore[call-arg]
+            evt.ignore()
+        elif key == Qt.Key.Key_V:
+            self.on_toggle_transformed_visibility()  # type: ignore[call-arg]
             evt.ignore()
         else:
             super().keyPressEvent(evt)
@@ -1153,10 +1186,8 @@ class ImageRegistrationWindow(Window):
         if (
             not force
             or not CONFIG.confirm_close_register
-            or ConfirmCloseDialog(
-                self,
-                "confirm_close_register",
-                self.on_save_to_project,
+            or QtConfirmCloseDialog(
+                self, "confirm_close_register", self.on_save_to_project, CONFIG
             ).exec_()  # type: ignore[attr-defined]
             == QDialog.DialogCode.Accepted
         ):
@@ -1169,10 +1200,8 @@ class ImageRegistrationWindow(Window):
             evt.spontaneous()
             and CONFIG.confirm_close_register
             and self.transform_model.is_valid()
-            and ConfirmCloseDialog(
-                self,
-                "confirm_close_register",
-                self.on_save_to_project,
+            and QtConfirmCloseDialog(
+                self, "confirm_close_register", self.on_save_to_project, CONFIG
             ).exec_()  # type: ignore[attr-defined]
             != QDialog.DialogCode.Accepted
         ):
@@ -1182,7 +1211,30 @@ class ImageRegistrationWindow(Window):
         if self._console:
             self._console.close()
         CONFIG.save()
+        READER_CONFIG.save()
         evt.accept()
+
+    def dropEvent(self, event):
+        """Override Qt method."""
+        from qtextra.widgets.qt_pick_option import QtPickOption
+
+        if self.allow_drop:
+            hp.update_property(self.centralWidget(), "drag", False)
+
+            dlg = QtPickOption(
+                self,
+                "Please select which view would you like to add the image(s) to?",
+                {"fixed": "Fixed image", "moving": "Moving image"},
+            )
+            which = None
+            if dlg.exec_() == QDialog.DialogCode.Accepted:  # type: ignore[attr-defined]
+                which = dlg.option
+            if which == "fixed":
+                self.evt_fixed_dropped.emit(event)
+            elif which == "moving":
+                self.evt_moving_dropped.emit(event)
+            else:
+                event.ignore()
 
 
 if __name__ == "__main__":  # pragma: no cover

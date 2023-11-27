@@ -3,6 +3,7 @@ import typing as ty
 from copy import deepcopy
 from pathlib import Path
 
+from koyo.timer import MeasureTimer
 from loguru import logger
 from qtextra import helpers as hp
 from qtextra.utils.table_config import TableConfig
@@ -144,7 +145,9 @@ class SelectTransformDialog(QtFramelessTool):
 
             # load data from config file
             try:
-                transform_data = TransformData.from_i2r(path_)
+                with MeasureTimer() as timer:
+                    transform_data = TransformData.from_i2r(path_, validate_paths=False)
+                logger.trace(f"Loaded transform data in {timer()}")
             except ValueError as e:
                 hp.warn(self, f"Failed to load transformation from {path_}\n{e}", "Failed to load transformation")
                 return
