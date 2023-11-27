@@ -55,7 +55,6 @@ def _make_analysis(path: str):
         + collect_data_files("numba")
         + collect_data_files("qtextra")
         + collect_data_files("napari")
-        + collect_data_files("napari_plot")
         + collect_data_files("xmlschema")
         + collect_data_files("ome_types")
         + collect_data_files("distributed")
@@ -133,14 +132,57 @@ def _make_exe(pyz: PYZ, analysis: Analysis, name: str):
 
 
 # main app / launcher
-image2image_analysis = _make_analysis("../../src/image2image/__main__.py")
-image2image_pyz = PYZ(image2image_analysis.pure)
-image2image_exe = _make_exe(image2image_pyz, image2image_analysis, "image2image")
+launcher_analysis = _make_analysis("../../src/image2image/__main__.py")
+launcher_exe = _make_exe(PYZ(launcher_analysis.pure), launcher_analysis, "image2image")
+# viewer app
+viewer_analysis = _make_analysis("../../src/image2image/__main_viewer__.py")
+viewer_exe = _make_exe(PYZ(viewer_analysis.pure), viewer_analysis, "image2viewer")
+# register app
+register_analysis = _make_analysis("../../src/image2image/__main_register__.py")
+register_exe = _make_exe(PYZ(register_analysis.pure), register_analysis, "image2register")
+# crop app
+crop_analysis = _make_analysis("../../src/image2image/__main_crop__.py")
+crop_exe = _make_exe(PYZ(crop_analysis.pure), crop_analysis, "image2crop")
+# convert app
+convert_analysis = _make_analysis("../../src/image2image/__main_convert.py")
+convert_exe = _make_exe(PYZ(convert_analysis.pure), convert_analysis, "czi2tiff")
+# fusion app
+fusion_analysis = _make_analysis("../../src/image2image/__main_fusion.py")
+fusion_exe = _make_exe(PYZ(fusion_analysis.pure), fusion_analysis, "image2fusion")
+
+# collect all
 image2image_coll = COLLECT(
-    image2image_exe,
-    image2image_analysis.binaries,
-    image2image_analysis.zipfiles,
-    image2image_analysis.datas,
+    # launcher
+    launcher_exe,
+    launcher_analysis.binaries,
+    launcher_analysis.zipfiles,
+    launcher_analysis.datas,
+    # viewer
+    viewer_exe,
+    viewer_analysis.binaries,
+    viewer_analysis.zipfiles,
+    viewer_analysis.datas,
+    # register
+    register_exe,
+    register_analysis.binaries,
+    register_analysis.zipfiles,
+    register_analysis.datas,
+    # crop
+    crop_exe,
+    crop_analysis.binaries,
+    crop_analysis.zipfiles,
+    crop_analysis.datas,
+    # convert
+    convert_exe,
+    convert_analysis.binaries,
+    convert_analysis.zipfiles,
+    convert_analysis.datas,
+    # fusion
+    fusion_exe,
+    fusion_analysis.binaries,
+    fusion_analysis.zipfiles,
+    fusion_analysis.datas,
+
     strip=False,
     debug="all",
     upx=True,

@@ -79,12 +79,12 @@ def run(
         from image2image.qt.dialog_export import ImageExportWindow
 
         dlg = ImageExportWindow(None)  # type: ignore[assignment]
-        dlg.setMinimumSize(600, 300)
+        dlg.setMinimumSize(600, 200)
     elif tool == "convert":
         from image2image.qt.dialog_convert import ImageConvertWindow
 
         dlg = ImageConvertWindow(None)  # type: ignore[assignment]
-        dlg.setMinimumSize(600, 300)
+        dlg.setMinimumSize(600, 200)
     else:
         raise ValueError("Launcher is not implemented yet.")
 
