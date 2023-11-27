@@ -242,26 +242,26 @@ class ImageExportWindow(Window):
         header.setSectionResizeMode(self.TABLE_CONFIG.key, QHeaderView.ResizeMode.Fixed)
         header.setSectionHidden(self.TABLE_CONFIG.key, True)
 
-        side_layout = hp.make_form_layout()
-        hp.style_form_layout(side_layout)
-        side_layout.addRow(self._image_widget)
-        side_layout.addRow(hp.make_h_line())
-        side_layout.addRow(self.table)
-        side_layout.addRow(hp.make_h_line(self))
-        side_layout.addRow(
-            hp.make_btn(
-                self,
-                "Set output directory...",
-                tooltip="Specify output directory for images...",
-                func=self.on_set_output_dir,
-            )
+        self.directory_btn = hp.make_btn(
+            self,
+            "Set output directory...",
+            tooltip="Specify output directory for images...",
+            func=self.on_set_output_dir,
         )
-        side_layout.addRow(self.output_dir_label)
 
         self.export_btn = hp.make_active_progress_btn(
             self, "Export to CSV", tooltip="Export to csv file...", func=self.on_export, cancel_func=self.on_cancel
         )
-        side_layout.addRow(self.export_btn)
+
+        side_layout = hp.make_v_layout()
+        side_layout.addWidget(self._image_widget)
+        side_layout.addWidget(hp.make_h_line())
+        side_layout.addWidget(self.table)
+        side_layout.addWidget(hp.make_h_line(self))
+        side_layout.addWidget(self.directory_btn)
+        side_layout.addWidget(self.output_dir_label)
+
+        side_layout.addWidget(self.export_btn)
 
         widget = QWidget()
         self.setCentralWidget(widget)

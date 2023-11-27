@@ -249,21 +249,12 @@ class ImageConvertWindow(Window):
         header.setSectionResizeMode(self.TABLE_CONFIG.key, QHeaderView.ResizeMode.Fixed)
         header.setSectionHidden(self.TABLE_CONFIG.key, True)
 
-        side_layout = hp.make_form_layout()
-        hp.style_form_layout(side_layout)
-        side_layout.addRow(self._image_widget)
-        side_layout.addRow(hp.make_h_line())
-        side_layout.addRow(self.table)
-        side_layout.addRow(hp.make_h_line(self))
-        side_layout.addRow(
-            hp.make_btn(
-                self,
-                "Set output directory...",
-                tooltip="Specify output directory for images...",
-                func=self.on_set_output_dir,
-            )
+        self.directory_btn = hp.make_btn(
+            self,
+            "Set output directory...",
+            tooltip="Specify output directory for images...",
+            func=self.on_set_output_dir,
         )
-        side_layout.addRow(self.output_dir_label)
 
         self.export_btn = hp.make_active_progress_btn(
             self,
@@ -272,7 +263,15 @@ class ImageConvertWindow(Window):
             func=self.on_convert,
             cancel_func=self.on_cancel,
         )
-        side_layout.addRow(self.export_btn)
+
+        side_layout = hp.make_v_layout()
+        side_layout.addWidget(self._image_widget)
+        side_layout.addWidget(hp.make_h_line())
+        side_layout.addWidget(self.table, stretch=True)
+        side_layout.addWidget(hp.make_h_line(self))
+        side_layout.addWidget(self.directory_btn)
+        side_layout.addWidget(self.output_dir_label)
+        side_layout.addWidget(self.export_btn)
 
         widget = QWidget()
         self.setCentralWidget(widget)
@@ -317,6 +316,12 @@ class ImageConvertWindow(Window):
 
     def _get_console_variables(self) -> dict:
         return {"data_model": self.data_model}
+
+    def on_show_tutorial(self) -> None:
+        """Quick tutorial."""
+        from image2image.qt._dialogs._tutorial import show_convert_tutorial
+
+        show_convert_tutorial(self)
 
     def closeEvent(self, evt):
         """Close."""

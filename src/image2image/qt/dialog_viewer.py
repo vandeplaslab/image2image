@@ -41,7 +41,6 @@ class ImageViewerWindow(Window):
 
     def setup_events(self, state: bool = True) -> None:
         """Setup events."""
-        # connect(self._fixed_widget.evt_loading, self.on_indicator, state=state)
         connect(self._image_widget.dataset_dlg.evt_loaded, self.on_load_image, state=state)
         connect(self._image_widget.dataset_dlg.evt_closed, self.on_close_image, state=state)
         connect(self._image_widget.dataset_dlg.evt_resolution, self.on_update_transform, state=state)
