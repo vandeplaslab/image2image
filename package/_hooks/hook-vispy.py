@@ -10,7 +10,7 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 # ------------------------------------------------------------------
 
-from PyInstaller.utils.hooks import collect_data_files, collect_submodules, collect_dynamic_libs
+from PyInstaller.utils.hooks import collect_data_files, collect_submodules
 from qtpy import PYQT5, PYSIDE2, PYSIDE6, PYQT6
 
 datas = collect_data_files("vispy")

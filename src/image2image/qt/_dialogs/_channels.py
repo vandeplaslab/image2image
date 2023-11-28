@@ -2,6 +2,7 @@
 import typing as ty
 from contextlib import contextmanager
 
+from koyo.system import IS_MAC, IS_PYINSTALLER
 from loguru import logger
 from napari.utils.events import Event
 from qtextra import helpers as hp
@@ -170,29 +171,33 @@ class OverlayChannelsDialog(QtFramelessTool):
         self.table.setup_model(
             self.TABLE_CONFIG.header, self.TABLE_CONFIG.no_sort_columns, self.TABLE_CONFIG.hidden_columns
         )
-        self.table_proxy = FilterProxyModel(self)
-        self.table_proxy.setSourceModel(self.table.model())
-        self.table.model().table_proxy = self.table_proxy
-        self.table.setModel(self.table_proxy)
+        if not IS_PYINSTALLER and not IS_MAC:
+            self.table_proxy = FilterProxyModel(self)
+            self.table_proxy.setSourceModel(self.table.model())
+            self.table.model().table_proxy = self.table_proxy
+            self.table.setModel(self.table_proxy)
 
-        self.filter_by_name = hp.make_line_edit(
-            self,
-            placeholder="Filter by channel name...",
-            func_changed=lambda text, col=self.TABLE_CONFIG.channel_name: self.table_proxy.setFilterByColumn(text, col),
-        )
-        self.filter_by_dataset = hp.make_line_edit(
-            self,
-            placeholder="Filter by dataset name...",
-            func_changed=lambda text, col=self.TABLE_CONFIG.dataset: self.table_proxy.setFilterByColumn(text, col),
-        )
+            self.filter_by_name = hp.make_line_edit(
+                self,
+                placeholder="Filter by channel name...",
+                func_changed=lambda text, col=self.TABLE_CONFIG.channel_name: self.table_proxy.setFilterByColumn(
+                    text, col
+                ),
+            )
+            self.filter_by_dataset = hp.make_line_edit(
+                self,
+                placeholder="Filter by dataset name...",
+                func_changed=lambda text, col=self.TABLE_CONFIG.dataset: self.table_proxy.setFilterByColumn(text, col),
+            )
 
         self.info = hp.make_label(self, "", enable_url=True, alignment=Qt.AlignmentFlag.AlignHCenter)
 
         layout = hp.make_form_layout(self)
         hp.style_form_layout(layout)
         layout.addRow(header_layout)
-        layout.addRow(hp.make_label(self, "Filter by channel name:"), self.filter_by_name)
-        layout.addRow(hp.make_label(self, "Filter by dataset name:"), self.filter_by_dataset)
+        if not IS_PYINSTALLER and not IS_MAC:
+            layout.addRow(hp.make_label(self, "Filter by channel name:"), self.filter_by_name)
+            layout.addRow(hp.make_label(self, "Filter by dataset name:"), self.filter_by_dataset)
         layout.addRow(self.table)
         layout.addRow(self.info)
         layout.addRow(

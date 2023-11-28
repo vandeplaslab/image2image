@@ -1,5 +1,6 @@
 """Sentry widget."""
 import os
+import sys
 
 from loguru import logger
 
@@ -34,12 +35,14 @@ from qtextra.dialogs.sentry import (  # noqa: E402
     install_error_monitor as _install_error_monitor,
 )
 
+IS_PYINSTALLER = getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS")
+
 
 def install_error_monitor() -> None:
     """Initialize the error monitor with sentry.io."""
     from image2image.config import CONFIG
 
-    _install_error_monitor(CONFIG)
+    _install_error_monitor(CONFIG, pyinstaller=IS_PYINSTALLER)
     logger.debug("Installed sentry error monitor.")
 
 
