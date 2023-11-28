@@ -12,7 +12,7 @@
 
 from PyInstaller.utils.hooks import collect_data_files, collect_submodules, collect_dynamic_libs
 
-datas = collect_data_files('itk')
+datas = collect_data_files('itk', include_py_files=True)
 hiddenimports = collect_submodules('itk')
 binaries = collect_dynamic_libs('itk', search_patterns=['*.dll', '*.dylib', 'lib*.so', "*.pyd"])
 
