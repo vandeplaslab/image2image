@@ -103,10 +103,10 @@ class Launcher(QtDialog):
     @staticmethod
     def on_export():
         """Open registration application."""
-        from image2image.qt.dialog_export import ImageExportWindow
+        from image2image.qt.dialog_fusion import ImageFusionWindow
 
         logger.debug("Opening export application.")
-        dlg = ImageExportWindow(None)
+        dlg = ImageFusionWindow(None)
         THEMES.set_theme_stylesheet(dlg)
         dlg.setMinimumSize(500, 500)
         dlg.show()

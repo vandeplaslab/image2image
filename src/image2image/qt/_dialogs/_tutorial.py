@@ -3,7 +3,7 @@ import typing as ty
 
 if ty.TYPE_CHECKING:
     from image2image.qt.dialog_convert import ImageConvertWindow
-    from image2image.qt.dialog_export import ImageExportWindow
+    from image2image.qt.dialog_fusion import ImageFusionWindow
     from image2image.qt.dialog_register import ImageRegistrationWindow
     from image2image.qt.dialog_viewer import ImageViewerWindow
 
@@ -45,7 +45,7 @@ def show_convert_tutorial(widget: "ImageConvertWindow") -> None:
                 position=Position.TOP,
             ),
             TutorialStep(
-                title="Configuration panel",
+                title="Cancel conversion",
                 message="You can always stop conversion process by clicking here. The task will be stopped once the"
                 " current step (e.g. scene) is finished.",
                 widget=widget.export_btn.cancel_btn,
@@ -69,7 +69,7 @@ def show_convert_tutorial(widget: "ImageConvertWindow") -> None:
     tut.show()
 
 
-def show_export_tutorial(widget: "ImageExportWindow") -> None:
+def show_fusion_tutorial(widget: "ImageFusionWindow") -> None:
     """Show tutorial."""
     from qtextra.widgets.qt_tutorial import Position, QtTutorial, TutorialStep
 
@@ -105,7 +105,7 @@ def show_export_tutorial(widget: "ImageExportWindow") -> None:
                 position=Position.TOP,
             ),
             TutorialStep(
-                title="Configuration panel",
+                title="Cancel conversion",
                 message="You can always stop conversion process by clicking here. The task should stop almost"
                 " immediately.",
                 widget=widget.export_btn.cancel_btn,
@@ -139,34 +139,82 @@ def show_register_tutorial(widget: "ImageRegistrationWindow") -> None:
             TutorialStep(
                 title="Welcome to image2register!",
                 message="We would like to show you around before you get started!<br>This app let's you generate"
-                " image registration information between e.g. microscopy and IMS data.",
+                " image registration information between e.g. microscopy and IMS data. This is done by computing affine"
+                " transformation based on fiducial markers in the <b>fixed</b> and <b>moving</b> images.",
                 widget=widget.view_fixed.widget,
                 position=Position.BOTTOM,
             ),
             TutorialStep(
-                title="List of images",
-                message="Here are all the images that will be converted to Fusion CSV format.",
-                widget=widget.table,
+                title="Fixed image canvas",
+                message="This is where the <b>fixed</b> (or target) images will be displayed.",
+                widget=widget.view_fixed.widget,
                 position=Position.BOTTOM,
             ),
             TutorialStep(
-                title="Output directory",
-                message="You can close the currently selected project by clicking here.",
-                widget=widget.directory_btn,
+                title="Moving image canvas",
+                message="This is where the <b>moving</b> images will be displayed.",
+                widget=widget.view_moving.widget,
                 position=Position.TOP,
             ),
             TutorialStep(
-                title="Convert to CSV",
-                message="Click here to start the conversion process.",
-                widget=widget.export_btn,
-                position=Position.TOP,
+                title="Open previous project",
+                message="If you've previously saved a project, you can open it here.",
+                widget=widget.import_project_btn,
+                position=Position.BOTTOM_RIGHT,
             ),
             TutorialStep(
-                title="Configuration panel",
-                message="You can always stop conversion process by clicking here. The task should stop almost"
-                " immediately.",
-                widget=widget.export_btn.cancel_btn,
-                position=Position.TOP_RIGHT,
+                title="Control what should be shown",
+                message="You can control what images should be loaded and  which image channels should be displayed.",
+                widget=widget._fixed_widget,
+                position=Position.LEFT_TOP,
+            ),
+            TutorialStep(
+                title="Add or remove image",
+                message="Add or remove images.",
+                widget=widget._fixed_widget.add_btn,
+                position=Position.LEFT_TOP,
+            ),
+            TutorialStep(
+                title="More options",
+                message="You can change the spatial pixel size or optionally extra ion images here.",
+                widget=widget._fixed_widget.more_btn,
+                position=Position.LEFT_TOP,
+            ),
+            TutorialStep(
+                title="Channel selection",
+                message="Control which image channels should be shown or hidden.",
+                widget=widget._fixed_widget.channel_btn,
+                position=Position.LEFT_TOP,
+            ),
+            TutorialStep(
+                title="View type",
+                message="You can control how the <b>moving</b> modality should be displayed. The <b>random</b> view is"
+                " a good starting point as it ensures that each pixel in an image is visible. The <b>overlay</b>"
+                " view will show the ion image.",
+                widget=widget._moving_widget.view_type_choice,
+                position=Position.LEFT_TOP,
+            ),
+            TutorialStep(
+                title="Overlay",
+                message="You can display <b>one</b> <b>moving</b> image on top of the <b>fixed</b> image. If you've"
+                " loaded multiple, you can select which one should be displayed.",
+                widget=widget._moving_widget.transformed_choice,
+                position=Position.LEFT_TOP,
+            ),
+            TutorialStep(
+                title="Show fiducials table",
+                message="You can show/hide the fiducials table by clicking here. This can be useful when you want to "
+                " revisit previous points (<b>double-click</b> on the row to zoom-in) to edit or remove it.",
+                widget=widget.fiducials_btn,
+                position=Position.LEFT_TOP,
+            ),
+            TutorialStep(
+                title="Save project",
+                message="You can save the current state of the registration (loaded images, fiducial markers,"
+                " transformations) and reload it in the future without all that faffing about! The transformation"
+                " data can also be used by e.g. <b>AutoIMS</b> or <b>image2viewer</b> app.",
+                widget=widget.export_project_btn,
+                position=Position.LEFT_TOP,
             ),
             TutorialStep(
                 title="Tutorial",
@@ -221,7 +269,7 @@ def show_viewer_tutorial(widget: "ImageViewerWindow") -> None:
             ),
             TutorialStep(
                 title="More options",
-                message="You can change the spatial pixel size or optionally extra ion images here.",
+                message="You can change the spatial pixel size or optionally extract ion images here.",
                 widget=widget._image_widget.more_btn,
                 position=Position.LEFT_TOP,
             ),
@@ -243,8 +291,8 @@ def show_viewer_tutorial(widget: "ImageViewerWindow") -> None:
             ),
             TutorialStep(
                 title="Generate masks",
-                message="If you are planning on doing supervised learning in <b>AutoIMS</b>, you can generate compatible"
-                " masks right within image2viewer!",
+                message="If you are planning on doing supervised learning in <b>AutoIMS</b>, you can generate"
+                " compatible masks right within image2viewer!",
                 widget=widget.export_mask_btn,
                 position=Position.LEFT_TOP,
             ),

@@ -76,15 +76,15 @@ def run(
         dlg = ImageCropWindow(None)  # type: ignore[assignment]
         dlg.setMinimumSize(1200, 800)
     elif tool == "fusion":
-        from image2image.qt.dialog_export import ImageExportWindow
+        from image2image.qt.dialog_fusion import ImageFusionWindow
 
-        dlg = ImageExportWindow(None)  # type: ignore[assignment]
-        dlg.setMinimumSize(600, 200)
+        dlg = ImageFusionWindow(None)  # type: ignore[assignment]
+        dlg.setMinimumSize(600, 400)
     elif tool == "convert":
         from image2image.qt.dialog_convert import ImageConvertWindow
 
         dlg = ImageConvertWindow(None)  # type: ignore[assignment]
-        dlg.setMinimumSize(600, 200)
+        dlg.setMinimumSize(600, 400)
     else:
         raise ValueError("Launcher is not implemented yet.")
 

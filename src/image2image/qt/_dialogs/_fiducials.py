@@ -134,8 +134,14 @@ class FiducialsDialog(QtFramelessTool):
         data = []
         for index, row in enumerate(array, start=1):
             data.append([True, str(index), *map(_str_fmt, row)])
+
+        # get the current selection
+        model_index = self.table.selectionModel().currentIndex()
+        # reset table data
         self.table.reset_data()
         self.table.add_data(data)
+        if model_index.isValid() and model_index.row() < self.table.n_rows:
+            self.table.scrollTo(model_index)
         self.points_data = array
 
     # noinspection PyAttributeOutsideInit

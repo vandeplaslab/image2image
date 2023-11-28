@@ -275,8 +275,8 @@ class MovingWidget(LoadWidget):
 
     def _on_update_view_type(self, value: str) -> None:
         """Update view type."""
-        READER_CONFIG.view_type = value  # type: ignore
-        self.evt_view_type.emit(value)  # noqa
+        READER_CONFIG.view_type = value.lower()  # type: ignore
+        self.evt_view_type.emit(value.lower())  # noqa
 
     def toggle_transformed(self) -> None:
         """Toggle visibility of transformed image."""

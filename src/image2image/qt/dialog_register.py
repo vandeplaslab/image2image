@@ -60,7 +60,7 @@ class ImageRegistrationWindow(Window):
     evt_moving_dropped = Signal("QEvent")
 
     def __init__(self, parent: QWidget | None):
-        super().__init__(parent, f"image2image: Simple image registration tool (v{__version__})", delay_events=True)
+        super().__init__(parent, f"image2register: Simple image registration tool (v{__version__})", delay_events=True)
         self.transform_model = Transformation(
             fixed_model=self.fixed_model,
             moving_model=self.moving_model,
@@ -780,33 +780,44 @@ class ImageRegistrationWindow(Window):
         """Create panel."""
         view_layout = self._make_image_layout()
 
+        side_widget = QWidget()
+        side_widget.setMaximumWidth(400)
+        self.import_project_btn = hp.make_btn(
+            side_widget,
+            "Import project",
+            tooltip="Import previously computed transformation.",
+            func=self.on_load_from_project,
+        )
+
         self._fixed_widget = FixedWidget(self, self.view_fixed, allow_swap=False)
         self._moving_widget = MovingWidget(self, self.view_moving, allow_swap=False)
 
-        # self.transform_choice = hp.make_combobox(self, tooltip="Type of transformation to compute.")
-        # hp.set_combobox_data(self.transform_choice, TRANSFORMATION_TRANSLATIONS, "Affine")
-        # self.transform_choice.currentTextChanged.connect(self.on_run)  # type: ignore[arg-type]
-
         self.transform_error = hp.make_label(
-            self,
+            side_widget,
             "<need more points>",
             bold=True,
             object_name="reg_error",
             tooltip="Error is estimated by computing the square root of the sum of squared errors. Value is <b>red</b>"
             " if the error is larger than half of the moving image resolution (off by half a pixel).",
         )
-        self.transform_info = hp.make_label(self, "")
+        self.transform_info = hp.make_label(side_widget, "")
 
-        side_layout = hp.make_form_layout()
-        hp.style_form_layout(side_layout)
-        side_layout.addRow(
-            hp.make_btn(
-                self,
-                "Import project",
-                tooltip="Import previously computed transformation.",
-                func=self.on_load_from_project,
-            )
+        self.fiducials_btn = hp.make_btn(
+            side_widget,
+            "Show fiducials table...",
+            tooltip="Show fiducial markers table where you can view and edit the markers",
+            func=self.on_show_fiducials,
         )
+        self.export_project_btn = hp.make_btn(
+            side_widget,
+            "Export to file...",
+            tooltip="Export transformation to file. XML format is usable by MATLAB fusion.",
+            func=self.on_save_to_project,
+        )
+
+        side_layout = hp.make_form_layout(side_widget)
+        hp.style_form_layout(side_layout)
+        side_layout.addRow(self.import_project_btn)
         side_layout.addRow(hp.make_h_line_with_text("or"))
         side_layout.addRow(self._fixed_widget)
         side_layout.addRow(hp.make_h_line_with_text("+"))
@@ -814,36 +825,22 @@ class ImageRegistrationWindow(Window):
         side_layout.addRow(hp.make_h_line_with_text("Area of interest"))
         side_layout.addRow(self._make_focus_layout())
         side_layout.addRow(hp.make_h_line_with_text("Transformation"))
-        # side_layout.addRow(hp.make_label(self, "Type of transformation"), self.transform_choice)
-        side_layout.addRow(hp.make_btn(self, "Compute transformation", func=self.on_run))
-        side_layout.addRow(
-            hp.make_btn(
-                self,
-                "Show fiducials table...",
-                tooltip="Show fiducial markers table where you can view and edit the markers",
-                func=self.on_show_fiducials,
-            )
-        )
-        side_layout.addRow(
-            hp.make_btn(
-                self,
-                "Export to file...",
-                tooltip="Export transformation to file. XML format is usable by MATLAB fusion.",
-                func=self.on_save_to_project,
-            )
-        )
+        side_layout.addRow(hp.make_btn(side_widget, "Compute transformation", func=self.on_run))
+        side_layout.addRow(self.fiducials_btn)
+        side_layout.addRow(self.export_project_btn)
         side_layout.addRow(hp.make_label(self, "Estimated error"), self.transform_error)
         side_layout.addRow(hp.make_label(self, "About transformation"), self.transform_info)
         side_layout.addRow(hp.make_spacer_widget())
         side_layout.addRow(hp.make_h_line_with_text("Settings"))
         side_layout.addRow(self._make_settings_layout())
 
-        widget = QWidget()  # noqa
-        self.setCentralWidget(widget)
         layout = QHBoxLayout()
         layout.addLayout(view_layout, stretch=True)
         layout.addWidget(hp.make_v_line())
-        layout.addLayout(side_layout)
+        layout.addWidget(side_widget)
+
+        widget = QWidget()  # noqa
+        self.setCentralWidget(widget)
         main_layout = QVBoxLayout(widget)
         main_layout.addLayout(layout, stretch=True)
 
@@ -1233,6 +1230,12 @@ class ImageRegistrationWindow(Window):
                 self.evt_moving_dropped.emit(event)
             else:
                 event.ignore()
+
+    def on_show_tutorial(self) -> None:
+        """Quick tutorial."""
+        from image2image.qt._dialogs._tutorial import show_register_tutorial
+
+        show_register_tutorial(self)
 
 
 if __name__ == "__main__":  # pragma: no cover

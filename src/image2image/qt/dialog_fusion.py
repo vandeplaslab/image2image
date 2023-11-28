@@ -25,7 +25,7 @@ if ty.TYPE_CHECKING:
     from image2image.models.data import DataModel
 
 
-class ImageExportWindow(Window):
+class ImageFusionWindow(Window):
     """Image viewer dialog."""
 
     _console = None
@@ -256,11 +256,10 @@ class ImageExportWindow(Window):
         side_layout = hp.make_v_layout()
         side_layout.addWidget(self._image_widget)
         side_layout.addWidget(hp.make_h_line())
-        side_layout.addWidget(self.table)
+        side_layout.addWidget(self.table, stretch=True)
         side_layout.addWidget(hp.make_h_line(self))
         side_layout.addWidget(self.directory_btn)
         side_layout.addWidget(self.output_dir_label)
-
         side_layout.addWidget(self.export_btn)
 
         widget = QWidget()
@@ -314,8 +313,14 @@ class ImageExportWindow(Window):
         CONFIG.save()
         READER_CONFIG.save()
 
+    def on_show_tutorial(self) -> None:
+        """Quick tutorial."""
+        from image2image.qt._dialogs._tutorial import show_fusion_tutorial
+
+        show_fusion_tutorial(self)
+
 
 if __name__ == "__main__":  # pragma: no cover
     from image2image.main import run
 
-    run(dev=True, tool="export", level=0)
+    run(dev=True, tool="fusion", level=0)
