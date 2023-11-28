@@ -26,49 +26,6 @@ time_start = time.time()
 block_cipher = None
 
 
-# def import_napari_resources():
-#     from napari._qt import qt_resources
-#     from napari.resources import ICON_PATH
-#     from napari.utils.misc import dir_hash
-#
-#     qt_resources._register_napari_resources()
-#     icon_hash = dir_hash(ICON_PATH)  # get hash of icons folder contents
-#     key = f"_qt_resources_{qtpy.API_NAME}_{qtpy.QT_VERSION}_{icon_hash}"
-#     key = key.replace(".", "_")
-#     return Path(qt_resources.__file__).parent / f"{key}.py"
-#
-#
-# def import_image2image_resources():
-#     from image2image import assets
-#     from image2image.assets import ICONS_PATH
-#     from image2image.utils.utilities import dir_hash
-#
-#     assets._register_image2image_resources()
-#
-#     icon_hash = dir_hash(ICONS_PATH)  # get hash of icons folder contents
-#     key = f"_qt_resources_{qtpy.API_NAME}_{qtpy.QT_VERSION}_{icon_hash}"
-#     key = key.replace(".", "_")
-#     return Path(assets.__file__).parent / f"{key}.py"
-
-
-# Get pyside2 rcc file
-# def get_pyside2_rcc():
-#     import PySide2
-#
-#     pyside_root = Path(PySide2.__file__).parent
-#
-#     if os.name == "nt":
-#         look_for = ("rcc.exe", "pyside2-rcc.exe")
-#     else:
-#         look_for = ("rcc", "pyside2-rcc")
-#
-#     for bin in look_for:
-#         if (pyside_root / bin).exists():
-#             path = str(pyside_root / bin)
-#             return path
-#     raise ValueError("Could not find PySide2-RCC file")
-
-
 def collect_pkg_data(package, include_py_files=False, subdir=None):
     # Accept only strings as packages.
     if type(package) is not str:
@@ -97,7 +54,6 @@ image2image_a = Analysis(
     + collect_data_files("numba")
     + collect_data_files("qtextra")
     + collect_data_files("napari")
-    + collect_data_files("napari_plot")
     + collect_data_files("xmlschema")
     + collect_data_files("ome_types")
     + collect_data_files("distributed")
@@ -157,9 +113,8 @@ image2image_a = Analysis(
     cipher=block_cipher,
 )
 
-image2image_pyz = PYZ(image2image_a.pure)
 image2image_exe = EXE(
-    image2image_pyz,
+    PYZ(image2image_a.pure),
     image2image_a.scripts,
     exclude_binaries=True,
     name="image2image",
