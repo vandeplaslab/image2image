@@ -53,8 +53,6 @@ fi
 if [[ $(uname -m) != "arm64" ]]
 then
   echo "----------------------------------------------------------"
-#  echo "Not running on Rosetta. Please activate rosetta beforehand"
-#  echo "Run: arch -x86_64 /bin/zsh"
   echo "Running on Rosetta. Please deactivate rosetta beforehand"
   echo "Run: arch -arm64 /bin/zsh"
   echo "----------------------------------------------------------"
@@ -67,7 +65,7 @@ start_dir=$PWD
 echo "Current directory: " $start_dir
 github_dir=$(realpath $start_dir/../../../)
 echo "GitHub directory: " $github_dir
-source_path=$(realpath $start_dir/../../venv_m1_package/bin/activate)
+source_path=$(realpath $start_dir/../../venv_package/bin/activate)
 echo "Source path: " $source_path
 
 # activate appropriate environment
@@ -102,22 +100,22 @@ then
     echo "Reinstalled image2image"
 
     # Re-install image2image
-    echo "Re-installing napari-plot..."
-    new_dir=$(realpath $github_dir/napari-plot)
+    echo "Re-installing image2image-reader..."
+    new_dir=$(realpath $github_dir/image2image-reader)
     cd $new_dir || exit 1
     pip install -U .
     cd $start_dir
-    echo "Reinstalled napari-plot"
+    echo "Reinstalled image2image-reader"
 
     # Re-install napari (latest)
     echo "Re-installing napari..."
-    pip install -U napari==0.4.17
+    pip install -U napari==0.4.18
     echo "Reinstalled napari"
 
-    # Re-install PySide2
-    echo "Re-installing PySide2..."
-    pip install -U PySide6
-    echo "Reinstalled PySide6"
+    # Re-install PySide6
+    echo "Re-installing PyQt6..."
+    pip install -U PyQt6
+    echo "Reinstalled PyQt6"
 
     # Re-install pyinstaller
     echo "Re-installing pyinstaller..."
@@ -128,6 +126,14 @@ fi
 if $update_i2i
 then
     # Re-install image2image
+    echo "Re-installing image2image-reader..."
+    new_dir=$(realpath $github_dir/image2image-reader)
+    cd $new_dir || exit 1
+    pip install -U .
+    cd $start_dir
+    echo "Reinstalled image2image-reader"
+
+    # Re-install image2image
     echo "Re-installing image2image..."
     new_dir=$(realpath $github_dir/image2image)
     cd $new_dir || exit 1
@@ -137,7 +143,7 @@ then
 fi
 
 # Get path
-filename="image2image.spec"
+filename="image2image_split.spec"
 
 
 # Build bundle

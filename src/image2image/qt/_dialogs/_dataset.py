@@ -125,7 +125,7 @@ class SelectChannelsToLoadDialog(QtDialog):
         """Connect events."""
         connect(self.table.evt_checked, self.on_select_channel, state=state)
 
-    def on_select_channel(self, _index: int, _state: bool) -> None:
+    def on_select_channel(self, _index: int, _state: bool | None) -> None:
         """Toggle channel."""
         self.channels = self.get_channels()
         hp.disable_widgets(self.ok_btn, disabled=len(self.channels) == 0)
