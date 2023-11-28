@@ -170,6 +170,7 @@ class SelectChannelsToLoadDialog(QtDialog):
         )
         self.table_proxy = FilterProxyModel(self)
         self.table_proxy.setSourceModel(self.table.model())
+        self.table.model().table_proxy = self.table_proxy
         self.table.setModel(self.table_proxy)
 
         self.warning_label = hp.make_label(
@@ -344,9 +345,9 @@ class SelectDataDialog(QtFramelessTool):
         .add("pixel size (um)", "resolution", "str", 0)
         .add("type", "type", "str", 0)
         .add("rotation", "rotation", "str", 0)
-        .add("flip", "flip", "str", 0)
-        .add("extract", "extract", "str", 0)
-        .add("swap", "swap", "str", 0)
+        .add("flip", "flip", "button", 0)
+        .add("extract", "extract", "button", 0)
+        .add("swap", "swap", "button", 0)
         .add("key", "key", "str", hidden=True, width=0)
     )
 
@@ -418,9 +419,9 @@ class SelectDataDialog(QtFramelessTool):
 
                     # get model information
                     index = self.table.rowCount()
-                    resolution = reader.resolution
 
                     self.table.insertRow(index)
+
                     # add name item
                     name_item = QTableWidgetItem(reader.name)
                     name_item.setFlags(name_item.flags() & ~Qt.ItemIsEditable)  # type: ignore[attr-defined]
@@ -434,7 +435,7 @@ class SelectDataDialog(QtFramelessTool):
                     self.table.setItem(index, self.TABLE_CONFIG.type, type_item)
 
                     # add resolution item
-                    res_item = QLineEdit(f"{resolution:.2f}")
+                    res_item = QLineEdit(f"{reader.resolution:.2f}")
                     res_item.setObjectName("table_cell")
                     res_item.setAlignment(Qt.AlignCenter)  # type: ignore[attr-defined]
                     res_item.setValidator(QDoubleValidator(0, 1000, 2))

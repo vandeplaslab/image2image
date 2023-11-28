@@ -38,7 +38,7 @@ class LoadWidget(QWidget):
 
     evt_project = Signal(str)
     evt_toggle_channel = Signal(str, bool)
-    evt_toggle_all_channels = Signal(bool)
+    evt_toggle_all_channels = Signal(bool, list)
     evt_swap = Signal(str, str)
 
     IS_FIXED: bool = True
@@ -99,15 +99,22 @@ class LoadWidget(QWidget):
         self.info_text.setVisible(self.INFO_VISIBLE)
         layout.addRow(self.info_text)  # noqa
         self.active_icon = QtActiveIcon()
+        self.add_btn = hp.make_qta_btn(
+            self,
+            "add",
+            func=self.on_select_dataset,
+            tooltip="Add image(s) to the viewer.",
+            properties={"standout": True},
+        )
+        self.more_btn = hp.make_btn(
+            self,
+            "More options...",
+            func=self.on_open_dataset_dialog,
+            tooltip="Open dialog to add/remove images or adjust pixel size.",
+        )
         layout.addRow(
             hp.make_h_layout(
-                hp.make_qta_btn(
-                    self,
-                    "add",
-                    func=self.on_select_dataset,
-                    tooltip="Add image(s) to the viewer.",
-                    properties={"standout": True},
-                ),
+                self.add_btn,
                 hp.make_qta_btn(
                     self,
                     "delete",
@@ -115,19 +122,15 @@ class LoadWidget(QWidget):
                     tooltip="Remove image(s) from the viewer.",
                     properties={"standout": True},
                 ),
-                hp.make_btn(
-                    self,
-                    "More options...",
-                    func=self.on_open_dataset_dialog,
-                    tooltip="Open dialog to add/remove images or adjust pixel size.",
-                ),
+                self.more_btn,
                 self.active_icon,
                 stretch_id=2,
                 spacing=2,
-            ),
+            )
         )
         if self.select_channels:
-            layout.addRow(hp.make_btn(self, "Select channels...", func=self._on_select_channels))
+            self.channel_btn = hp.make_btn(self, "Select channels...", func=self._on_select_channels)
+            layout.addRow(self.channel_btn)
         self.setLayout(layout)
         return layout
 
@@ -326,7 +329,8 @@ class LoadWithTransformWidget(LoadWidget):
     def _setup_ui(self) -> QFormLayout:
         """Setup UI."""
         layout = super()._setup_ui()
-        layout.addRow(hp.make_btn(self, "Select transformation...", func=self.on_open_transform_dialog))
+        self.transform_btn = hp.make_btn(self, "Select transformation...", func=self.on_open_transform_dialog)
+        layout.addRow(self.transform_btn)
         return layout
 
     def _on_select_channels(self) -> None:

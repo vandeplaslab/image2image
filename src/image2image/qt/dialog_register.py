@@ -221,7 +221,7 @@ class ImageRegistrationWindow(Window):
             return
         view.layers[name].visible = state
 
-    def on_toggle_all_channels(self, state: bool, which: str) -> None:
+    def on_toggle_all_channels(self, state: bool, channel_names: str | None, which: str) -> None:
         """Toggle channel."""
         view = self.view_fixed if which == "fixed" else self.view_moving
         for layer in view.layers:

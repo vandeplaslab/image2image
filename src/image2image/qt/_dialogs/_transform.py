@@ -161,7 +161,13 @@ class SelectTransformDialog(QtFramelessTool):
         self._title_label.setText("Transformation Selection")
 
         self.transform_choice = hp.make_combobox(self, ["Identity matrix"], func=self.on_show_transform)
-        self.add_btn = hp.make_qta_btn(self, "add", func=self.on_load_transform, normal=True)
+        self.add_btn = hp.make_qta_btn(
+            self,
+            "add",
+            func=self.on_load_transform,
+            normal=True,
+            tooltip="Load transformation data (e.g. from image2register)",
+        )
 
         self.transform_metadata = hp.make_label(self, "\n\n\n", wrap=True)
 
@@ -180,6 +186,16 @@ class SelectTransformDialog(QtFramelessTool):
         hp.style_form_layout(layout)
         layout.addRow(header_layout)
         layout.addRow(
+            hp.make_label(
+                self,
+                "Select transformation (affine matrix) to apply to the selected datasets.<br>You can load"
+                " transformation matrices from image2register.",
+                alignment=Qt.AlignmentFlag.AlignHCenter,
+                object_name="tip_label",
+                enable_url=True,
+            )
+        )
+        layout.addRow(
             hp.make_label(self, "Transformation name"),
             hp.make_h_layout(
                 self.transform_choice,
@@ -188,14 +204,14 @@ class SelectTransformDialog(QtFramelessTool):
             ),
         )
         layout.addRow(self.transform_metadata)
-        layout.addRow(hp.make_btn(self, "Apply to selected", func=self.on_apply_transform))
         layout.addRow(self.table)
+        layout.addRow(hp.make_btn(self, "Apply to selected", func=self.on_apply_transform))
         layout.addRow(
             hp.make_label(
                 self,
                 "<b>Tip.</b> Check/uncheck images to select where the current transformation matrix should be applied."
                 "<br><b>Tip.</b> You can quickly check/uncheck row by double-clicking on a row.",
-                alignment=Qt.AlignHCenter,  # type: ignore[attr-defined]
+                alignment=Qt.AlignmentFlag.AlignHCenter,
                 object_name="tip_label",
                 enable_url=True,
             )

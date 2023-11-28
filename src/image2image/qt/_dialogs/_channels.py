@@ -38,6 +38,7 @@ class OverlayChannelsDialog(QtFramelessTool):
         .add("", "check", "bool", 25, no_sort=True)
         .add("channel name", "channel_name", "str", 125)
         .add("dataset", "dataset", "str", 250)
+        .add("key", "key", "str", 0, hidden=True)
     )
 
     def __init__(
@@ -86,10 +87,7 @@ class OverlayChannelsDialog(QtFramelessTool):
             name = layer.name
             if " | " not in name:
                 return
-            channel_name, dataset = name.split(" | ")
-            row_id = self.table.get_row_id_for_values(
-                (self.TABLE_CONFIG.channel_name, channel_name), (self.TABLE_CONFIG.dataset, dataset)
-            )
+            row_id = self.table.get_row_id(self.TABLE_CONFIG.key, name)
             if row_id != -1:
                 self.table.set_value(self.TABLE_CONFIG.check, row_id, False)
 
@@ -99,10 +97,7 @@ class OverlayChannelsDialog(QtFramelessTool):
                 name = layer.name
                 if " | " not in name:
                     continue
-                channel_name, dataset = name.split(" | ")
-                row_id = self.table.get_row_id_for_values(
-                    (self.TABLE_CONFIG.channel_name, channel_name), (self.TABLE_CONFIG.dataset, dataset)
-                )
+                row_id = self.table.get_row_id(self.TABLE_CONFIG.key, name)
                 if row_id != -1:
                     self.table.set_value(self.TABLE_CONFIG.check, row_id, layer.visible)
 
@@ -113,7 +108,9 @@ class OverlayChannelsDialog(QtFramelessTool):
         parent: "LoadWidget" = self.parent()  # type: ignore[assignment]
         with self.view.layers.events.blocker(self.sync_layers):
             if index == -1:
-                parent.evt_toggle_all_channels.emit(state)  # noqa
+                checked = self.table.get_all_checked()
+                channel_names = [self.table.get_value(self.TABLE_CONFIG.key, index) for index in checked]
+                parent.evt_toggle_all_channels.emit(state, channel_names)  # noqa
             else:
                 channel_name = self.table.get_value(self.TABLE_CONFIG.channel_name, index)
                 dataset = self.table.get_value(self.TABLE_CONFIG.dataset, index)
@@ -140,7 +137,7 @@ class OverlayChannelsDialog(QtFramelessTool):
         if wrapper:
             for name in wrapper.channel_names():
                 channel_name, dataset = name.split(" | ")
-                data.append([False, channel_name, dataset])
+                data.append([False, channel_name, dataset, name])
         existing_data = self.table.get_data()
         if existing_data:
             for exist_row in existing_data:
@@ -175,6 +172,7 @@ class OverlayChannelsDialog(QtFramelessTool):
         )
         self.table_proxy = FilterProxyModel(self)
         self.table_proxy.setSourceModel(self.table.model())
+        self.table.model().table_proxy = self.table_proxy
         self.table.setModel(self.table_proxy)
 
         self.filter_by_name = hp.make_line_edit(

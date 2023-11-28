@@ -115,15 +115,24 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
         view_wrapper.layers[name].visible = state
 
     def _toggle_all_channels(
-        self, model: DataModel, view_wrapper: NapariImageView, state: bool, view_kind: str
+        self,
+        model: DataModel,
+        view_wrapper: NapariImageView,
+        state: bool,
+        view_kind: str,
+        channel_names: list[str] | None = None,
     ) -> None:
         wrapper = model.wrapper
         if not wrapper:
             for layer in view_wrapper.layers:
                 if isinstance(layer, (Image, Shapes)):
+                    if channel_names and layer.name not in channel_names:
+                        continue
                     layer.visible = state
         else:
             for name in wrapper.channel_names():
+                if channel_names and name not in channel_names:
+                    continue
                 if name not in view_wrapper.layers:
                     logger.warning(f"Layer '{name}' not found in the view.")
                     self.image_layer, self.shape_layer = self._plot_image_layers(

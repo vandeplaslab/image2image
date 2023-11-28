@@ -90,9 +90,9 @@ class ImageViewerWindow(Window):
         """Toggle channel."""
         self._toggle_channel(self.data_model, self.view, name, state, "view")
 
-    def on_toggle_all_channels(self, state: bool) -> None:
+    def on_toggle_all_channels(self, state: bool, channel_names: list[str] | None = None) -> None:
         """Toggle channel."""
-        self._toggle_all_channels(self.data_model, self.view, state, "view")
+        self._toggle_all_channels(self.data_model, self.view, state, "view", channel_names)
 
     def on_update_transform(self, key: str) -> None:
         """Update affine transformation."""
@@ -113,7 +113,14 @@ class ImageViewerWindow(Window):
         from image2image.qt._dialogs._scalebar import QtScaleBarControls
 
         dlg = QtScaleBarControls(self.view.viewer, self.view.widget)
-        dlg.show()
+        dlg.show_above_widget(self.scalebar_btn)
+
+    def on_show_save_figure(self) -> None:
+        """Show scale bar controls for the viewer."""
+        from image2image.qt._dialogs._screenshot import QtScreenshotDialog
+
+        dlg = QtScreenshotDialog(self.view, self)
+        dlg.show_above_widget(self.clipboard_btn)
 
     def on_load_from_project(self, _evt=None):
         """Load a previous project."""
@@ -202,31 +209,31 @@ class ImageViewerWindow(Window):
         )
         self._image_widget = LoadWithTransformWidget(self, self.view, allow_geojson=True)
 
+        self.import_project_btn = hp.make_btn(
+            self, "Import project...", tooltip="Load previous project", func=self.on_load_from_project
+        )
+        self.export_mask_btn = hp.make_btn(
+            self,
+            "Export GeoJSON as masks...",
+            tooltip="Export masks/regions in a AutoIMS compatible format",
+            func=self.on_save_masks,
+        )
+        self.export_project_btn = hp.make_btn(
+            self,
+            "Export project...",
+            tooltip="Export configuration to a project file. Information such as image path and transformation"
+            " information are saved.",
+            func=self.on_save_to_project,
+        )
+
         side_layout = hp.make_form_layout()
         hp.style_form_layout(side_layout)
-        side_layout.addRow(
-            hp.make_btn(self, "Import project...", tooltip="Load previous project", func=self.on_load_from_project)
-        )
+        side_layout.addRow(self.import_project_btn)
         side_layout.addRow(hp.make_h_line_with_text("or"))
         side_layout.addRow(self._image_widget)
         side_layout.addRow(hp.make_h_line_with_text("Export"))
-        side_layout.addRow(
-            hp.make_btn(
-                self,
-                "Export GeoJSON as masks...",
-                tooltip="Export masks/regions in a AutoIMS compatible format",
-                func=self.on_save_masks,
-            )
-        )
-        side_layout.addRow(
-            hp.make_btn(
-                self,
-                "Export project...",
-                tooltip="Export configuration to a project file. Information such as image path and transformation"
-                " information are saved.",
-                func=self.on_save_to_project,
-            )
-        )
+        side_layout.addRow(self.export_mask_btn)
+        side_layout.addRow(self.export_project_btn)
         side_layout.addRow(hp.make_h_line_with_text("Layer controls"))
         side_layout.addRow(self.view.widget.controls)
         side_layout.addRow(self.view.widget.layerButtons)
@@ -284,43 +291,43 @@ class ImageViewerWindow(Window):
         self.statusbar = QStatusBar()
         self.statusbar.setSizeGripEnabled(False)
 
-        self.statusbar.addPermanentWidget(
-            hp.make_qta_btn(
-                self,
-                "save",
-                tooltip="Save snapshot of the canvas to file.",
-                func=self.view.widget.on_save_figure,
-                small=True,
-            )
+        self.screenshot_btn = hp.make_qta_btn(
+            self,
+            "save",
+            tooltip="Save snapshot of the canvas to file. Right-click to show dialog with more options.",
+            func=self.view.widget.on_save_figure,
+            func_menu=self.on_show_save_figure,
+            small=True,
         )
-        self.statusbar.addPermanentWidget(
-            hp.make_qta_btn(
-                self,
-                "screenshot",
-                tooltip="Take a snapshot of the canvas and copy it into your clipboard.",
-                func=self.view.widget.clipboard,
-                small=True,
-            )
-        )
-        self.statusbar.addPermanentWidget(
-            hp.make_qta_btn(
-                self,
-                "ruler",
-                tooltip="Show scalebar.",
-                func=self.on_show_scalebar,
-                small=True,
-            )
-        )
+        self.statusbar.addPermanentWidget(self.screenshot_btn)
 
-        self.statusbar.addPermanentWidget(
-            hp.make_qta_btn(
-                self,
-                "feedback",
-                tooltip="Send feedback or suggestion.",
-                func=partial(send_feedback, parent=self),
-                small=True,
-            )
+        self.clipboard_btn = hp.make_qta_btn(
+            self,
+            "screenshot",
+            tooltip="Take a snapshot of the canvas and copy it into your clipboard. Right-click to show dialog with"
+            " more options.",
+            func=self.view.widget.clipboard,
+            func_menu=self.on_show_save_figure,
+            small=True,
         )
+        self.statusbar.addPermanentWidget(self.clipboard_btn)
+        self.scalebar_btn = hp.make_qta_btn(
+            self,
+            "ruler",
+            tooltip="Show scalebar.",
+            func=self.on_show_scalebar,
+            small=True,
+        )
+        self.statusbar.addPermanentWidget(self.scalebar_btn)
+
+        self.feedback_btn = hp.make_qta_btn(
+            self,
+            "feedback",
+            tooltip="Refresh task list ahead of schedule.",
+            func=partial(send_feedback, parent=self),
+            small=True,
+        )
+        self.statusbar.addPermanentWidget(self.feedback_btn)
 
         self.theme_btn = QtThemeButton(self)
         self.theme_btn.auto_connect()
@@ -438,6 +445,12 @@ class ImageViewerWindow(Window):
         CONFIG.save()
         CONFIG_READER.save()
         evt.accept()
+
+    def on_show_tutorial(self) -> None:
+        """Quick tutorial."""
+        from image2image.qt._dialogs._tutorial import show_viewer_tutorial
+
+        show_viewer_tutorial(self)
 
 
 if __name__ == "__main__":  # pragma: no cover
