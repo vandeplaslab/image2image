@@ -46,6 +46,8 @@ class ImageCropWindow(Window):
 
     def __init__(self, parent: QWidget | None = None):
         super().__init__(parent, f"image2crop: Crop and export microscopy data app (v{__version__})")
+        if CONFIG.first_time_crop:
+            hp.call_later(self, self.on_show_tutorial, 10_000)
 
     def setup_events(self, state: bool = True) -> None:
         """Setup events."""
@@ -484,12 +486,21 @@ class ImageCropWindow(Window):
             cancel_func=partial(self.on_cancel, which="crop"),
         )
 
+        self.import_project_btn = hp.make_btn(
+            self, "Import project...", tooltip="Load previous project", func=self.on_load_from_project
+        )
+        self.export_project_btn = hp.make_btn(
+            self,
+            "Export project...",
+            tooltip="Export configuration to a project file. Information such as image path and crop"
+            " information are saved. (This does not save the cropped image)",
+            func=self.on_save_to_project,
+        )
+
         side_layout = hp.make_form_layout()
         side_layout.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.ExpandingFieldsGrow)
         hp.style_form_layout(side_layout)
-        side_layout.addRow(
-            hp.make_btn(self, "Import project...", tooltip="Load previous project", func=self.on_load_from_project)
-        )
+        side_layout.addRow(self.import_project_btn)
         side_layout.addRow(hp.make_h_line_with_text("or"))
         side_layout.addRow(self._image_widget)
         side_layout.addRow(hp.make_h_line_with_text("Image crop position"))
@@ -498,15 +509,7 @@ class ImageCropWindow(Window):
         side_layout.addRow(hp.make_h_line_with_text("Export"))
         side_layout.addRow(self.preview_btn)
         side_layout.addRow(self.crop_btn)
-        side_layout.addRow(
-            hp.make_btn(
-                self,
-                "Export project...",
-                tooltip="Export configuration to a project file. Information such as image path and crop"
-                " information are saved. (This does not save the cropped image)",
-                func=self.on_save_to_project,
-            )
-        )
+        side_layout.addRow(self.export_project_btn)
         side_layout.addRow(hp.make_h_line_with_text("Layer controls"))
         side_layout.addRow(self.view.widget.controls)
         side_layout.addRow(self.view.widget.layerButtons)
@@ -617,6 +620,13 @@ class ImageCropWindow(Window):
         CONFIG.save()
         READER_CONFIG.save()
         evt.accept()
+
+    def on_show_tutorial(self) -> None:
+        """Quick tutorial."""
+        from image2image.qt._dialogs._tutorial import show_crop_tutorial
+
+        show_crop_tutorial(self)
+        CONFIG.first_time_crop = False
 
 
 def get_project_data(data_model: DataModel, left: int, right: int, top: int, bottom: int) -> dict:

@@ -1,6 +1,6 @@
 from PyInstaller.utils.hooks import collect_data_files
 
-datas = collect_data_files('numba')
+datas = collect_data_files("numba")
 hiddenimports = [
     "numba",
     "numba.core",

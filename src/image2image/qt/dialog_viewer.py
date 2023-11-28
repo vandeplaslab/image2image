@@ -38,6 +38,8 @@ class ImageViewerWindow(Window):
     def __init__(self, parent: QWidget | None):
         super().__init__(parent, f"image2viewer: Simple viewer app (v{__version__})")
         CONFIG_READER.view_type = "overlay"
+        if CONFIG.first_time_viewer:
+            hp.call_later(self, self.on_show_tutorial, 10_000)
 
     def setup_events(self, state: bool = True) -> None:
         """Setup events."""
@@ -451,6 +453,7 @@ class ImageViewerWindow(Window):
         from image2image.qt._dialogs._tutorial import show_viewer_tutorial
 
         show_viewer_tutorial(self)
+        CONFIG.first_time_viewer = False
 
 
 if __name__ == "__main__":  # pragma: no cover

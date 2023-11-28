@@ -4,6 +4,7 @@ from pathlib import Path
 
 import numpy as np
 from image2image_reader._reader import ImageWrapper, get_alternative_path, sanitize_path, sanitize_read_path
+from image2image_reader.readers._base_reader import BaseReader
 from koyo.timer import MeasureTimer
 from koyo.typing import PathLike
 from loguru import logger
@@ -12,7 +13,6 @@ from pydantic import Field, validator
 from image2image.models.base import BaseModel
 from image2image.models.transform import TransformData
 from image2image.models.utilities import _get_paths, _read_config_from_file
-from image2image_reader.readers._base_reader import BaseReader
 from image2image.utils.utilities import log_exception_or_error
 
 I2V_METADATA = ty.Tuple[ty.List[Path], ty.List[Path], ty.Dict[str, TransformData], ty.Dict[str, float]]

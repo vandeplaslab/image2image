@@ -67,6 +67,8 @@ class ImageRegistrationWindow(Window):
             fixed_points=self.fixed_points_layer.data,
             moving_points=self.moving_points_layer.data,
         )
+        if CONFIG.first_time_register:
+            hp.call_later(self, self.on_show_tutorial, 10_000)
 
     @property
     def transform(self) -> ProjectiveTransform | None:
@@ -1236,6 +1238,7 @@ class ImageRegistrationWindow(Window):
         from image2image.qt._dialogs._tutorial import show_register_tutorial
 
         show_register_tutorial(self)
+        CONFIG.first_time_register = False
 
 
 if __name__ == "__main__":  # pragma: no cover

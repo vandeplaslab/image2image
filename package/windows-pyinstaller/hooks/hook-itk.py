@@ -12,9 +12,9 @@
 
 from PyInstaller.utils.hooks import collect_data_files, collect_submodules, collect_dynamic_libs
 
-datas = collect_data_files('itk', include_py_files=True)
-hiddenimports = collect_submodules('itk')
-binaries = collect_dynamic_libs('itk', search_patterns=['*.dll', '*.dylib', 'lib*.so', "*.pyd"])
+datas = collect_data_files("itk", include_py_files=True)
+hiddenimports = collect_submodules("itk")
+binaries = collect_dynamic_libs("itk", search_patterns=["*.dll", "*.dylib", "lib*.so", "*.pyd"])
 
 # # This hook only works when ITK is pip installed. It
 # # does not work when using ITK directly from its build tree.

@@ -87,10 +87,10 @@ class Config(BaseConfig):
     )
 
     # Export-app parameters
-    first_time_export: bool = Field(
+    first_time_fusion: bool = Field(
         True, title="First time", description="First time running the export app.", in_app=True
     )
-    confirm_close_export: bool = Field(
+    confirm_close_fusion: bool = Field(
         True, title="Confirm close", description="Confirm close export app.", in_app=True
     )
 
@@ -100,6 +100,14 @@ class Config(BaseConfig):
     )
     confirm_close_viewer: bool = Field(
         True, title="Confirm close", description="Confirm close viewer app.", in_app=True
+    )
+
+    # Viewer-app parameters
+    first_time_convert: bool = Field(
+        True, title="First time", description="First time running the convert app.", in_app=True
+    )
+    confirm_close_convert: bool = Field(
+        True, title="Confirm close", description="Confirm close convert app.", in_app=True
     )
 
     # telemetry

@@ -10,8 +10,9 @@ from image2image_reader.config import CONFIG as READER_CONFIG
 from loguru import logger
 from qtextra.utils.table_config import TableConfig
 from qtextra.utils.utilities import connect
+from qtextra.widgets.qt_close_window import QtConfirmCloseDialog
 from qtpy.QtCore import Qt
-from qtpy.QtWidgets import QHeaderView, QMenuBar, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget
+from qtpy.QtWidgets import QDialog, QHeaderView, QMenuBar, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget
 from superqt import ensure_main_thread
 from superqt.utils import GeneratorWorker, create_worker
 
@@ -45,6 +46,8 @@ class ImageFusionWindow(Window):
         READER_CONFIG.auto_pyramid = False
         READER_CONFIG.init_pyramid = False
         READER_CONFIG.split_czi = False
+        if CONFIG.first_time_fusion:
+            hp.call_later(self, self.on_show_tutorial, 10_000)
 
     def setup_events(self, state: bool = True) -> None:
         """Setup events."""
@@ -306,18 +309,40 @@ class ImageFusionWindow(Window):
     def _get_console_variables(self) -> dict:
         return {"data_model": self.data_model}
 
+    def close(self, force=False):
+        """Override to handle closing app or just the window."""
+        if (
+            not force
+            or not CONFIG.confirm_close_fusion
+            or QtConfirmCloseDialog(self, "confirm_close_fusion", config=CONFIG).exec_()  # type: ignore[attr-defined]
+            == QDialog.DialogCode.Accepted
+        ):
+            return super().close()
+        return None
+
     def closeEvent(self, evt):
         """Close."""
+        if (
+            evt.spontaneous()
+            and CONFIG.confirm_close_fusion
+            and self.data_model.is_valid()
+            and QtConfirmCloseDialog(self, "confirm_close_fusion", config=CONFIG).exec_()  # type: ignore # type: ignore[attr-defined]
+            != QDialog.DialogCode.Accepted
+        ):
+            evt.ignore()
+            return
+
         if self._console:
             self._console.close()
         CONFIG.save()
-        READER_CONFIG.save()
+        evt.accept()
 
     def on_show_tutorial(self) -> None:
         """Quick tutorial."""
         from image2image.qt._dialogs._tutorial import show_fusion_tutorial
 
         show_fusion_tutorial(self)
+        CONFIG.first_time_fusion = False
 
 
 if __name__ == "__main__":  # pragma: no cover

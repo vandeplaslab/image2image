@@ -1,7 +1,7 @@
 """Assets."""
 from pathlib import Path
 
-from qtextra.assets import update_icon_mapping, update_icons, update_styles
+from qtextra.assets import update_icon_mapping, update_styles
 from qtextra.config.theme import THEMES, Theme
 from qtextra.utils.utilities import IS_MAC, get_module_path
 

@@ -14,7 +14,6 @@ from qtextra.widgets.qt_icon_label import QtActiveIcon
 from qtpy.QtCore import Qt, Signal  # type: ignore[attr-defined]
 from qtpy.QtWidgets import QFormLayout, QWidget
 
-from image2image.config import CONFIG
 from image2image.enums import VIEW_TYPE_TRANSLATIONS
 from image2image.models.data import DataModel
 from image2image.models.transform import TransformData, TransformModel
