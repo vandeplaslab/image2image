@@ -1,7 +1,6 @@
 """PyInstaller setup script."""
 import os
 from pathlib import Path
-import time
 from image2image.assets import ICON_ICO
 from PyInstaller.building.build_main import Analysis, PYZ, EXE, COLLECT, TOC, MERGE
 from PyInstaller.utils.hooks import (
@@ -22,7 +21,6 @@ import imagecodecs
 from koyo.timer import MeasureTimer
 
 
-time_start = time.time()
 block_cipher = None
 
 
@@ -48,7 +46,6 @@ def _make_analysis(path: str):
             "six",
             "psygnal",
             "psygnal._signal",
-            "pyside2",
             "qtpy",
             "freetype",
             "magicgui.backends._qtpy",
@@ -165,5 +162,4 @@ with MeasureTimer() as timer:
     print(f"BUNDLE took {timer.format(timer.elapsed_since_last())}")
 
 # Give information about build time
-time_end = time.time()
-print("Build image2image in {:.2f} seconds\n".format(time_end - time_start))
+print(f"Build image2image in {timer()}")

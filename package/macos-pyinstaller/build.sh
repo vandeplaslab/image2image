@@ -16,7 +16,7 @@ help=false
 while getopts uidnrh opt; do
   case $opt in
     u) update=true;;
-    i) update_i2i=$OPTARG;;
+    i) update_app=$OPTARG;;
     d) debug=true;;
     n) no_docs=true;;
     r) run=true;;
@@ -28,7 +28,7 @@ done
 
 echo "Building macOS pyinstaller package..."
 echo "update: $update"
-echo "update_i2i: $update_i2i"
+echo "update_app: $update_app"
 echo "debug: $debug"
 echo "no_docs: $no_docs"
 echo "run: $run"
@@ -39,9 +39,9 @@ shift "$(( OPTIND - 1 ))"
 
 if $help
 then
-  echo "Usage: ./build.sh [-update] [-update_i2i] [-debug] [-no_docs] [-run] [-help]"
+  echo "Usage: ./build.sh [-update] [-update_app] [-debug] [-no_docs] [-run] [-help]"
   echo "  -update: update the i2i package before building"
-  echo "  -update_i2i: update the i2i package to a specific commit before building"
+  echo "  -update_app: update the i2i package to a specific commit before building"
   echo "  -debug: build the package in debug mode"
   echo "  -no_docs: do not build the documentation"
   echo "  -run: run the package after building"
@@ -123,7 +123,7 @@ then
     echo "Reinstalled pyinstaller"
 fi
 
-if $update_i2i
+if $update_app
 then
     # Re-install image2image
     echo "Re-installing image2image-reader..."
