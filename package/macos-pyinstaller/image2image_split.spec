@@ -41,7 +41,6 @@ def _make_analysis(path: str):
         + collect_data_files("image2image")
         + collect_data_files("freetype")
         + collect_data_files("xmlschema")
-        # + collect_data_files("xsdata_pydantic_basemodel")
         + [(os.path.dirname(debugpy._vendored.__file__), "debugpy/_vendored")],
         hiddenimports=[]
         + [
@@ -54,8 +53,6 @@ def _make_analysis(path: str):
             "freetype",
             "magicgui.backends._qtpy",
             "imzy",
-            # "xsdata_pydantic_basemodel",
-            # "xsdata_pydantic_basemodel.hooks",
         ],
         hookspath=[
             "../_hooks",
