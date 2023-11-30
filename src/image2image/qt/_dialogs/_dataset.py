@@ -176,7 +176,7 @@ class SelectChannelsToLoadDialog(QtDialog):
             self.table.setModel(self.table_proxy)
             self.filter_by_name = hp.make_line_edit(
                 self,
-                placeholder="Filter by channel name...",
+                placeholder="Type in channel name...",
                 func_changed=lambda text, col=self.TABLE_CONFIG.channel_name_full: self.table_proxy.setFilterByColumn(
                     text, col
                 ),

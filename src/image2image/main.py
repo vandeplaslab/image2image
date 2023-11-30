@@ -16,6 +16,7 @@ def run(
     import warnings
 
     from image2image_reader.config import CONFIG as READER_CONFIG
+    from koyo.faulthandler import install_segfault_handler, maybe_submit_segfault
     from koyo.logging import set_loguru_log
     from qtextra.config import THEMES
     from qtextra.utils.context import _maybe_allow_interrupt
@@ -25,7 +26,6 @@ def run(
     from image2image.qt._sentry import install_error_monitor
     from image2image.qt.event_loop import get_app
     from image2image.utils._appdirs import USER_LOG_DIR
-    from image2image.utils.utilities import install_segfault_handler, maybe_submit_segfault
 
     log_path = USER_LOG_DIR / f"log_tool={tool}.txt"
     set_loguru_log(log_path, level=level, no_color=True, diagnose=True, catch=True, logger=logger)
@@ -52,8 +52,8 @@ def run(
 
     # install error monitor
     install_error_monitor()
-    maybe_submit_segfault()
-    install_segfault_handler()
+    maybe_submit_segfault(USER_LOG_DIR)
+    install_segfault_handler(USER_LOG_DIR)
 
     if tool == "launcher":
         from image2image.qt.launcher import Launcher

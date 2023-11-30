@@ -179,14 +179,14 @@ class OverlayChannelsDialog(QtFramelessTool):
 
             self.filter_by_name = hp.make_line_edit(
                 self,
-                placeholder="Filter by channel name...",
+                placeholder="Type in channel name...",
                 func_changed=lambda text, col=self.TABLE_CONFIG.channel_name: self.table_proxy.setFilterByColumn(
                     text, col
                 ),
             )
             self.filter_by_dataset = hp.make_line_edit(
                 self,
-                placeholder="Filter by dataset name...",
+                placeholder="Type in dataset name...",
                 func_changed=lambda text, col=self.TABLE_CONFIG.dataset: self.table_proxy.setFilterByColumn(text, col),
             )
 

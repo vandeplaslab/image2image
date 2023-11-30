@@ -3,7 +3,8 @@ import typing as ty
 from pathlib import Path
 
 import numpy as np
-from image2image_reader._reader import ImageWrapper, get_alternative_path, sanitize_path, sanitize_read_path
+from image2image_reader._reader import get_alternative_path, sanitize_path, sanitize_read_path
+from image2image_reader.wrapper import ImageWrapper
 from image2image_reader.readers._base_reader import BaseReader
 from koyo.timer import MeasureTimer
 from koyo.typing import PathLike
