@@ -268,7 +268,7 @@ class ImageRegistrationWindow(Window):
             channel_list = wrapper.channel_names()
 
         moving_image_layer = []
-        for index, (name, array) in enumerate(wrapper.channel_image_iter()):
+        for index, (name, array, _) in enumerate(wrapper.channel_image_for_channel_names_iter(channel_list)):
             logger.trace(f"Adding '{name}' to moving view...")
             with MeasureTimer() as timer:
                 colormap = get_colormap(index, self.view_moving.layers) if is_overlay else "turbo"
@@ -296,7 +296,8 @@ class ImageRegistrationWindow(Window):
     def on_change_view_type(self, _view_type: str) -> None:
         """Change view type."""
         if self.moving_model.n_paths:
-            self._plot_moving_layers()
+            channel_list = self._moving_widget.channel_dlg.channel_list()
+            self._plot_moving_layers(channel_list)
             self.on_apply(update_data=True)
 
     def on_swap(self, key: str, source: str) -> None:
@@ -382,14 +383,6 @@ class ImageRegistrationWindow(Window):
         if layer.data.shape[0] == 0:
             return
         layer.remove_selected()
-
-    def on_clear_all(self) -> None:
-        """Clear arr data."""
-        if hp.confirm(self, "Are you sure you want to remove <b>all</b> images and data points?"):
-            self.on_clear("fixed", force=True)
-            self.on_clear("moving", force=True)
-            self._moving_widget.dataset_dlg.on_close_dataset(force=True)
-            self._fixed_widget.dataset_dlg.on_close_dataset(force=True)
 
     def on_clear(self, which: str, force: bool = True) -> None:
         """Remove point to the image."""
@@ -876,14 +869,6 @@ class ImageRegistrationWindow(Window):
             menu=menu_file,
             func=self._moving_widget.on_select_dataset,
         )
-        menu_file.addSeparator()
-        hp.make_menu_item(
-            self,
-            "Clear all data...",
-            menu=menu_file,
-            func=self.on_clear_all,
-        )
-        menu_file.addSeparator()
         hp.make_menu_item(self, "Quit", menu=menu_file, func=self.close)
 
         # Tools menu

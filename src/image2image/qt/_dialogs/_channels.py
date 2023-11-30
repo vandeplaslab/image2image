@@ -102,6 +102,12 @@ class OverlayChannelsDialog(QtFramelessTool):
                 if row_id != -1:
                     self.table.set_value(self.TABLE_CONFIG.check, row_id, layer.visible)
 
+    def channel_list(self) -> list[str]:
+        """Return list of currently selected channels."""
+        checked = self.table.get_all_checked()
+        channel_names = [self.table.get_value(self.TABLE_CONFIG.key, index) for index in checked]
+        return channel_names
+
     def on_toggle_channel(self, index: int, state: bool) -> None:
         """Toggle channel."""
         if self._editing:
@@ -109,8 +115,7 @@ class OverlayChannelsDialog(QtFramelessTool):
         parent: "LoadWidget" = self.parent()  # type: ignore[assignment]
         with self.view.layers.events.blocker(self.sync_layers):
             if index == -1:
-                checked = self.table.get_all_checked()
-                channel_names = [self.table.get_value(self.TABLE_CONFIG.key, index) for index in checked]
+                channel_names = self.channel_list()
                 parent.evt_toggle_all_channels.emit(state, channel_names)  # noqa
             else:
                 channel_name = self.table.get_value(self.TABLE_CONFIG.channel_name, index)

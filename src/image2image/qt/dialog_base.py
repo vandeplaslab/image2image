@@ -156,7 +156,7 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
         if channel_list is None:
             channel_list = wrapper.channel_names()
         image_layer, shape_layer = [], []
-        for index, (name, array, reader) in enumerate(wrapper.channel_image_reader_iter()):
+        for index, (name, array, reader) in enumerate(wrapper.channel_image_for_channel_names_iter(channel_list)):
             if name not in channel_list:
                 continue
             logger.trace(f"Adding '{name}' to view...")
