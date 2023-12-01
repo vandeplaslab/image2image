@@ -1,4 +1,6 @@
 """Utilities."""
+from __future__ import annotations
+
 import random
 import typing as ty
 from functools import partial
@@ -9,7 +11,7 @@ from koyo.typing import PathLike
 from loguru import logger
 from napari._vispy.layers.points import VispyPointsLayer
 from napari._vispy.layers.shapes import VispyShapesLayer
-from napari.layers import Image, Points, Shapes
+from napari.layers import Image, Layer, Points, Shapes
 from napari.layers.points._points_mouse_bindings import select as _select
 from napari.layers.points.points import Mode as PointsMode
 from napari.utils.colormaps.colormap_utils import convert_vispy_colormap
@@ -41,55 +43,6 @@ def extract_extension(available_formats: str) -> list[str]:
             if row_.startswith("."):
                 res.append(row_.replace("(", "").replace(")", "").replace(" ", "").replace("*", ""))
     return list(set(res))
-
-
-def install_segfault_handler() -> None:
-    """Install segfault handler."""
-    import faulthandler
-
-    from image2image.utils._appdirs import USER_LOG_DIR
-
-    segfault_path = USER_LOG_DIR / "segfault.log"
-    segfault_file = open(segfault_path, "w+")
-    faulthandler.enable(segfault_file, all_threads=True)
-    logger.trace(f"Enabled fault handler - logging to '{segfault_path}'")
-
-
-# noinspection PyBroadException
-def maybe_submit_segfault() -> None:
-    """Submit segfault to Sentry if there is an existing segfault file."""
-    from datetime import datetime
-
-    from image2image.utils._appdirs import USER_LOG_DIR
-
-    segfault_path = USER_LOG_DIR / "segfault.log"
-    if not segfault_path.exists():
-        return
-
-    try:
-        # read segfault data
-        segfault_text = segfault_path.read_text()
-        if not segfault_text:
-            return
-
-        logger.error("There was a segmentation fault previously - submitting to Sentry if it's available.")
-
-        # create backup of the segfault file
-        segfault_backup_path = USER_LOG_DIR / f"segfault_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
-        segfault_path.rename(segfault_backup_path)
-
-        # submit to Sentry
-        submit_sentry_attachment("Segfault detected", segfault_backup_path)
-    except Exception:
-        logger.exception("Failed to submit segfault to Sentry.")
-
-
-def submit_sentry_attachment(message: str, path: PathLike):
-    """Submit attachment to Sentry."""
-    from sentry_sdk import capture_message, configure_scope
-
-    configure_scope(lambda scope: scope.add_attachment(path=str(path)))
-    capture_message(message)
 
 
 def log_exception_or_error(exc_or_error: Exception) -> None:
@@ -126,7 +79,7 @@ def is_debug() -> bool:
     return os.environ.get("IMAGE2IMAGE_DEV_MODE", "0") == "1"
 
 
-def log_exception(message_or_error: ty.Union[str, Exception]) -> None:
+def log_exception(message_or_error: str | Exception) -> None:
     """Log exception message. If in 'DEBUG mode' raise exception."""
     if is_debug():
         logger.exception(message_or_error)
@@ -166,7 +119,7 @@ def get_random_hex_color() -> str:
     return "#%06x" % random.randint(0, 0xFFFFFF)
 
 
-def get_used_colormaps(layer_list) -> ty.List[str]:
+def get_used_colormaps(layer_list: list[Layer]) -> list[str]:
     """Return list of used colormaps based on their name."""
     used = []
     for layer in layer_list:
@@ -178,7 +131,7 @@ def get_used_colormaps(layer_list) -> ty.List[str]:
     return used
 
 
-def get_colormap(index: int, layer_list):
+def get_colormap(index: int, layer_list) -> VispyColormap | str:
     """Get colormap that has not been used yet."""
     used = get_used_colormaps(layer_list)
     if index < len(PREFERRED_COLORMAPS):
@@ -191,14 +144,30 @@ def get_colormap(index: int, layer_list):
     return vispy_colormap(get_random_hex_color())
 
 
-def vispy_colormap(color) -> VispyColormap:
+def get_contrast_limits(array: list[np.ndarray]) -> tuple[tuple[float, float] | None, tuple[float, float] | None]:
+    """Estimate contrast limits."""
+    array_ = array[0]
+    if 1e5 > array_.size > 1e7:
+        array_ = array_[::20, ::20]
+    elif array_.size > 1e7:
+        array_ = array_[::50, ::50]
+    if array_.dtype == np.uint8:
+        return (0, 255), (0, 255)
+    elif array_.dtype == np.uint16:
+        return (np.percentile(array_, 0.5), np.percentile(array_, 99.5)), (0, 65535)
+    elif array_.dtype == np.float32:
+        return (np.percentile(array_, 0.5), np.percentile(array_, 99.5)), (0, array_.max())
+    return None, None
+
+
+def vispy_colormap(color: str | np.ndarray) -> VispyColormap:
     """Return vispy colormap."""
     return convert_vispy_colormap(
         VispyColormap([np.asarray([0.0, 0.0, 0.0, 1.0]), transform_color(color)[0]]), name=str(color)
     )
 
 
-def sanitize_path(path: PathLike) -> ty.Optional[Path]:
+def sanitize_path(path: PathLike) -> Path | None:
     """Sanitize path."""
     if path is None:
         return None
@@ -242,7 +211,7 @@ def init_shapes_layer(layer: Shapes, visual: VispyShapesLayer) -> None:
     layer._highlight_color = (1.0, 0.0, 0.0, 0.7)
 
 
-def _get_text_format() -> ty.Dict[str, ty.Any]:
+def _get_text_format() -> dict[str, ty.Any]:
     return {
         "text": "{name}",
         "color": CONFIG.label_color,
@@ -251,7 +220,7 @@ def _get_text_format() -> ty.Dict[str, ty.Any]:
     }
 
 
-def _get_text_data(data: np.ndarray) -> ty.Dict[str, ty.List[str]]:
+def _get_text_data(data: np.ndarray) -> dict[str, list[str]]:
     """Get data."""
     n_pts = data.shape[0]
     return {"name": [str(i + 1) for i in range(n_pts)]}

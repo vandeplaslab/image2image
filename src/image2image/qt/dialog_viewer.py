@@ -6,7 +6,7 @@ from functools import partial
 from pathlib import Path
 
 import qtextra.helpers as hp
-from image2image_reader.config import CONFIG as CONFIG_READER
+from image2image_reader.config import CONFIG as READER_CONFIG
 from koyo.timer import MeasureTimer
 from loguru import logger
 from napari.layers import Image, Shapes
@@ -37,7 +37,7 @@ class ImageViewerWindow(Window):
 
     def __init__(self, parent: QWidget | None):
         super().__init__(parent, f"image2viewer: Simple viewer app (v{__version__})")
-        CONFIG_READER.view_type = "overlay"
+        READER_CONFIG.view_type = "overlay"
         if CONFIG.first_time_viewer:
             hp.call_later(self, self.on_show_tutorial, 10_000)
 
@@ -445,7 +445,7 @@ class ImageViewerWindow(Window):
         if self._console:
             self._console.close()
         CONFIG.save()
-        CONFIG_READER.save()
+        READER_CONFIG.save()
         evt.accept()
 
     def on_show_tutorial(self) -> None:

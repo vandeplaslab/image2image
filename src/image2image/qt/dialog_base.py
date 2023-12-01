@@ -20,7 +20,7 @@ from superqt.utils import create_worker, ensure_main_thread
 from image2image.config import CONFIG
 from image2image.models.data import DataModel
 from image2image.qt._dialogs._update import check_version
-from image2image.utils.utilities import get_colormap, log_exception_or_error
+from image2image.utils.utilities import get_colormap, get_contrast_limits, log_exception_or_error
 
 if ty.TYPE_CHECKING:
     from qtextra._napari.image.wrapper import NapariImageView
@@ -180,6 +180,7 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
                         view_wrapper.viewer.add_shapes(**reader.to_shapes_kwargs(name=name, affine=current_affine))
                     )
                 else:
+                    contrast_limits, contrast_limits_range = get_contrast_limits(array)
                     image_layer.append(
                         view_wrapper.viewer.add_image(
                             array,
@@ -189,8 +190,10 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
                             visible=name in channel_list,
                             affine=current_affine,
                             scale=current_scale,
+                            contrast_limits=contrast_limits,
                         )
                     )
+                    image_layer[-1].contrast_limits_range = contrast_limits_range
                 logger.trace(f"Added '{name}' to {view_kind} in {timer()}.")
         return image_layer, shape_layer
 
