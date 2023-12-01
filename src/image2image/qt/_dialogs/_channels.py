@@ -182,17 +182,17 @@ class OverlayChannelsDialog(QtFramelessTool):
             self.table.model().table_proxy = self.table_proxy
             self.table.setModel(self.table_proxy)
 
+            self.filter_by_dataset = hp.make_line_edit(
+                self,
+                placeholder="Type in dataset name...",
+                func_changed=lambda text, col=self.TABLE_CONFIG.dataset: self.table_proxy.setFilterByColumn(text, col),
+            )
             self.filter_by_name = hp.make_line_edit(
                 self,
                 placeholder="Type in channel name...",
                 func_changed=lambda text, col=self.TABLE_CONFIG.channel_name: self.table_proxy.setFilterByColumn(
                     text, col
                 ),
-            )
-            self.filter_by_dataset = hp.make_line_edit(
-                self,
-                placeholder="Type in dataset name...",
-                func_changed=lambda text, col=self.TABLE_CONFIG.dataset: self.table_proxy.setFilterByColumn(text, col),
             )
 
         self.info = hp.make_label(self, "", enable_url=True, alignment=Qt.AlignmentFlag.AlignHCenter)
@@ -201,8 +201,8 @@ class OverlayChannelsDialog(QtFramelessTool):
         hp.style_form_layout(layout)
         layout.addRow(header_layout)
         if not IS_PYINSTALLER and not IS_MAC:
-            layout.addRow(hp.make_label(self, "Filter by channel name:"), self.filter_by_name)
             layout.addRow(hp.make_label(self, "Filter by dataset name:"), self.filter_by_dataset)
+            layout.addRow(hp.make_label(self, "Filter by channel name:"), self.filter_by_name)
         layout.addRow(self.table)
         layout.addRow(self.info)
         layout.addRow(

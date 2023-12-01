@@ -178,6 +178,7 @@ class ImageConvertWindow(Window):
             if value not in ["Exported!", "Ready!"]:
                 item = self.table.item(row, self.TABLE_CONFIG.progress)
                 item.setText("Aborted!")
+                logger.trace("Aborted export process.")
 
     @ensure_main_thread()
     def _on_export_yield(self, args: tuple[str, int, int, int, int]) -> None:

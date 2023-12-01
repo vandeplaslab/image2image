@@ -6,6 +6,7 @@ import typing as ty
 from functools import partial
 from pathlib import Path
 
+import dask
 import numpy as np
 from koyo.typing import PathLike
 from loguru import logger
@@ -146,18 +147,29 @@ def get_colormap(index: int, layer_list) -> VispyColormap | str:
 
 def get_contrast_limits(array: list[np.ndarray]) -> tuple[tuple[float, float] | None, tuple[float, float] | None]:
     """Estimate contrast limits."""
-    array_ = array[0]
-    if 1e5 > array_.size > 1e7:
-        array_ = array_[::20, ::20]
-    elif array_.size > 1e7:
+    from napari.layers.utils.layer_utils import calc_data_range
+
+    if len(array) == 0:
+        return None, None
+    elif len(array) == 1:
+        array_ = array[0]
+    else:
+        mid = len(array) // 2
+        array_ = array[mid]
+
+    data_range, max_range = None, None
+    if 1e5 > array_.size < 1e7:
         array_ = array_[::50, ::50]
+    elif array_.size > 1e7:
+        array_ = array_[::100, ::100]
     if array_.dtype == np.uint8:
-        return (0, 255), (0, 255)
-    elif array_.dtype == np.uint16:
-        return (np.percentile(array_, 0.5), np.percentile(array_, 99.5)), (0, 65535)
-    elif array_.dtype == np.float32:
-        return (np.percentile(array_, 0.5), np.percentile(array_, 99.5)), (0, array_.max())
-    return None, None
+        data_range = max_range = (0, 255)
+    elif array_.dtype in [np.int16, np.int32, np.uint16]:
+        max_range = np.iinfo(array_.dtype).min, np.iinfo(array_.dtype).max
+
+    if data_range is None:
+        data_range = calc_data_range(array_)
+    return data_range, max_range
 
 
 def vispy_colormap(color: str | np.ndarray) -> VispyColormap:

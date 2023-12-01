@@ -343,14 +343,13 @@ class SelectDataDialog(QtFramelessTool):
 
     TABLE_CONFIG = (
         TableConfig()  # type: ignore
-        .add("name", "name", "str", 0)
+        .add("name", "key", "str", 0)
         .add("pixel size (um)", "resolution", "str", 0)
         .add("type", "type", "str", 0)
         .add("rotation", "rotation", "str", 0)
         .add("flip", "flip", "button", 0)
         .add("extract", "extract", "button", 0)
         .add("swap", "swap", "button", 0)
-        .add("key", "key", "str", hidden=True, width=0)
     )
 
     def __init__(
@@ -381,27 +380,6 @@ class SelectDataDialog(QtFramelessTool):
         self.setMinimumHeight(400)
         self.on_populate_table()
 
-    def on_remove(self, name: str, path: str) -> None:
-        """Remove path."""
-        row = None
-        for row in range(self.table.rowCount()):
-            item = self.table.item(row, self.TABLE_CONFIG.name)
-            if item.text() == name:
-                break
-
-        if row is None:
-            logger.warning("Could not find row to remove.")
-            return
-        if not hp.confirm(self, f"Are  you sure you wish to remove <b>{name}</b>?", title="Remove?"):
-            return
-
-        # remove from table
-        self.table.removeRow(row)
-
-        # remove from the model
-        self.model.remove_paths(Path(path))
-        self.evt_closed.emit(self.model)  # noqa
-
     def _clear_table(self) -> None:
         """Remove all rows."""
         with self._editing_table():
@@ -421,14 +399,13 @@ class SelectDataDialog(QtFramelessTool):
 
                     # get model information
                     index = self.table.rowCount()
-
                     self.table.insertRow(index)
 
                     # add name item
-                    name_item = QTableWidgetItem(reader.name)
+                    name_item = QTableWidgetItem(reader.key)
                     name_item.setFlags(name_item.flags() & ~Qt.ItemIsEditable)  # type: ignore[attr-defined]
                     name_item.setTextAlignment(Qt.AlignCenter)  # type: ignore[attr-defined]
-                    self.table.setItem(index, self.TABLE_CONFIG.name, name_item)
+                    self.table.setItem(index, self.TABLE_CONFIG.key, name_item)
 
                     # add type item
                     type_item = QTableWidgetItem(reader.reader_type)
@@ -465,12 +442,6 @@ class SelectDataDialog(QtFramelessTool):
                         self.TABLE_CONFIG.swap,
                         hp.make_qta_btn(self, "swap", normal=True, func=partial(self.on_swap, key=reader.key)),
                     )
-
-                    # add secret key
-                    name_item = QTableWidgetItem(reader.key)
-                    name_item.setFlags(name_item.flags() & ~Qt.ItemIsEditable)  # type: ignore[attr-defined]
-                    name_item.setTextAlignment(Qt.AlignCenter)  # type: ignore[attr-defined]
-                    self.table.setItem(index, self.TABLE_CONFIG.key, name_item)
 
     @property
     def available_formats_filter(self) -> str:
@@ -521,9 +492,9 @@ class SelectDataDialog(QtFramelessTool):
                 f"Are you sure you wish to swap this image from <b>{source}</b> to <b>{target}</b>?",
                 title="Swap?",
             ):
-                logger.trace(f"User cancelled swap of '{reader.name}'")
+                logger.trace(f"User cancelled swap of '{reader.key}'")
                 return
-            logger.trace(f"Swapping '{reader.name}' from '{source}' to '{target}'")
+            logger.trace(f"Swapping '{reader.key}' from '{source}' to '{target}'")
             self.evt_swap.emit(key, source)
 
     def on_resolution(self, item: QTableWidgetItem, key: str) -> None:
@@ -543,7 +514,7 @@ class SelectDataDialog(QtFramelessTool):
         if reader:
             reader.resolution = value
             self.evt_resolution.emit(reader.key)
-            logger.trace(f"Updated pixel size of '{reader.name}' to {value:.2f}.")
+            logger.trace(f"Updated pixel size of '{reader.key}' to {value:.2f}.")
 
     def on_drop(self, event: QDropEvent) -> None:
         """Handle drop event."""
@@ -689,14 +660,14 @@ class SelectDataDialog(QtFramelessTool):
         """Make panel."""
         _, header_layout = self._make_hide_handle()
         self._title_label.setText("Images")
-        column_names = ["name", "pixel size (μm)", "type", "rotation", "flip", "extract", "swap", "key"]
+        column_names = ["name", "pixel size (μm)", "type", "rotation", "flip", "extract", "swap"]
         self.table = QTableWidget(self)
         self.table.setColumnCount(len(column_names))  # name, resolution, layer type, extract, key
         self.table.setHorizontalHeaderLabels(column_names)
         self.table.setCornerButtonEnabled(False)
 
         header = self.table.horizontalHeader()
-        header.setSectionResizeMode(self.TABLE_CONFIG.name, QHeaderView.Stretch)  # type: ignore[attr-defined]
+        header.setSectionResizeMode(self.TABLE_CONFIG.key, QHeaderView.Stretch)  # type: ignore[attr-defined]
         header.setSectionResizeMode(
             self.TABLE_CONFIG.resolution,
             QHeaderView.ResizeToContents,  # type: ignore[attr-defined]
@@ -724,7 +695,6 @@ class SelectDataDialog(QtFramelessTool):
             self.TABLE_CONFIG.extract,
             QHeaderView.ResizeToContents,  # type: ignore[attr-defined]
         )
-        header.setSectionHidden(self.TABLE_CONFIG.key, True)
 
         layout = hp.make_form_layout()
         hp.style_form_layout(layout)

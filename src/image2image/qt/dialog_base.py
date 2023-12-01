@@ -193,7 +193,8 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
                             contrast_limits=contrast_limits,
                         )
                     )
-                    image_layer[-1].contrast_limits_range = contrast_limits_range
+                    if contrast_limits_range:
+                        image_layer[-1].contrast_limits_range = contrast_limits_range
                 logger.trace(f"Added '{name}' to {view_kind} in {timer()}.")
         return image_layer, shape_layer
 
