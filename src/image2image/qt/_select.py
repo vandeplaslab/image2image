@@ -55,6 +55,7 @@ class LoadWidget(QWidget):
         available_formats: str | None = None,
         allow_flip_rotation: bool = False,
         allow_swap: bool = False,
+        project_extension: list[str] | None = None,
     ):
         """Init."""
         self.allow_geojson = allow_geojson
@@ -73,6 +74,7 @@ class LoadWidget(QWidget):
             available_formats=available_formats,
             allow_flip_rotation=allow_flip_rotation,
             allow_swap=allow_swap,
+            project_extension=project_extension,
         )
 
         self.channel_dlg = OverlayChannelsDialog(self, self.model, self.view, self.CHANNEL_FIXED) if self.view else None

@@ -365,7 +365,7 @@ class SelectDataDialog(QtFramelessTool):
         allow_geojson: bool = False,
         select_channels: bool = True,
         available_formats: str | None = None,
-        project_extension: str | None = None,
+        project_extension: list[str] | None = None,
         allow_flip_rotation: bool = False,
         allow_swap: bool = False,
     ):
@@ -535,7 +535,7 @@ class SelectDataDialog(QtFramelessTool):
         for filename in filenames:
             if filename.endswith(allowed_extensions):
                 filenames_.append(filename)
-            elif self.project_extension and filename.endswith(self.project_extension):
+            elif self.project_extension and any(filename.endswith(ext) for ext in self.project_extension):
                 self.evt_project.emit(filename)
             else:
                 logger.warning(

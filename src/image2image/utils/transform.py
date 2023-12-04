@@ -18,11 +18,11 @@ def compute_transform(src: np.ndarray, dst: np.ndarray, transform_type: str = "a
     return estimate_transform(transform_type, src, dst)
 
 
-def transform_image(moving_image: np.ndarray, transform) -> np.ndarray:  # type: ignore[no-any-return]
+def transform_image(moving_image: np.ndarray, transform: np.ndarray) -> np.ndarray:
     """Transform an image."""
     from skimage.transform import warp
 
-    return warp(moving_image, transform, clip=False)
+    return warp(moving_image, transform, clip=False)  # type: ignore[no-any-return]
 
 
 def combined_transform(
@@ -32,28 +32,33 @@ def combined_transform(
     translation: tuple[float, float],
     flip_lr: bool = False,
 ) -> np.ndarray:
-    """Combined transform."""
+    """Combined transform.
+
+    Transformations are performed in the following order:
+    - translation along x/y axis
+    - rotation around the center point
+    - horizontal flip
+    """
     tran = centered_translation_transform(translation)
     rot = centered_rotation_transform(image_size, image_spacing, rotation_angle)
     flip = np.eye(3)
     if flip_lr:
         flip = centered_horizontal_flip(image_size, image_spacing)
-    return tran @ rot @ flip
+    return tran @ rot @ flip  # type: ignore[no-any-return]
 
 
 def centered_translation_transform(
-    translation: tuple[int, int],
+    translation: tuple[float, float],
 ) -> np.ndarray:
     """Centered translation transform."""
-    translation = np.array(translation)
     transform = np.eye(3)
-    transform[:2, 2] = translation
+    transform[:2, 2] = np.asarray(translation)
     return transform
 
 
 def centered_rotation_transform(
     image_size: tuple[int, int],
-    image_spacing: tuple[int, int],
+    image_spacing: tuple[float, float],
     rotation_angle: float | int,
 ) -> np.ndarray:
     """Centered rotation transform."""
@@ -80,7 +85,7 @@ def centered_rotation_transform(
 
 def centered_flip(
     image_size: tuple[int, int],
-    image_spacing: tuple[int, int],
+    image_spacing: tuple[float, float],
     direction: str,
 ) -> np.ndarray:
     """Centered flip transform."""
@@ -113,7 +118,7 @@ def centered_flip(
 
 def centered_vertical_flip(
     image_size: tuple[int, int],
-    image_spacing: tuple[int, int],
+    image_spacing: tuple[float, float],
 ) -> np.ndarray:
     """Centered vertical flip transform."""
     return centered_flip(image_size, image_spacing, "vertical")
@@ -121,7 +126,7 @@ def centered_vertical_flip(
 
 def centered_horizontal_flip(
     image_size: tuple[int, int],
-    image_spacing: tuple[int, int],
+    image_spacing: tuple[float, float],
 ) -> np.ndarray:
     """Centered horizontal flip transform."""
     return centered_flip(image_size, image_spacing, "horizontal")

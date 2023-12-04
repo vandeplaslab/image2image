@@ -47,3 +47,31 @@ class RegisterShortcutsDialog(ShortcutsDialog):
     """
     # <br><b>A</b> - Zoom-in on previous point in both images.
     # <br><b>D</b> - Zoom-in on next point in both images.
+
+
+class ThreeDShortcutsDialog(ShortcutsDialog):
+    """Provide shortcuts information."""
+
+    TITLE = "ThreeD App Shortcuts"
+    SHORTCUTS = """
+    <br><b>F1</b> - Open documentation in the browser.
+    <br>
+    <br><b>Ctrl+T</b> - Open the IPython console.
+    <br><b>Ctrl+C</b> - Import configuration file.
+    <br>
+    <br><b>Q</b> - Rotate images left.
+    <br><b>E</b> - Rotate images right.
+    <br><b>W</b> - Translate images up.
+    <br><b>S</b> - Translate images down.
+    <br><b>A</b> - Translate images left.
+    <br><b>D</b> - Translate images right.
+    <br><b>F</b> - Flip images left-right.
+    <br><b>R</b> - Set currently selected image as the reference.
+    <br><b>Z</b> - Accept image (use in registration).
+    <br><b>X</b> - Reject image (don't use in registration).
+    <br><b>L</b> - Lock image - rotation, translation, flipping will no longer be updated.
+    <br><b>U</b> - Unlock image - rotation, translation, flipping will be updated.
+    <br><b>N</b> - Go to the next group in the Group selection (skip 'All', 'None').
+    <br><b>P</b> - Go to the previous group in the Group selection (skip 'All', 'None').
+    <br><b>G</b> - Toggle between the overlay and group view.
+    """

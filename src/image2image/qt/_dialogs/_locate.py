@@ -52,9 +52,7 @@ class LocateFilesDialog(QtDialog):
         else:
             super().keyPressEvent(evt)
 
-    def fix_missing_paths(
-        self, paths_missing: ty.Sequence[PathLike], paths: ty.Sequence[PathLike]
-    ) -> ty.List[PathLike]:
+    def fix_missing_paths(self, paths_missing: ty.Sequence[PathLike], paths: ty.Sequence[PathLike]) -> ty.List[Path]:
         """Locate missing paths."""
         if paths is None:
             paths = []
@@ -62,7 +60,7 @@ class LocateFilesDialog(QtDialog):
         for path in paths_missing:
             for path_pair in self.paths:
                 if path_pair["old_path"] == Path(path) and path_pair["new_path"] is not None:
-                    paths.append(path_pair["new_path"])
+                    paths.append(Path(path_pair["new_path"]))
         return paths
 
     def on_double_click(self, index):

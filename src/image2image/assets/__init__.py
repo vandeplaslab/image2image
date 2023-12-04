@@ -74,6 +74,7 @@ update_icon_mapping(
         "false": "mdi6.close-circle-outline",
         "keep_image": "mdi6.check-circle-outline",
         "remove_image": "mdi6.close-circle-outline",
+        "shortcut": "mdi6.tooltip-text",
     }
 )
 

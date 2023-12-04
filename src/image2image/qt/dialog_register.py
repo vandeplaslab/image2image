@@ -488,7 +488,7 @@ class ImageRegistrationWindow(Window):
         )
         if path_:
             from image2image.models.transformation import load_transform_from_file
-            from image2image.qt._dialogs import ImportSelectDialog
+            from image2image.qt._dialogs import ImportSelectDialog, LocateFilesDialog
 
             # load transformation
             path = Path(path_)
@@ -525,8 +525,6 @@ class ImageRegistrationWindow(Window):
 
                 # locate paths that are missing
                 if fixed_paths_missing or moving_paths_missing:
-                    from image2image.qt._dialogs import LocateFilesDialog
-
                     locate_dlg = LocateFilesDialog(
                         self,
                         fixed_paths_missing,  # type: ignore[arg-type]

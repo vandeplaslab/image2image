@@ -3,15 +3,20 @@ import typing as ty
 from pathlib import Path
 
 import numpy as np
+from koyo.typing import PathLike
 from natsort import natsorted
 from pydantic import Field
 
 from image2image.config import CONFIG
 from image2image.models.base import BaseModel
+from image2image.models.utilities import _get_paths, _read_config_from_file
 from image2image.utils.transform import combined_transform
 
 if ty.TYPE_CHECKING:
     from image2image_reader.readers import BaseReader
+
+
+SCHEMA_VERSION: str = "1.0"
 
 
 def as_icon(value: bool) -> str:
@@ -40,6 +45,12 @@ class RegistrationImage(BaseModel):
     def from_reader(cls, reader: "BaseReader") -> "RegistrationImage":
         """Initialize from reader."""
         return cls(path=reader.path, key=reader.key, scale=reader.scale_for_pyramid(-1))  # type: ignore[call-arg]
+
+    def update_from_reader(self, reader: "BaseReader") -> None:
+        """Update from reader."""
+        self.path = reader.path
+        self.key = reader.key
+        self.scale = reader.scale_for_pyramid(-1)
 
     def apply_rotate(self, which: str) -> None:
         """Apply rotation."""
@@ -74,15 +85,15 @@ class RegistrationImage(BaseModel):
         return [
             self.selected,
             self.key,
-            as_icon(self.keep),
+            self.keep,
+            self.lock,
             as_icon(self.is_reference),
-            as_icon(self.lock),
             self.group_id,
             self.image_order,
             self.rotate,
             self.translate_x,
             self.translate_y,
-            as_icon(self.flip_lr),
+            self.flip_lr,
         ]
 
     def to_dict(self) -> ty.Dict:
@@ -112,6 +123,8 @@ class Registration(BaseModel):
     def to_dict(self) -> ty.Dict:
         """Convert to dict."""
         return {
+            "version": SCHEMA_VERSION,
+            "tool": "threed",
             "images": {key: image.to_dict() for key, image in self.images.items()},
             "reference": self.reference,
         }
@@ -158,3 +171,28 @@ class Registration(BaseModel):
         """Iterate over keys according to the `image_order` attribute."""
         order = sorted(self.images, key=lambda key: self.images[key].image_order)
         yield from order
+
+
+def load_from_file(path: PathLike, validate_paths: bool = True) -> tuple[list[Path], list[Path], dict]:
+    """Load from file."""
+    path = Path(path)
+    data = _read_config_from_file(path)
+    if data["tool"] != "threed":
+        raise ValueError(f"Invalid tool: {data['tool']}")
+    # load images
+    paths, missing_paths = [], []
+    if validate_paths:
+        paths = [Path(x["path"]) for x in data["images"].values()]
+        paths, missing_paths = _get_paths(paths)
+    return paths, missing_paths, data
+
+
+def remove_if_not_present(config: dict, keys: list[str]) -> dict:
+    """Remove if not present."""
+    to_remove = []
+    for item in config["images"].values():
+        if item["key"] not in keys:
+            to_remove.append(item["key"])
+    for key in to_remove:
+        del config["images"][key]
+    return config

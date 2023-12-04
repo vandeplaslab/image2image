@@ -103,6 +103,8 @@ class Config(BaseConfig):
     # ThreeD-app parameters
     rotate_step_size: int = Field(15, title="Rotate by", description="Rotate by.", in_app=True)
     translate_step_size: int = Field(250, title="Translate by", description="Translate by.", in_app=True)
+    view_mode: str = Field("group", title="View mode", description="View mode.", in_app=True)
+
     first_time_threed: bool = Field(
         True, title="First time", description="First time running the viewer app.", in_app=True
     )

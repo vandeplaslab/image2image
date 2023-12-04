@@ -7,13 +7,13 @@ from functools import partial
 from pathlib import Path
 
 import qtextra.helpers as hp
+from image2image_reader._reader import get_key
 from image2image_reader.config import CONFIG as READER_CONFIG
 from image2image_reader.readers import BaseReader
 from koyo.timer import MeasureTimer
 from loguru import logger
 from napari.layers import Image, Shapes
 from natsort import natsorted
-from PyQt6.QtWidgets import QSizePolicy
 from qtextra.utils.table_config import TableConfig
 from qtextra.utils.utilities import connect
 from qtextra.widgets.qt_close_window import QtConfirmCloseDialog
@@ -26,6 +26,7 @@ from qtpy.QtWidgets import (
     QFormLayout,
     QHBoxLayout,
     QMenuBar,
+    QSizePolicy,
     QStatusBar,
     QVBoxLayout,
     QWidget,
@@ -37,7 +38,7 @@ from tqdm import tqdm
 from image2image import __version__
 from image2image.config import CONFIG
 from image2image.enums import ALLOWED_IMAGE_FORMATS_TIFF_ONLY, ALLOWED_THREED_FORMATS
-from image2image.models.threed import Registration, RegistrationImage, as_icon
+from image2image.models.threed import Registration, RegistrationImage, as_icon, load_from_file, remove_if_not_present
 from image2image.qt._select import LoadWidget
 from image2image.qt.dialog_base import Window
 from image2image.utils.utilities import (
@@ -101,6 +102,7 @@ class ImageThreeDWindow(Window):
     def setup_events(self, state: bool = True) -> None:
         """Setup events."""
         connect(self._image_widget.dataset_dlg.evt_loaded, self.on_load_image, state=state)
+        connect(self._image_widget.dataset_dlg.evt_project, self._on_load_from_project, state=state)
         connect(self._image_widget.dataset_dlg.evt_closed, self.on_remove_image, state=state)
         connect(self.view.widget.canvas.events.key_press, self.keyPressEvent, state=state)
         connect(self.table.evt_keypress, self.keyPressEvent, state=state)
@@ -123,6 +125,8 @@ class ImageThreeDWindow(Window):
             for reader in wrapper.reader_iter():
                 if reader.key not in self.registration.images:
                     self.registration.images[reader.key] = RegistrationImage.from_reader(reader)
+                else:
+                    self.registration.images[reader.key].update_from_reader(reader)
                 data.append(self.registration.images[reader.key].to_table())
             # update table
             model_index = self.table.selectionModel().currentIndex()
@@ -130,7 +134,7 @@ class ImageThreeDWindow(Window):
             self.table.add_data(data)
             if model_index.isValid() and model_index.row() < self.table.n_rows:
                 self.table.scrollTo(model_index)
-            self.on_plot()
+            self._generate_group_options()
 
     def on_depopulate_table(self) -> None:
         """Remove items that are not present in the model."""
@@ -154,30 +158,6 @@ class ImageThreeDWindow(Window):
         else:
             for layer in self.view.layers:
                 layer.contrast_limits = layer.metadata["contrast_limits"]
-
-    def on_plot(self) -> None:
-        """Add images."""
-        # with MeasureTimer() as timer:
-        #     wrapper = self.data_model.wrapper
-        #     if wrapper:
-        #         for key in self.registration.key_iter():
-        #             reader = wrapper.data[key]
-        #             model = self.registration.images[reader.key]
-        #             if reader.key not in self.view.layers:
-        #                 image = reader.get_channel(0, -1)
-        #                 contrast_limits, _ = get_contrast_limits([image])
-        #                 if contrast_limits:
-        #                     contrast_limits = (contrast_limits[0], contrast_limits[1] / 2)
-        #                 self.view.add_image(
-        #                     image,
-        #                     name=reader.key,
-        #                     scale=model.scale,
-        #                     blending="additive",
-        #                     contrast_limits=contrast_limits,
-        #                     affine=model.affine(image.shape),
-        #                 )
-        #         self.on_select()
-        # logger.trace(f"Plotted images in {timer()}")
 
     def on_plot_selected(self) -> None:
         """Plot currently selected images."""
@@ -213,9 +193,9 @@ class ImageThreeDWindow(Window):
                         all_contrast_range.extend(contrast_range)
                 if all_contrast_range:
                     self.contrast_limit.setRange(min(all_contrast_range), max(all_contrast_range))
+                    if not self.common_contrast_limit.isChecked():
+                        self.contrast_limit.setValue((min(all_contrast_range), max(all_contrast_range)))
                     self.contrast_limit.setDecimals(2 if max(all_contrast_range) < 1 else 0)
-            # else:
-            #     hp.toast(self, "Too many images selected", "Please select less than 24 images.", icon="error")
             self.on_contrast_limits()
 
     def _plot_model(self, reader: BaseReader, model: RegistrationImage) -> tuple[float, float] | None:
@@ -252,7 +232,7 @@ class ImageThreeDWindow(Window):
                     self.view.layers[key].colormap = cmap
         logger.trace(f"Selected images in {timer()}")
 
-    def on_highlight(self, *args: ty.Any) -> None:
+    def on_highlight(self, *_args: ty.Any) -> None:
         """Highlight specific image."""
         if self.table.selectionModel().hasSelection():
             self.on_select()
@@ -286,18 +266,14 @@ class ImageThreeDWindow(Window):
         """Rotate image."""
         with MeasureTimer() as timer, self.table.block_model():
             checked = self.table.get_all_checked()
-            # values = self.table.get_col_data(self.TABLE_CONFIG.rotate)
             for index in checked:
                 key = self.table.get_value(self.TABLE_CONFIG.key, index)
                 model = self.registration.images[key]
                 if model.is_reference:
                     continue
                 model.apply_rotate(which)
-                # values[index] = model.rotate
                 self.table.set_value(self.TABLE_CONFIG.rotate, index, self.registration.images[key].rotate)
                 self._transform(model)
-            # with MeasureTimer():
-            #     self.table.update_column(self.TABLE_CONFIG.rotate, values)
         logger.trace(f"Rotate {which} '{len(checked)}' images in {timer()}")
 
     def on_translate(self, which: str) -> None:
@@ -395,6 +371,8 @@ class ImageThreeDWindow(Window):
 
     def on_group_by(self):
         """Group by user specified string."""
+        if self.table.n_rows == 0:
+            return
         groups, dataset_to_group_map = self._get_groups()
         if (
             groups
@@ -420,10 +398,16 @@ class ImageThreeDWindow(Window):
 
     def _generate_group_options(self) -> None:
         """Update combo box with group options including None and All."""
+        CONFIG.view_mode = "group" if self.group_mode_btn.isChecked() else "slide"
+
         labels = []
-        for model in self.registration.model_iter():
-            if f"Group '{model.group_id}'" not in labels:
-                labels.append(f"Group '{model.group_id}'")
+        if CONFIG.view_mode == "group":
+            for model in self.registration.model_iter():
+                if f"Group '{model.group_id}'" not in labels:
+                    labels.append(f"Group '{model.group_id}'")
+        else:
+            for model in self.registration.model_iter():
+                labels.append(model.key)
         labels = ["None", "All", *natsorted(labels)]
 
         current = self.groups_choice.currentText()
@@ -433,6 +417,8 @@ class ImageThreeDWindow(Window):
 
     def on_order_by(self):
         """Reorder images according to the current group identification."""
+        if self.table.n_rows == 0:
+            return
         if self.registration.is_ordered() and not hp.confirm(
             self,
             "Are you sure you wish to reorder images? This will overwrite any previous ordering.",
@@ -462,30 +448,45 @@ class ImageThreeDWindow(Window):
             values = [True] * self.table.n_rows
             in_group = self.table.get_col_data(self.TABLE_CONFIG.key)
         else:
-            group_id = int(group.split("'")[1])
-            for index in range(self.table.n_rows):
-                key = self.table.get_value(self.TABLE_CONFIG.key, index)
-                model = self.registration.images[key]
-                values.append(model.group_id == group_id)
-                in_group.append(model.key)
+            if "Group '" in group:
+                group_id = int(group.split("'")[1])
+                for index in range(self.table.n_rows):
+                    key = self.table.get_value(self.TABLE_CONFIG.key, index)
+                    model = self.registration.images[key]
+                    values.append(model.group_id == group_id)
+                    if model.group_id == group_id:
+                        in_group.append(model.key)
+            else:
+                for index in range(self.table.n_rows):
+                    key = self.table.get_value(self.TABLE_CONFIG.key, index)
+                    values.append(key == group)
+                    if key == group:
+                        in_group.append(key)
         return in_group, values
 
     def on_select_group(self):
         """Select group."""
+        # get values
         _, values = self._get_for_group()
-        self.table.update_column(self.TABLE_CONFIG.check, values)
+        self.table.update_column(self.TABLE_CONFIG.check, values, match_to_sort=False)
+
         # clear canvas and plot
         self.view.viewer.layers.clear()
         self.on_plot_selected()
         self.on_select()
         self.view.viewer.reset_view()
 
+    def on_group_increment(self, increment: int = 0) -> None:
+        """Increment group."""
+        hp.increment_combobox(self.groups_choice, increment, skip=[0, 1])
+        self.on_scroll()
+
     def on_check_group(self, check: bool) -> None:
         """Show or hide group images."""
         _, values = self._get_for_group()
         if not check:
             values = [False] * self.table.n_rows
-        self.table.update_column(self.TABLE_CONFIG.check, values)
+        self.table.update_column(self.TABLE_CONFIG.check, values, match_to_sort=False)
 
     def on_show_group(self, show: bool) -> None:
         """Show or hide group images."""
@@ -494,6 +495,14 @@ class ImageThreeDWindow(Window):
             key = self.table.get_value(self.TABLE_CONFIG.key, index)
             if key in self.view.layers:
                 self.view.layers[key].visible = show
+
+    def on_scroll(self) -> None:
+        """Scroll to the currently selected group."""
+        _, values = self._get_for_group()
+        if any(values):
+            index = values.index(True)
+            if index != -1:
+                self.table.scrollTo(self.table.create_index(index, 0))
 
     def on_reference(self) -> None:
         """Set the currently selected row as a reference."""
@@ -507,6 +516,9 @@ class ImageThreeDWindow(Window):
                 for row in range(self.table.n_rows):
                     key = self.table.get_value(self.TABLE_CONFIG.key, row)
                     self.registration.images[key].is_reference = row == index
+                    if row == index:
+                        self.registration.images[key].lock = True
+                        self.table.set_value(self.TABLE_CONFIG.lock, row, True)
                     self.table.set_value(self.TABLE_CONFIG.reference, row, as_icon(row == index))
                 self.on_select()
             logger.trace(f"Set {key_} as reference in {timer()}")
@@ -529,7 +541,11 @@ class ImageThreeDWindow(Window):
         )
 
         self._image_widget = LoadWidget(
-            self, self.view, select_channels=False, available_formats=ALLOWED_IMAGE_FORMATS_TIFF_ONLY
+            self,
+            self.view,
+            select_channels=False,
+            available_formats=ALLOWED_IMAGE_FORMATS_TIFF_ONLY,
+            project_extension=[".i2threed.json", ".i2threed.toml"],
         )
         self.import_project_btn = hp.make_btn(
             self, "Import project...", tooltip="Load previous project", func=self.on_load_from_project
@@ -541,6 +557,7 @@ class ImageThreeDWindow(Window):
             sortable=True,
             drag=True,
         )
+        self.table.verticalHeader().setVisible(True)
         hp.set_font(self.table)
         self.table.setup_model(
             header=self.TABLE_CONFIG.header,
@@ -597,20 +614,32 @@ class ImageThreeDWindow(Window):
         self.group_by_btn = hp.make_btn(self, "Group", func=self.on_group_by)
         self.reorder_btn = hp.make_btn(self, "Reorder", func=self.on_order_by)
 
+        self.group_mode_btn = hp.make_radio_btn(
+            self, "Group mode", tooltip="Group mode", checked=True, func=self._generate_group_options
+        )
+        self.slide_mode_btn = hp.make_radio_btn(
+            self, "Slide mode", tooltip="Slide mode", checked=False, func=self._generate_group_options
+        )
+        self.group_mode = hp.make_radio_btn_group(self, [self.group_mode_btn, self.slide_mode_btn])
+
         self.groups_choice = hp.make_combobox(self, tooltip="Select group to show", func=self.on_select_group)
-        self.show_group_btn = hp.make_btn(
+        self.check_group_btn = hp.make_btn(
             self,
             "Check group",
             tooltip="Only show the selected group (+ reference image)",
             func=lambda: self.on_check_group(True),
-            # func=lambda: self.on_show_group(True),
         )
-        self.hide_group_btn = hp.make_btn(
+        self.uncheck_group_btn = hp.make_btn(
             self,
             "Uncheck group",
             tooltip="Hide the selected image",
             func=lambda: self.on_check_group(False),
-            # func=lambda: self.on_show_group(False),
+        )
+        self.scroll_group_btn = hp.make_btn(
+            self,
+            "Scroll to group",
+            tooltip="Scroll to the selected group",
+            func=self.on_scroll,
         )
 
         side_widget = QWidget()  # noqa
@@ -626,15 +655,18 @@ class ImageThreeDWindow(Window):
         side_layout.addRow(self.group_by)
         side_layout.addRow(hp.make_h_layout(self.preview_group_by_btn, self.group_by_btn, self.reorder_btn))
         side_layout.addRow(hp.make_h_line_with_text("Select group"))
+        side_layout.addRow(hp.make_h_layout(self.group_mode_btn, self.slide_mode_btn))
         side_layout.addRow("Group", self.groups_choice)
-        side_layout.addRow(hp.make_h_layout(self.show_group_btn, self.hide_group_btn))
+        side_layout.addRow(hp.make_h_layout(self.check_group_btn, self.uncheck_group_btn, self.scroll_group_btn))
 
         bottom_widget = QWidget()  # noqa
         bottom_widget.setMinimumHeight(400)
         bottom_widget.setMaximumHeight(600)
         bottom_layout = QHBoxLayout(bottom_widget)
+
         bottom_layout.setSpacing(2)
         bottom_layout.addWidget(side_widget)
+        bottom_layout.addWidget(hp.make_v_line())
         bottom_layout.addWidget(self.toolbar)
         bottom_layout.addWidget(self.table, stretch=True)
 
@@ -694,8 +726,8 @@ class ImageThreeDWindow(Window):
             self.on_rotate("left")
         elif key == Qt.Key.Key_E:
             self.on_rotate("right")
+        # translate
         elif key == Qt.Key.Key_A:
-            # translate
             self.on_translate("left")
         elif key == Qt.Key.Key_D:
             self.on_translate("right")
@@ -724,6 +756,11 @@ class ImageThreeDWindow(Window):
             self.on_lock(True)
         elif key == Qt.Key.Key_U:
             self.on_lock(False)
+        # selection
+        elif key == Qt.Key.Key_N:
+            self.on_group_increment(1)
+        elif key == Qt.Key.Key_P:
+            self.on_group_increment(-1)
         # viewer
         elif key == Qt.Key.Key_G:
             self.grid_btn.click()
@@ -738,7 +775,12 @@ class ImageThreeDWindow(Window):
     def _get_console_variables(self) -> dict:
         variables = super()._get_console_variables()
         variables.update(
-            {"viewer": self.view.viewer, "data_model": self.data_model, "wrapper": self.data_model.wrapper}
+            {
+                "viewer": self.view.viewer,
+                "data_model": self.data_model,
+                "wrapper": self.data_model.wrapper,
+                "registration": self.registration,
+            }
         )
         return variables
 
@@ -758,7 +800,7 @@ class ImageThreeDWindow(Window):
 
     def on_set_config(self):
         """Update config."""
-        CONFIG.rotate_step_size = int(self.rotate_step_size.currentText().split(" ")[-1].split("°")[0])
+        CONFIG.rotate_step_size = int(self.rotate_step_size.currentText().split(" ")[2].split("°")[0])
         CONFIG.translate_step_size = int(self.translate_step_size.currentText().split(" ")[2])
 
     def _make_statusbar(self) -> None:
@@ -771,7 +813,10 @@ class ImageThreeDWindow(Window):
         self.statusbar.setSizeGripEnabled(False)
 
         self.common_contrast_limit = hp.make_checkbox(
-            self, "Common intensity", tooltip="Use common contrast limit for all images", func=self.on_contrast_limits
+            self,
+            "Common intensity",
+            tooltip="Use common contrast limit for all images",
+            func=self.on_contrast_limits,
         )
         hp.set_sizer_policy(self.common_contrast_limit, h_stretch=False)
         self.statusbar.addPermanentWidget(self.common_contrast_limit)
@@ -781,7 +826,7 @@ class ImageThreeDWindow(Window):
         self.contrast_limit.setOrientation(Qt.Orientation.Horizontal)  # type: ignore[no-untyped-call]
         self.contrast_limit.setRange(0, 1)
         self.contrast_limit.setValue((0, 1))
-        self.contrast_limit.setDecimals(0)
+        self.contrast_limit.setDecimals(2)
         self.contrast_limit.layout().setSpacing(1)
         self.statusbar.addPermanentWidget(self.contrast_limit)
         self.statusbar.addPermanentWidget(hp.make_v_line())
@@ -789,16 +834,16 @@ class ImageThreeDWindow(Window):
         self.rotate_step_size = hp.make_combobox(
             self,
             [
-                "Rotate by 5°",
-                "Rotate by 10°",
-                "Rotate by 15°",
-                "Rotate by 30°",
-                "Rotate by 45°",
-                "Rotate by 60°",
-                "Rotate by 90°",
+                "Rotate in 5° steps",
+                "Rotate in 10° steps",
+                "Rotate in 15° steps",
+                "Rotate in 30° steps",
+                "Rotate in 45° steps",
+                "Rotate in 60° steps",
+                "Rotate in 90° steps",
             ],
             func=self.on_set_config,
-            value=f"{CONFIG.rotate_step_size}°",
+            value=f"Rotate in {CONFIG.rotate_step_size}° steps",
         )
         self.rotate_step_size.setSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum)
         self.statusbar.addPermanentWidget(self.rotate_step_size)
@@ -806,9 +851,16 @@ class ImageThreeDWindow(Window):
 
         self.translate_step_size = hp.make_combobox(
             self,
-            ["Move by 50 µm", "Move by 100 µm°", "Move by 250 µm", "Move by 500 µm", "Move by 1000 µm"],
+            [
+                "Move in 50 µm steps",
+                "Move in 100 µm steps°",
+                "Move in 250 µm steps",
+                "Move in 500 µm steps",
+                "Move in 1000 µm steps",
+                "Move in 2500 µm steps",
+            ],
             func=self.on_set_config,
-            value=f"{CONFIG.translate_step_size} µm",
+            value=f"Move in {CONFIG.translate_step_size} µm steps",
         )
 
         self.translate_step_size.setSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum)
@@ -880,6 +932,10 @@ class ImageThreeDWindow(Window):
                 func=self.on_show_console,
             )
         )
+        self.shortcuts_btn = hp.make_qta_btn(
+            self, "shortcut", tooltip="Show me shortcuts", func=self.on_show_shortcuts, small=True
+        )
+        self.statusbar.addPermanentWidget(self.shortcuts_btn)
         self.tutorial_btn = hp.make_qta_btn(
             self, "help", tooltip="Give me a quick tutorial!", func=self.on_show_tutorial, small=True
         )
@@ -895,6 +951,13 @@ class ImageThreeDWindow(Window):
         self.update_status_btn.hide()
         self.statusbar.addPermanentWidget(self.update_status_btn)
         self.setStatusBar(self.statusbar)
+
+    def on_show_shortcuts(self):
+        """Show shortcuts."""
+        from image2image.qt._dialogs._shortcuts import ThreeDShortcutsDialog
+
+        dlg = ThreeDShortcutsDialog(self)
+        dlg.show()
 
     def on_save_to_project(self) -> None:
         """Save data to config file."""
@@ -922,10 +985,39 @@ class ImageThreeDWindow(Window):
 
     def on_load_from_project(self) -> None:
         """Load previous data."""
-        # path = hp.get_filename(self, "Load i2c project", base_dir=CONFIG.output_dir,
-        # file_filter=ALLOWED_THREED_FORMATS)
-        # if path:
-        #     self.registration
+        path_ = hp.get_filename(
+            self, "Load i2c project", base_dir=CONFIG.output_dir, file_filter=ALLOWED_THREED_FORMATS
+        )
+        self._on_load_from_project(path_)
+
+    def _on_load_from_project(self, path_: str) -> None:
+        if path_:
+            from image2image.qt._dialogs import LocateFilesDialog
+
+            path = Path(path_)
+            CONFIG.output_dir = str(path.parent)
+            paths, missing_paths, config = load_from_file(path)
+
+            # locate paths that are missing
+            if missing_paths:
+                locate_dlg = LocateFilesDialog(self, missing_paths)
+                if locate_dlg.exec_():  # type: ignore[attr-defined]
+                    paths = locate_dlg.fix_missing_paths(missing_paths, paths)
+
+            # cleanup paths
+            keys_to_keep = [get_key(path) for path in paths]
+            config = remove_if_not_present(config, keys_to_keep)
+            if config["reference"] not in keys_to_keep:
+                config["reference"] = None
+
+            # add images to registration
+            self.registration.reference = config["reference"]
+            for item in config["images"].values():
+                self.registration.images[item["key"]] = RegistrationImage(**item)
+
+            # add images
+            logger.trace(f"Found {len(paths)} images in project file")
+            self._image_widget.on_set_path(paths)
 
     def close(self, force=False):
         """Override to handle closing app or just the window."""
