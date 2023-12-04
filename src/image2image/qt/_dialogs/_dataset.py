@@ -16,7 +16,7 @@ from qtextra.widgets.qt_dialog import QtDialog, QtFramelessTool
 from qtextra.widgets.qt_table_view import FilterProxyModel, QtCheckableTableView
 from qtpy.QtCore import Qt, Signal  # type: ignore[attr-defined]
 from qtpy.QtGui import QDoubleValidator, QDropEvent
-from qtpy.QtWidgets import QFormLayout, QHeaderView, QLineEdit, QTableWidget, QTableWidgetItem, QWidget
+from qtpy.QtWidgets import QFormLayout, QHeaderView, QLineEdit, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget
 from superqt.utils import create_worker
 
 from image2image.config import CONFIG
@@ -41,7 +41,7 @@ class CloseDatasetDialog(QtDialog):
         self.keys = self.get_keys()
 
     # noinspection PyAttributeOutsideInit
-    def make_panel(self) -> QFormLayout:
+    def make_panel(self) -> QVBoxLayout:
         """Make panel."""
         self.all_check = hp.make_checkbox(
             self,
@@ -49,18 +49,23 @@ class CloseDatasetDialog(QtDialog):
             clicked=self.on_check_all,
             value=True,
         )
+
         # iterate over all available paths
         self.checkboxes = []
+        scroll_area, scroll_widget = hp.make_scroll_area(self)
+        scroll_layout = hp.make_form_layout(scroll_area)
         wrapper = self.model.wrapper
         if wrapper:
             for reader in wrapper.reader_iter():
                 # make checkbox for each path
-                checkbox = hp.make_checkbox(self, f"{reader.key}\n{reader.path}\n", value=True, clicked=self.on_apply)
+                checkbox = hp.make_checkbox(
+                    scroll_area, f"{reader.key}\n{reader.path}\n", value=True, clicked=self.on_apply
+                )
+                scroll_layout.addRow(checkbox)
                 self.checkboxes.append(checkbox)
 
-        layout = hp.make_form_layout()
-        hp.style_form_layout(layout)
-        layout.addRow(
+        layout = hp.make_v_layout()
+        layout.addWidget(
             hp.make_label(
                 self,
                 "Please select which images should be <b>removed</b> from the project."
@@ -70,11 +75,10 @@ class CloseDatasetDialog(QtDialog):
                 wrap=True,
             )
         )
-        layout.addRow(self.all_check)
-        layout.addRow(hp.make_h_line())
-        for checkbox in self.checkboxes:
-            layout.addRow(checkbox)
-        layout.addRow(
+        layout.addWidget(self.all_check)
+        layout.addWidget(hp.make_h_line())
+        layout.addWidget(scroll_widget, stretch=True)
+        layout.addLayout(
             hp.make_h_layout(
                 hp.make_btn(self, "OK", func=self.accept),
                 hp.make_btn(self, "Cancel", func=self.reject),

@@ -10,7 +10,7 @@ def run(
     level: int = 10,
     no_color: bool = False,
     dev: bool = False,
-    tool: ty.Literal["launcher", "register", "viewer", "crop", "fusion", "convert"] = "launcher",
+    tool: ty.Literal["launcher", "register", "viewer", "crop", "fusion", "convert", "threed"] = "launcher",
 ) -> None:
     """Execute command."""
     import warnings
@@ -85,6 +85,11 @@ def run(
 
         dlg = ImageConvertWindow(None)  # type: ignore[assignment]
         dlg.setMinimumSize(600, 400)
+    elif tool == "threed":
+        from image2image.qt.dialog_threed import ImageThreeDWindow
+
+        dlg = ImageThreeDWindow(None)  # type: ignore[assignment]
+        dlg.setMinimumSize(1200, 800)
     else:
         raise ValueError("Launcher is not implemented yet.")
 
@@ -105,6 +110,7 @@ def run(
         logging.getLogger("qtreload").setLevel(logging.DEBUG)
 
         dev = qdev(dlg, modules=["qtextra", "image2image", "image2image_reader", "koyo"])
+        dev.hide()
         dev.evt_theme.connect(lambda: THEMES.set_theme_stylesheet(dlg))
         if hasattr(dlg, "centralWidget"):
             dlg.centralWidget().layout().addWidget(dev)

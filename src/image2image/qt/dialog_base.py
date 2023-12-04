@@ -20,7 +20,11 @@ from superqt.utils import create_worker, ensure_main_thread
 from image2image.config import CONFIG
 from image2image.models.data import DataModel
 from image2image.qt._dialogs._update import check_version
-from image2image.utils.utilities import get_colormap, get_contrast_limits, log_exception_or_error
+from image2image.utils.utilities import (
+    get_colormap,
+    get_contrast_limits,
+    log_exception_or_error,
+)
 
 if ty.TYPE_CHECKING:
     from qtextra._napari.image.wrapper import NapariImageView
@@ -226,6 +230,12 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
             self._console = QtConsoleDialog(self)
         self._console.push_variables(self._get_console_variables())
         self._console.show()
+
+    def on_save_to_project(self) -> None:
+        """Save data to config file."""
+
+    def on_load_from_project(self) -> None:
+        """Load previous data."""
 
     def _get_console_variables(self) -> dict:
         """Get variables for the console."""

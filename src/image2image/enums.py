@@ -22,6 +22,11 @@ ALLOWED_VIEWER_FORMATS = (
 ALLOWED_CROP_FORMATS = (
     "Any projects (*.i2c.json *.i2c.toml);; " "JSON Project (*.i2c.json);; " "TOML Project (*.i2c.toml);;"
 )
+ALLOWED_THREED_FORMATS = (
+    "Any projects (*.i2threed.json *.i2threed.toml);; "
+    "JSON Project (*.i2threed.json);; "
+    "TOML Project (*.i2threed.toml);;"
+)
 ALLOWED_IMAGE_FORMATS = (
     "Any imaging (*.d *.tsf *.tdf *.imzML  *.ibd *.data *.metadata.h5 peaks_*.h5 *.npy *.czi *.ome.tiff *.tiff *.scn"
     " *.tif *.qptiff *.qptiff.raw *.qptiff.intermediate *.svs *.ndpi *.jpg *.jpeg *.png);; "
@@ -47,7 +52,10 @@ ALLOWED_IMAGE_FORMATS_WITH_GEOJSON = (
     "PNG (*.png);;"
     "GeoJSON (*.geojson *.json);;"
 )
-ALLOWED_IMAGE_FORMATS_CZI_ONLY = "Any imaging (*.czi);; CZI (*.czi);;"
+ALLOWED_IMAGE_FORMATS_CZI_ONLY = "Any Zeiss CZI (*.czi);;"
+ALLOWED_IMAGE_FORMATS_TIFF_ONLY = (
+    "Any OME-TIFF (*.ome.tiff *.tiff *.scn *.tif *.svs *.ndpi *.qptiff *.qptiff.raw *.qptiff.intermediate);; "
+)
 
 
 class ImageTransformation(StringEnum):

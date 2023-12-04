@@ -53,3 +53,9 @@ QLabel#crop_label {
     font-weight: bold;
     min-width: 60px;
 }
+
+SliderLabel  {
+    background: {{ success }};
+    color: {{ text }};
+    margin: 0px -10px 0px -10px;
+}

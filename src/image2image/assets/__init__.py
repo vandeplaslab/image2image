@@ -61,6 +61,19 @@ update_icon_mapping(
         "fiducial": "fa5s.map-marker-alt",
         "change": "fa5s.arrow-alt-circle-right",
         "swap": "mdi6.swap-vertical-bold",
+        "rotate_left": "fa.rotate-left",
+        "rotate_right": "fa.rotate-right",
+        "translate_left": "fa5s.arrow-left",
+        "translate_right": "fa5s.arrow-right",
+        "translate_up": "fa5s.arrow-up",
+        "translate_down": "fa5s.arrow-down",
+        "flip_lr": "fa5s.arrows-alt-h",
+        "group": "mdi6.group",
+        "ungroup": "mdi6.ungroup",
+        "true": "mdi6.check-circle-outline",
+        "false": "mdi6.close-circle-outline",
+        "keep_image": "mdi6.check-circle-outline",
+        "remove_image": "mdi6.close-circle-outline",
     }
 )
 

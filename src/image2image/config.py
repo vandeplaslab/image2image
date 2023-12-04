@@ -14,7 +14,21 @@ class Config(BaseConfig):
 
     USER_CONFIG_DIR = USER_CONFIG_DIR
 
-    # view parameters
+    # paths
+    output_dir: str = Field(
+        "", title="Output directory", description="Directory where output should be saved.", in_app=False
+    )
+
+    # visuals
+    theme: str = Field(
+        "light", title="Theme", description="Theme of the application.", options=["light", "dark"], in_app=True
+    )
+
+    # Crop-app parameters
+    first_time_crop: bool = Field(True, title="First time", description="First time running the crop app.", in_app=True)
+    confirm_close_crop: bool = Field(True, title="Confirm close", description="Confirm close crop app.", in_app=True)
+
+    # Register-app parameters
     sync_views: bool = Field(True, title="Sync views", description="Sync views.", in_app=False)
     opacity_fixed: int = Field(
         100, ge=0, le=100, step_size=10, title="Opacity (fixed)", description="Opacity of the fixed image", in_app=False
@@ -61,24 +75,8 @@ class Config(BaseConfig):
     viewer_orientation: ViewerOrientation = Field(
         ViewerOrientation.VERTICAL, title="Viewer orientation", description="Orientation of the viewer.", in_app=False
     )
-
-    # paths
     fixed_dir: str = Field("", title="Fixed directory", description="Directory with fixed images.", in_app=False)
     moving_dir: str = Field("", title="Moving directory", description="Directory with moving images.", in_app=False)
-    output_dir: str = Field(
-        "", title="Output directory", description="Directory where output should be saved.", in_app=False
-    )
-
-    # visuals
-    theme: str = Field(
-        "light", title="Theme", description="Theme of the application.", options=["light", "dark"], in_app=True
-    )
-
-    # Crop-app parameters
-    first_time_crop: bool = Field(True, title="First time", description="First time running the crop app.", in_app=True)
-    confirm_close_crop: bool = Field(True, title="Confirm close", description="Confirm close crop app.", in_app=True)
-
-    # Register-app parameters
     first_time_register: bool = Field(
         True, title="First time", description="First time running the register app.", in_app=True
     )
@@ -99,6 +97,16 @@ class Config(BaseConfig):
         True, title="First time", description="First time running the viewer app.", in_app=True
     )
     confirm_close_viewer: bool = Field(
+        True, title="Confirm close", description="Confirm close viewer app.", in_app=True
+    )
+
+    # ThreeD-app parameters
+    rotate_step_size: int = Field(15, title="Rotate by", description="Rotate by.", in_app=True)
+    translate_step_size: int = Field(250, title="Translate by", description="Translate by.", in_app=True)
+    first_time_threed: bool = Field(
+        True, title="First time", description="First time running the viewer app.", in_app=True
+    )
+    confirm_close_threed: bool = Field(
         True, title="Confirm close", description="Confirm close viewer app.", in_app=True
     )
 

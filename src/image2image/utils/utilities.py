@@ -2,11 +2,11 @@
 from __future__ import annotations
 
 import random
+import re
 import typing as ty
 from functools import partial
 from pathlib import Path
 
-import dask
 import numpy as np
 from koyo.typing import PathLike
 from loguru import logger
@@ -18,6 +18,7 @@ from napari.layers.points.points import Mode as PointsMode
 from napari.utils.colormaps.colormap_utils import convert_vispy_colormap
 from napari.utils.colormaps.standardize_color import transform_color
 from napari.utils.events import Event
+from natsort import natsorted
 from vispy.color import Colormap as VispyColormap
 
 from image2image.config import CONFIG
@@ -34,6 +35,56 @@ PREFERRED_COLORMAPS = [
     "yellow",
     "cyan",
 ]
+
+
+def get_groups(filenames: list[str], keyword: str) -> dict[str, list[str]]:
+    """Get groups."""
+    groups = {"no group": []}
+    for filename in filenames:
+        group = extract_number(filename, keyword)
+        if group is None:
+            groups["no group"].append(filename)
+        else:
+            if group not in groups:
+                groups[group] = []
+            groups[group].append(filename)
+    # remove empty groups
+    for group in list(groups.keys()):
+        if len(groups[group]) == 0:
+            del groups[group]
+    return groups
+
+
+def groups_to_group_id(groups: dict[str, list[str]]) -> dict[str, int]:
+    """Convert groups to group ID."""
+    dataset_to_group_map = {}
+    for i, group in enumerate(natsorted(groups)):
+        for filename in natsorted(groups[group]):
+            dataset_to_group_map[filename] = i
+    return dataset_to_group_map
+
+
+def format_group_info(groups: dict[str, list[str]]) -> str:
+    """Format group info."""
+    res = ""
+    for group in groups:
+        res += f"<b>Group '{group}'</b> - {len(groups[group])} in group<br>"
+        for filename in groups[group]:
+            res += f"  - {filename}<br>"
+        res += "<br>"
+    return res
+
+
+def extract_number(filename: str, keyword: str) -> str | None:
+    """Extract number from filename."""
+    # Define a regular expression pattern to capture the specified keyword and its associated number
+    pattern = re.compile(rf"{keyword}(\d+)")
+
+    # Use the pattern to find the match in the filename
+    match = pattern.search(filename)
+
+    # Return the extracted number, or None if not found
+    return match.group(1) if match else None
 
 
 def extract_extension(available_formats: str) -> list[str]:
