@@ -26,7 +26,7 @@ from image2image.models.transform import TransformData
 from image2image.utils.utilities import extract_extension, log_exception_or_error
 
 if ty.TYPE_CHECKING:
-    from image2image_reader.readers.coordinate_reader import CoordinateImageReader
+    from image2image_io.readers.coordinate_reader import CoordinateImageReader
 
     from image2image.models.data import DataModel
 

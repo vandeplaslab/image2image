@@ -6,7 +6,7 @@ from functools import partial
 from pathlib import Path
 
 import numpy as np
-from image2image_reader.enums import DEFAULT_TRANSFORM_NAME
+from image2image_io.enums import DEFAULT_TRANSFORM_NAME
 from loguru import logger
 from qtextra import helpers as hp
 from qtextra.utils.table_config import TableConfig
@@ -19,8 +19,8 @@ from image2image.config import CONFIG
 from image2image.utils.utilities import log_exception_or_error
 
 if ty.TYPE_CHECKING:
-    from image2image_reader.readers._base_reader import BaseReader
-    from image2image_reader.readers.geojson_reader import GeoJSONReader
+    from image2image_io.readers._base_reader import BaseReader
+    from image2image_io.readers.geojson_reader import GeoJSONReader
 
     from image2image.models.data import DataModel
     from image2image.qt.dialog_viewer import ImageViewerWindow
@@ -167,7 +167,7 @@ class MasksDialog(QtFramelessTool):
         data_model: DataModel,
         output_dir: Path,
     ) -> ty.Generator[tuple[int, int], None, None]:
-        from image2image_reader.utils.mask import write_masks
+        from image2image_io.utils.mask import write_masks
 
         if output_dir is None:
             raise ValueError("Output directory is None.")

@@ -5,7 +5,7 @@ import typing as ty
 from pathlib import Path
 
 import qtextra.helpers as hp
-from image2image_reader.config import CONFIG as READER_CONFIG
+from image2image_io.config import CONFIG as READER_CONFIG
 from loguru import logger
 from qtextra.utils.table_config import TableConfig
 from qtextra.utils.utilities import connect
@@ -128,7 +128,7 @@ class ImageConvertWindow(Window):
 
     def on_convert(self):
         """Process data."""
-        from image2image_reader._writer import czis_to_ome_tiff
+        from image2image_io._writer import czis_to_ome_tiff
 
         if self.output_dir is None:
             hp.warn(self, "No output directory was selected. Please select directory where to save data.")

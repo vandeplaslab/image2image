@@ -15,7 +15,7 @@ def run(
     """Execute command."""
     import warnings
 
-    from image2image_reader.config import CONFIG as READER_CONFIG
+    from image2image_io.config import CONFIG as READER_CONFIG
     from koyo.faulthandler import install_segfault_handler, maybe_submit_segfault
     from koyo.logging import set_loguru_log
     from qtextra.config import THEMES
@@ -31,7 +31,7 @@ def run(
     set_loguru_log(log_path, level=level, no_color=True, diagnose=True, catch=True, logger=logger)
     set_loguru_log(level=level, no_color=no_color, diagnose=True, catch=True, logger=logger, remove=False)
     logger.enable("image2image")
-    logger.enable("image2image_reader")
+    logger.enable("image2image_io")
     logger.info(f"Enabled logger - logging to '{log_path}' at level={level}")
 
     if dev:
@@ -109,7 +109,7 @@ def run(
         logger.enable("qtextra")
         logging.getLogger("qtreload").setLevel(logging.DEBUG)
 
-        dev = qdev(dlg, modules=["qtextra", "image2image", "image2image_reader", "koyo"])
+        dev = qdev(dlg, modules=["qtextra", "image2image", "image2image_io", "koyo"])
         dev.hide()
         dev.evt_theme.connect(lambda: THEMES.set_theme_stylesheet(dlg))
         if hasattr(dlg, "centralWidget"):

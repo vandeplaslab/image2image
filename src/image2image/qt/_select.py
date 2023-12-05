@@ -6,7 +6,7 @@ from pathlib import Path
 
 import numpy as np
 import qtextra.helpers as hp
-from image2image_reader.config import CONFIG as READER_CONFIG
+from image2image_io.config import CONFIG as READER_CONFIG
 from koyo.typing import PathLike
 from loguru import logger
 from qtextra.utils.utilities import connect

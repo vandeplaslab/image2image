@@ -1,7 +1,7 @@
 """Enums."""
 from enum import auto
 
-from image2image_reader.enums import ViewType
+from image2image_io.enums import ViewType
 from napari.utils.misc import StringEnum
 
 ALLOWED_IMPORT_REGISTER_FORMATS = (

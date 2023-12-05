@@ -9,8 +9,8 @@ from pathlib import Path
 
 import numpy as np
 import qtextra.helpers as hp
-from image2image_reader.config import CONFIG as READER_CONFIG
-from image2image_reader.enums import ViewType
+from image2image_io.config import CONFIG as READER_CONFIG
+from image2image_io.enums import ViewType
 from koyo.timer import MeasureTimer
 from loguru import logger
 from napari.layers import Image

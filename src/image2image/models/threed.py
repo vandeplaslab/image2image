@@ -13,7 +13,7 @@ from image2image.models.utilities import _get_paths, _read_config_from_file
 from image2image.utils.transform import combined_transform
 
 if ty.TYPE_CHECKING:
-    from image2image_reader.readers import BaseReader
+    from image2image_io.readers import BaseReader
 
 
 SCHEMA_VERSION: str = "1.0"

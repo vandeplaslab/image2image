@@ -7,9 +7,9 @@ from functools import partial
 from pathlib import Path
 
 import qtextra.helpers as hp
-from image2image_reader._reader import get_key
-from image2image_reader.config import CONFIG as READER_CONFIG
-from image2image_reader.readers import BaseReader
+from image2image_io._reader import get_key
+from image2image_io.config import CONFIG as READER_CONFIG
+from image2image_io.readers import BaseReader
 from koyo.timer import MeasureTimer
 from loguru import logger
 from napari.layers import Image, Shapes

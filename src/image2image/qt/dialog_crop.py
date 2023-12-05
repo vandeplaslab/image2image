@@ -9,7 +9,7 @@ from pathlib import Path
 
 import numpy as np
 import qtextra.helpers as hp
-from image2image_reader.config import CONFIG as READER_CONFIG
+from image2image_io.config import CONFIG as READER_CONFIG
 from koyo.timer import MeasureTimer
 from koyo.utilities import pluralize
 from loguru import logger
@@ -648,7 +648,7 @@ def crop_regions(
     data_model: DataModel, output_dir: Path, regions: list[tuple[int, int, int, int]]
 ) -> ty.Generator[tuple[Path, int, int], None, None]:
     """Crop images."""
-    from image2image_reader._writer import write_ome_tiff
+    from image2image_io._writer import write_ome_tiff
 
     n = len(regions)
     for current, (left, right, top, bottom) in enumerate(regions, start=1):

@@ -4,7 +4,7 @@ from __future__ import annotations
 from datetime import datetime
 
 import numpy as np
-from image2image_reader.enums import TIME_FORMAT
+from image2image_io.enums import TIME_FORMAT
 from koyo.typing import PathLike
 from loguru import logger
 from rasterio.features import rasterize

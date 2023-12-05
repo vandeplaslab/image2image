@@ -6,7 +6,7 @@ from contextlib import suppress
 from pathlib import Path
 
 import qtextra.helpers as hp
-from image2image_reader.config import CONFIG as READER_CONFIG
+from image2image_io.config import CONFIG as READER_CONFIG
 from loguru import logger
 from qtextra.utils.table_config import TableConfig
 from qtextra.utils.utilities import connect
@@ -123,7 +123,7 @@ class ImageFusionWindow(Window):
 
     def on_export(self):
         """Process data."""
-        from image2image_reader._writer import images_to_fusion
+        from image2image_io._writer import images_to_fusion
 
         if self.output_dir is None:
             hp.warn(self, "No output directory was selected. Please select directory where to save data.")
