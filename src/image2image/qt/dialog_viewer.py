@@ -38,6 +38,8 @@ class ImageViewerWindow(Window):
     def __init__(self, parent: QWidget | None):
         super().__init__(parent, f"image2viewer: Simple viewer app (v{__version__})")
         READER_CONFIG.view_type = "overlay"
+        READER_CONFIG.only_last_pyramid = False
+        READER_CONFIG.init_pyramid = True
         if CONFIG.first_time_viewer:
             hp.call_later(self, self.on_show_tutorial, 10_000)
 

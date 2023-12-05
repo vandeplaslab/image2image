@@ -26,6 +26,7 @@ from qtpy.QtWidgets import (
     QFormLayout,
     QHBoxLayout,
     QMenuBar,
+    QProgressBar,
     QSizePolicy,
     QStatusBar,
     QVBoxLayout,
@@ -414,6 +415,7 @@ class ImageThreeDWindow(Window):
         with hp.qt_signals_blocked(self.groups_choice):
             self.groups_choice.clear()
             hp.set_combobox_text_data(self.groups_choice, labels, current)
+            self.progress_bar.setRange(0, len(labels) - 3)
 
     def on_order_by(self):
         """Reorder images according to the current group identification."""
@@ -469,6 +471,7 @@ class ImageThreeDWindow(Window):
         # get values
         _, values = self._get_for_group()
         self.table.update_column(self.TABLE_CONFIG.check, values, match_to_sort=False)
+        self.progress_bar.setValue(self.groups_choice.currentIndex() - 2)
 
         # clear canvas and plot
         self.view.viewer.layers.clear()
@@ -479,6 +482,7 @@ class ImageThreeDWindow(Window):
     def on_group_increment(self, increment: int = 0) -> None:
         """Increment group."""
         hp.increment_combobox(self.groups_choice, increment, skip=[0, 1])
+        self.progress_bar.setValue(self.groups_choice.currentIndex() - 2)
         self.on_scroll()
 
     def on_check_group(self, check: bool) -> None:
@@ -623,6 +627,12 @@ class ImageThreeDWindow(Window):
         self.group_mode = hp.make_radio_btn_group(self, [self.group_mode_btn, self.slide_mode_btn])
 
         self.groups_choice = hp.make_combobox(self, tooltip="Select group to show", func=self.on_select_group)
+        self.progress_bar = QProgressBar(self)
+        hp.set_retain_hidden_size_policy(self.progress_bar)
+        hp.set_sizer_policy(self.progress_bar, h_stretch=True, v_stretch=False)
+        self.progress_bar.setObjectName("progress_timer")
+        self.progress_bar.setTextVisible(False)
+
         self.check_group_btn = hp.make_btn(
             self,
             "Check group",
@@ -657,6 +667,7 @@ class ImageThreeDWindow(Window):
         side_layout.addRow(hp.make_h_line_with_text("Select group"))
         side_layout.addRow(hp.make_h_layout(self.group_mode_btn, self.slide_mode_btn))
         side_layout.addRow("Group", self.groups_choice)
+        side_layout.addRow(self.progress_bar)
         side_layout.addRow(hp.make_h_layout(self.check_group_btn, self.uncheck_group_btn, self.scroll_group_btn))
 
         bottom_widget = QWidget()  # noqa
