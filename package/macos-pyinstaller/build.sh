@@ -100,12 +100,12 @@ then
     echo "Reinstalled image2image"
 
     # Re-install image2image
-    echo "Re-installing image2image-reader..."
-    new_dir=$(realpath $github_dir/image2image-reader)
+    echo "Re-installing image2image-io..."
+    new_dir=$(realpath $github_dir/image2image-io)
     cd $new_dir || exit 1
     pip install -U .
     cd $start_dir
-    echo "Reinstalled image2image-reader"
+    echo "Reinstalled image2image-io"
 
     # Re-install napari (latest)
     echo "Re-installing napari..."
@@ -126,12 +126,12 @@ fi
 if $update_app
 then
     # Re-install image2image
-    echo "Re-installing image2image-reader..."
-    new_dir=$(realpath $github_dir/image2image-reader)
+    echo "Re-installing image2image-io..."
+    new_dir=$(realpath $github_dir/image2image-io)
     cd $new_dir || exit 1
     pip install -U .
     cd $start_dir
-    echo "Reinstalled image2image-reader"
+    echo "Reinstalled image2image-io"
 
     # Re-install image2image
     echo "Re-installing image2image..."

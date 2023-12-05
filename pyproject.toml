@@ -37,7 +37,7 @@ dependencies = [
     "sentry_sdk",
     "lxml==4.9.2"
     # "qtextra",
-    # "image2image_reader"
+    # "image2image-io"
 ]
 
 
