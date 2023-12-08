@@ -35,7 +35,7 @@ class MasksDialog(QtFramelessTool):
 
     TABLE_GEO_CONFIG = (
         TableConfig()  # type: ignore[no-untyped-call]
-        .add("", "check", "bool", 25, no_sort=True)
+        .add("", "check", "bool", 25, no_sort=True, sizing="fixed")
         .add("name", "name", "str", 100)
         .add("path", "path", "str", 0, hidden=True)
         .add("key", "key", "str", 0, hidden=True)
@@ -43,9 +43,9 @@ class MasksDialog(QtFramelessTool):
 
     TABLE_IMAGE_CONFIG = (
         TableConfig()  # type: ignore[no-untyped-call]
-        .add("", "check", "bool", 25, no_sort=True)
+        .add("", "check", "bool", 25, no_sort=True, sizing="fixed")
         .add("name", "name", "str", 100)
-        .add("output shape", "shape", "str", 100)
+        .add("output shape", "shape", "str", 100, sizing="fixed")
         .add("path", "path", "str", 0, hidden=True)
         .add("key", "key", "str", 0, hidden=True)
     )

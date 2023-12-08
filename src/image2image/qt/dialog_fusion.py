@@ -307,7 +307,14 @@ class ImageFusionWindow(Window):
         return self._image_widget.model
 
     def _get_console_variables(self) -> dict:
-        return {"data_model": self.data_model}
+        variables = super()._get_console_variables()
+        variables.update(
+            {
+                "data_model": self.data_model,
+                "wrapper": self.data_model.wrapper,
+            }
+        )
+        return variables
 
     def close(self, force=False):
         """Override to handle closing app or just the window."""

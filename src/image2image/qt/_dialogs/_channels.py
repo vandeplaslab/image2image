@@ -36,7 +36,7 @@ class OverlayChannelsDialog(QtFramelessTool):
 
     TABLE_CONFIG = (
         TableConfig()  # type: ignore[no-untyped-call]
-        .add("", "check", "bool", 25, no_sort=True)
+        .add("", "check", "bool", 25, no_sort=True, sizing="fixed")
         .add("channel name", "channel_name", "str", 125)
         .add("dataset", "dataset", "str", 250)
         .add("key", "key", "str", 0, hidden=True)
@@ -181,7 +181,6 @@ class OverlayChannelsDialog(QtFramelessTool):
             self.table_proxy.setSourceModel(self.table.model())
             self.table.model().table_proxy = self.table_proxy
             self.table.setModel(self.table_proxy)
-
             self.filter_by_dataset = hp.make_line_edit(
                 self,
                 placeholder="Type in dataset name...",

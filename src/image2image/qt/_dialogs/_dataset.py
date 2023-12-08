@@ -113,7 +113,7 @@ class SelectChannelsToLoadDialog(QtDialog):
 
     TABLE_CONFIG = (
         TableConfig()  # type: ignore
-        .add("", "check", "bool", 25, no_sort=True)
+        .add("", "check", "bool", 25, no_sort=True, sizing="fixed")
         .add("channel name (full)", "channel_name_full", "str", 400)
     )
 

@@ -34,7 +34,7 @@ class SelectTransformDialog(QtFramelessTool):
 
     TABLE_CONFIG = (
         TableConfig()  # type: ignore[no-untyped-call]
-        .add("", "check", "bool", 25, no_sort=True)
+        .add("", "check", "bool", 25, no_sort=True, sizing="fixed")
         .add("dataset", "dataset", "str", 250)
         .add("key", "key", "str", 0, no_sort=True, hidden=True)
         .add("transform", "transform", "str", 250)
