@@ -38,7 +38,6 @@ class ImageFusionWindow(Window):
         TableConfig()  # type: ignore[no-untyped-call]
         .add("name", "name", "str", 0)
         .add("progress", "progress", "str", 0)
-        .add("key", "key", "str", 0, hidden=True)
     )
 
     def __init__(self, parent: QWidget | None):
@@ -85,7 +84,7 @@ class ImageFusionWindow(Window):
         """Remove items that are not present in the model."""
         to_remove = []
         for index in range(self.table.rowCount()):
-            key = self.table.item(index, self.TABLE_CONFIG.key).text()
+            key = self.table.item(index, self.TABLE_CONFIG.name).text()
             if not self.data_model.has_key(key):
                 to_remove.append(index)
         for index in reversed(to_remove):
@@ -97,7 +96,7 @@ class ImageFusionWindow(Window):
         wrapper = self.data_model.wrapper
         if wrapper:
             for reader in wrapper.reader_iter():
-                index = hp.find_in_table(self.table, self.TABLE_CONFIG.key, reader.key)
+                index = hp.find_in_table(self.table, self.TABLE_CONFIG.name, reader.key)
                 if index is not None:
                     continue
 
@@ -115,12 +114,6 @@ class ImageFusionWindow(Window):
                 table_item.setFlags(table_item.flags() & ~Qt.ItemIsEditable)  # type: ignore[attr-defined]
                 self.table.setItem(index, self.TABLE_CONFIG.progress, table_item)
 
-                # add secret key
-                name_item = QTableWidgetItem(reader.key)
-                name_item.setFlags(name_item.flags() & ~Qt.ItemIsEditable)  # type: ignore[attr-defined]
-                name_item.setTextAlignment(Qt.AlignCenter)  # type: ignore[attr-defined]
-                self.table.setItem(index, self.TABLE_CONFIG.key, name_item)
-
     def on_export(self):
         """Process data."""
         from image2image_io._writer import images_to_fusion
@@ -131,7 +124,7 @@ class ImageFusionWindow(Window):
 
         paths = []
         for row in range(self.table.rowCount()):
-            key = self.table.item(row, self.TABLE_CONFIG.key).text()
+            key = self.table.item(row, self.TABLE_CONFIG.name).text()
             reader = self.data_model.get_reader_for_key(key)
             if reader is None:
                 logger.warning(f"Could not find path for {key}")
@@ -184,7 +177,7 @@ class ImageFusionWindow(Window):
             key, current, total, remaining = args
             self.export_btn.setRange(0, total)
             self.export_btn.setValue(current)
-            row = hp.find_in_table(self.table, self.TABLE_CONFIG.key, key)
+            row = hp.find_in_table(self.table, self.TABLE_CONFIG.name, key)
             if row is not None:
                 item = self.table.item(row, self.TABLE_CONFIG.progress)
                 item.setText(f"{current/total:.1%} {remaining}")
@@ -232,7 +225,7 @@ class ImageFusionWindow(Window):
         self._image_widget = LoadWidget(self, None, select_channels=False)
         self._image_widget.info_text.setVisible(False)
 
-        columns = ["name", "progress", "key"]
+        columns = ["name", "progress"]
         self.table = QTableWidget(self)
         self.table.setColumnCount(len(columns))  # name, progress, key
         self.table.setHorizontalHeaderLabels(columns)
@@ -242,8 +235,6 @@ class ImageFusionWindow(Window):
         header = self.table.horizontalHeader()
         header.setSectionResizeMode(self.TABLE_CONFIG.name, QHeaderView.ResizeMode.Stretch)
         header.setSectionResizeMode(self.TABLE_CONFIG.progress, QHeaderView.ResizeMode.ResizeToContents)
-        header.setSectionResizeMode(self.TABLE_CONFIG.key, QHeaderView.ResizeMode.Fixed)
-        header.setSectionHidden(self.TABLE_CONFIG.key, True)
 
         self.directory_btn = hp.make_btn(
             self,

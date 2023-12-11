@@ -124,6 +124,7 @@ class ImageRegistrationWindow(Window):
     def setup_events(self, state: bool = True) -> None:
         """Additional setup."""
         # fixed widget
+        connect(self._fixed_widget.dataset_dlg.evt_project, self._on_load_from_project, state=state)
         connect(self._fixed_widget.dataset_dlg.evt_loading, partial(self.on_indicator, which="fixed"), state=state)
         connect(self._fixed_widget.dataset_dlg.evt_loaded, self.on_load_fixed, state=state)
         connect(self._fixed_widget.dataset_dlg.evt_closed, self.on_close_fixed, state=state)
@@ -133,6 +134,7 @@ class ImageRegistrationWindow(Window):
         )
         connect(self._fixed_widget.evt_swap, self.on_swap, state=state)
         # imaging widget
+        connect(self._moving_widget.dataset_dlg.evt_project, self._on_load_from_project, state=state)
         connect(self._moving_widget.dataset_dlg.evt_loading, partial(self.on_indicator, which="moving"), state=state)
         connect(self._moving_widget.dataset_dlg.evt_loaded, self.on_load_moving, state=state)
         connect(self._moving_widget.dataset_dlg.evt_closed, self.on_close_moving, state=state)
@@ -486,6 +488,9 @@ class ImageRegistrationWindow(Window):
         path_ = hp.get_filename(
             self, "Load transformation", base_dir=CONFIG.output_dir, file_filter=ALLOWED_IMPORT_REGISTER_FORMATS
         )
+        self._on_load_from_project(path_)
+
+    def _on_load_from_project(self, path_: str) -> None:
         if path_:
             from image2image.models.transformation import load_transform_from_file
             from image2image.qt._dialogs import ImportSelectDialog, LocateFilesDialog
@@ -782,8 +787,18 @@ class ImageRegistrationWindow(Window):
             func=self.on_load_from_project,
         )
 
-        self._fixed_widget = FixedWidget(self, self.view_fixed, allow_swap=False)
-        self._moving_widget = MovingWidget(self, self.view_moving, allow_swap=False)
+        self._fixed_widget = FixedWidget(
+            self,
+            self.view_fixed,
+            allow_swap=False,
+            project_extension=[".i2r.json", ".i2r.toml"],
+        )
+        self._moving_widget = MovingWidget(
+            self,
+            self.view_moving,
+            allow_swap=False,
+            project_extension=[".i2r.json", ".i2r.toml"],
+        )
 
         self.transform_error = hp.make_label(
             side_widget,

@@ -128,19 +128,24 @@ class ImageViewerWindow(Window):
 
     def on_load_from_project(self, _evt=None):
         """Load a previous project."""
-        path = hp.get_filename(self, "Load i2v project", base_dir=CONFIG.output_dir, file_filter=ALLOWED_VIEWER_FORMATS)
-        if path:
+        path_ = hp.get_filename(
+            self, "Load i2v project", base_dir=CONFIG.output_dir, file_filter=ALLOWED_VIEWER_FORMATS
+        )
+        self._on_load_from_project(path_)
+
+    def _on_load_from_project(self, path_: str) -> None:
+        if path_:
             from image2image.models.data import load_viewer_setup_from_file
             from image2image.models.utilities import _remove_missing_from_dict
 
-            path_ = Path(path)
-            CONFIG.output_dir = str(path_.parent)
+            path = Path(path_)
+            CONFIG.output_dir = str(path.parent)
 
             # load data from config file
             try:
-                paths, paths_missing, transform_data, resolution = load_viewer_setup_from_file(path_)
+                paths, paths_missing, transform_data, resolution = load_viewer_setup_from_file(path)
             except ValueError as e:
-                hp.warn(self, f"Failed to load transformation from {path_}\n{e}", "Failed to load transformation")
+                hp.warn(self, f"Failed to load transformation from {path}\n{e}", "Failed to load transformation")
                 return
 
             # locate paths that are missing
@@ -211,7 +216,12 @@ class ImageViewerWindow(Window):
         self.view = self._make_image_view(
             self, add_toolbars=False, allow_extraction=False, disable_controls=True, disable_new_layers=True
         )
-        self._image_widget = LoadWithTransformWidget(self, self.view, allow_geojson=True)
+        self._image_widget = LoadWithTransformWidget(
+            self,
+            self.view,
+            allow_geojson=True,
+            project_extension=[".i2v.json", ".i2v.toml"],
+        )
 
         self.import_project_btn = hp.make_btn(
             self, "Import project...", tooltip="Load previous project", func=self.on_load_from_project

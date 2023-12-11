@@ -39,6 +39,9 @@ def combined_transform(
     - rotation around the center point
     - horizontal flip
     """
+    image_size = np.asarray(image_size)
+    image_spacing = np.asarray(image_spacing)
+    translation = np.asarray(translation)
     tran = centered_translation_transform(translation)
     rot = centered_rotation_transform(image_size, image_spacing, rotation_angle)
     flip = np.eye(3)

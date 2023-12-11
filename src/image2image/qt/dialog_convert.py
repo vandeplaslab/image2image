@@ -39,7 +39,6 @@ class ImageConvertWindow(Window):
         .add("name", "name", "str", 0)
         .add("no. scenes", "n_scenes", "int", 0)
         .add("progress", "progress", "str", 0)
-        .add("key", "key", "str", 0, hidden=True)
     )
 
     def __init__(self, parent: QWidget | None):
@@ -86,7 +85,7 @@ class ImageConvertWindow(Window):
         """Remove items that are not present in the model."""
         to_remove = []
         for index in range(self.table.rowCount()):
-            key = self.table.item(index, self.TABLE_CONFIG.key).text()
+            key = self.table.item(index, self.TABLE_CONFIG.name).text()
             if not self.data_model.has_key(key):
                 to_remove.append(index)
         for index in reversed(to_remove):
@@ -98,7 +97,7 @@ class ImageConvertWindow(Window):
         wrapper = self.data_model.wrapper
         if wrapper:
             for reader in wrapper.reader_iter():
-                index = hp.find_in_table(self.table, self.TABLE_CONFIG.key, reader.key)
+                index = hp.find_in_table(self.table, self.TABLE_CONFIG.name, reader.key)
                 if index is not None:
                     continue
 
@@ -120,12 +119,6 @@ class ImageConvertWindow(Window):
                 table_item.setFlags(table_item.flags() & ~Qt.ItemIsEditable)  # type: ignore[attr-defined]
                 self.table.setItem(index, self.TABLE_CONFIG.progress, table_item)
 
-                # add secret key
-                name_item = QTableWidgetItem(reader.key)
-                name_item.setFlags(name_item.flags() & ~Qt.ItemIsEditable)  # type: ignore[attr-defined]
-                name_item.setTextAlignment(Qt.AlignCenter)  # type: ignore[attr-defined]
-                self.table.setItem(index, self.TABLE_CONFIG.key, name_item)
-
     def on_convert(self):
         """Process data."""
         from image2image_io._writer import czis_to_ome_tiff
@@ -136,7 +129,7 @@ class ImageConvertWindow(Window):
 
         paths = []
         for row in range(self.table.rowCount()):
-            key = self.table.item(row, self.TABLE_CONFIG.key).text()
+            key = self.table.item(row, self.TABLE_CONFIG.name).text()
             reader = self.data_model.get_reader_for_key(key)
             if reader is None:
                 logger.warning(f"Could not find path for {key}")
@@ -187,10 +180,10 @@ class ImageConvertWindow(Window):
 
     def __on_export_yield(self, args: tuple[str, int, int, int, int]) -> None:
         # with suppress(ValueError):
-        key, current_scene, total_scene, current, total = args
-        self.export_btn.setRange(0, total)
+        key, current_scene, total_scene, current, total_in_files = args
+        self.export_btn.setRange(0, total_in_files)
         self.export_btn.setValue(current)
-        row = hp.find_in_table(self.table, self.TABLE_CONFIG.key, key)
+        row = hp.find_in_table(self.table, self.TABLE_CONFIG.name, key)
         if row is not None:
             item = self.table.item(row, self.TABLE_CONFIG.progress)
             item.setText(f"{current_scene}/{total_scene} scenes exported...")
@@ -239,7 +232,7 @@ class ImageConvertWindow(Window):
         )
         self._image_widget.info_text.setVisible(False)
 
-        columns = ["name", "no. scenes", "progress", "key"]
+        columns = ["name", "no. scenes", "progress"]
         self.table = QTableWidget(self)
         self.table.setColumnCount(len(columns))  # name, n_scenes, progress, key
         self.table.setHorizontalHeaderLabels(columns)
@@ -250,8 +243,6 @@ class ImageConvertWindow(Window):
         header.setSectionResizeMode(self.TABLE_CONFIG.name, QHeaderView.ResizeMode.Stretch)
         header.setSectionResizeMode(self.TABLE_CONFIG.n_scenes, QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(self.TABLE_CONFIG.progress, QHeaderView.ResizeMode.ResizeToContents)
-        header.setSectionResizeMode(self.TABLE_CONFIG.key, QHeaderView.ResizeMode.Fixed)
-        header.setSectionHidden(self.TABLE_CONFIG.key, True)
 
         self.directory_btn = hp.make_btn(
             self,
@@ -367,4 +358,4 @@ class ImageConvertWindow(Window):
 if __name__ == "__main__":  # pragma: no cover
     from image2image.main import run
 
-    run(dev=True, tool="export", level=0)
+    run(dev=True, tool="convert", level=0)

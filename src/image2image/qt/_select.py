@@ -187,6 +187,7 @@ class FixedWidget(LoadWidget):
         select_channels: bool = True,
         allow_flip_rotation: bool = False,
         allow_swap: bool = False,
+        project_extension: list[str] | None = None,
     ):
         super().__init__(
             parent,
@@ -196,6 +197,7 @@ class FixedWidget(LoadWidget):
             select_channels,
             allow_flip_rotation=allow_flip_rotation,
             allow_swap=allow_swap,
+            project_extension=project_extension,
         )
 
         if parent is not None and hasattr(parent, "evt_fixed_dropped"):
@@ -224,6 +226,7 @@ class MovingWidget(LoadWidget):
         select_channels: bool = True,
         allow_flip_rotation: bool = False,
         allow_swap: bool = False,
+        project_extension: list[str] | None = None,
     ):
         super().__init__(
             parent,
@@ -233,6 +236,7 @@ class MovingWidget(LoadWidget):
             select_channels,
             allow_flip_rotation=allow_flip_rotation,
             allow_swap=allow_swap,
+            project_extension=project_extension,
         )
 
         # extra events
@@ -312,6 +316,7 @@ class LoadWithTransformWidget(LoadWidget):
         select_channels: bool = True,
         allow_flip_rotation: bool = False,
         allow_swap: bool = False,
+        project_extension: list[str] | None = None,
     ):
         """Init."""
         super().__init__(
@@ -322,6 +327,7 @@ class LoadWithTransformWidget(LoadWidget):
             select_channels,
             allow_flip_rotation=allow_flip_rotation,
             allow_swap=allow_swap,
+            project_extension=project_extension,
         )
         self.transform_model = TransformModel()
         self.transform_model.add_transform("Identity matrix", TransformData.from_array(np.eye(3, dtype=np.float64)))

@@ -96,19 +96,22 @@ class ImageCropWindow(Window):
 
     def on_load_from_project(self) -> None:
         """Load previous data."""
-        path = hp.get_filename(self, "Load i2c project", base_dir=CONFIG.output_dir, file_filter=ALLOWED_CROP_FORMATS)
-        if path:
+        path_ = hp.get_filename(self, "Load i2c project", base_dir=CONFIG.output_dir, file_filter=ALLOWED_CROP_FORMATS)
+        self._on_load_from_project(path_)
+
+    def _on_load_from_project(self, path_: str) -> None:
+        if path_:
             from image2image.models.data import load_crop_setup_from_file
             from image2image.models.utilities import _remove_missing_from_dict
 
-            path_ = Path(path)
-            CONFIG.output_dir = str(path_.parent)
+            path = Path(path_)
+            CONFIG.output_dir = str(path.parent)
 
             # load data from config file
             try:
-                paths, paths_missing, transform_data, resolution, crop = load_crop_setup_from_file(path_)
+                paths, paths_missing, transform_data, resolution, crop = load_crop_setup_from_file(path)
             except ValueError as e:
-                hp.warn(self, f"Failed to load transformation from {path_}\n{e}", "Failed to load transformation")
+                hp.warn(self, f"Failed to load transformation from {path}\n{e}", "Failed to load transformation")
                 return
 
             # locate paths that are missing
@@ -438,7 +441,11 @@ class ImageCropWindow(Window):
         self.view = self._make_image_view(
             self, add_toolbars=False, allow_extraction=False, disable_controls=True, disable_new_layers=True
         )
-        self._image_widget = LoadWidget(self, self.view)
+        self._image_widget = LoadWidget(
+            self,
+            self.view,
+            project_extension=[".i2c.json", ".i2c.toml"],
+        )
 
         self.index_choice = hp.make_int_spin_box(
             self,
