@@ -184,6 +184,8 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
                         view_wrapper.viewer.add_shapes(**reader.to_shapes_kwargs(name=name, affine=current_affine))
                     )
                 else:
+                    if array is None:
+                        raise ValueError(f"Failed to get array for '{name}'.")
                     contrast_limits, contrast_limits_range = get_contrast_limits(array)
                     image_layer.append(
                         view_wrapper.viewer.add_image(

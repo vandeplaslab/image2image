@@ -115,7 +115,6 @@ def centered_flip(
     center_point = np.append(center_point, 0)
     translation = center_point - np.dot(rot_mat, center_point)
     rot_mat[:2, 2] = translation[:2]
-
     return rot_mat
 
 
