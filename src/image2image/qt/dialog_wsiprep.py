@@ -38,8 +38,8 @@ from tqdm import tqdm
 
 from image2image import __version__
 from image2image.config import CONFIG
-from image2image.enums import ALLOWED_IMAGE_FORMATS_TIFF_ONLY, ALLOWED_THREED_FORMATS
-from image2image.models.threed import Registration, RegistrationImage, as_icon, load_from_file, remove_if_not_present
+from image2image.enums import ALLOWED_IMAGE_FORMATS_TIFF_ONLY, ALLOWED_WSIPREP_FORMATS
+from image2image.models.wsiprep import Registration, RegistrationImage, as_icon, load_from_file, remove_if_not_present
 from image2image.qt._select import LoadWidget
 from image2image.qt.dialog_base import Window
 from image2image.utils.utilities import (
@@ -55,7 +55,7 @@ if ty.TYPE_CHECKING:
     from image2image.models.data import DataModel
 
 
-class ImageThreeDWindow(Window):
+class ImageWsiPrepWindow(Window):
     """Image viewer dialog."""
 
     image_layer: list[Image] | None = None
@@ -95,8 +95,9 @@ class ImageThreeDWindow(Window):
     )
 
     def __init__(self, parent: QWidget | None = None):
-        super().__init__(parent, f"image2threed: Co-register 3D data from 2D sections app (v{__version__})")
-        self.registration = Registration()  # type: ignore[call-arg]
+        super().__init__(parent, f"image2wsiprep: Prepare your microscopy data for co-registration (v{__version__})")
+        self.registration = Registration()
+        self.masks: dict[str, tuple[int, int, int, int]] = {}
         READER_CONFIG.only_last_pyramid = True
         READER_CONFIG.init_pyramid = False
 
@@ -106,6 +107,7 @@ class ImageThreeDWindow(Window):
         connect(self._image_widget.dataset_dlg.evt_project, self._on_load_from_project, state=state)
         connect(self._image_widget.dataset_dlg.evt_closed, self.on_remove_image, state=state)
         connect(self.view.widget.canvas.events.key_press, self.keyPressEvent, state=state)
+        connect(self.view.viewer.events.status, self._status_changed, state=state)
         connect(self.table.evt_keypress, self.keyPressEvent, state=state)
         connect(self.table.evt_value_checked, self.on_table_updated, state=state)
         connect(self.table.doubleClicked, self.on_table_double_clicked, state=state)
@@ -164,6 +166,7 @@ class ImageThreeDWindow(Window):
     def on_contrast_limits(self, _value: bool | tuple[float, float] | None = None) -> None:
         """Set contrast limits."""
         common = self.common_contrast_limit.isChecked()
+        hp.disable_widgets(self.contrast_limit, disabled=not common)
         contrast_limits: tuple[float, float] = self.contrast_limit.value()  # type: ignore[no-untyped-call]
         if common:
             for layer in self.view.layers:
@@ -178,22 +181,16 @@ class ImageThreeDWindow(Window):
             wrapper = self.data_model.wrapper
             if not wrapper:
                 return
-            ref_key = self.registration.reference
             all_contrast_range: list[float] = []
-            if ref_key and ref_key in wrapper.data:
-                reader = wrapper.data[ref_key]
-                model = self.registration.images[reader.key]
-                contrast_range = self._plot_model(reader, model)
-                if contrast_range:
-                    all_contrast_range.extend(contrast_range)
-            checked = self.table.get_all_checked()
 
+            group_id: int | None = None
+            # plot non-reference images
+            checked = self.table.get_all_checked()
             if len(checked) < 48 or hp.confirm(
                 self,
                 f"There is more  than 48 images selected ({len(checked)}). Would you like to continue?",
                 "There are many images....",
             ):
-                # if len(checked) < 48:
                 for index in tqdm(checked, desc="Plotting images..."):
                     key = self.table.get_value(self.TABLE_CONFIG.key, index)
                     reader = wrapper.data[key]
@@ -201,14 +198,29 @@ class ImageThreeDWindow(Window):
                     if not model.keep:
                         logger.info(f"Skipping '{key}' as it is marked for removal.")
                         continue
+                    group_id = model.group_id
                     contrast_range = self._plot_model(reader, model)
                     if contrast_range:
                         all_contrast_range.extend(contrast_range)
-                if all_contrast_range:
-                    self.contrast_limit.setRange(min(all_contrast_range), max(all_contrast_range))
-                    if not self.common_contrast_limit.isChecked():
-                        self.contrast_limit.setValue((min(all_contrast_range), max(all_contrast_range)))
-                    self.contrast_limit.setDecimals(2 if max(all_contrast_range) < 1 else 0)
+
+            # reset group mode in case the first reference is requested
+            single_ref = "per list" in CONFIG.project_mode
+            if single_ref:
+                group_id = None
+
+            # plot reference image
+            ref_key = self.registration.get_reference_for_group(group_id)
+            if ref_key and ref_key in wrapper.data:
+                reader = wrapper.data[ref_key]
+                model = self.registration.images[reader.key]
+                contrast_range = self._plot_model(reader, model)
+                if contrast_range:
+                    all_contrast_range.extend(contrast_range)
+            if all_contrast_range:
+                self.contrast_limit.setRange(min(all_contrast_range), max(all_contrast_range))
+                if not self.common_contrast_limit.isChecked():
+                    self.contrast_limit.setValue((min(all_contrast_range), max(all_contrast_range)))
+                self.contrast_limit.setDecimals(2 if max(all_contrast_range) < 1 else 0)
             self.on_contrast_limits()
 
     def _plot_model(self, reader: BaseReader, model: RegistrationImage) -> tuple[float, float] | None:
@@ -239,7 +251,9 @@ class ImageThreeDWindow(Window):
             checked = self.table.get_all_checked()
             for index in range(self.table.n_rows):
                 key = self.table.get_value(self.TABLE_CONFIG.key, index)
-                is_reference = key == self.registration.reference
+                model = self.registration.images[key]
+                is_reference = model.is_reference
+                # is_reference = key == self.registration.reference
                 cmap = "red" if is_reference else ("magenta" if index in checked else "cyan")
                 if key in self.view.layers:
                     self.view.layers[key].colormap = cmap
@@ -256,9 +270,11 @@ class ImageThreeDWindow(Window):
                     self.view.layers[key].colormap = "yellow"
             logger.trace(f"Highlighted image in {timer()}")
 
-    def check_if_can_update(self, model: RegistrationImage, silent: bool = False) -> bool:
+    def check_if_can_update(
+        self, model: RegistrationImage, silent: bool = False, check_ref: bool = True, check_lock: bool = True
+    ) -> bool:
         """Check if the model can be updated."""
-        if model.is_reference:
+        if check_ref and model.is_reference:
             if not silent:
                 hp.toast(
                     self,
@@ -267,7 +283,7 @@ class ImageThreeDWindow(Window):
                     icon="warning",
                 )
             return False
-        if model.lock:
+        if check_lock and model.lock:
             if not silent:
                 hp.toast(
                     self,
@@ -280,16 +296,26 @@ class ImageThreeDWindow(Window):
 
     def on_table_updated(self, row: int, column: int, value: bool) -> None:
         """State was changed for specified row and column."""
+
+        def _force_previous(col: int, val: bool) -> None:
+            with hp.qt_signals_blocked(self.table):
+                self.table.set_value(col, row, val)
+
         key = self.table.get_value(self.TABLE_CONFIG.key, row)
         model = self.registration.images[key]
         if column == self.TABLE_CONFIG.keep:
+            if not self.check_if_can_update(model):
+                _force_previous(self.TABLE_CONFIG.keep, model.keep)
+                return
             model.keep = value
         elif column == self.TABLE_CONFIG.lock:
+            if not self.check_if_can_update(model, check_lock=False):
+                _force_previous(self.TABLE_CONFIG.lock, model.lock)
+                return
             model.lock = value
-        elif column == self.TABLE_CONFIG.reference:
-            self.registration.reference = key
         elif column == self.TABLE_CONFIG.flip_lr:
             if not self.check_if_can_update(model):
+                _force_previous(self.TABLE_CONFIG.flip_lr, model.flip_lr)
                 return
             model.flip_lr = value
             self._transform(model)
@@ -413,7 +439,7 @@ class ImageThreeDWindow(Window):
             for index in checked:
                 key = self.table.get_value(self.TABLE_CONFIG.key, index)
                 model = self.registration.images[key]
-                model.group_id = group_id if group else 0
+                model.group_id = group_id if group else -1
                 self.table.set_value(self.TABLE_CONFIG.group_id, index, model.group_id)
             self._generate_group_options()
         logger.trace(f"{'Grouped' if group else 'Ungrouped'} '{len(checked)}' images in {timer()}")
@@ -482,14 +508,15 @@ class ImageThreeDWindow(Window):
         ):
             return
         with MeasureTimer() as timer, self.table.block_model():
-            values = []
+            values = [-1] * self.table.n_rows
             if dataset_to_group_map:
                 for key, group_id in tqdm(
                     dataset_to_group_map.items(), desc="Grouping images...", total=self.table.n_rows
                 ):
                     self.registration.images[key].group_id = group_id
-                    values.append(group_id)
-                self.table.update_column(self.TABLE_CONFIG.group_id, values)
+                    index = self.table.find_index_of(self.TABLE_CONFIG.key, key)
+                    values[index] = group_id
+                self.table.update_column(self.TABLE_CONFIG.group_id, values, match_to_sort=False)
             self._generate_group_options()
         logger.trace(f"Grouped images in {timer()}")
 
@@ -528,12 +555,14 @@ class ImageThreeDWindow(Window):
             return
         with MeasureTimer() as timer, self.table.block_model():
             self.registration.reorder()
-            layers, values = [], []
+            layers = []
+            values = [0] * self.table.n_rows
             for key in tqdm(self.registration.key_iter(), desc="Reordering images...", total=self.table.n_rows):
-                values.append(self.registration.images[key].image_order)
+                index = self.table.find_index_of(self.TABLE_CONFIG.key, key)
+                values[index] = self.registration.images[key].image_order
                 if key in self.view.layers:
                     layers.append(self.view.layers.pop(key))
-            self.table.update_column(self.TABLE_CONFIG.image_order, values)
+            self.table.update_column(self.TABLE_CONFIG.image_order, values, match_to_sort=False)
             for layer in layers:
                 self.view.viewer.add_layer(layer)
             self.view.viewer.reset_view()
@@ -609,22 +638,32 @@ class ImageThreeDWindow(Window):
 
     def on_reference(self) -> None:
         """Set the currently selected row as a reference."""
+        project_mode = self.project_mode.currentText()
+        single_ref = "per list" in project_mode
         if self.table.selectionModel().hasSelection():
             with MeasureTimer() as timer, self.table.block_model():
                 index = self.table.selectionModel().currentIndex().row()
                 key_ = self.table.get_value(self.TABLE_CONFIG.key, index)
                 if not hp.confirm(self, f"Set <b>{key_}</b> as the reference image?", "Set reference"):
                     return
-                self.registration.reference = key_
+
+                group_id = None if single_ref else self.registration.images[key_].group_id
+                logger.trace(f"Setting reference image (single_ref={single_ref}; group_id={group_id})")
                 for row in range(self.table.n_rows):
                     key = self.table.get_value(self.TABLE_CONFIG.key, row)
-                    self.registration.images[key].is_reference = row == index
+                    model = self.registration.images[key]
+                    if group_id is None:
+                        model.is_reference = row == index
+                    elif group_id == model.group_id:
+                        model.is_reference = row == index
+                    print(model.key, model.is_reference, model.group_id, group_id)
+
                     if row == index:
-                        self.registration.images[key].lock = True
+                        model.lock = True
                         self.table.set_value(self.TABLE_CONFIG.lock, row, True)
-                    self.table.set_value(self.TABLE_CONFIG.reference, row, as_icon(row == index))
+                    self.table.set_value(self.TABLE_CONFIG.reference, row, as_icon(model.is_reference))
                 self.on_select()
-            logger.trace(f"Set {key_} as reference in {timer()}")
+            logger.trace(f"Set {key_} as reference in {timer()} (single_ref={single_ref})")
 
     @ensure_main_thread
     def on_load_image(self, model: DataModel, _channel_list: list[str]) -> None:
@@ -637,6 +676,35 @@ class ImageThreeDWindow(Window):
         else:
             logger.warning(f"Failed to load data - model={model}")
 
+    def on_project_mode(self) -> None:
+        """Update project mode."""
+        prev_mode = CONFIG.project_mode
+        if "per group" in prev_mode and "per group" not in self.project_mode.currentText():
+            if not hp.confirm(
+                self,
+                "Changing the project mode from <b>'per group'</b> where <b>multiple</b> references are permitted to"
+                " <b>'per list'</b> where only <b>one</b> reference is permitted will remove all but the first"
+                " reference in each group. Are you sure you wish to continue?",
+                "Are you sure?",
+            ):
+                self.project_mode.setCurrentText(prev_mode)
+                return
+
+        CONFIG.project_mode = self.project_mode.currentText()
+        self._generate_group_options()
+
+    def on_select_mask(self) -> None:
+        """Select mask from a list of available options."""
+
+    def on_make_mask(self) -> None:
+        """Make mask for the currently selected group."""
+
+    def on_save_mask(self) -> None:
+        """Save the currently selected mask."""
+
+    def on_save_all_masks(self) -> None:
+        """Save all masks to disk."""
+
     def _setup_ui(self):
         """Create panel."""
         self.view = self._make_image_view(
@@ -648,7 +716,7 @@ class ImageThreeDWindow(Window):
             self.view,
             select_channels=False,
             available_formats=ALLOWED_IMAGE_FORMATS_TIFF_ONLY,
-            project_extension=[".i2threed.json", ".i2threed.toml"],
+            project_extension=[".i2wsiprep.json", ".i2wsiprep.toml"],
         )
         self.import_project_btn = hp.make_btn(
             self, "Import project...", tooltip="Load previous project", func=self.on_load_from_project
@@ -671,37 +739,46 @@ class ImageThreeDWindow(Window):
 
         self.toolbar = QtMiniToolbar(self, orientation=Qt.Orientation.Vertical, add_spacer=False)
         self.toolbar.add_qta_tool(
-            "rotate_left", tooltip="Rotate image left (E)", func=lambda: self.on_rotate("left"), small=True
+            "rotate_left", tooltip="Rotate image left (E)", func=lambda: self.on_rotate("left"), average=True
         )
         self.toolbar.add_qta_tool(
-            "rotate_right", tooltip="Rotate image right (Q)", func=lambda: self.on_rotate("right"), small=True
+            "rotate_right", tooltip="Rotate image right (Q)", func=lambda: self.on_rotate("right"), average=True
         )
         self.toolbar.add_qta_tool(
-            "translate_up", tooltip="Translate image up (W)", func=lambda: self.on_translate("up"), small=True
+            "translate_up", tooltip="Translate image up (W)", func=lambda: self.on_translate("up"), average=True
         )
         self.toolbar.add_qta_tool(
-            "translate_down", tooltip="Translate image down (S)", func=lambda: self.on_translate("down"), small=True
+            "translate_down", tooltip="Translate image down (S)", func=lambda: self.on_translate("down"), average=True
         )
         self.toolbar.add_qta_tool(
-            "translate_left", tooltip="Translate image left (A)", func=lambda: self.on_translate("left"), small=True
+            "translate_left", tooltip="Translate image left (A)", func=lambda: self.on_translate("left"), average=True
         )
         self.toolbar.add_qta_tool(
-            "translate_right", tooltip="Translate image right (D)", func=lambda: self.on_translate("right"), small=True
+            "translate_right",
+            tooltip="Translate image right (D)",
+            func=lambda: self.on_translate("right"),
+            average=True,
         )
-        self.toolbar.add_qta_tool("flip_lr", tooltip="Flip image left-right (F)", func=self.on_flip_lr, small=True)
-        self.toolbar.add_qta_tool("group", tooltip="Group images", func=lambda x: self.on_group(True), small=True)
-        self.toolbar.add_qta_tool("ungroup", tooltip="Ungroup images", func=lambda x: self.on_group(False), small=True)
-        self.toolbar.add_qta_tool("lock_open", tooltip="Lock images (L)", func=lambda x: self.on_lock(True), small=True)
+        self.toolbar.add_qta_tool("flip_lr", tooltip="Flip image left-right (F)", func=self.on_flip_lr, average=True)
+        self.toolbar.add_qta_tool("group", tooltip="Group images", func=lambda x: self.on_group(True), average=True)
         self.toolbar.add_qta_tool(
-            "lock_closed", tooltip="Unlock images (U)", func=lambda x: self.on_lock(False), small=True
-        )
-        self.toolbar.add_qta_tool(
-            "keep_image", tooltip="Keep images (Z)", func=lambda x: self.on_keep(True), small=True
+            "ungroup", tooltip="Ungroup images", func=lambda x: self.on_group(False), average=True
         )
         self.toolbar.add_qta_tool(
-            "remove_image", tooltip="Remove images (X)", func=lambda x: self.on_keep(False), small=True
+            "lock_open", tooltip="Lock images (L)", func=lambda x: self.on_lock(True), average=True
+        )
+        self.toolbar.add_qta_tool(
+            "lock_closed", tooltip="Unlock images (U)", func=lambda x: self.on_lock(False), average=True
+        )
+        self.toolbar.add_qta_tool(
+            "keep_image", tooltip="Keep images (Z)", func=lambda x: self.on_keep(True), average=True
+        )
+        self.toolbar.add_qta_tool(
+            "remove_image", tooltip="Remove images (X)", func=lambda x: self.on_keep(False), average=True
         )
         self.toolbar.append_spacer()
+        self.toolbar.layout().setSpacing(0)
+        self.toolbar.layout().setContentsMargins(0, 0, 0, 0)
 
         self.export_project_btn = hp.make_btn(
             self,
@@ -710,13 +787,26 @@ class ImageThreeDWindow(Window):
             " information are saved. (This does not save the cropped image)",
             func=self.on_save_to_project,
         )
+        # options
+        self.project_mode = hp.make_combobox(
+            self,
+            [
+                "2D (one reference per group)",
+                "2D (one reference per list)",
+                "3D (one reference per list)",
+            ],
+            tooltip="Select project mode. This will determine how the images are grouped and registered.",
+            func=self.on_project_mode,
+            value=CONFIG.project_mode,
+        )
 
+        # group-by options
         self.group_by = hp.make_line_edit(self, placeholder="Type in part of the filename")
-        # self.group_by.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self.preview_group_by_btn = hp.make_btn(self, "Preview", func=self.on_preview_group_by)
         self.group_by_btn = hp.make_btn(self, "Group", func=self.on_group_by)
         self.reorder_btn = hp.make_btn(self, "Reorder", func=self.on_order_by)
 
+        # select options
         self.group_mode_btn = hp.make_radio_btn(
             self, "Group mode", tooltip="Group mode", checked=True, func=self._generate_group_options
         )
@@ -751,29 +841,45 @@ class ImageThreeDWindow(Window):
             func=self.on_scroll,
         )
 
+        # mask options
+        # self.mask_choice = hp.make_combobox(self, tooltip="Select mask to show", func=self.on_select_mask)
+        # self.make_mask_btn = hp.make_btn(self, "Make mask for group", func=self.on_make_mask)
+        # self.save_mask_btn = hp.make_btn(self, "Save mask for group", func=self.on_save_mask)
+
         side_widget = QWidget()  # noqa
         side_widget.setMinimumWidth(300)
         side_layout = hp.make_form_layout(side_widget)
+        side_layout.setContentsMargins(0, 0, 0, 0)
         side_layout.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.ExpandingFieldsGrow)
         hp.style_form_layout(side_layout)
+        # project options
         side_layout.addRow(self.import_project_btn)
         side_layout.addRow(hp.make_h_line_with_text("or"))
         side_layout.addRow(self._image_widget)
         side_layout.addRow(self.export_project_btn)
+        # project mode
+        side_layout.addRow(hp.make_h_line_with_text("Options"))
+        side_layout.addRow(hp.make_label(self, "Project mode"), self.project_mode)
+        # group options
         side_layout.addRow(hp.make_h_line_with_text("Group by part of the filename"))
         side_layout.addRow(self.group_by)
         side_layout.addRow(hp.make_h_layout(self.preview_group_by_btn, self.group_by_btn, self.reorder_btn))
-        side_layout.addRow(hp.make_h_line_with_text("Select group"))
+        # select group options
+        side_layout.addRow(hp.make_h_line_with_text("Select/view group"))
         side_layout.addRow(hp.make_h_layout(self.group_mode_btn, self.slide_mode_btn))
         side_layout.addRow("Group", self.groups_choice)
         side_layout.addRow(self.progress_bar)
         side_layout.addRow(hp.make_h_layout(self.check_group_btn, self.uncheck_group_btn, self.scroll_group_btn))
+        # # group options
+        # side_layout.addRow(hp.make_h_line_with_text("Make/view mask"))
+        # side_layout.addRow(hp.make_label(self, "Mask"), self.mask_choice)
+        # side_layout.addRow(hp.make_h_layout(self.make_mask_btn, self.save_mask_btn))
 
         bottom_widget = QWidget()  # noqa
         bottom_widget.setMinimumHeight(400)
         bottom_widget.setMaximumHeight(600)
-        bottom_layout = QHBoxLayout(bottom_widget)
 
+        bottom_layout = QHBoxLayout(bottom_widget)
         bottom_layout.setSpacing(2)
         bottom_layout.addWidget(side_widget)
         bottom_layout.addWidget(hp.make_v_line())
@@ -789,6 +895,7 @@ class ImageThreeDWindow(Window):
         self.setCentralWidget(widget)
         main_layout = QVBoxLayout(widget)
         main_layout.setSpacing(0)
+        main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.addLayout(layout)
 
         # extra settings
@@ -901,6 +1008,13 @@ class ImageThreeDWindow(Window):
         dlg = QtScaleBarControls(self.view.viewer, self.view.widget)
         dlg.show_above_widget(self.scalebar_btn)
 
+    def on_show_grid(self) -> None:
+        """Show scale bar controls for the viewer."""
+        from qtextra._napari.common.component_controls.qt_grid_controls import QtGridControls
+
+        dlg = QtGridControls(self.view.viewer, self.view.widget)
+        dlg.show_above_widget(self.grid_btn)
+
     def on_show_save_figure(self) -> None:
         """Show scale bar controls for the viewer."""
         from image2image.qt._dialogs._screenshot import QtScreenshotDialog
@@ -937,6 +1051,7 @@ class ImageThreeDWindow(Window):
         self.contrast_limit.setRange(0, 1)
         self.contrast_limit.setValue((0, 1))
         self.contrast_limit.setDecimals(2)
+        hp.disable_widgets(self.contrast_limit, disabled=not self.common_contrast_limit.isChecked())
         self.contrast_limit.layout().setSpacing(1)
         self.statusbar.addPermanentWidget(self.contrast_limit)
         self.statusbar.addPermanentWidget(hp.make_v_line())
@@ -988,6 +1103,7 @@ class ImageThreeDWindow(Window):
             checked=self.view.viewer.grid.enabled,
             checked_icon_name="grid_on",
             func=lambda: toggle_grid(self.view.viewer),
+            func_menu=self.on_show_grid,
         )
         self.statusbar.addPermanentWidget(self.grid_btn)
 
@@ -1067,24 +1183,24 @@ class ImageThreeDWindow(Window):
 
     def on_show_shortcuts(self):
         """Show shortcuts."""
-        from image2image.qt._dialogs._shortcuts import ThreeDShortcutsDialog
+        from image2image.qt._dialogs._shortcuts import WsiPrepShortcutsDialog
 
-        dlg = ThreeDShortcutsDialog(self)
+        dlg = WsiPrepShortcutsDialog(self)
         dlg.show()
 
     def on_save_to_project(self) -> None:
         """Save data to config file."""
-        filename = "project.i2threed.json"
+        filename = "project.i2wsiprep.json"
         path_ = hp.get_save_filename(
             self,
             "Save transformation",
             base_dir=CONFIG.output_dir,
-            file_filter=ALLOWED_THREED_FORMATS,
+            file_filter=ALLOWED_WSIPREP_FORMATS,
             base_filename=filename,
         )
         if path_:
             path = Path(path_)
-            path = ensure_extension(path, "i2threed")
+            path = ensure_extension(path, "i2wsiprep")
             CONFIG.output_dir = str(path.parent)
             config = self.registration.to_dict()
             write_project(path, config)
@@ -1099,7 +1215,7 @@ class ImageThreeDWindow(Window):
     def on_load_from_project(self) -> None:
         """Load previous data."""
         path_ = hp.get_filename(
-            self, "Load i2c project", base_dir=CONFIG.output_dir, file_filter=ALLOWED_THREED_FORMATS
+            self, "Load i2c project", base_dir=CONFIG.output_dir, file_filter=ALLOWED_WSIPREP_FORMATS
         )
         self._on_load_from_project(path_)
 
@@ -1120,11 +1236,10 @@ class ImageThreeDWindow(Window):
             # cleanup paths
             keys_to_keep = [get_key(path) for path in paths]
             config = remove_if_not_present(config, keys_to_keep)
-            if config["reference"] not in keys_to_keep:
-                config["reference"] = None
+            # if config["reference"] not in keys_to_keep:
+            #     config["reference"] = None
 
             # add images to registration
-            self.registration.reference = config["reference"]
             for item in config["images"].values():
                 self.registration.images[item["key"]] = RegistrationImage(**item)
 
@@ -1136,9 +1251,9 @@ class ImageThreeDWindow(Window):
         """Override to handle closing app or just the window."""
         if (
             not force
-            or not CONFIG.confirm_close_threed
+            or not CONFIG.confirm_close_wsiprep
             or QtConfirmCloseDialog(
-                self, "confirm_close_threed", self.on_save_to_project, CONFIG
+                self, "confirm_close_wsiprep", self.on_save_to_project, CONFIG
             ).exec_()  # type: ignore[attr-defined]
             == QDialog.DialogCode.Accepted
         ):
@@ -1149,10 +1264,10 @@ class ImageThreeDWindow(Window):
         """Close."""
         if (
             evt.spontaneous()
-            and CONFIG.confirm_close_threed
-            and self.data_model.is_valid()
+            and CONFIG.confirm_close_wsiprep
+            and (self.data_model.is_valid() or self.masks or self.registration)
             and QtConfirmCloseDialog(
-                self, "confirm_close_threed", self.on_save_to_project, CONFIG
+                self, "confirm_close_wsiprep", self.on_save_to_project, CONFIG
             ).exec_()  # type: ignore[attr-defined]
             != QDialog.DialogCode.Accepted
         ):
@@ -1168,4 +1283,4 @@ class ImageThreeDWindow(Window):
 if __name__ == "__main__":  # pragma: no cover
     from image2image.main import run
 
-    run(dev=True, tool="threed", level=0)
+    run(dev=True, tool="wsiprep", level=0)

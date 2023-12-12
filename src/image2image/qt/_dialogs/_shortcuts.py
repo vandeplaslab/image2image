@@ -49,10 +49,10 @@ class RegisterShortcutsDialog(ShortcutsDialog):
     # <br><b>D</b> - Zoom-in on next point in both images.
 
 
-class ThreeDShortcutsDialog(ShortcutsDialog):
+class WsiPrepShortcutsDialog(ShortcutsDialog):
     """Provide shortcuts information."""
 
-    TITLE = "ThreeD App Shortcuts"
+    TITLE = "WSIPREP App Shortcuts"
     SHORTCUTS = """
     <br><b>F1</b> - Open documentation in the browser.
     <br>

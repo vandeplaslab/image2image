@@ -10,7 +10,7 @@ def run(
     level: int = 10,
     no_color: bool = False,
     dev: bool = False,
-    tool: ty.Literal["launcher", "register", "viewer", "crop", "fusion", "convert", "threed"] = "launcher",
+    tool: ty.Literal["launcher", "register", "viewer", "crop", "fusion", "convert", "wsiprep"] = "launcher",
 ) -> None:
     """Execute command."""
     import warnings
@@ -85,10 +85,10 @@ def run(
 
         dlg = ImageConvertWindow(None)  # type: ignore[assignment]
         dlg.setMinimumSize(600, 400)
-    elif tool == "threed":
-        from image2image.qt.dialog_threed import ImageThreeDWindow
+    elif tool == "wsiprep":
+        from image2image.qt.dialog_wsiprep import ImageWsiPrepWindow
 
-        dlg = ImageThreeDWindow(None)  # type: ignore[assignment]
+        dlg = ImageWsiPrepWindow(None)  # type: ignore[assignment]
         dlg.setMinimumSize(1200, 800)
     else:
         raise ValueError("Launcher is not implemented yet.")

@@ -415,3 +415,13 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
         if self.allow_drop:
             hp.update_property(self.centralWidget(), "drag", False)
             self.evt_dropped.emit(event)
+
+    def _status_changed(self, event):
+        """Update status bar."""
+        if isinstance(event.value, str):
+            self.statusbar.showMessage(event.value)
+        elif isinstance(event.value, dict):
+            d = event.value
+            self.statusbar.showMessage(d["coordinates"])
+        else:
+            self.statusbar.showMessage("")

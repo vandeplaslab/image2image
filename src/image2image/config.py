@@ -100,15 +100,16 @@ class Config(BaseConfig):
         True, title="Confirm close", description="Confirm close viewer app.", in_app=True
     )
 
-    # ThreeD-app parameters
+    # WsiPrep-app parameters
     rotate_step_size: int = Field(15, title="Rotate by", description="Rotate by.", in_app=True)
     translate_step_size: int = Field(250, title="Translate by", description="Translate by.", in_app=True)
     view_mode: str = Field("group", title="View mode", description="View mode.", in_app=True)
+    project_mode: str = Field("2D (one reference per group)", description="Project mode.", in_app=True)
 
-    first_time_threed: bool = Field(
+    first_time_wsiprep: bool = Field(
         True, title="First time", description="First time running the viewer app.", in_app=True
     )
-    confirm_close_threed: bool = Field(
+    confirm_close_wsiprep: bool = Field(
         True, title="Confirm close", description="Confirm close viewer app.", in_app=True
     )
 

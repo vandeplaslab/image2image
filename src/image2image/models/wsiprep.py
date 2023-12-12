@@ -70,11 +70,13 @@ class RegistrationImage(BaseModel):
         else:
             self.translate_x += CONFIG.translate_step_size
 
-    def affine(self, shape: tuple[int, int]) -> np.ndarray:
+    def affine(self, shape: tuple[int, int], scale: ty.Optional[tuple[float, float]] = None) -> np.ndarray:
         """Calculate affine transformation."""
+        if scale is None:
+            scale = self.scale
         return combined_transform(
             shape,
-            self.scale,
+            scale,
             self.rotate,
             (self.translate_y, self.translate_x),
             self.flip_lr,
@@ -114,19 +116,29 @@ class RegistrationImage(BaseModel):
         }
 
 
+class RegistrationGroup(BaseModel):
+    """Registration group."""
+
+    keys: list[str] = Field(default_factory=list, title="Keys")
+    group_id: int = Field(-1, title="Group ID")
+    mask_bbox: ty.Optional[tuple[int, int, int, int]] = Field(None, title="Mask bounding box")
+
+    def to_iwsireg(self, output_dir: str, name: str) -> None:
+        """Generate iwsireg configuration file."""
+
+
 class Registration(BaseModel):
     """Registration metadata."""
 
     images: ty.Dict[str, RegistrationImage] = Field(default_factory=dict, title="Images")
-    reference: ty.Optional[str] = Field(None, title="Reference")
+    groups: ty.Dict[int, RegistrationGroup] = Field(default_factory=dict, title="Groups")
 
     def to_dict(self) -> ty.Dict:
         """Convert to dict."""
         return {
             "version": SCHEMA_VERSION,
-            "tool": "threed",
+            "tool": "wsiprep",
             "images": {key: image.to_dict() for key, image in self.images.items()},
-            "reference": self.reference,
         }
 
     def append(self, reader: "BaseReader") -> None:
@@ -136,8 +148,6 @@ class Registration(BaseModel):
     def remove(self, key: str) -> None:
         """Remove key."""
         del self.images[key]
-        if key == self.reference:
-            self.reference = None
 
     def model_iter(self) -> ty.Generator[RegistrationImage, None, None]:
         """Iterate over models."""
@@ -153,6 +163,18 @@ class Registration(BaseModel):
             keys = group_to_key[group_id]
             group_to_key[group_id] = natsorted(keys)
         return group_to_key
+
+    def get_reference_for_group(self, group_id: ty.Optional[int]) -> ty.Optional[str]:
+        """Return name of the reference image for a group."""
+        if group_id is None:
+            for key, image in self.images.items():
+                if image.is_reference:
+                    return key
+        else:
+            for key, image in self.images.items():
+                if image.group_id == group_id and image.is_reference:
+                    return key
+            return None
 
     def is_grouped(self) -> bool:
         """Check whether images are grouped."""
@@ -187,7 +209,7 @@ def load_from_file(path: PathLike, validate_paths: bool = True) -> tuple[list[Pa
     """Load from file."""
     path = Path(path)
     data = _read_config_from_file(path)
-    if data["tool"] != "threed":
+    if data["tool"] != "wsiprep":
         raise ValueError(f"Invalid tool: {data['tool']}")
     # load images
     paths, missing_paths = [], []
