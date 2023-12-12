@@ -28,8 +28,8 @@ def transform_image(moving_image: np.ndarray, transform: np.ndarray) -> np.ndarr
 def combined_transform(
     image_size: tuple[int, int],
     image_spacing: tuple[float, float],
-    rotation_angle: float | int,
-    translation: tuple[float, float],
+    rotation_angle: float | int = 0,
+    translation: tuple[float, float] = (0, 0),
     flip_lr: bool = False,
 ) -> np.ndarray:
     """Combined transform.

@@ -108,6 +108,7 @@ class ImageThreeDWindow(Window):
         connect(self.view.widget.canvas.events.key_press, self.keyPressEvent, state=state)
         connect(self.table.evt_keypress, self.keyPressEvent, state=state)
         connect(self.table.evt_value_checked, self.on_table_updated, state=state)
+        connect(self.table.doubleClicked, self.on_table_double_clicked, state=state)
         connect(self.table.selectionModel().selectionChanged, qdebounced(self.on_highlight, 50), state=state)
         connect(self.contrast_limit.valueChanged, self.on_contrast_limits, state=state)
 
@@ -115,8 +116,19 @@ class ImageThreeDWindow(Window):
         """Remove image."""
         if model:
             self.on_depopulate_table()
+            self._update_registration_model()
         else:
             logger.warning(f"Failed to remove data - model={model}")
+
+    def _update_registration_model(self) -> None:
+        """Update registration model."""
+        to_remove: list[str] = []
+        for image_model in self.registration.model_iter():
+            if image_model.key not in self.data_model.keys:
+                to_remove.append(image_model.key)
+        for key in to_remove:
+            self.registration.remove(key)
+        self._generate_group_options()
 
     def on_populate_table(self) -> None:
         """Remove items that are not present in the model."""
@@ -125,7 +137,7 @@ class ImageThreeDWindow(Window):
             data = []
             for reader in wrapper.reader_iter():
                 if reader.key not in self.registration.images:
-                    self.registration.images[reader.key] = RegistrationImage.from_reader(reader)
+                    self.registration.append(reader)
                 else:
                     self.registration.images[reader.key].update_from_reader(reader)
                 data.append(self.registration.images[reader.key].to_table())
@@ -168,7 +180,7 @@ class ImageThreeDWindow(Window):
                 return
             ref_key = self.registration.reference
             all_contrast_range: list[float] = []
-            if ref_key:
+            if ref_key and ref_key in wrapper.data:
                 reader = wrapper.data[ref_key]
                 model = self.registration.images[reader.key]
                 contrast_range = self._plot_model(reader, model)
@@ -244,18 +256,74 @@ class ImageThreeDWindow(Window):
                     self.view.layers[key].colormap = "yellow"
             logger.trace(f"Highlighted image in {timer()}")
 
+    def check_if_can_update(self, model: RegistrationImage, silent: bool = False) -> bool:
+        """Check if the model can be updated."""
+        if model.is_reference:
+            if not silent:
+                hp.toast(
+                    self,
+                    "Cannot modify reference",
+                    f"Image <b>{model.key}</b> is a reference and cannot be modified.",
+                    icon="warning",
+                )
+            return False
+        if model.lock:
+            if not silent:
+                hp.toast(
+                    self,
+                    "Image is locked",
+                    f"Image <b>{model.key}</b> is locked and cannot be translated.",
+                    icon="warning",
+                )
+            return False
+        return True
+
     def on_table_updated(self, row: int, column: int, value: bool) -> None:
         """State was changed for specified row and column."""
         key = self.table.get_value(self.TABLE_CONFIG.key, row)
+        model = self.registration.images[key]
         if column == self.TABLE_CONFIG.keep:
-            self.registration.images[key].keep = value
+            model.keep = value
         elif column == self.TABLE_CONFIG.lock:
-            self.registration.images[key].lock = value
+            model.lock = value
         elif column == self.TABLE_CONFIG.reference:
             self.registration.reference = key
         elif column == self.TABLE_CONFIG.flip_lr:
-            self.registration.images[key].flip_lr = value
-            self._transform(self.registration.images[key])
+            if not self.check_if_can_update(model):
+                return
+            model.flip_lr = value
+            self._transform(model)
+
+    def on_table_double_clicked(self, index):
+        """Double-clicked."""
+        row, column = index.row(), index.column()
+        model = self.registration.images[self.table.get_value(self.TABLE_CONFIG.key, row)]
+        if not self.check_if_can_update(model):
+            return
+        if column in [self.TABLE_CONFIG.rotate, self.TABLE_CONFIG.translate_x, self.TABLE_CONFIG.translate_y]:
+            initial_value = int(self.table.get_value(column, row))
+            verb = {
+                self.TABLE_CONFIG.rotate: "Rotate",
+                self.TABLE_CONFIG.translate_x: "Move in horizontal axis",
+                self.TABLE_CONFIG.translate_y: "Move in vertical axis",
+            }[column]
+            attr = {
+                self.TABLE_CONFIG.rotate: "rotate",
+                self.TABLE_CONFIG.translate_x: "translate_x",
+                self.TABLE_CONFIG.translate_y: "translate_y",
+            }[column]
+            min_val, max_val, step = {
+                self.TABLE_CONFIG.rotate: (-360, 360, 15),
+                self.TABLE_CONFIG.translate_x: (-100000, 100000, 250),
+                self.TABLE_CONFIG.translate_y: (-100000, 100000, 250),
+            }[column]
+            new_value: int = hp.get_integer(
+                self, f"Previous value: {initial_value}", f"{verb} image by...", initial_value, min_val, max_val, step
+            )
+            if new_value is not None and new_value != initial_value:
+                self.table.set_value(column, row, new_value)
+                setattr(model, attr, new_value)
+                self._transform(model)
 
     def _transform(self, model: RegistrationImage) -> None:
         """Apply transformation to the specified model."""
@@ -270,7 +338,15 @@ class ImageThreeDWindow(Window):
             for index in checked:
                 key = self.table.get_value(self.TABLE_CONFIG.key, index)
                 model = self.registration.images[key]
-                if model.is_reference:
+                if not self.check_if_can_update(model, silent=True):
+                    continue
+                elif model.lock:
+                    hp.toast(
+                        self,
+                        "Image is locked",
+                        f"Image <b>{key}</b> is locked and cannot be translated.",
+                        icon="warning",
+                    )
                     continue
                 model.apply_rotate(which)
                 self.table.set_value(self.TABLE_CONFIG.rotate, index, self.registration.images[key].rotate)
@@ -284,7 +360,15 @@ class ImageThreeDWindow(Window):
             for index in checked:
                 key = self.table.get_value(self.TABLE_CONFIG.key, index)
                 model = self.registration.images[key]
-                if model.is_reference:
+                if not self.check_if_can_update(model, silent=True):
+                    continue
+                elif model.lock:
+                    hp.toast(
+                        self,
+                        "Image is locked",
+                        f"Image <b>{key}</b> is locked and cannot be translated.",
+                        icon="warning",
+                    )
                     continue
                 model.apply_translate(which)
                 if which in ["up", "down"]:
@@ -305,7 +389,15 @@ class ImageThreeDWindow(Window):
             for index in checked:
                 key = self.table.get_value(self.TABLE_CONFIG.key, index)
                 model = self.registration.images[key]
-                if model.is_reference:
+                if not self.check_if_can_update(model, silent=True):
+                    continue
+                elif model.lock:
+                    hp.toast(
+                        self,
+                        "Image is locked",
+                        f"Image <b>{key}</b> is locked and cannot be translated.",
+                        icon="warning",
+                    )
                     continue
                 model.flip_lr = not model.flip_lr
                 self.table.set_value(self.TABLE_CONFIG.flip_lr, index, model.flip_lr)
@@ -333,6 +425,8 @@ class ImageThreeDWindow(Window):
             for index in checked:
                 key = self.table.get_value(self.TABLE_CONFIG.key, index)
                 model = self.registration.images[key]
+                if model.is_reference:
+                    continue
                 model.lock = lock
                 self.table.set_value(self.TABLE_CONFIG.lock, index, model.lock)
         logger.trace(f"{'Locked' if lock else 'Unlocked'} '{len(checked)}' images in {timer()}")
@@ -344,6 +438,8 @@ class ImageThreeDWindow(Window):
             for index in checked:
                 key = self.table.get_value(self.TABLE_CONFIG.key, index)
                 model = self.registration.images[key]
+                if model.is_reference:
+                    continue
                 model.keep = keep
                 self.table.set_value(self.TABLE_CONFIG.keep, index, model.keep)
         logger.trace(f"{'Kept' if keep else 'Removed'} '{len(checked)}' images in {timer()}")
@@ -412,10 +508,13 @@ class ImageThreeDWindow(Window):
         labels = ["None", "All", *natsorted(labels)]
 
         current = self.groups_choice.currentText()
+        if len(labels) == 2:
+            current = "None"
         with hp.qt_signals_blocked(self.groups_choice):
             self.groups_choice.clear()
             hp.set_combobox_text_data(self.groups_choice, labels, current)
-            self.progress_bar.setRange(0, len(labels) - 3)
+            self.progress_bar.setRange(0, len(labels) - 2)
+            self.progress_bar.setVisible(self.progress_bar.maximum() > 0)
 
     def on_order_by(self):
         """Reorder images according to the current group identification."""
@@ -845,6 +944,7 @@ class ImageThreeDWindow(Window):
         self.rotate_step_size = hp.make_combobox(
             self,
             [
+                "Rotate in 1° steps",
                 "Rotate in 5° steps",
                 "Rotate in 10° steps",
                 "Rotate in 15° steps",
@@ -863,6 +963,8 @@ class ImageThreeDWindow(Window):
         self.translate_step_size = hp.make_combobox(
             self,
             [
+                "Move in 10 µm steps",
+                "Move in 25 µm steps",
                 "Move in 50 µm steps",
                 "Move in 100 µm steps°",
                 "Move in 250 µm steps",
@@ -871,7 +973,7 @@ class ImageThreeDWindow(Window):
                 "Move in 2500 µm steps",
             ],
             func=self.on_set_config,
-            value=f"Move in {CONFIG.translate_step_size} µm steps",
+            value=f"Move in {CONFIG.translate_step_size:d} µm steps",
         )
 
         self.translate_step_size.setSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum)

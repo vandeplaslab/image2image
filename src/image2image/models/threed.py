@@ -129,6 +129,16 @@ class Registration(BaseModel):
             "reference": self.reference,
         }
 
+    def append(self, reader: "BaseReader") -> None:
+        """Append reader."""
+        self.images[reader.key] = RegistrationImage.from_reader(reader)
+
+    def remove(self, key: str) -> None:
+        """Remove key."""
+        del self.images[key]
+        if key == self.reference:
+            self.reference = None
+
     def model_iter(self) -> ty.Generator[RegistrationImage, None, None]:
         """Iterate over models."""
         yield from self.images.values()
