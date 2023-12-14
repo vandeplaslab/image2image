@@ -54,7 +54,7 @@ QLabel#crop_label {
     min-width: 60px;
 }
 
-ImageWsiPrepWindow SliderLabel  {
+ImageWsiPrepWindow > QStatusBar SliderLabel  {
     background: {{ success }};
     color: {{ text }};
     margin: 0px -10px 0px -10px;

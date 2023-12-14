@@ -10,7 +10,7 @@ from loguru import logger
 from qtextra.utils.table_config import TableConfig
 from qtextra.utils.utilities import connect
 from qtextra.widgets.qt_close_window import QtConfirmCloseDialog
-from qtpy.QtCore import Qt
+from qtpy.QtCore import QModelIndex, Qt
 from qtpy.QtWidgets import QDialog, QHeaderView, QMenuBar, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget
 from superqt import ensure_main_thread
 from superqt.utils import GeneratorWorker, create_worker
@@ -26,6 +26,13 @@ if ty.TYPE_CHECKING:
     from image2image.models.data import DataModel
 
 
+def serialize_n_or_list(channel_ids: int | list[int]) -> str:
+    """Serialize channels."""
+    if isinstance(channel_ids, int):
+        channel_ids = list(range(channel_ids))
+    return ",".join([str(x) for x in channel_ids])
+
+
 class ImageConvertWindow(Window):
     """Image viewer dialog."""
 
@@ -37,7 +44,8 @@ class ImageConvertWindow(Window):
     TABLE_CONFIG = (
         TableConfig()  # type: ignore[no-untyped-call]
         .add("name", "name", "str", 0)
-        .add("no. scenes", "n_scenes", "int", 0)
+        .add("channels", "channels", "str", 0)
+        .add("scenes", "scenes", "int", 0)
         .add("progress", "progress", "str", 0)
     )
 
@@ -111,13 +119,27 @@ class ImageConvertWindow(Window):
                 table_item.setTextAlignment(Qt.AlignCenter)  # type: ignore[attr-defined]
                 self.table.setItem(index, self.TABLE_CONFIG.name, table_item)
 
-                table_item = QTableWidgetItem(str(reader.n_scenes))
+                table_item = QTableWidgetItem(str(serialize_n_or_list(reader.channel_ids)))
                 table_item.setFlags(table_item.flags() & ~Qt.ItemIsEditable)  # type: ignore[attr-defined]
-                self.table.setItem(index, self.TABLE_CONFIG.n_scenes, table_item)
+                self.table.setItem(index, self.TABLE_CONFIG.channels, table_item)
+
+                table_item = QTableWidgetItem(str(serialize_n_or_list(reader.n_scenes)))
+                table_item.setFlags(table_item.flags() & ~Qt.ItemIsEditable)  # type: ignore[attr-defined]
+                self.table.setItem(index, self.TABLE_CONFIG.scenes, table_item)
 
                 table_item = QTableWidgetItem("Ready!")
                 table_item.setFlags(table_item.flags() & ~Qt.ItemIsEditable)  # type: ignore[attr-defined]
                 self.table.setItem(index, self.TABLE_CONFIG.progress, table_item)
+
+    def on_table_double_click(self, index: QModelIndex) -> None:
+        """Double-clicked on table row."""
+        # row = index.row()
+        # column = index.column()
+        # self.table.item(row, self.TABLE_CONFIG.name).text()
+        # if column == self.TABLE_CONFIG.channels:
+        #     print("Selecting channels")
+        # elif column == self.TABLE_CONFIG.scenes:
+        #     print("Selecting scenes")
 
     def on_convert(self):
         """Process data."""
@@ -232,16 +254,18 @@ class ImageConvertWindow(Window):
         )
         self._image_widget.info_text.setVisible(False)
 
-        columns = ["name", "no. scenes", "progress"]
+        columns = ["name", "channels", "scenes", "progress"]
         self.table = QTableWidget(self)
-        self.table.setColumnCount(len(columns))  # name, n_scenes, progress, key
+        self.table.setColumnCount(len(columns))  # name, scenes, progress, key
         self.table.setHorizontalHeaderLabels(columns)
         self.table.setCornerButtonEnabled(False)
         self.table.setTextElideMode(Qt.TextElideMode.ElideLeft)
+        self.table.doubleClicked.connect(self.on_table_double_click)
 
         header = self.table.horizontalHeader()
         header.setSectionResizeMode(self.TABLE_CONFIG.name, QHeaderView.ResizeMode.Stretch)
-        header.setSectionResizeMode(self.TABLE_CONFIG.n_scenes, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(self.TABLE_CONFIG.channels, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(self.TABLE_CONFIG.scenes, QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(self.TABLE_CONFIG.progress, QHeaderView.ResizeMode.ResizeToContents)
 
         self.directory_btn = hp.make_btn(

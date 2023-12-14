@@ -39,20 +39,21 @@ from tqdm import tqdm
 from image2image import __version__
 from image2image.config import CONFIG
 from image2image.enums import ALLOWED_IMAGE_FORMATS_TIFF_ONLY, ALLOWED_WSIPREP_FORMATS
-from image2image.models.wsiprep import Registration, RegistrationImage, as_icon, load_from_file, remove_if_not_present
+from image2image.models.wsiprep import (
+    Registration,
+    RegistrationGroup,
+    RegistrationImage,
+    as_icon,
+    load_from_file,
+    remove_if_not_present,
+)
 from image2image.qt._select import LoadWidget
 from image2image.qt.dialog_base import Window
-from image2image.utils.utilities import (
-    ensure_extension,
-    format_group_info,
-    get_contrast_limits,
-    get_groups,
-    groups_to_group_id,
-    write_project,
-)
+from image2image.utils.utilities import ensure_extension, get_contrast_limits, write_project
 
 if ty.TYPE_CHECKING:
     from image2image.models.data import DataModel
+    from image2image.qt._dialogs._wsiprep import GroupByDialog, MaskDialog
 
 
 class ImageWsiPrepWindow(Window):
@@ -62,6 +63,9 @@ class ImageWsiPrepWindow(Window):
     shape_layer: list[Shapes] | None = None
     _console = None
     _editing = False
+    group_by_dlg: GroupByDialog | None = None
+    mask_dlg: MaskDialog | None = None
+    iwsireg_dlg: None = None
 
     TABLE_CONFIG = (
         TableConfig()  # type: ignore[no-untyped-call]
@@ -97,7 +101,6 @@ class ImageWsiPrepWindow(Window):
     def __init__(self, parent: QWidget | None = None):
         super().__init__(parent, f"image2wsiprep: Prepare your microscopy data for co-registration (v{__version__})")
         self.registration = Registration()
-        self.masks: dict[str, tuple[int, int, int, int]] = {}
         READER_CONFIG.only_last_pyramid = True
         READER_CONFIG.init_pyramid = False
 
@@ -470,56 +473,6 @@ class ImageWsiPrepWindow(Window):
                 self.table.set_value(self.TABLE_CONFIG.keep, index, model.keep)
         logger.trace(f"{'Kept' if keep else 'Removed'} '{len(checked)}' images in {timer()}")
 
-    def _get_groups(self) -> tuple[dict[str, list[str]], dict[str, int]]:
-        """Return mapping between image key and group ID."""
-        value = self.group_by.text()
-        if value:
-            filenames: list[str] = self.table.get_col_data(self.TABLE_CONFIG.key)
-            groups = get_groups(filenames, value)
-            dataset_to_group_map = groups_to_group_id(groups)
-            return groups, dataset_to_group_map
-        return {}, {}
-
-    def on_preview_group_by(self):
-        """Preview groups specified by user."""
-        from qtextra.widgets.qt_info_popup import InfoDialog
-
-        groups, dataset_to_group_map = self._get_groups()
-        if dataset_to_group_map:
-            ret = format_group_info(groups)
-            dlg = InfoDialog(self, ret)
-            dlg.setMinimumWidth(600)
-            dlg.setMinimumHeight(600)
-            dlg.show()
-
-    def on_group_by(self):
-        """Group by user specified string."""
-        if self.table.n_rows == 0:
-            return
-        groups, dataset_to_group_map = self._get_groups()
-        if (
-            groups
-            and self.registration.is_grouped()
-            and not hp.confirm(
-                self,
-                "Are you sure you wish to group images? This will overwrite any previous grouping.",
-                "Are you sure?",
-            )
-        ):
-            return
-        with MeasureTimer() as timer, self.table.block_model():
-            values = [-1] * self.table.n_rows
-            if dataset_to_group_map:
-                for key, group_id in tqdm(
-                    dataset_to_group_map.items(), desc="Grouping images...", total=self.table.n_rows
-                ):
-                    self.registration.images[key].group_id = group_id
-                    index = self.table.find_index_of(self.TABLE_CONFIG.key, key)
-                    values[index] = group_id
-                self.table.update_column(self.TABLE_CONFIG.group_id, values, match_to_sort=False)
-            self._generate_group_options()
-        logger.trace(f"Grouped images in {timer()}")
-
     def _generate_group_options(self) -> None:
         """Update combo box with group options including None and All."""
         CONFIG.view_mode = "group" if self.group_mode_btn.isChecked() else "slide"
@@ -542,31 +495,8 @@ class ImageWsiPrepWindow(Window):
             hp.set_combobox_text_data(self.groups_choice, labels, current)
             self.progress_bar.setRange(0, len(labels) - 2)
             self.progress_bar.setVisible(self.progress_bar.maximum() > 0)
-
-    def on_order_by(self):
-        """Reorder images according to the current group identification."""
-        if self.table.n_rows == 0:
-            return
-        if self.registration.is_ordered() and not hp.confirm(
-            self,
-            "Are you sure you wish to reorder images? This will overwrite any previous ordering.",
-            "Are you sure?",
-        ):
-            return
-        with MeasureTimer() as timer, self.table.block_model():
-            self.registration.reorder()
-            layers = []
-            values = [0] * self.table.n_rows
-            for key in tqdm(self.registration.key_iter(), desc="Reordering images...", total=self.table.n_rows):
-                index = self.table.find_index_of(self.TABLE_CONFIG.key, key)
-                values[index] = self.registration.images[key].image_order
-                if key in self.view.layers:
-                    layers.append(self.view.layers.pop(key))
-            self.table.update_column(self.TABLE_CONFIG.image_order, values, match_to_sort=False)
-            for layer in layers:
-                self.view.viewer.add_layer(layer)
-            self.view.viewer.reset_view()
-        logger.trace(f"Reordered images in {timer()}")
+        if self.mask_dlg is not None and CONFIG.view_mode == "group":
+            self.mask_dlg.on_update_group_options()
 
     def _get_for_group(self) -> tuple[list[str], list[bool]]:
         """Get all for group."""
@@ -596,7 +526,7 @@ class ImageWsiPrepWindow(Window):
 
     def on_select_group(self):
         """Select group."""
-        # get values
+        current = self.groups_choice.currentText()
         _, values = self._get_for_group()
         self.table.update_column(self.TABLE_CONFIG.check, values, match_to_sort=False)
         self.progress_bar.setValue(self.groups_choice.currentIndex() - 2)
@@ -606,6 +536,8 @@ class ImageWsiPrepWindow(Window):
         self.on_plot_selected()
         self.on_select()
         self.view.viewer.reset_view()
+        if self.mask_dlg.isVisible() and "Group" in current:
+            self.mask_dlg.mask_choice.setCurrentText(current)
 
     def on_group_increment(self, increment: int = 0) -> None:
         """Increment group."""
@@ -693,22 +625,33 @@ class ImageWsiPrepWindow(Window):
         CONFIG.project_mode = self.project_mode.currentText()
         self._generate_group_options()
 
-    def on_select_mask(self) -> None:
-        """Select mask from a list of available options."""
+    def on_open_group_by_popup(self) -> None:
+        """Open group-by dialog."""
+        if self.group_by_dlg is None:
+            from image2image.qt._dialogs._wsiprep import GroupByDialog
 
-    def on_make_mask(self) -> None:
-        """Make mask for the currently selected group."""
+            self.group_by_dlg = GroupByDialog(self)
+        self.group_by_dlg.show()
 
-    def on_save_mask(self) -> None:
-        """Save the currently selected mask."""
+    def on_open_mask_popup(self) -> None:
+        """Open group-by dialog."""
+        if self.mask_dlg is None:
+            from image2image.qt._dialogs._wsiprep import MaskDialog
 
-    def on_save_all_masks(self) -> None:
-        """Save all masks to disk."""
+            self.mask_dlg = MaskDialog(self)
+        self.mask_dlg.show()
+
+    def on_open_iwsireg_popup(self) -> None:
+        """Open group-by dialog."""
+        from image2image.qt._dialogs._wsiprep import ConfigDialog
+
+        dlg = ConfigDialog(self)
+        dlg.show()
 
     def _setup_ui(self):
         """Create panel."""
         self.view = self._make_image_view(
-            self, add_toolbars=False, allow_extraction=False, disable_controls=True, disable_new_layers=True
+            self, add_toolbars=False, allow_extraction=False, disable_controls=False, disable_new_layers=True
         )
 
         self._image_widget = LoadWidget(
@@ -777,6 +720,12 @@ class ImageWsiPrepWindow(Window):
             "remove_image", tooltip="Remove images (X)", func=lambda x: self.on_keep(False), average=True
         )
         self.toolbar.append_spacer()
+        self.toolbar.add_qta_tool(
+            "layers",
+            func=self.view.widget.on_open_controls_dialog,
+            tooltip="Open layers control panel.",
+        )
+
         self.toolbar.layout().setSpacing(0)
         self.toolbar.layout().setContentsMargins(0, 0, 0, 0)
 
@@ -791,9 +740,10 @@ class ImageWsiPrepWindow(Window):
         self.project_mode = hp.make_combobox(
             self,
             [
-                "2D (one reference per group)",
-                "2D (one reference per list)",
-                "3D (one reference per list)",
+                "2D AF/MxIF (one ref per group)",
+                "2D AF/MxIF (one ref per list)",
+                "3D AF/MxIF (one ref per list)",
+                "2D preAF>AF>postAF (one ref per group)",
             ],
             tooltip="Select project mode. This will determine how the images are grouped and registered.",
             func=self.on_project_mode,
@@ -801,10 +751,21 @@ class ImageWsiPrepWindow(Window):
         )
 
         # group-by options
-        self.group_by = hp.make_line_edit(self, placeholder="Type in part of the filename")
-        self.preview_group_by_btn = hp.make_btn(self, "Preview", func=self.on_preview_group_by)
-        self.group_by_btn = hp.make_btn(self, "Group", func=self.on_group_by)
-        self.reorder_btn = hp.make_btn(self, "Reorder", func=self.on_order_by)
+        self.group_by_btn = hp.make_btn(
+            self,
+            "Group by...",
+            tooltip="Automatically group images according to filename ruels...",
+            func=self.on_open_group_by_popup,
+        )
+        self.mask_btn = hp.make_btn(
+            self, "Mask group...", tooltip="Create masks to aid co-registrations...", func=self.on_open_mask_popup
+        )
+        self.iwsireg_btn = hp.make_btn(
+            self,
+            "Generate config...",
+            tooltip="Generate iwsireg configuration data...",
+            func=self.on_open_iwsireg_popup,
+        )
 
         # select options
         self.group_mode_btn = hp.make_radio_btn(
@@ -841,11 +802,6 @@ class ImageWsiPrepWindow(Window):
             func=self.on_scroll,
         )
 
-        # mask options
-        # self.mask_choice = hp.make_combobox(self, tooltip="Select mask to show", func=self.on_select_mask)
-        # self.make_mask_btn = hp.make_btn(self, "Make mask for group", func=self.on_make_mask)
-        # self.save_mask_btn = hp.make_btn(self, "Save mask for group", func=self.on_save_mask)
-
         side_widget = QWidget()  # noqa
         side_widget.setMinimumWidth(300)
         side_layout = hp.make_form_layout(side_widget)
@@ -858,22 +814,17 @@ class ImageWsiPrepWindow(Window):
         side_layout.addRow(self._image_widget)
         side_layout.addRow(self.export_project_btn)
         # project mode
-        side_layout.addRow(hp.make_h_line_with_text("Options"))
+        side_layout.addRow(hp.make_h_line())
         side_layout.addRow(hp.make_label(self, "Project mode"), self.project_mode)
-        # group options
-        side_layout.addRow(hp.make_h_line_with_text("Group by part of the filename"))
-        side_layout.addRow(self.group_by)
-        side_layout.addRow(hp.make_h_layout(self.preview_group_by_btn, self.group_by_btn, self.reorder_btn))
+        side_layout.addRow(self.group_by_btn)
+        side_layout.addRow(self.mask_btn)
+        side_layout.addRow(self.iwsireg_btn)
         # select group options
         side_layout.addRow(hp.make_h_line_with_text("Select/view group"))
         side_layout.addRow(hp.make_h_layout(self.group_mode_btn, self.slide_mode_btn))
         side_layout.addRow("Group", self.groups_choice)
         side_layout.addRow(self.progress_bar)
         side_layout.addRow(hp.make_h_layout(self.check_group_btn, self.uncheck_group_btn, self.scroll_group_btn))
-        # # group options
-        # side_layout.addRow(hp.make_h_line_with_text("Make/view mask"))
-        # side_layout.addRow(hp.make_label(self, "Mask"), self.mask_choice)
-        # side_layout.addRow(hp.make_h_layout(self.make_mask_btn, self.save_mask_btn))
 
         bottom_widget = QWidget()  # noqa
         bottom_widget.setMinimumHeight(400)
@@ -1236,12 +1187,13 @@ class ImageWsiPrepWindow(Window):
             # cleanup paths
             keys_to_keep = [get_key(path) for path in paths]
             config = remove_if_not_present(config, keys_to_keep)
-            # if config["reference"] not in keys_to_keep:
-            #     config["reference"] = None
 
             # add images to registration
             for item in config["images"].values():
                 self.registration.images[item["key"]] = RegistrationImage(**item)
+            # add groups to registration
+            for item in config["groups"].values():
+                self.registration.groups[item["key"]] = RegistrationGroup(**item)
 
             # add images
             logger.trace(f"Found {len(paths)} images in project file")
@@ -1265,7 +1217,7 @@ class ImageWsiPrepWindow(Window):
         if (
             evt.spontaneous()
             and CONFIG.confirm_close_wsiprep
-            and (self.data_model.is_valid() or self.masks or self.registration)
+            and (self.data_model.is_valid() or self.registration.is_valid())
             and QtConfirmCloseDialog(
                 self, "confirm_close_wsiprep", self.on_save_to_project, CONFIG
             ).exec_()  # type: ignore[attr-defined]

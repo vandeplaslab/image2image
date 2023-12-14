@@ -46,7 +46,7 @@ class ImageCropWindow(Window):
 
     def __init__(self, parent: QWidget | None = None):
         super().__init__(parent, f"image2crop: Crop and export microscopy data app (v{__version__})")
-        READER_CONFIG.view_type = "overlay"
+        READER_CONFIG.view_type = "overlay"  # type: ignore[assignment]
         if CONFIG.first_time_crop:
             hp.call_later(self, self.on_show_tutorial, 10_000)
 
@@ -119,7 +119,7 @@ class ImageCropWindow(Window):
                 from image2image.qt._dialogs import LocateFilesDialog
 
                 locate_dlg = LocateFilesDialog(self, paths_missing)
-                if locate_dlg.exec_():  # noqa
+                if locate_dlg.exec_():  # type: ignore[attr-defined]
                     paths = locate_dlg.fix_missing_paths(paths_missing, paths)
 
             # clean-up affine matrices
@@ -583,7 +583,6 @@ class ImageCropWindow(Window):
         variables.update({"viewer": self.view.viewer, "data_model": self.data_model})
         return variables
 
-    # noinspection PyAttributeOutsideInit
     @contextmanager
     def _editing_crop(self):
         self._editing = True
@@ -655,7 +654,7 @@ def crop_regions(
     data_model: DataModel, output_dir: Path, regions: list[tuple[int, int, int, int]]
 ) -> ty.Generator[tuple[Path, int, int], None, None]:
     """Crop images."""
-    from image2image_io._writer import write_ome_tiff
+    from image2image_io._writer import write_ome_tiff_from_array
 
     n = len(regions)
     for current, (left, right, top, bottom) in enumerate(regions, start=1):
@@ -666,7 +665,7 @@ def crop_regions(
                 logger.warning(f"Skipping {output_path} as it already exists.")
                 yield output_path, current, n
                 continue
-            filename = write_ome_tiff(output_path, cropped, reader)
+            filename = write_ome_tiff_from_array(output_path, reader, cropped)
             yield Path(filename), current, n
 
 

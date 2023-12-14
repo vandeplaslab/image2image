@@ -220,7 +220,6 @@ class ImageFusionWindow(Window):
 
     def _setup_ui(self):
         """Create panel."""
-        self.output_dir_label = hp.make_label(self, f"<b>Output directory</b>: {hp.hyper(self.output_dir)}")
 
         self._image_widget = LoadWidget(self, None, select_channels=False)
         self._image_widget.info_text.setVisible(False)
@@ -242,7 +241,7 @@ class ImageFusionWindow(Window):
             tooltip="Specify output directory for images...",
             func=self.on_set_output_dir,
         )
-
+        self.output_dir_label = hp.make_label(self, f"<b>Output directory</b>: {hp.hyper(self.output_dir)}")
         self.export_btn = hp.make_active_progress_btn(
             self, "Export to CSV", tooltip="Export to csv file...", func=self.on_export, cancel_func=self.on_cancel
         )

@@ -57,7 +57,6 @@ update_icon_mapping(
         "export": "mdi6.content-save-check-outline",
         "pan_zoom": "ei.move",
         "select_points": "fa5s.location-arrow",
-        "shortcut": "mdi.tooltip",
         "fiducial": "fa5s.map-marker-alt",
         "change": "fa5s.arrow-alt-circle-right",
         "swap": "mdi6.swap-vertical-bold",
@@ -75,6 +74,7 @@ update_icon_mapping(
         "keep_image": "mdi6.check-circle-outline",
         "remove_image": "mdi6.close-circle-outline",
         "shortcut": "mdi6.tooltip-text",
+        "dev": "mdi6.code-braces",
     }
 )
 

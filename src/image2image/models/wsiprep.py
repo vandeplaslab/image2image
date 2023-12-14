@@ -123,8 +123,20 @@ class RegistrationGroup(BaseModel):
     group_id: int = Field(-1, title="Group ID")
     mask_bbox: ty.Optional[tuple[int, int, int, int]] = Field(None, title="Mask bounding box")
 
+    def clear(self) -> None:
+        """Remove existing keys."""
+        self.keys = []
+
     def to_iwsireg(self, output_dir: str, name: str) -> None:
         """Generate iwsireg configuration file."""
+
+    def to_dict(self) -> ty.Dict:
+        """Convert to dict."""
+        return {
+            "keys": self.keys,
+            "group_id": self.group_id,
+            "mask_bbox": self.mask_bbox,
+        }
 
 
 class Registration(BaseModel):
@@ -133,13 +145,38 @@ class Registration(BaseModel):
     images: ty.Dict[str, RegistrationImage] = Field(default_factory=dict, title="Images")
     groups: ty.Dict[int, RegistrationGroup] = Field(default_factory=dict, title="Groups")
 
+    def regroup(self) -> None:
+        """Create groups based on the group_id attribute.
+
+        Overwrite existing groups if those exist, although we don't remove the mask_bbox information.
+        """
+        existing_groups = self.groups
+        self.groups = {}
+        for image in self.images.values():
+            if image.group_id == -1:
+                continue
+            if image.group_id in existing_groups:
+                group = existing_groups[image.group_id]
+                group.clear()
+            elif image.group_id not in self.groups:
+                group = RegistrationGroup(group_id=image.group_id)  # type: ignore[call-arg]
+            else:
+                group = self.groups[image.group_id]
+            group.keys.append(image.key)
+            self.groups[image.group_id] = group
+
     def to_dict(self) -> ty.Dict:
         """Convert to dict."""
         return {
             "version": SCHEMA_VERSION,
             "tool": "wsiprep",
             "images": {key: image.to_dict() for key, image in self.images.items()},
+            "groups": {key: group.to_dict() for key, group in self.groups.items()},
         }
+
+    def is_valid(self) -> bool:
+        """Check whether there is any data in the model."""
+        return len(self.images) > 0
 
     def append(self, reader: "BaseReader") -> None:
         """Append reader."""
@@ -226,5 +263,12 @@ def remove_if_not_present(config: dict, keys: list[str]) -> dict:
         if item["key"] not in keys:
             to_remove.append(item["key"])
     for key in to_remove:
-        del config["images"][key]
+        # remove it from images
+        image = config["images"].pop(key)
+        # also, potentially remove it from group
+        if "groups" in image:
+            if image["group_id"] != -1 and image["group_id"] in image["groups"]:
+                if key in image["groups"][image["group_id"]]["keys"]:
+                    index = image["groups"][image["group_id"]]["keys"].index(key)
+                    image["groups"][image["group_id"]]["keys"].pop(index)
     return config

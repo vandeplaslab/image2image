@@ -223,6 +223,8 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
         view.layers.move(view.layers.index(layer), new_index)
         if select:
             view.layers.selection.select_only(layer)
+        else:
+            view.layers.selection.toggle(layer)
 
     def on_show_console(self) -> None:
         """View console."""

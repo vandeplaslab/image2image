@@ -1,4 +1,5 @@
-import typing as ty
+"""Other dialogs."""
+from __future__ import annotations
 
 from qtextra import helpers as hp
 from qtextra.widgets.qt_dialog import QtDialog
@@ -9,7 +10,7 @@ from qtpy.QtWidgets import QFormLayout
 class ImportSelectDialog(QtDialog):
     """Dialog that lets you select what should be imported."""
 
-    def __init__(self, parent, disable: ty.Tuple[str, ...] = ()):
+    def __init__(self, parent, disable: tuple[str, ...] = ()):
         self.disable = disable
         super().__init__(parent)
         self.config = self.get_config()
@@ -59,7 +60,7 @@ class ImportSelectDialog(QtDialog):
         all_checked = all(self.config.values())
         self.all_check.setCheckState(Qt.Checked if all_checked else Qt.Unchecked)
 
-    def get_config(self) -> ty.Dict[str, bool]:
+    def get_config(self) -> dict[str, bool]:
         """Return state."""
         return {
             "fixed_image": self.micro_check.isChecked() and not self.micro_check.isHidden(),

@@ -104,18 +104,33 @@ def run(
     if dev:
         import logging
 
-        from qtextra.utils.dev import qdev
+        from qtextra.dialogs.qt_dev import QDevPopup
+        from qtextra.helpers import make_qta_btn
+
+        # from qtextra.utils.dev import qdev
 
         logger.enable("qtextra")
         logging.getLogger("qtreload").setLevel(logging.DEBUG)
 
-        dev = qdev(dlg, modules=["qtextra", "image2image", "image2image_io", "koyo"])
-        dev.hide()
-        dev.evt_theme.connect(lambda: THEMES.set_theme_stylesheet(dlg))
-        if hasattr(dlg, "centralWidget"):
-            dlg.centralWidget().layout().addWidget(dev)
-        else:
-            dlg.layout().addWidget(dev)
+        dev_dlg = QDevPopup(dlg, modules=["qtextra", "image2image", "image2image_io", "image2image_wsireg", "koyo"])
+        dev_dlg.qdev.evt_theme.connect(lambda: THEMES.set_theme_stylesheet(dlg))
+        if hasattr(dlg, "statusbar"):
+            dlg.dev_btn = make_qta_btn(  # type: ignore[attr-defined]
+                dlg,
+                "dev",
+                tooltip="Open development tools.",
+                func=dev_dlg.show,
+                small=True,
+            )
+            dlg.statusbar.addPermanentWidget(dlg.dev_btn)  # type: ignore[attr-defined]
+
+        # dev = qdev(dlg, modules=["qtextra", "image2image", "image2image_io", "image2image_wsireg", "koyo"])
+        # dev.hide()
+        # dev.evt_theme.connect(lambda: THEMES.set_theme_stylesheet(dlg))
+        # if hasattr(dlg, "centralWidget"):
+        #     dlg.centralWidget().layout().addWidget(dev)
+        # else:
+        #     dlg.layout().addWidget(dev)
 
         # install_debugger_hook()
         os.environ["IMAGE2IMAGE_DEV_MODE"] = "1"

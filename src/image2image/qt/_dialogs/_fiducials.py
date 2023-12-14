@@ -1,4 +1,6 @@
 """Fiducials marker."""
+from __future__ import annotations
+
 import typing as ty
 
 import numpy as np
@@ -37,11 +39,11 @@ class FiducialsDialog(QtFramelessTool):
         .add("x-i(px)", "x_px_ims", "float", 50)
     )
 
-    def __init__(self, parent: "ImageRegistrationWindow"):
+    def __init__(self, parent: ImageRegistrationWindow):
         super().__init__(parent)
         self.setMinimumWidth(600)
         self.setMinimumHeight(400)
-        self.points_data: ty.Optional[np.ndarray] = None
+        self.points_data: np.ndarray | None = None
         self.on_load()
 
     def connect_events(self, state: bool = True) -> None:
@@ -66,7 +68,7 @@ class FiducialsDialog(QtFramelessTool):
 
     def on_delete_row(self) -> None:
         """Delete row."""
-        parent: "ImageRegistrationWindow" = self.parent()  # type: ignore[assignment]
+        parent: ImageRegistrationWindow = self.parent()  # type: ignore[assignment]
         sel_model = self.table.selectionModel()
         if sel_model.hasSelection():
             indices = [index.row() for index in sel_model.selectedRows()]
@@ -89,7 +91,7 @@ class FiducialsDialog(QtFramelessTool):
 
     def on_double_click(self, index: QModelIndex) -> None:
         """Zoom in."""
-        parent: "ImageRegistrationWindow" = self.parent()  # type: ignore[assignment]
+        parent: ImageRegistrationWindow = self.parent()  # type: ignore[assignment]
         row = index.row()
         if self.points_data is not None:
             y_micro, x_micro, y_ims, x_ims = self.points_data[row]
@@ -123,7 +125,7 @@ class FiducialsDialog(QtFramelessTool):
                 return ""
             return f"{value:.3f}"
 
-        parent: "ImageRegistrationWindow" = self.parent()  # type: ignore[assignment]
+        parent: ImageRegistrationWindow = self.parent()  # type: ignore[assignment]
         fixed_points_layer = parent.fixed_points_layer
         moving_points_layer = parent.moving_points_layer
         n = max([len(fixed_points_layer.data), len(moving_points_layer.data)])

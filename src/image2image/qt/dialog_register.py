@@ -843,6 +843,8 @@ class ImageRegistrationWindow(Window):
         side_layout.addRow(self._make_settings_layout())
 
         layout = QHBoxLayout()
+        layout.setSpacing(0)
+        layout.setContentsMargins(0, 0, 0, 0)
         layout.addLayout(view_layout, stretch=True)
         layout.addWidget(hp.make_v_line())
         layout.addWidget(side_widget)
@@ -850,6 +852,8 @@ class ImageRegistrationWindow(Window):
         widget = QWidget()  # noqa
         self.setCentralWidget(widget)
         main_layout = QVBoxLayout(widget)
+        main_layout.setSpacing(0)
+        main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.addLayout(layout, stretch=True)
 
         # extra settings
