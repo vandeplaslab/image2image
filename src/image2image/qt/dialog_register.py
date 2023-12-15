@@ -843,8 +843,7 @@ class ImageRegistrationWindow(Window):
         side_layout.addRow(self._make_settings_layout())
 
         layout = QHBoxLayout()
-        layout.setSpacing(0)
-        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(1)
         layout.addLayout(view_layout, stretch=True)
         layout.addWidget(hp.make_v_line())
         layout.addWidget(side_widget)

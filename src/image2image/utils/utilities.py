@@ -39,7 +39,7 @@ PREFERRED_COLORMAPS = [
 
 def get_groups(filenames: list[str], keyword: str) -> dict[str, list[str]]:
     """Get groups."""
-    groups = {"no group": []}
+    groups: dict[str, list[str]] = {"no group": []}
     for filename in filenames:
         group = extract_number(filename, keyword)
         if group is None:
@@ -59,8 +59,12 @@ def groups_to_group_id(groups: dict[str, list[str]]) -> dict[str, int]:
     """Convert groups to group ID."""
     dataset_to_group_map = {}
     for i, group in enumerate(natsorted(groups)):
+        try:
+            key = int(group)
+        except TypeError:
+            key = i
         for filename in natsorted(groups[group]):
-            dataset_to_group_map[filename] = i
+            dataset_to_group_map[filename] = key
     return dataset_to_group_map
 
 

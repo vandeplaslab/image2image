@@ -199,10 +199,9 @@ class OverlayChannelsDialog(QtFramelessTool):
         layout = hp.make_form_layout(self)
         hp.style_form_layout(layout)
         layout.addRow(header_layout)
-        if (not IS_PYINSTALLER and not IS_MAC) and not is_envvar("IMAGE2IMAGE_NO_FILTER", "1"):
-            layout.addRow(hp.make_label(self, "Filter by dataset name:"), self.filter_by_dataset)
-            layout.addRow(hp.make_label(self, "Filter by channel name:"), self.filter_by_name)
         layout.addRow(self.table)
+        if (not IS_PYINSTALLER and not IS_MAC) and not is_envvar("IMAGE2IMAGE_NO_FILTER", "1"):
+            layout.addRow(hp.make_h_layout(self.filter_by_dataset, self.filter_by_name, stretch_id=(0, 1), spacing=1))
         layout.addRow(self.info)
         layout.addRow(
             hp.make_label(

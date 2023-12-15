@@ -61,10 +61,16 @@ class WsiPrepMixin(QtFramelessTool):
 class GroupByDialog(WsiPrepMixin):
     """Dialog to group table."""
 
+    HIDE_WHEN_CLOSE = True
+
     def __init__(self, parent: ImageWsiPrepWindow):
         super().__init__(parent)
         self.setMinimumWidth(400)
-        self.setMinimumHeight(600)
+
+    def connect_events(self, state: bool = True) -> None:
+        """Connect events."""
+        connect(self.parent()._image_widget.dataset_dlg.evt_loaded, self.on_preview_group_by, state=state)
+        connect(self.parent()._image_widget.dataset_dlg.evt_closed, self.on_preview_group_by, state=state)
 
     def _get_groups(self) -> tuple[dict[str, list[str]], dict[str, int]]:
         """Return mapping between image key and group ID."""
@@ -83,7 +89,7 @@ class GroupByDialog(WsiPrepMixin):
             ret = format_group_info(groups)
             self.label.setText(ret)
         else:
-            self.label.setText("<fill-in group-by pattern above>")
+            self.label.setText("<b>fill-in group-by pattern above</b>")
 
     def on_group_by(self):
         """Group by user specified string."""
@@ -151,7 +157,7 @@ class GroupByDialog(WsiPrepMixin):
 
         self.label = hp.make_scrollable_label(
             self,
-            "<fill-in group-by pattern above>",
+            "<b>fill-in group-by pattern above</b>",
             wrap=True,
             enable_url=True,
             selectable=True,
@@ -182,6 +188,7 @@ class GroupByDialog(WsiPrepMixin):
 class MaskDialog(WsiPrepMixin):
     """Dialog to mask a group."""
 
+    HIDE_WHEN_CLOSE = True
     _editing = False
 
     def __init__(self, parent: ImageWsiPrepWindow):
@@ -393,6 +400,7 @@ class MaskDialog(WsiPrepMixin):
 class ConfigDialog(WsiPrepMixin):
     """Dialog to generate IWsiReg config."""
 
+    HIDE_WHEN_CLOSE = True
     _output_dir = None
 
     def __init__(self, parent: ImageWsiPrepWindow):
@@ -418,13 +426,67 @@ class ConfigDialog(WsiPrepMixin):
             self.output_dir_label.setText(f"<b>Output directory</b>: {hp.hyper(self.output_dir)}")
             logger.debug(f"Output directory set to {self._output_dir}")
 
+    def _get_suffix_prefix(self) -> tuple[str, str]:
+        project_prefix = self.project_prefix.text()
+        if "wsireg" in project_prefix:
+            project_prefix = project_prefix.replace("wsireg", "")
+        if project_prefix:
+            project_prefix = project_prefix.strip("_- ")
+            project_prefix = project_prefix + "-"
+
+        project_suffix = self.project_suffix.text()
+        if "wsireg" in project_suffix:
+            project_suffix = project_suffix.replace("wsireg", "")
+        if project_suffix:
+            project_suffix = project_suffix.strip("_- ")
+            project_suffix = "-" + project_suffix
+        return project_prefix, project_suffix
+
+    def _get_project_name(self, group: RegistrationGroup) -> str:
+        project_prefix, project_suffix = self._get_suffix_prefix()
+        return f"{project_prefix}group={group.group_id}{project_suffix}.wsireg"
+
     def on_export(self):
         """Export to disk."""
-        pass
+        if list(self.output_dir.glob("*.wsireg")) and not hp.confirm(
+            self,
+            "Are you sure you wish to overwrite existing files?",
+            "Are you sure?",
+        ):
+            logger.trace("User cancelled export")
+            return
 
-    def on_cancel(self):
-        """Cancel."""
-        pass
+        registrations = self.transformation_select.selected_options
+        if not registrations:
+            hp.toast(self, "No registration selected", "Please select at least one registration type", icon="warning")
+            return
+
+        n = len(self.registration.groups)
+        logger.trace(f"Generating configs for {n} groups...")
+        with MeasureTimer():
+            for _group_id, group in tqdm(self.registration.groups.items(), desc="Generating configs...", total=n):
+                path = group.to_iwsireg(self.registration, self.output_dir, self._get_project_name(group))
+                logger.trace(f"Generated config for group '{group.group_id}' at '{path}'")
+
+    def on_preview(self):
+        """Preview registration paths."""
+        n = len(self.registration.images)
+        if n == 0:
+            self.label.setText("<b>No images found</b>")
+            return
+        n = len(self.registration.groups)
+        if n == 0:
+            self.label.setText("<b>No groups found</b>")
+            return
+        logger.trace(f"Generating configs for {n} groups...")
+        preview = ""
+        for _group_id, group in tqdm(self.registration.groups.items(), desc="Previewing...", total=n):
+            preview += (
+                f"<b>Group {group.group_id}</b> ({self._get_project_name(group)})<br>"
+                + group.to_preview(self.registration)
+                + "<br><br>"
+            )
+        self.label.setText(preview)
 
     # noinspection PyAttributeOutsideInit
     def make_panel(self) -> QLayout:
@@ -436,9 +498,37 @@ class ConfigDialog(WsiPrepMixin):
             func=self.on_set_output_dir,
         )
         self.output_dir_label = hp.make_label(self, f"<b>Output directory</b>: {hp.hyper(self.output_dir)}")
-        self.export_btn = hp.make_active_progress_btn(
-            self, "Export to CSV", tooltip="Export to csv file...", func=self.on_export, cancel_func=self.on_cancel
+        self.project_prefix = hp.make_line_edit(
+            self, placeholder="Project prefix", default="", func_changed=self.on_preview
         )
+        self.project_suffix = hp.make_line_edit(
+            self, placeholder="Project suffix", default="", func_changed=self.on_preview
+        )
+        self.transformation_select = hp.make_multi_select(
+            self,
+            options=[
+                "rigid",
+                "affine",
+                "similarity",
+                "nl",
+                "fi_correction",
+                "nl_reduced",
+                "nl_mid",
+                "nl2",
+                "rigid_expanded",
+                "rigid_ams",
+                "affine_ams",
+                "nl_ams",
+                "rigid_anc",
+                "affine_anc",
+                "similarity_anc",
+                "nl_anc",
+            ],
+            placeholder="Select registration type(s)...",
+            value="rigid;affine",
+        )
+        self.preview_btn = hp.make_btn(self, "Preview", tooltip="Preview registration paths...", func=self.on_preview)
+        self.export_btn = hp.make_btn(self, "Export", tooltip="Generate IWsiReg configurations...", func=self.on_export)
 
         self.label = hp.make_scrollable_label(
             self,
@@ -463,6 +553,9 @@ class ConfigDialog(WsiPrepMixin):
         layout.addRow(hp.make_h_line(self))
         layout.addRow(self.directory_btn)
         layout.addRow(self.output_dir_label)
+        layout.addRow(self.transformation_select)
+        layout.addRow(hp.make_h_layout(self.project_prefix, self.project_suffix, stretch_id=(0, 1)))
+        layout.addRow(self.preview_btn)
         layout.addRow(self.export_btn)
         layout.addRow(hp.make_h_line(self))
         layout.addRow(self.label)

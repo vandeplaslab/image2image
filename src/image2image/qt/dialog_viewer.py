@@ -255,8 +255,6 @@ class ImageViewerWindow(Window):
         side_layout.addRow(self.view.widget.viewerButtons)
 
         layout = QHBoxLayout()
-        layout.setSpacing(1)
-        layout.setContentsMargins(1, 1, 1, 1)
         layout.addWidget(self.view.widget, stretch=True)
         layout.addWidget(hp.make_v_line())
         layout.addLayout(side_layout)
@@ -264,8 +262,8 @@ class ImageViewerWindow(Window):
         widget = QWidget()
         self.setCentralWidget(widget)
         main_layout = QVBoxLayout(widget)
-        main_layout.setSpacing(0)
-        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setSpacing(3)
+        main_layout.setContentsMargins(7, 7, 7, 7)
         main_layout.addLayout(layout, stretch=True)
 
         # extra settings

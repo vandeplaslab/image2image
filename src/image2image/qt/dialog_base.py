@@ -394,6 +394,7 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
                 position="top_left",
             )
             hp.update_property(self.centralWidget(), "drag", True)
+            hp.call_later(self, lambda: hp.update_property(self.centralWidget(), "drag", False), 2000)
             if event.mimeData().hasUrls():
                 event.accept()
             else:

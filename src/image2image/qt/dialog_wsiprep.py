@@ -134,6 +134,7 @@ class ImageWsiPrepWindow(Window):
         for key in to_remove:
             self.registration.remove(key)
         self._generate_group_options()
+        self.registration.regroup()
 
     def on_populate_table(self) -> None:
         """Remove items that are not present in the model."""
@@ -445,6 +446,7 @@ class ImageWsiPrepWindow(Window):
                 model.group_id = group_id if group else -1
                 self.table.set_value(self.TABLE_CONFIG.group_id, index, model.group_id)
             self._generate_group_options()
+            self.registration.regroup()
         logger.trace(f"{'Grouped' if group else 'Ungrouped'} '{len(checked)}' images in {timer()}")
 
     def on_lock(self, lock: bool) -> None:
@@ -536,7 +538,8 @@ class ImageWsiPrepWindow(Window):
         self.on_plot_selected()
         self.on_select()
         self.view.viewer.reset_view()
-        if self.mask_dlg.isVisible() and "Group" in current:
+
+        if self.mask_dlg is not None and self.mask_dlg.isVisible() and "Group" in current:
             self.mask_dlg.mask_choice.setCurrentText(current)
 
     def on_group_increment(self, increment: int = 0) -> None:
@@ -544,6 +547,12 @@ class ImageWsiPrepWindow(Window):
         hp.increment_combobox(self.groups_choice, increment, skip=[0, 1])
         self.progress_bar.setValue(self.groups_choice.currentIndex() - 2)
         self.on_scroll()
+        if self.skip_if_locked.isChecked():
+            checked = self.table.get_all_checked()
+            values_for_checked = [self.table.get_value(self.TABLE_CONFIG.lock, index) for index in checked]
+            if all(values_for_checked):
+                self.on_group_increment(increment)
+                logger.trace("Skipped locked group")
 
     def on_check_group(self, check: bool) -> None:
         """Show or hide group images."""
@@ -566,6 +575,7 @@ class ImageWsiPrepWindow(Window):
         if any(values):
             index = values.index(True)
             if index != -1:
+                index = min(index + 3, self.table.n_rows - 1)
                 self.table.scrollTo(self.table.create_index(index, 0))
 
     def on_reference(self) -> None:
@@ -588,7 +598,6 @@ class ImageWsiPrepWindow(Window):
                         model.is_reference = row == index
                     elif group_id == model.group_id:
                         model.is_reference = row == index
-                    print(model.key, model.is_reference, model.group_id, group_id)
 
                     if row == index:
                         model.lock = True
@@ -596,6 +605,37 @@ class ImageWsiPrepWindow(Window):
                     self.table.set_value(self.TABLE_CONFIG.reference, row, as_icon(model.is_reference))
                 self.on_select()
             logger.trace(f"Set {key_} as reference in {timer()} (single_ref={single_ref})")
+
+    def on_auto_reference(self) -> None:
+        """Automatically select reference for each group."""
+        # TODO: check for project mode
+        if not hp.confirm(
+            self,
+            "Set reference for each group? This will override any previous references and there is no going back.",
+            "Set reference",
+        ):
+            return
+        for group_id in self.registration.group_iter():
+            group = self.registration.groups[group_id]
+            if len(group.keys) == 1:
+                continue
+            # find the best reference
+            ref = natsorted(group.keys)[0]
+            logger.trace(f"Selected '{ref}' as reference for group '{group_id}'")
+            model = self.registration.images[ref]
+            old_ref = self.registration.get_reference_for_group(group_id)
+            if old_ref:
+                self.registration.images[old_ref].is_reference = False
+                self.registration.images[old_ref].lock = False
+            model.is_reference = True
+            model.lock = True
+        # update table
+        with self.table.block_model():
+            for row in range(self.table.n_rows):
+                key = self.table.get_value(self.TABLE_CONFIG.key, row)
+                model = self.registration.images[key]
+                self.table.set_value(self.TABLE_CONFIG.reference, row, as_icon(model.is_reference))
+                self.table.set_value(self.TABLE_CONFIG.lock, row, model.lock)
 
     @ensure_main_thread
     def on_load_image(self, model: DataModel, _channel_list: list[str]) -> None:
@@ -766,6 +806,12 @@ class ImageWsiPrepWindow(Window):
             tooltip="Generate iwsireg configuration data...",
             func=self.on_open_iwsireg_popup,
         )
+        self.auto_ref_btn = hp.make_btn(
+            self,
+            "Auto-reference group",
+            tooltip="Automatically select a reference image for each group",
+            func=self.on_auto_reference,
+        )
 
         # select options
         self.group_mode_btn = hp.make_radio_btn(
@@ -785,13 +831,13 @@ class ImageWsiPrepWindow(Window):
 
         self.check_group_btn = hp.make_btn(
             self,
-            "Check group",
+            "Select group",
             tooltip="Only show the selected group (+ reference image)",
             func=lambda: self.on_check_group(True),
         )
         self.uncheck_group_btn = hp.make_btn(
             self,
-            "Uncheck group",
+            "Unselect group",
             tooltip="Hide the selected image",
             func=lambda: self.on_check_group(False),
         )
@@ -800,6 +846,11 @@ class ImageWsiPrepWindow(Window):
             "Scroll to group",
             tooltip="Scroll to the selected group",
             func=self.on_scroll,
+        )
+        self.skip_if_locked = hp.make_checkbox(
+            self,
+            "Skip locked",
+            tooltip="Skip locked images when walking through groups or slides",
         )
 
         side_widget = QWidget()  # noqa
@@ -817,6 +868,7 @@ class ImageWsiPrepWindow(Window):
         side_layout.addRow(hp.make_h_line())
         side_layout.addRow(hp.make_label(self, "Project mode"), self.project_mode)
         side_layout.addRow(self.group_by_btn)
+        side_layout.addRow(self.auto_ref_btn)
         side_layout.addRow(self.mask_btn)
         side_layout.addRow(self.iwsireg_btn)
         # select group options
@@ -825,6 +877,7 @@ class ImageWsiPrepWindow(Window):
         side_layout.addRow("Group", self.groups_choice)
         side_layout.addRow(self.progress_bar)
         side_layout.addRow(hp.make_h_layout(self.check_group_btn, self.uncheck_group_btn, self.scroll_group_btn))
+        side_layout.addRow(self.skip_if_locked)
 
         bottom_widget = QWidget()  # noqa
         bottom_widget.setMinimumHeight(400)
@@ -1193,7 +1246,7 @@ class ImageWsiPrepWindow(Window):
                 self.registration.images[item["key"]] = RegistrationImage(**item)
             # add groups to registration
             for item in config["groups"].values():
-                self.registration.groups[item["key"]] = RegistrationGroup(**item)
+                self.registration.groups[item["group_id"]] = RegistrationGroup(**item)
 
             # add images
             logger.trace(f"Found {len(paths)} images in project file")

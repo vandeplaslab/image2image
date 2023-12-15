@@ -173,7 +173,7 @@ class SelectChannelsToLoadDialog(QtDialog):
         self.table.setup_model(
             self.TABLE_CONFIG.header, self.TABLE_CONFIG.no_sort_columns, self.TABLE_CONFIG.hidden_columns
         )
-        if (not IS_PYINSTALLER and not IS_MAC) and not is_envvar("IMAGE2IMAGE_NO_FILTER", "1"):
+        if True:  # (not IS_PYINSTALLER and not IS_MAC) and not is_envvar("IMAGE2IMAGE_NO_FILTER", "1"):
             self.table_proxy = FilterProxyModel(self)
             self.table_proxy.setSourceModel(self.table.model())
             self.table.model().table_proxy = self.table_proxy
@@ -208,9 +208,9 @@ class SelectChannelsToLoadDialog(QtDialog):
         hp.style_form_layout(layout)
         layout.addRow(self.warning_no_channels_label)
         layout.addRow(self.warning_label)
-        if (not IS_PYINSTALLER and not IS_MAC) and not is_envvar("IMAGE2IMAGE_NO_FILTER", "1"):
-            layout.addRow(hp.make_label(self, "Filter by channel name:"), self.filter_by_name)
         layout.addRow(self.table)
+        if True:  # (not IS_PYINSTALLER and not IS_MAC) and not is_envvar("IMAGE2IMAGE_NO_FILTER", "1"):
+            layout.addRow(self.filter_by_name)
         layout.addRow(
             hp.make_label(
                 self,
