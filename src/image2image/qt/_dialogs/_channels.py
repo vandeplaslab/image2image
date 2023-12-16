@@ -2,7 +2,6 @@
 import typing as ty
 from contextlib import contextmanager
 
-from koyo.system import IS_MAC, IS_PYINSTALLER, is_envvar
 from loguru import logger
 from napari.utils.events import Event
 from qtextra import helpers as hp
@@ -13,6 +12,8 @@ from qtextra.widgets.qt_table_view import FilterProxyModel, QtCheckableTableView
 from qtpy.QtCore import Qt, Signal  # type: ignore[attr-defined]
 from qtpy.QtWidgets import QFormLayout
 from superqt.utils import ensure_main_thread
+
+from image2image.config import STATE
 
 if ty.TYPE_CHECKING:
     from qtextra._napari.image.wrapper import NapariImageView
@@ -176,7 +177,7 @@ class OverlayChannelsDialog(QtFramelessTool):
         self.table.setup_model(
             self.TABLE_CONFIG.header, self.TABLE_CONFIG.no_sort_columns, self.TABLE_CONFIG.hidden_columns
         )
-        if (not IS_PYINSTALLER and not IS_MAC) and not is_envvar("IMAGE2IMAGE_NO_FILTER", "1"):
+        if STATE.allow_filters:
             self.table_proxy = FilterProxyModel(self)
             self.table_proxy.setSourceModel(self.table.model())
             self.table.model().table_proxy = self.table_proxy
@@ -200,8 +201,8 @@ class OverlayChannelsDialog(QtFramelessTool):
         hp.style_form_layout(layout)
         layout.addRow(header_layout)
         layout.addRow(self.table)
-        if (not IS_PYINSTALLER and not IS_MAC) and not is_envvar("IMAGE2IMAGE_NO_FILTER", "1"):
-            layout.addRow(hp.make_h_layout(self.filter_by_dataset, self.filter_by_name, stretch_id=(0, 1), spacing=1))
+        if STATE.allow_filters:
+            layout.addRow(hp.make_h_layout(self.filter_by_name, self.filter_by_dataset, stretch_id=(0, 1), spacing=1))
         layout.addRow(self.info)
         layout.addRow(
             hp.make_label(

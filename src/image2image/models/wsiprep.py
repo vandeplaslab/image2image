@@ -60,9 +60,9 @@ class RegistrationImage(BaseModel):
         else:
             self.rotate += CONFIG.rotate_step_size
         if self.rotate > 360:
-            self.rotate = 0
+            self.rotate -= 360
         elif self.rotate < 0:
-            self.rotate = 360
+            self.rotate += 360
 
     def apply_translate(self, which: str) -> None:
         """Apply rotation."""

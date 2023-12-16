@@ -6,7 +6,6 @@ from contextlib import contextmanager
 from functools import partial
 from pathlib import Path
 
-from koyo.system import IS_MAC, IS_PYINSTALLER, is_envvar
 from koyo.typing import PathLike
 from loguru import logger
 from qtextra import helpers as hp
@@ -19,7 +18,7 @@ from qtpy.QtGui import QDoubleValidator, QDropEvent
 from qtpy.QtWidgets import QFormLayout, QHeaderView, QLineEdit, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget
 from superqt.utils import create_worker
 
-from image2image.config import CONFIG
+from image2image.config import CONFIG, STATE
 from image2image.enums import ALLOWED_IMAGE_FORMATS, ALLOWED_IMAGE_FORMATS_WITH_GEOJSON
 from image2image.exceptions import MultiSceneCziError, UnsupportedFileFormatError
 from image2image.models.transform import TransformData
@@ -173,7 +172,7 @@ class SelectChannelsToLoadDialog(QtDialog):
         self.table.setup_model(
             self.TABLE_CONFIG.header, self.TABLE_CONFIG.no_sort_columns, self.TABLE_CONFIG.hidden_columns
         )
-        if True:  # (not IS_PYINSTALLER and not IS_MAC) and not is_envvar("IMAGE2IMAGE_NO_FILTER", "1"):
+        if STATE.allow_filters:
             self.table_proxy = FilterProxyModel(self)
             self.table_proxy.setSourceModel(self.table.model())
             self.table.model().table_proxy = self.table_proxy
@@ -209,8 +208,9 @@ class SelectChannelsToLoadDialog(QtDialog):
         layout.addRow(self.warning_no_channels_label)
         layout.addRow(self.warning_label)
         layout.addRow(self.table)
-        if True:  # (not IS_PYINSTALLER and not IS_MAC) and not is_envvar("IMAGE2IMAGE_NO_FILTER", "1"):
+        if STATE.allow_filters:
             layout.addRow(self.filter_by_name)
+            self.filter_by_name.setFocus()
         layout.addRow(
             hp.make_label(
                 self,

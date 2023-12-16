@@ -2,6 +2,7 @@
 import typing as ty
 
 from koyo.config import BaseConfig
+from koyo.system import IS_MAC, IS_PYINSTALLER, is_envvar
 from koyo.typing import PathLike
 from pydantic import Field, validator
 
@@ -138,4 +139,14 @@ class Config(BaseConfig):
         return ViewerOrientation(value)
 
 
+class State:
+    """State of the application."""
+
+    @property
+    def allow_filters(self) -> bool:
+        """Allow filters."""
+        return is_envvar("IMAGE2IMAGE_NO_FILTER", "0") or (not IS_PYINSTALLER and not IS_MAC)
+
+
 CONFIG: Config = Config()  # type: ignore[call-arg]
+STATE = State()

@@ -61,7 +61,7 @@ def groups_to_group_id(groups: dict[str, list[str]]) -> dict[str, int]:
     for i, group in enumerate(natsorted(groups)):
         try:
             key = int(group)
-        except TypeError:
+        except (TypeError, ValueError):
             key = i
         for filename in natsorted(groups[group]):
             dataset_to_group_map[filename] = key
