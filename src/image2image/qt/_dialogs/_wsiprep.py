@@ -12,6 +12,7 @@ from koyo.timer import MeasureTimer
 from loguru import logger
 from napari.layers import Image, Shapes
 from napari.layers.shapes._shapes_constants import Box
+from qtextra._napari.common.layer_controls.qt_shapes_controls import QtShapesControls
 from qtextra.utils.utilities import connect
 from qtextra.widgets.qt_dialog import QtFramelessTool
 from qtpy.QtCore import Qt
@@ -82,7 +83,7 @@ class GroupByDialog(WsiPrepMixin):
             return groups, dataset_to_group_map
         return {}, {}
 
-    def on_preview_group_by(self):
+    def on_preview_group_by(self) -> None:
         """Preview groups specified by user."""
         groups, dataset_to_group_map = self._get_groups()
         if dataset_to_group_map:
@@ -91,7 +92,26 @@ class GroupByDialog(WsiPrepMixin):
         else:
             self.label.setText("<b>fill-in group-by pattern above</b>")
 
-    def on_group_by(self):
+    def on_add_metadata(self) -> None:
+        """Add metadata."""
+        if self.table.n_rows == 0:
+            logger.trace("No images loaded")
+            return
+        groups, dataset_to_group_map = self._get_groups()
+        if dataset_to_group_map:
+            value = self.group_by.text()
+            tag = hp.get_text(self, "Enter metadata tag", "Enter metadata tag", value)
+            if tag == "auto":
+                hp.toast(self, "Invalid metadata tag", "Metadata tag cannot be 'auto'", icon="warning")
+                return
+            if not tag:
+                logger.trace("No metadata tag specified")
+                return
+            for key, group_id in tqdm(dataset_to_group_map.items(), desc="Grouping images...", total=self.table.n_rows):
+                self.registration.images[key].metadata[tag] = group_id
+            logger.trace(f"Added metadata tag {tag} to {len(dataset_to_group_map)} images")
+
+    def on_group_by(self) -> None:
         """Group by user specified string."""
         if self.table.n_rows == 0:
             return
@@ -121,7 +141,7 @@ class GroupByDialog(WsiPrepMixin):
             self.parent()._generate_group_options()
         logger.trace(f"Grouped images in {timer()}")
 
-    def on_order_by(self):
+    def on_order_by(self) -> None:
         """Reorder images according to the current group identification."""
         if self.table.n_rows == 0:
             return
@@ -152,6 +172,7 @@ class GroupByDialog(WsiPrepMixin):
         self.group_by = hp.make_line_edit(
             self, placeholder="Type in part of the filename", func_changed=self.on_preview_group_by
         )
+        self.add_metadata_btn = hp.make_btn(self, "Add metadata", func=self.on_add_metadata)
         self.group_by_btn = hp.make_btn(self, "Group", func=self.on_group_by)
         self.reorder_btn = hp.make_btn(self, "Reorder", func=self.on_order_by)
 
@@ -178,8 +199,9 @@ class GroupByDialog(WsiPrepMixin):
                 alignment=Qt.AlignmentFlag.AlignCenter,
             )
         )
+        layout.addRow(hp.make_h_line())
         layout.addRow(self.group_by)
-        layout.addRow(hp.make_h_layout(self.group_by_btn, self.reorder_btn))
+        layout.addRow(hp.make_h_layout(self.add_metadata_btn, self.group_by_btn, self.reorder_btn))
         layout.addRow(hp.make_h_line(self))
         layout.addRow(self.label)
         return layout
@@ -195,6 +217,7 @@ class MaskDialog(WsiPrepMixin):
         super().__init__(parent)
         self.setMinimumWidth(400)
         self.setMinimumHeight(300)
+        self.group_to_mask: dict[int, np.ndarray] = {}
 
     @contextmanager
     def _editing_crop(self):
@@ -217,6 +240,8 @@ class MaskDialog(WsiPrepMixin):
             visual = self.view.widget.layer_to_visual[layer]
             init_shapes_layer(layer, visual)
             connect(self.crop_layer.events.set_data, self.on_update_crop_from_canvas, state=True)
+            if hasattr(self, "layer_controls"):
+                self.layer_controls.layer = layer
         return self.view.layers["Crop rectangle"]
 
     def _get_default_crop_area(self) -> tuple[int, int, int, int]:
@@ -250,22 +275,24 @@ class MaskDialog(WsiPrepMixin):
             self.horizontal_label.setText("")
             self.vertical_label.setText("")
             return
-        left, right, top, bottom = self._get_crop_area_for_index(index)
+        left, right, top, bottom, shape_type, data = self._get_crop_area_for_index(index)
         self.horizontal_label.setText(f"{left:<10} - {right:>10} ({right - left:>7})")
         self.vertical_label.setText(f"{top:<10} - {bottom:>10} ({bottom - top:>7})")
 
-    def _get_crop_area_for_index(self, index: int = 0) -> tuple[int, int, int, int]:
+    def _get_crop_area_for_index(self, index: int = 0) -> tuple[int, int, int, int, str | None, np.ndarray | None]:
         """Return crop area."""
         n = len(self.crop_layer.data)
         if index > n or index < 0:
-            return 0, 0, 0, 0
+            return 0, 0, 0, 0, None, None
+        array = self.crop_layer.data[index]
+        shape_type = self.crop_layer.shape_type[index]
         rect = self.crop_layer.interaction_box(index)
         rect = rect[Box.LINE_HANDLE]
         xmin, xmax = np.min(rect[:, 1]), np.max(rect[:, 1])
         xmin = max(0, xmin)
         ymin, ymax = np.min(rect[:, 0]), np.max(rect[:, 0])
         ymin = max(0, ymin)
-        return floor(xmin), ceil(xmax), floor(ymin), ceil(ymax)
+        return floor(xmin), ceil(xmax), floor(ymin), ceil(ymax), shape_type, array
 
     def on_initialize_mask(self) -> None:
         """Make mask for the currently selected group."""
@@ -282,8 +309,11 @@ class MaskDialog(WsiPrepMixin):
         if "Group" not in current:
             return current, None, None
         group_id = int(current.split("'")[1])
-        group = self.registration.groups[group_id]
-        return current, group_id, group
+        try:
+            group = self.registration.groups[group_id]
+            return current, group_id, group
+        except KeyError:
+            return current, None, None
 
     def on_select_mask(self) -> None:
         """Select mask from a list of available options."""
@@ -293,14 +323,17 @@ class MaskDialog(WsiPrepMixin):
         with self._editing_crop():
             if CONFIG.view_mode == "group":
                 self.parent().groups_choice.setCurrentText(current)
-            if group.mask_bbox is None:
+            if group.mask_polygon is None and group.mask_bbox is None:
                 self.crop_layer.data = []
             else:
-                left, top, width, height = group.mask_bbox
-                right = left + width
-                bottom = top + height
-                rect = np.asarray([[top, left], [top, right], [bottom, right], [bottom, left]])
-                self.crop_layer.data = [(rect, "rectangle")]
+                if group.mask_polygon is not None:
+                    self.crop_layer.data = [(group.mask_polygon, "polygon")]
+                else:
+                    left, top, width, height = group.mask_bbox
+                    right = left + width
+                    bottom = top + height
+                    rect = np.asarray([[top, left], [top, right], [bottom, right], [bottom, left]])
+                    self.crop_layer.data = [(rect, "rectangle")]
             self._on_update_crop_from_canvas()
             self.crop_layer.mode = "select"
 
@@ -308,12 +341,21 @@ class MaskDialog(WsiPrepMixin):
         """Make mask for the currently selected group."""
         _, group_id, group = self._get_current_group_id()
         if not group:
+            logger.trace("Could not update group mask - no group selected")
             return
 
-        left, right, top, bottom = self._get_crop_area_for_index(0)
-        group.mask_bbox = (left, top, (right - left), (bottom - top))
-        if not auto:
-            logger.trace(f"Updated mask for group {group_id} to {group.mask_bbox}")
+        left, right, top, bottom, shape_type, data = self._get_crop_area_for_index(0)
+        if shape_type == "polygon":
+            group.mask_polygon = data
+            group.mask_bbox = None
+        else:
+            group.mask_bbox = (left, top, (right - left), (bottom - top))
+            group.mask_polygon = None
+        if not auto and group.is_masked():
+            logger.trace(
+                f"Updated mask for group {group_id} to "
+                f"{group.mask_bbox if group.mask_bbox is not None else len(group.mask_polygon)}"
+            )
 
     def on_remove_mask_from_group(self) -> None:
         """Make mask for the currently selected group."""
@@ -363,6 +405,7 @@ class MaskDialog(WsiPrepMixin):
     # noinspection PyAttributeOutsideInit
     def make_panel(self) -> QLayout:
         """Make panel."""
+        self.layer_controls = QtShapesControls(self.crop_layer)
         self.mask_choice = hp.make_combobox(
             self, tooltip="Select group for which to show/add mask", func=self.on_select_mask
         )
@@ -389,6 +432,9 @@ class MaskDialog(WsiPrepMixin):
                 alignment=Qt.AlignmentFlag.AlignCenter,
             )
         )
+        layout.addRow(hp.make_h_line())
+        layout.addRow(self.layer_controls)
+        layout.addRow(hp.make_h_line())
         layout.addRow(hp.make_label(self, "Group:"), self.mask_choice)
         layout.addRow(hp.make_label(self, "Horizontal"), self.horizontal_label)
         layout.addRow(hp.make_label(self, "Vertical"), self.vertical_label)
@@ -407,6 +453,14 @@ class ConfigDialog(WsiPrepMixin):
         super().__init__(parent)
         self.setMinimumWidth(400)
         self.setMinimumHeight(500)
+        self.transformations = list(CONFIG.transformations)
+        self._update_transformation_path()
+        self._update_indexing_mode()
+
+    def connect_events(self, state: bool = True) -> None:
+        """Connect events."""
+        connect(self.parent()._image_widget.dataset_dlg.evt_loaded, self._update_indexing_mode, state=state)
+        connect(self.parent()._image_widget.dataset_dlg.evt_closed, self._update_indexing_mode, state=state)
 
     @property
     def output_dir(self) -> Path:
@@ -456,16 +510,32 @@ class ConfigDialog(WsiPrepMixin):
             logger.trace("User cancelled export")
             return
 
-        registrations = self.transformation_select.selected_options
-        if not registrations:
+        transformations = self.transformations
+        if not transformations:
             hp.toast(self, "No registration selected", "Please select at least one registration type", icon="warning")
             return
 
+        CONFIG.slide_tag = prefix = self.tag_prefix.text()
+        index_mode = self.index_choice.currentText() or "auto"
+        export_mode = self.export_type.currentText()
+        first_only = self.first_channel_only.isChecked()
+        target_mode = self.target_mode.currentText()
         n = len(self.registration.groups)
         logger.trace(f"Generating configs for {n} groups...")
         with MeasureTimer():
             for _group_id, group in tqdm(self.registration.groups.items(), desc="Generating configs...", total=n):
-                path = group.to_iwsireg(self.registration, self.output_dir, self._get_project_name(group))
+                path = group.to_iwsireg(
+                    self.registration,
+                    self.output_dir,
+                    self._get_project_name(group),
+                    prefix=prefix,
+                    index_mode=index_mode,
+                    export_mode=export_mode,
+                    first_only=first_only,
+                    direct=target_mode == "reference",
+                    # =target_mode,
+                    transformations=transformations,
+                )
                 logger.trace(f"Generated config for group '{group.group_id}' at '{path}'")
 
     def on_preview(self):
@@ -480,13 +550,43 @@ class ConfigDialog(WsiPrepMixin):
             return
         logger.trace(f"Generating configs for {n} groups...")
         preview = ""
+        CONFIG.slide_tag = prefix = self.tag_prefix.text()
+        index_mode = self.index_choice.currentText() or "auto"
+        target_mode = self.target_mode.currentText()
         for _group_id, group in tqdm(self.registration.groups.items(), desc="Previewing...", total=n):
             preview += (
                 f"<b>Group {group.group_id}</b> ({self._get_project_name(group)})<br>"
-                + group.to_preview(self.registration)
+                + group.to_preview(self.registration, prefix=prefix, index_mode=index_mode, target_mode=target_mode)
                 + "<br><br>"
             )
         self.label.setText(preview)
+
+    def on_add_transformation(self) -> None:
+        """Add transformation to the list."""
+        current = self.transformation_choice.currentText()
+        self.transformations.append(current)
+        CONFIG.transformations = tuple(self.transformations)
+        self._update_transformation_path()
+
+    def on_reset_transformation(self) -> None:
+        """Reset transformation list."""
+        self.transformations = []
+        CONFIG.transformations = tuple(self.transformations)
+        self._update_transformation_path()
+
+    def _update_transformation_path(self) -> None:
+        """Update transformation path."""
+        self.transformation_path.setText(
+            " » ".join(self.transformations) if self.transformations else "<please select transformations>"
+        )
+
+    def _update_indexing_mode(self) -> None:
+        """Update indexing mode."""
+        keys = self.registration.get_metadata_keys()
+        if keys:
+            self.index_choice.clear()
+            self.index_choice.addItems(["auto", *keys])
+            self.index_choice.setCurrentText("auto")
 
     # noinspection PyAttributeOutsideInit
     def make_panel(self) -> QLayout:
@@ -497,14 +597,10 @@ class ConfigDialog(WsiPrepMixin):
             tooltip="Specify output directory for images...",
             func=self.on_set_output_dir,
         )
-        self.output_dir_label = hp.make_label(self, f"<b>Output directory</b>: {hp.hyper(self.output_dir)}")
-        self.project_prefix = hp.make_line_edit(
-            self, placeholder="Project prefix", default="", func_changed=self.on_preview
+        self.output_dir_label = hp.make_label(
+            self, f"<b>Output directory</b>: {hp.hyper(self.output_dir)}", enable_url=True
         )
-        self.project_suffix = hp.make_line_edit(
-            self, placeholder="Project suffix", default="", func_changed=self.on_preview
-        )
-        self.transformation_select = hp.make_multi_select(
+        self.transformation_choice = hp.make_combobox(
             self,
             options=[
                 "rigid",
@@ -516,6 +612,7 @@ class ConfigDialog(WsiPrepMixin):
                 "nl_mid",
                 "nl2",
                 "rigid_expanded",
+                "affine_expanded",
                 "rigid_ams",
                 "affine_ams",
                 "nl_ams",
@@ -524,9 +621,42 @@ class ConfigDialog(WsiPrepMixin):
                 "similarity_anc",
                 "nl_anc",
             ],
-            placeholder="Select registration type(s)...",
-            value="rigid;affine",
+            default="rigid",
+            tooltip="Select registration type(s)...",
         )
+        self.index_choice = hp.make_combobox(self, ["auto"], func=self.on_preview)
+        self.transformation_path = hp.make_label(self, "<please select transformations>", wrap=True)
+        self.tag_prefix = hp.make_line_edit(
+            self, placeholder="Slide/section prefix", default=CONFIG.slide_tag, func_changed=self.on_preview
+        )
+        self.project_prefix = hp.make_line_edit(
+            self, placeholder="Project prefix", default="", func_changed=self.on_preview
+        )
+        self.project_suffix = hp.make_line_edit(
+            self, placeholder="Project suffix", default="", func_changed=self.on_preview
+        )
+        self.export_type = hp.make_combobox(
+            self,
+            [
+                "Export with mask + affine initialization",
+                "Export with mask + rotation/flip initialization",
+                "Export with mask + no initialization",
+                "Export with no mask + affine initialization",
+                "Export with no mask + rotation/flip initialization",
+                "Export with no mask + no initialization",
+            ],
+        )
+        self.first_channel_only = hp.make_checkbox(
+            self,
+            "Only use first channel in co-registration",
+            checked=False,
+            tooltip="Only use the first channel when co-registering. This can be useful if you have a lot of channels"
+            " and only want to co-register by e.g. the DAPI channel.",
+        )
+        self.target_mode = hp.make_combobox(
+            self, ["sequential", "reference", "next"], tooltip="Select target type...", func=self.on_preview
+        )
+
         self.preview_btn = hp.make_btn(self, "Preview", tooltip="Preview registration paths...", func=self.on_preview)
         self.export_btn = hp.make_btn(self, "Export", tooltip="Generate IWsiReg configurations...", func=self.on_export)
 
@@ -553,9 +683,22 @@ class ConfigDialog(WsiPrepMixin):
         layout.addRow(hp.make_h_line(self))
         layout.addRow(self.directory_btn)
         layout.addRow(self.output_dir_label)
-        layout.addRow(self.transformation_select)
+        layout.addRow(
+            hp.make_h_layout(
+                self.transformation_choice,
+                hp.make_btn(self, "Add", func=self.on_add_transformation),
+                hp.make_btn(self, "Reset", func=self.on_reset_transformation),
+                stretch_id=(0,),
+            )
+        )
+        layout.addRow(self.transformation_path)
+        layout.addRow(self.tag_prefix)
         layout.addRow(hp.make_h_layout(self.project_prefix, self.project_suffix, stretch_id=(0, 1)))
+        layout.addRow("Indexing mode", self.index_choice)
         layout.addRow(self.preview_btn)
+        layout.addRow("Export type", self.export_type)
+        layout.addRow("Target type", self.target_mode)
+        layout.addRow("", self.first_channel_only)
         layout.addRow(self.export_btn)
         layout.addRow(hp.make_h_line(self))
         layout.addRow(self.label)

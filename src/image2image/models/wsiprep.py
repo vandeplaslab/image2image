@@ -1,11 +1,13 @@
 """Three-D model."""
 import typing as ty
+from copy import deepcopy
 from pathlib import Path
 
 import numpy as np
 from koyo.typing import PathLike
+from loguru import logger
 from natsort import natsorted
-from pydantic import Field
+from pydantic import Field, validator
 
 from image2image.config import CONFIG
 from image2image.models.base import BaseModel
@@ -41,6 +43,7 @@ class RegistrationImage(BaseModel):
     is_reference: bool = Field(False, title="Is reference")
     scale: tuple[float, float] = Field((1.0, 1.0), title="Scale")
     lock: bool = Field(False, title="Lock")
+    metadata: ty.Dict = Field(default_factory=dict, title="Metadata")
 
     @classmethod
     def from_reader(cls, reader: "BaseReader") -> "RegistrationImage":
@@ -56,13 +59,15 @@ class RegistrationImage(BaseModel):
     def apply_rotate(self, which: str) -> None:
         """Apply rotation."""
         if which == "left":
-            self.rotate -= CONFIG.rotate_step_size
-        else:
             self.rotate += CONFIG.rotate_step_size
+        else:
+            self.rotate -= CONFIG.rotate_step_size
         if self.rotate > 360:
             self.rotate -= 360
         elif self.rotate < 0:
             self.rotate += 360
+        if self.rotate == 360:
+            self.rotate = 0
 
     def apply_translate(self, which: str) -> None:
         """Apply rotation."""
@@ -124,6 +129,7 @@ class RegistrationImage(BaseModel):
             "translate_y": self.translate_y,
             "flip_lr": self.flip_lr,
             "scale": self.scale,
+            "metadata": self.metadata,
         }
 
 
@@ -133,6 +139,23 @@ class RegistrationGroup(BaseModel):
     keys: list[str] = Field(default_factory=list, title="Keys")
     group_id: int = Field(-1, title="Group ID")
     mask_bbox: ty.Optional[tuple[int, int, int, int]] = Field(None, title="Mask bounding box")
+    mask_polygon: ty.Optional[np.ndarray] = Field(None, title="Mask polygon")
+
+    @validator("mask_polygon", pre=True, allow_reuse=True)
+    def _validate_polygon(cls, v) -> ty.Optional[np.ndarray]:
+        if isinstance(v, list):
+            return np.asarray(v)
+        elif isinstance(v, np.ndarray):
+            return v
+        return None
+
+    def is_masked(self) -> bool:
+        """Check whether mask is present."""
+        return self.mask_bbox is not None or self.mask_polygon is not None
+
+    def has_metadata(self, registration: "Registration") -> bool:
+        """Check whether metadata is present."""
+        return all(registration.images[key].metadata for key in self.keys)
 
     def clear(self) -> None:
         """Remove existing keys."""
@@ -144,7 +167,21 @@ class RegistrationGroup(BaseModel):
             "keys": self.keys,
             "group_id": self.group_id,
             "mask_bbox": self.mask_bbox,
+            "mask_polygon": self.mask_polygon,
         }
+
+    def get_mask_bbox(self, image: "BaseReader") -> ty.Optional[tuple[int, int, int, int]]:
+        """Get mask bounding box."""
+        if self.mask_bbox:
+            return tuple(np.round(np.asarray(self.mask_bbox) * image.inv_resolution).astype(int))
+        return None
+
+    def get_mask_polygon(self, image: "BaseReader") -> ty.Optional[np.ndarray]:
+        """Get mask polygon."""
+        if self.mask_polygon is not None:
+            yx = self.mask_polygon * image.inv_resolution
+            return np.round(yx).astype(np.int32)[:, ::-1]
+        return None
 
     def to_iwsireg(
         self,
@@ -152,11 +189,21 @@ class RegistrationGroup(BaseModel):
         output_dir: PathLike,
         name: str,
         transformations: tuple[str, ...] = ("rigid", "affine"),
+        prefix: str = "c",
+        index_mode: str = "auto",
+        export_mode: str = "all",
+        first_only: bool = False,
+        direct: bool = False,
+        as_uint8: bool = False,
     ) -> Path:
         """Generate iwsireg configuration file."""
         from image2image_io._reader import get_simple_reader
+        from image2image_wsireg.enums import CoordinateFlip
         from image2image_wsireg.models import Preprocessing
         from image2image_wsireg.workflows import IWsiReg
+
+        if export_mode == "all":
+            export_mode = "Export with mask + affine initialization"
 
         # retrieve images
         images = [registration.images[key] for key in self.keys]
@@ -179,27 +226,61 @@ class RegistrationGroup(BaseModel):
         obj = IWsiReg(name=name, output_dir=output_dir, cache=True, merge=True)
         for index, key in index_to_image.items():
             image = registration.images[key]
+            name_index = index if index_mode == "auto" else image.metadata[index_mode]
             reader = get_simple_reader(image.path)
             pre = Preprocessing.fluorescence()
-            affine = image.affine(reader.image_shape, reader.scale)
-            if not RegistrationImage.is_identity(affine):
-                pre.affine = affine
+            is_reference = image.is_reference
+
+            # use affine matrix if present and user explicitly requested it
+            if "affine" in export_mode:
+                affine = image.affine(reader.image_shape, reader.scale)
+                if not RegistrationImage.is_identity(affine):
+                    pre.affine = affine
+            # use rotation/flip if present and user explicitly requested it
+            elif "rotation/flip" in export_mode:
+                pre.rotate_counter_clockwise = 360 - image.rotate  # we store it as clockwise...
+                if image.flip_lr:
+                    pre.flip = CoordinateFlip.VERTICAL
+            if first_only:
+                pre.channel_indices = [0]
+
+            kws: dict[str, ty.Any] = {}
+            if "with mask" in export_mode:
+                if is_reference:
+                    kws["mask_bbox"] = self.get_mask_bbox(reader)
+                    kws["mask_polygon"] = self.get_mask_polygon(reader)
+            if as_uint8:
+                kws["export"] = {"as_uint8": True}
             # add modality to the project
             obj.add_modality(
-                f"c{index}",
-                image.path,
-                pixel_size=reader.resolution,
-                preprocessing=pre,
-                mask_bbox=self.mask_bbox if index == 0 else None,
+                f"{prefix}{name_index}", image.path, pixel_size=reader.resolution, preprocessing=pre, **kws
             )
+
         # add registration paths
         if kind == "cascade":
-            self._add_cascade_paths(obj, index_to_image, transformations=transformations)
+            self._add_cascade_paths(
+                obj,
+                registration,
+                reference,
+                index_to_image,
+                transformations=transformations,
+                prefix=prefix,
+                index_mode=index_mode,
+                direct=direct,
+            )
         elif kind == "converge":
             if not reference:
                 raise ValueError("Reference must be present to converge")
-            self._add_converge_paths(obj, reference, index_to_image, transformations=transformations)
-
+            self._add_converge_paths(
+                obj,
+                registration,
+                reference,
+                index_to_image,
+                transformations=transformations,
+                prefix=prefix,
+                index_mode=index_mode,
+                direct=direct,
+            )
         # validate the registration
         if not obj.validate(allow_not_registered=True):
             raise ValueError("Invalid registration")
@@ -207,7 +288,9 @@ class RegistrationGroup(BaseModel):
         obj.save()
         return path
 
-    def to_preview(self, registration: "Registration") -> str:
+    def to_preview(
+        self, registration: "Registration", prefix: str = "c", index_mode: str = "auto", target_mode: str = "sequential"
+    ) -> str:
         """Generate preview of the registration paths."""
         # retrieve images
         images = [registration.images[key] for key in self.keys]
@@ -221,57 +304,77 @@ class RegistrationGroup(BaseModel):
         if len(index_to_image) == 1:
             raise ValueError("Cannot register a single image")
 
-        if kind == "cascade":
-            return self._preview_cascade_paths(index_to_image, reference)
-        elif kind == "converge":
+        if kind == "cascade" and target_mode != "next":
+            return self._preview_cascade_paths(
+                registration,
+                index_to_image,
+                reference,
+                prefix=prefix,
+                index_mode=index_mode,
+                direct=target_mode != "reference",
+            )
+        elif kind == "converge" and target_mode != "next":
             if not reference:
                 raise ValueError("Reference must be present to converge")
-            return self._preview_converge_paths(index_to_image, reference)
+            return self._preview_converge_paths(
+                registration,
+                index_to_image,
+                reference,
+                prefix=prefix,
+                index_mode=index_mode,
+                direct=target_mode != "reference",
+            )
+        # else:
+        #     return self._preview_next_paths(
+        #         registration, index_to_image, reference, prefix=prefix, index_mode=index_mode,
+        #     )
         return ""
 
     @staticmethod
     def _add_cascade_paths(
         obj: "IWsiReg",
+        registration: "Registration",
+        reference: ty.Optional[str],
         index_to_image: dict[int, str],
         transformations: tuple[str, ...] = ("rigid", "affine"),
+        prefix: str = "c",
+        index_mode: str = "auto",
+        direct: bool = False,
     ) -> None:
         """Add cascade paths."""
-        for image_index, _key in index_to_image.items():
-            # no need to register the first image, we will register against it
-            if image_index == 0:
-                continue
-            # register second image to the first - no need for through modality
-            obj.add_registration_path(
-                f"c{image_index}",
-                "c0",
-                transform=transformations,
-                through=None if image_index == 1 else f"c{image_index - 1}",
-            )
-
-    @staticmethod
-    def _preview_cascade_paths(index_to_image: dict[int, str], reference: ty.Optional[str]) -> str:
-        """Generate preview of the registration paths."""
-        lines = [f"<b>Reference: {reference} ({'c0' if reference else 'None'})</b><br>"]
+        if reference is None:
+            reference = index_to_image[0]
+        image = registration.images[reference]
+        ref_name_index = image.metadata[index_mode] if index_mode != "auto" else 0
         for image_index, key in index_to_image.items():
             # no need to register the first image, we will register against it
             if image_index == 0:
                 continue
+            image = registration.images[key]
+            name_index = image.metadata[index_mode] if index_mode != "auto" else image_index
             # register second image to the first - no need for through modality
-            if image_index == 1:
-                lines.append(f"- {key} -> {reference}<br><b>(c{image_index} -> {'c0' if reference else 'None'})</b>")
-            else:
-                lines.append(
-                    f"- {key} -> {reference} via {index_to_image[image_index - 1]}"
-                    f"<br><b>(c{image_index} -> {'c0' if reference else 'None'} via c{image_index - 1})</b>"
-                )
-        return "<br>".join(lines)
+
+            through = None
+            if image_index != 1 and not direct:
+                key = index_to_image[image_index - 1]
+                image = registration.images[key]
+                via_name_index = image.metadata[index_mode] if index_mode != "auto" else image_index - 1
+                through = f"{prefix}{via_name_index}"
+            source = f"{prefix}{name_index}"
+            target = f"{prefix}{ref_name_index}"
+            obj.add_registration_path(source, target, transform=transformations, through=through)
+            logger.trace(f"Added registration path {source} -> {target} via {through} ({transformations})")
 
     @staticmethod
     def _add_converge_paths(
         obj: "IWsiReg",
+        registration: "Registration",
         reference: str,
         index_to_image: dict[int, str],
         transformations: tuple[str, ...] = ("rigid", "affine"),
+        prefix: str = "c",
+        index_mode: str = "auto",
+        direct: bool = False,
     ) -> None:
         """Add cascade paths."""
         # find the index of reference in the index_to_image
@@ -280,33 +383,99 @@ class RegistrationGroup(BaseModel):
         ref_index = image_orders[index]
         image_orders_before = image_orders[:index]
         image_orders_after = image_orders[index + 1 :]
+
+        ref_image = registration.images[reference] if reference else None
+        ref_name_index = 0
+        if ref_image:
+            ref_name_index = ref_image.metadata[index_mode] if index_mode != "auto" else 0
         # first, we iterate over the images before the reference, where we create a registration path that goes like
         # this 0 -> ref via 1, 1 -> ref via 2, etc. until we reach the reference
         n = len(image_orders_before)
         for index, image_index in enumerate(image_orders_before):
             if index == ref_index:
                 break
-            obj.add_registration_path(
-                f"c{image_index}",
-                f"c{ref_index}",
-                transform=transformations,
-                through=None if index == n - 1 else f"c{image_orders_before[index + 1]}",
+            image = registration.images[index_to_image[image_index]]
+            name_index = image_index if index_mode == "auto" else image.metadata[index_mode]
+            source = f"{prefix}{name_index}"
+            target = f"{prefix}{ref_name_index}"
+            if index == n - 1 or direct:
+                through = None
+            else:
+                image = registration.images[index_to_image[image_index + 1]]
+                via_name_index = image_orders_before[index + 1] if index_mode == "auto" else image.metadata[index_mode]
+                through = f"{prefix}{via_name_index}"
+            obj.add_registration_path(source, target, transform=transformations, through=through)
+            logger.trace(
+                f"Added registration path {source} -> {target} via {through} ({transformations}) - before reference"
             )
+
         # then, we iterate over the images after the reference, where we create a registration path that goes like this
         # 3 -> ref via 2, 2 -> ref via 1, etc. until we reach the reference
         n = len(image_orders_after)
+        to_add: list[tuple[str, str, ty.Optional[str]]] = []
         for index, image_index in enumerate(reversed(image_orders_after)):
-            if index == ref_index:
+            if index == n - 1:
                 break
-            obj.add_registration_path(
-                f"c{image_index}",
-                f"c{ref_index}",
-                transform=transformations,
-                through=None if index == n - 1 else f"c{image_orders_after[index - 1]}",
+            image = registration.images[index_to_image[image_index]]
+            name_index = image_index if index_mode == "auto" else image.metadata[index_mode]
+            if index == n - 1 or direct:
+                to_add.append((f"{prefix}{name_index}", f"{prefix}{ref_name_index}", None))
+            else:
+                image = registration.images[index_to_image[image_index - 1]]
+                via_name_index = image_orders_after[index - 1] if index_mode == "auto" else image.metadata[index_mode]
+                to_add.append((f"{prefix}{name_index}", f"{prefix}{ref_name_index}", f"{prefix}{via_name_index}"))
+
+        for source, target, through in reversed(to_add):
+            obj.add_registration_path(source, target, transform=transformations, through=through)
+            logger.trace(
+                f"Added registration path {source} -> {target} via {through} ({transformations}) - after reference"
             )
 
     @staticmethod
-    def _preview_converge_paths(index_to_image: dict[int, str], reference: str) -> str:
+    def _preview_cascade_paths(
+        registration: "Registration",
+        index_to_image: dict[int, str],
+        reference: ty.Optional[str],
+        prefix: str = "c",
+        index_mode: str = "auto",
+        direct: bool = False,
+    ) -> str:
+        """Generate preview of the registration paths."""
+        ref_image = registration.images[reference] if reference else None
+        ref_name_index = 0
+        if ref_image:
+            ref_name_index = ref_image.metadata[index_mode] if index_mode != "auto" else 0
+
+        lines = [f"<b>Reference: {reference} ({f'{prefix}{ref_name_index}' if reference else 'None'})</b><br>"]
+        for image_index, key in index_to_image.items():
+            image = registration.images[key]
+            name_index = image_index if index_mode == "auto" else image.metadata[index_mode]
+            # no need to register the first image, we will register against it
+            if image_index == 0:
+                continue
+            # register second image to the first - no need for through modality
+            if image_index == 1 or direct:
+                lines.append(
+                    f"- {key} -> {reference}<br><b>({prefix}{name_index}"
+                    f" -> {f'{prefix}{ref_name_index}' if reference else 'None'})</b>"
+                )
+            else:
+                lines.append(
+                    f"- {key} -> {reference} via {index_to_image[image_index - 1]}"
+                    f"<br><b>({prefix}{image_index} -> {f'{prefix}{ref_name_index}' if reference else 'None'} via"
+                    f" {prefix}{name_index - 1})</b>"
+                )
+        return "<br>".join(lines)
+
+    @staticmethod
+    def _preview_converge_paths(
+        registration: "Registration",
+        index_to_image: dict[int, str],
+        reference: str,
+        prefix: str = "c",
+        index_mode: str = "auto",
+        direct: bool = False,
+    ) -> str:
         """Preview converge paths."""
         # find the index of reference in the index_to_image
         image_orders = list(index_to_image.keys())
@@ -314,33 +483,58 @@ class RegistrationGroup(BaseModel):
         ref_index = image_orders[index]
         image_orders_before = image_orders[:index]
         image_orders_after = image_orders[index + 1 :]
-        lines = [f"<b>Reference: {reference} (c{ref_index})</b><br>"]
+
+        ref_image = registration.images[reference] if reference else None
+        ref_name_index = -1
+        if ref_image:
+            ref_name_index = ref_image.metadata[index_mode] if index_mode != "auto" else ref_image.image_order
+        lines = [f"<b>Reference: {reference} ({prefix}{ref_name_index})</b><br>"]
+
+        # add images before the reference
         n = len(image_orders_before)
         for index, image_index in enumerate(image_orders_before):
-            if index == ref_index:
+            if image_index == ref_index:
                 break
-            if index == n - 1:
+            image = registration.images[index_to_image[image_index]]
+            name_index = image_index if index_mode == "auto" else image.metadata[index_mode]
+            if index == n - 1 or direct:
+                # from to
                 lines.append(
-                    f"- {index_to_image[image_index]} -> {reference}<br><b>(c{image_index} -> c{ref_index})</b>"
+                    f"- {index_to_image[image_index]} -> {reference}<br><b>({prefix}{name_index}"
+                    f" -> {prefix}{ref_name_index})</b>"
                 )
             else:
+                image = registration.images[index_to_image[image_index + 1]]
+                via_name_index = image_orders_before[index + 1] if index_mode == "auto" else image.metadata[index_mode]
+                # from to via
                 lines.append(
                     f"- {index_to_image[image_index]} -> {reference} via {index_to_image[image_index + 1]}"
-                    f"<br><b>(c{image_index} -> c{ref_index} via c{index + 1})</b>"
+                    f"<br><b>({prefix}{name_index} -> {prefix}{ref_name_index} via {prefix}{via_name_index})</b>"
                 )
+
+        # add images after the reference
         n = len(image_orders_after)
+        lines_after = []
         for index, image_index in enumerate(reversed(image_orders_after)):
-            if index == ref_index:
+            if image_index == ref_index:
                 break
+            image = registration.images[index_to_image[image_index]]
+            name_index = image_index if index_mode == "auto" else image.metadata[index_mode]
             if index == n - 1:
-                lines.append(
-                    f"- {index_to_image[image_index]} -> {reference}<br><b>(c{image_index} -> c{ref_index})</b>"
+                # from to
+                lines_after.append(
+                    f"- {index_to_image[image_index]} -> {reference}<br><b>({prefix}{name_index}"
+                    f" -> {prefix}{ref_name_index})</b>"
                 )
             else:
-                lines.append(
+                image = registration.images[index_to_image[image_index - 1]]
+                via_name_index = image_orders_after[index - 1] if index_mode == "auto" else image.metadata[index_mode]
+                # from -> to -> via
+                lines_after.append(
                     f"- {index_to_image[image_index]} -> {reference} via {index_to_image[image_index - 1]}"
-                    f"<br><b>(c{image_index} -> c{ref_index} via c{index - 1})</b>"
+                    f"<br><b>({prefix}{name_index} -> {prefix}{ref_name_index} via {prefix}{via_name_index})</b>"
                 )
+        lines.extend(reversed(lines_after))
         return "<br>".join(lines)
 
     def sort(self, registration: "Registration", reset: bool = True) -> tuple[dict[int, str], str, ty.Optional[str]]:
@@ -398,19 +592,29 @@ class RegistrationGroup(BaseModel):
         # e.g. if we had the following images 1, 2, ref, 4, 5, then we would have 1 -> 2 -> ref <- 4 <- 5
         # we need to sort the keys so that the reference is in the middle
         else:
-            # first, we need to find the reference
-            nat_keys_before = nat_keys[:ref_index]
-            # image_orders[:ref_index]
-            nat_keys_after = nat_keys[ref_index + 1 :]
-            # image_orders[ref_index + 1 :]
-            # ref_order -= 1
-            index_to_image = {}
-            index = 0
-            for index, key in enumerate(reversed(nat_keys_before)):
-                index_to_image[index] = key
-            index_to_image[index + 1] = reference
-            for index, key in enumerate(nat_keys_after, start=index + 2):
-                index_to_image[index] = key
+            # image order has not been set OR reference is the first image
+            if len(np.unique(image_orders)) == 1 or ref_order == np.min(image_orders):
+                index_to_image = dict(enumerate(nat_keys))
+            else:
+                # order by the image order BUT make sure that reference is first in the stack
+                nat_keys.pop(ref_index)
+                image_orders = [registration.images[key].image_order for key in nat_keys]
+                nat_keys = [reference, *nat_keys]
+                image_orders = [np.min(image_orders) - 1, *image_orders]
+                index_to_image = dict(zip(image_orders, nat_keys))
+            # # first, we need to find the reference
+            # nat_keys_before = nat_keys[:ref_index]
+            # # image_orders[:ref_index]
+            # nat_keys_after = nat_keys[ref_index + 1 :]
+            # # image_orders[ref_index + 1 :]
+            # # ref_order -= 1
+            # index_to_image = {}
+            # index = 0
+            # for index, key in enumerate(reversed(nat_keys_before)):
+            #     index_to_image[index] = key
+            # index_to_image[index + 1] = reference
+            # for index, key in enumerate(nat_keys_after, start=index + 2):
+            #     index_to_image[index] = key
             # if len(np.unique(image_orders_before)) == 1:  # and len(image_orders_after) > 1:
             #     index_to_image_before = dict(enumerate(reversed(nat_keys_before)))
             # else:
@@ -473,6 +677,20 @@ class Registration(BaseModel):
     def remove(self, key: str) -> None:
         """Remove key."""
         del self.images[key]
+
+    def get_metadata_keys(self) -> list[str]:
+        """Return list of keys associated with EACH image."""
+        keys: list[str] = []
+        for image in self.images.values():
+            if image.metadata:
+                keys.extend(image.metadata.keys())
+        keys = list(set(keys))
+        # make sure to only return keys that are present in EACH image
+        keys_ = deepcopy(keys)
+        for key in keys_:
+            if not all(key in image.metadata for image in self.images.values()):
+                keys.remove(key)
+        return keys
 
     def model_iter(self) -> ty.Generator[RegistrationImage, None, None]:
         """Iterate over models."""

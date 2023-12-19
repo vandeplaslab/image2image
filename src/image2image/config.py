@@ -106,6 +106,10 @@ class Config(BaseConfig):
     translate_step_size: int = Field(250, title="Translate by", description="Translate by.", in_app=True)
     view_mode: str = Field("group", title="View mode", description="View mode.", in_app=True)
     project_mode: str = Field("2D (one reference per group)", description="Project mode.", in_app=True)
+    slide_tag: str = Field("Slide", title="Slide tag", description="Slide tag.", in_app=True)
+    transformations: tuple[str] = Field(
+        ("rigid", "affine"), title="Transformations", description="Transformations.", in_app=True
+    )
 
     first_time_wsiprep: bool = Field(
         True, title="First time", description="First time running the viewer app.", in_app=True
@@ -145,7 +149,8 @@ class State:
     @property
     def allow_filters(self) -> bool:
         """Allow filters."""
-        return is_envvar("IMAGE2IMAGE_NO_FILTER", "0") or (not IS_PYINSTALLER and not IS_MAC)
+        return True
+        # return is_envvar("IMAGE2IMAGE_NO_FILTER", "0") or (not IS_PYINSTALLER and not IS_MAC)
 
 
 CONFIG: Config = Config()  # type: ignore[call-arg]

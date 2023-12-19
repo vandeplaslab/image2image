@@ -362,5 +362,5 @@ def ensure_extension(path: PathLike, extension: str) -> Path:
     path = Path(path)
     if extension not in path.name:
         suffix = path.suffix
-        path = path.with_suffix(f".{extension}.{suffix}")
+        path = path.with_suffix(f".{extension}{suffix}")
     return path
