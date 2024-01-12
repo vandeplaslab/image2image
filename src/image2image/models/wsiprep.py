@@ -43,6 +43,7 @@ class RegistrationImage(BaseModel):
     is_reference: bool = Field(False, title="Is reference")
     scale: tuple[float, float] = Field((1.0, 1.0), title="Scale")
     lock: bool = Field(False, title="Lock")
+    channel_ids: list = Field(default_factory=list, title="Channel ids")
     metadata: ty.Dict = Field(default_factory=dict, title="Metadata")
 
     @classmethod
@@ -229,7 +230,6 @@ class RegistrationGroup(BaseModel):
             name_index = index if index_mode == "auto" else image.metadata[index_mode]
             reader = get_simple_reader(image.path)
             pre = Preprocessing.fluorescence()
-            is_reference = image.is_reference
 
             # use affine matrix if present and user explicitly requested it
             if "affine" in export_mode:
@@ -246,9 +246,10 @@ class RegistrationGroup(BaseModel):
 
             kws: dict[str, ty.Any] = {}
             if "with mask" in export_mode:
-                if is_reference:
-                    kws["mask_bbox"] = self.get_mask_bbox(reader)
-                    kws["mask_polygon"] = self.get_mask_polygon(reader)
+                # if is_reference:
+                kws["mask_bbox"] = self.get_mask_bbox(reader)
+                kws["mask_polygon"] = self.get_mask_polygon(reader)
+                kws["transform_mask"] = False
             if as_uint8:
                 kws["export"] = {"as_uint8": True}
             # add modality to the project
@@ -311,8 +312,8 @@ class RegistrationGroup(BaseModel):
                 reference,
                 prefix=prefix,
                 index_mode=index_mode,
-                direct=target_mode != "reference",
-            )
+                direct=target_mode == "reference",
+            )[0]
         elif kind == "converge" and target_mode != "next":
             if not reference:
                 raise ValueError("Reference must be present to converge")
@@ -322,16 +323,16 @@ class RegistrationGroup(BaseModel):
                 reference,
                 prefix=prefix,
                 index_mode=index_mode,
-                direct=target_mode != "reference",
-            )
+                direct=target_mode == "reference",
+            )[0]
         # else:
         #     return self._preview_next_paths(
         #         registration, index_to_image, reference, prefix=prefix, index_mode=index_mode,
         #     )
         return ""
 
-    @staticmethod
     def _add_cascade_paths(
+        self,
         obj: "IWsiReg",
         registration: "Registration",
         reference: ty.Optional[str],
@@ -344,29 +345,15 @@ class RegistrationGroup(BaseModel):
         """Add cascade paths."""
         if reference is None:
             reference = index_to_image[0]
-        image = registration.images[reference]
-        ref_name_index = image.metadata[index_mode] if index_mode != "auto" else 0
-        for image_index, key in index_to_image.items():
-            # no need to register the first image, we will register against it
-            if image_index == 0:
-                continue
-            image = registration.images[key]
-            name_index = image.metadata[index_mode] if index_mode != "auto" else image_index
-            # register second image to the first - no need for through modality
-
-            through = None
-            if image_index != 1 and not direct:
-                key = index_to_image[image_index - 1]
-                image = registration.images[key]
-                via_name_index = image.metadata[index_mode] if index_mode != "auto" else image_index - 1
-                through = f"{prefix}{via_name_index}"
-            source = f"{prefix}{name_index}"
-            target = f"{prefix}{ref_name_index}"
+        _, paths = self._preview_cascade_paths(
+            registration, index_to_image, reference, prefix=prefix, index_mode=index_mode, direct=direct
+        )
+        for source, target, through in paths:
             obj.add_registration_path(source, target, transform=transformations, through=through)
             logger.trace(f"Added registration path {source} -> {target} via {through} ({transformations})")
 
-    @staticmethod
     def _add_converge_paths(
+        self,
         obj: "IWsiReg",
         registration: "Registration",
         reference: str,
@@ -377,59 +364,12 @@ class RegistrationGroup(BaseModel):
         direct: bool = False,
     ) -> None:
         """Add cascade paths."""
-        # find the index of reference in the index_to_image
-        image_orders = list(index_to_image.keys())
-        index = list(index_to_image.values()).index(reference)
-        ref_index = image_orders[index]
-        image_orders_before = image_orders[:index]
-        image_orders_after = image_orders[index + 1 :]
-
-        ref_image = registration.images[reference] if reference else None
-        ref_name_index = 0
-        if ref_image:
-            ref_name_index = ref_image.metadata[index_mode] if index_mode != "auto" else 0
-        # first, we iterate over the images before the reference, where we create a registration path that goes like
-        # this 0 -> ref via 1, 1 -> ref via 2, etc. until we reach the reference
-        n = len(image_orders_before)
-        for index, image_index in enumerate(image_orders_before):
-            if index == ref_index:
-                break
-            image = registration.images[index_to_image[image_index]]
-            name_index = image_index if index_mode == "auto" else image.metadata[index_mode]
-            source = f"{prefix}{name_index}"
-            target = f"{prefix}{ref_name_index}"
-            if index == n - 1 or direct:
-                through = None
-            else:
-                image = registration.images[index_to_image[image_index + 1]]
-                via_name_index = image_orders_before[index + 1] if index_mode == "auto" else image.metadata[index_mode]
-                through = f"{prefix}{via_name_index}"
+        _, paths = self._preview_converge_paths(
+            registration, index_to_image, reference, prefix=prefix, index_mode=index_mode, direct=direct
+        )
+        for source, target, through in paths:
             obj.add_registration_path(source, target, transform=transformations, through=through)
-            logger.trace(
-                f"Added registration path {source} -> {target} via {through} ({transformations}) - before reference"
-            )
-
-        # then, we iterate over the images after the reference, where we create a registration path that goes like this
-        # 3 -> ref via 2, 2 -> ref via 1, etc. until we reach the reference
-        n = len(image_orders_after)
-        to_add: list[tuple[str, str, ty.Optional[str]]] = []
-        for index, image_index in enumerate(reversed(image_orders_after)):
-            if index == n - 1:
-                break
-            image = registration.images[index_to_image[image_index]]
-            name_index = image_index if index_mode == "auto" else image.metadata[index_mode]
-            if index == n - 1 or direct:
-                to_add.append((f"{prefix}{name_index}", f"{prefix}{ref_name_index}", None))
-            else:
-                image = registration.images[index_to_image[image_index - 1]]
-                via_name_index = image_orders_after[index - 1] if index_mode == "auto" else image.metadata[index_mode]
-                to_add.append((f"{prefix}{name_index}", f"{prefix}{ref_name_index}", f"{prefix}{via_name_index}"))
-
-        for source, target, through in reversed(to_add):
-            obj.add_registration_path(source, target, transform=transformations, through=through)
-            logger.trace(
-                f"Added registration path {source} -> {target} via {through} ({transformations}) - after reference"
-            )
+            logger.trace(f"Added registration path {source} -> {target} via {through} ({transformations})")
 
     @staticmethod
     def _preview_cascade_paths(
@@ -439,7 +379,7 @@ class RegistrationGroup(BaseModel):
         prefix: str = "c",
         index_mode: str = "auto",
         direct: bool = False,
-    ) -> str:
+    ) -> ty.Tuple[str, list[tuple[str, str, ty.Optional[str]]]]:
         """Generate preview of the registration paths."""
         ref_image = registration.images[reference] if reference else None
         ref_name_index = 0
@@ -447,6 +387,7 @@ class RegistrationGroup(BaseModel):
             ref_name_index = ref_image.metadata[index_mode] if index_mode != "auto" else 0
 
         lines = [f"<b>Reference: {reference} ({f'{prefix}{ref_name_index}' if reference else 'None'})</b><br>"]
+        paths: list[tuple[str, str, ty.Optional[str]]] = []
         for image_index, key in index_to_image.items():
             image = registration.images[key]
             name_index = image_index if index_mode == "auto" else image.metadata[index_mode]
@@ -459,13 +400,21 @@ class RegistrationGroup(BaseModel):
                     f"- {key} -> {reference}<br><b>({prefix}{name_index}"
                     f" -> {f'{prefix}{ref_name_index}' if reference else 'None'})</b>"
                 )
+                paths.append((f"{prefix}{name_index}", f"{prefix}{ref_name_index}", None))
             else:
                 lines.append(
                     f"- {key} -> {reference} via {index_to_image[image_index - 1]}"
                     f"<br><b>({prefix}{image_index} -> {f'{prefix}{ref_name_index}' if reference else 'None'} via"
                     f" {prefix}{name_index - 1})</b>"
                 )
-        return "<br>".join(lines)
+                paths.append(
+                    (
+                        f"{prefix}{name_index}",
+                        f"{prefix}{ref_name_index}",
+                        f"{prefix}{name_index - 1}",
+                    )
+                )
+        return "<br>".join(lines), paths
 
     @staticmethod
     def _preview_converge_paths(
@@ -475,7 +424,7 @@ class RegistrationGroup(BaseModel):
         prefix: str = "c",
         index_mode: str = "auto",
         direct: bool = False,
-    ) -> str:
+    ) -> ty.Tuple[str, list[tuple[str, str, ty.Optional[str]]]]:
         """Preview converge paths."""
         # find the index of reference in the index_to_image
         image_orders = list(index_to_image.keys())
@@ -488,8 +437,9 @@ class RegistrationGroup(BaseModel):
         ref_name_index = -1
         if ref_image:
             ref_name_index = ref_image.metadata[index_mode] if index_mode != "auto" else ref_image.image_order
-        lines = [f"<b>Reference: {reference} ({prefix}{ref_name_index})</b><br>"]
 
+        lines = [f"<b>Reference: {reference} ({prefix}{ref_name_index})</b><br>"]
+        paths: list[tuple[str, str, ty.Optional[str]]] = []
         # add images before the reference
         n = len(image_orders_before)
         for index, image_index in enumerate(image_orders_before):
@@ -503,6 +453,7 @@ class RegistrationGroup(BaseModel):
                     f"- {index_to_image[image_index]} -> {reference}<br><b>({prefix}{name_index}"
                     f" -> {prefix}{ref_name_index})</b>"
                 )
+                paths.append((f"{prefix}{name_index}", f"{prefix}{ref_name_index}", None))
             else:
                 image = registration.images[index_to_image[image_index + 1]]
                 via_name_index = image_orders_before[index + 1] if index_mode == "auto" else image.metadata[index_mode]
@@ -511,21 +462,24 @@ class RegistrationGroup(BaseModel):
                     f"- {index_to_image[image_index]} -> {reference} via {index_to_image[image_index + 1]}"
                     f"<br><b>({prefix}{name_index} -> {prefix}{ref_name_index} via {prefix}{via_name_index})</b>"
                 )
+                paths.append((f"{prefix}{name_index}", f"{prefix}{ref_name_index}", f"{prefix}{via_name_index}"))
 
         # add images after the reference
         n = len(image_orders_after)
         lines_after = []
+        paths_after = []
         for index, image_index in enumerate(reversed(image_orders_after)):
             if image_index == ref_index:
                 break
             image = registration.images[index_to_image[image_index]]
             name_index = image_index if index_mode == "auto" else image.metadata[index_mode]
-            if index == n - 1:
+            if index == n - 1 or direct:
                 # from to
                 lines_after.append(
                     f"- {index_to_image[image_index]} -> {reference}<br><b>({prefix}{name_index}"
                     f" -> {prefix}{ref_name_index})</b>"
                 )
+                paths_after.append((f"{prefix}{name_index}", f"{prefix}{ref_name_index}", None))
             else:
                 image = registration.images[index_to_image[image_index - 1]]
                 via_name_index = image_orders_after[index - 1] if index_mode == "auto" else image.metadata[index_mode]
@@ -534,8 +488,10 @@ class RegistrationGroup(BaseModel):
                     f"- {index_to_image[image_index]} -> {reference} via {index_to_image[image_index - 1]}"
                     f"<br><b>({prefix}{name_index} -> {prefix}{ref_name_index} via {prefix}{via_name_index})</b>"
                 )
+                paths_after.append((f"{prefix}{name_index}", f"{prefix}{ref_name_index}", f"{prefix}{via_name_index}"))
         lines.extend(reversed(lines_after))
-        return "<br>".join(lines)
+        paths.extend(reversed(paths_after))
+        return "<br>".join(lines), paths
 
     def sort(self, registration: "Registration", reset: bool = True) -> tuple[dict[int, str], str, ty.Optional[str]]:
         """Sort keys according to the following rules.
@@ -547,7 +503,7 @@ class RegistrationGroup(BaseModel):
             - reference must be first
             - then sort by image_order if present
             - otherwise natural sorting by names
-        - If reference is present but it's not the first image:
+        - If reference is present, but it's not the first image:
             e.g. if we had the following images 1, 2, ref, 4, 5, then we would have 1 -> 2 -> ref <- 4 <- 5
             - reference does not have to be first
             - all images must be pointed TO the reference
@@ -576,58 +532,24 @@ class RegistrationGroup(BaseModel):
         # then sort by image_order if present, otherwise natural sorting by names
         ref_index = nat_keys.index(reference)
         ref_order = image_orders[ref_index]
-        if ref_index == 0:
-            # image order has not been set OR reference is the first image
-            if len(np.unique(image_orders)) == 1 or ref_order == np.min(image_orders):
-                index_to_image = dict(enumerate(nat_keys))
-            else:
-                # order by the image order BUT make sure that reference is first in the stack
-                nat_keys.pop(ref_index)
-                image_orders = [registration.images[key].image_order for key in nat_keys]
-                nat_keys = [reference, *nat_keys]
-                image_orders = [np.min(image_orders) - 1, *image_orders]
-                index_to_image = dict(zip(image_orders, nat_keys))
-        # if reference is present but it's not the first image, reference does not have to be first, all images must
+
+        # if reference is present, but it's not the first image, reference does not have to be first, all images must
         # be pointed TO the reference, sort by image_order if present, otherwise natural sorting by names
         # e.g. if we had the following images 1, 2, ref, 4, 5, then we would have 1 -> 2 -> ref <- 4 <- 5
         # we need to sort the keys so that the reference is in the middle
-        else:
-            # image order has not been set OR reference is the first image
-            if len(np.unique(image_orders)) == 1 or ref_order == np.min(image_orders):
-                index_to_image = dict(enumerate(nat_keys))
-            else:
-                # order by the image order BUT make sure that reference is first in the stack
-                nat_keys.pop(ref_index)
-                image_orders = [registration.images[key].image_order for key in nat_keys]
-                nat_keys = [reference, *nat_keys]
-                image_orders = [np.min(image_orders) - 1, *image_orders]
-                index_to_image = dict(zip(image_orders, nat_keys))
-            # # first, we need to find the reference
-            # nat_keys_before = nat_keys[:ref_index]
-            # # image_orders[:ref_index]
-            # nat_keys_after = nat_keys[ref_index + 1 :]
-            # # image_orders[ref_index + 1 :]
-            # # ref_order -= 1
-            # index_to_image = {}
-            # index = 0
-            # for index, key in enumerate(reversed(nat_keys_before)):
-            #     index_to_image[index] = key
-            # index_to_image[index + 1] = reference
-            # for index, key in enumerate(nat_keys_after, start=index + 2):
-            #     index_to_image[index] = key
-            # if len(np.unique(image_orders_before)) == 1:  # and len(image_orders_after) > 1:
-            #     index_to_image_before = dict(enumerate(reversed(nat_keys_before)))
-            # else:
-            #     index_to_image_before = dict(zip(reversed(image_orders_before), reversed(nat_keys_before)))
-            # if len(np.unique(image_orders_after)) == 1:  # and len(image_orders_after) > 1:
-            #     index_to_image_after = dict(enumerate(nat_keys_after, start=))
-            # else:
-            #     index_to_image_after = dict(zip(image_orders_after, nat_keys_after))
-            # index_to_image = {**index_to_image_before, ref_order: reference, **index_to_image_after}
-            # print(index_to_image_before)
-            # print(index_to_image_after)
-            # print(ref_order)
+        if ref_index != 0:
             kind = "converge"
+
+        # image order has not been set OR reference is the first image
+        if len(np.unique(image_orders)) == 1 or ref_order == np.min(image_orders):
+            index_to_image = dict(enumerate(nat_keys))
+        else:
+            # order by the image order BUT make sure that reference is first in the stack
+            nat_keys.pop(ref_index)
+            image_orders = [registration.images[key].image_order for key in nat_keys]
+            nat_keys = [reference, *nat_keys]
+            image_orders = [np.min(image_orders) - 1, *image_orders]
+            index_to_image = dict(zip(image_orders, nat_keys))
         return index_to_image, kind, reference
 
 
@@ -737,15 +659,6 @@ class Registration(BaseModel):
             index_to_image, _, reference = group.sort(self)
             for index, key in index_to_image.items():
                 self.images[key].image_order = index
-
-        # group_to_key_map = self.group_to_key_map()
-        # if group_to_key_map:
-        #     # apply ordering
-        #     index = 0
-        #     for keys in group_to_key_map.values():
-        #         for key in keys:
-        #             self.images[key].image_order = index
-        #             index += 1
 
     def key_iter(self) -> ty.Generator[str, None, None]:
         """Iterate over keys according to the `image_order` attribute."""

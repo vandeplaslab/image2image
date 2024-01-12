@@ -106,10 +106,15 @@ class Config(BaseConfig):
     translate_step_size: int = Field(250, title="Translate by", description="Translate by.", in_app=True)
     view_mode: str = Field("group", title="View mode", description="View mode.", in_app=True)
     project_mode: str = Field("2D (one reference per group)", description="Project mode.", in_app=True)
-    slide_tag: str = Field("Slide", title="Slide tag", description="Slide tag.", in_app=True)
+    slide_tag: str = Field("slide", title="Slide tag", description="Slide tag.", in_app=True)
+    project_prefix_tag: str = Field("", title="Project prefix")
+    project_suffix_tag: str = Field("", title="Project suffix")
+    project_tag: str = Field("group", title="Project group")
+    pyramid_level: int = Field(-1, ge=-3, le=-1)
     transformations: tuple[str] = Field(
         ("rigid", "affine"), title="Transformations", description="Transformations.", in_app=True
     )
+    common_intensity: bool = Field(True, title="Common intensity for all images")
 
     first_time_wsiprep: bool = Field(
         True, title="First time", description="First time running the viewer app.", in_app=True

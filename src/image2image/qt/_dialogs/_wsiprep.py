@@ -100,6 +100,7 @@ class GroupByDialog(WsiPrepMixin):
         groups, dataset_to_group_map = self._get_groups()
         if dataset_to_group_map:
             value = self.group_by.text()
+            value = value.strip("= ")
             tag = hp.get_text(self, "Enter metadata tag", "Enter metadata tag", value)
             if tag == "auto":
                 hp.toast(self, "Invalid metadata tag", "Metadata tag cannot be 'auto'", icon="warning")
@@ -241,7 +242,7 @@ class MaskDialog(WsiPrepMixin):
             init_shapes_layer(layer, visual)
             connect(self.crop_layer.events.set_data, self.on_update_crop_from_canvas, state=True)
             if hasattr(self, "layer_controls"):
-                self.layer_controls.layer = layer
+                self.layer_controls.set_layer(layer)
         return self.view.layers["Crop rectangle"]
 
     def _get_default_crop_area(self) -> tuple[int, int, int, int]:
@@ -460,7 +461,9 @@ class ConfigDialog(WsiPrepMixin):
     def connect_events(self, state: bool = True) -> None:
         """Connect events."""
         connect(self.parent()._image_widget.dataset_dlg.evt_loaded, self._update_indexing_mode, state=state)
+        connect(self.parent()._image_widget.dataset_dlg.evt_loaded, self.on_preview, state=state)
         connect(self.parent()._image_widget.dataset_dlg.evt_closed, self._update_indexing_mode, state=state)
+        connect(self.parent()._image_widget.dataset_dlg.evt_closed, self.on_preview, state=state)
 
     @property
     def output_dir(self) -> Path:
@@ -498,7 +501,8 @@ class ConfigDialog(WsiPrepMixin):
 
     def _get_project_name(self, group: RegistrationGroup) -> str:
         project_prefix, project_suffix = self._get_suffix_prefix()
-        return f"{project_prefix}group={group.group_id}{project_suffix}.wsireg"
+        CONFIG.project_tag = project_tag = self.project_tag.text() or "group"
+        return f"{project_prefix}{project_tag}={group.group_id}{project_suffix}.wsireg"
 
     def on_export(self):
         """Export to disk."""
@@ -516,6 +520,8 @@ class ConfigDialog(WsiPrepMixin):
             return
 
         CONFIG.slide_tag = prefix = self.tag_prefix.text()
+        CONFIG.project_prefix_tag = self.project_prefix.text()
+        CONFIG.project_suffix_tag = self.project_suffix.text()
         index_mode = self.index_choice.currentText() or "auto"
         export_mode = self.export_type.currentText()
         first_only = self.first_channel_only.isChecked()
@@ -533,7 +539,6 @@ class ConfigDialog(WsiPrepMixin):
                     export_mode=export_mode,
                     first_only=first_only,
                     direct=target_mode == "reference",
-                    # =target_mode,
                     transformations=transformations,
                 )
                 logger.trace(f"Generated config for group '{group.group_id}' at '{path}'")
@@ -551,12 +556,19 @@ class ConfigDialog(WsiPrepMixin):
         logger.trace(f"Generating configs for {n} groups...")
         preview = ""
         CONFIG.slide_tag = prefix = self.tag_prefix.text()
+        CONFIG.project_prefix_tag = self.project_prefix.text()
+        CONFIG.project_suffix_tag = self.project_suffix.text()
         index_mode = self.index_choice.currentText() or "auto"
         target_mode = self.target_mode.currentText()
         for _group_id, group in tqdm(self.registration.groups.items(), desc="Previewing...", total=n):
             preview += (
                 f"<b>Group {group.group_id}</b> ({self._get_project_name(group)})<br>"
-                + group.to_preview(self.registration, prefix=prefix, index_mode=index_mode, target_mode=target_mode)
+                + group.to_preview(
+                    self.registration,
+                    prefix=prefix,
+                    index_mode=index_mode,
+                    target_mode=target_mode,
+                )
                 + "<br><br>"
             )
         self.label.setText(preview)
@@ -613,6 +625,7 @@ class ConfigDialog(WsiPrepMixin):
                 "nl2",
                 "rigid_expanded",
                 "affine_expanded",
+                "nl_expanded",
                 "rigid_ams",
                 "affine_ams",
                 "nl_ams",
@@ -629,11 +642,14 @@ class ConfigDialog(WsiPrepMixin):
         self.tag_prefix = hp.make_line_edit(
             self, placeholder="Slide/section prefix", default=CONFIG.slide_tag, func_changed=self.on_preview
         )
+        self.project_tag = hp.make_line_edit(
+            self, placeholder="Group/project tag", default=CONFIG.project_tag, func_changed=self.on_preview
+        )
         self.project_prefix = hp.make_line_edit(
-            self, placeholder="Project prefix", default="", func_changed=self.on_preview
+            self, placeholder="Project prefix", default=CONFIG.project_prefix_tag, func_changed=self.on_preview
         )
         self.project_suffix = hp.make_line_edit(
-            self, placeholder="Project suffix", default="", func_changed=self.on_preview
+            self, placeholder="Project suffix", default=CONFIG.project_suffix_tag, func_changed=self.on_preview
         )
         self.export_type = hp.make_combobox(
             self,
@@ -668,6 +684,7 @@ class ConfigDialog(WsiPrepMixin):
             selectable=True,
             object_name="title_label",
         )
+        self.label.setMinimumHeight(300)
 
         layout = hp.make_form_layout()
         layout.addRow(self._make_hide_handle("Generate iwsireg config...")[1])
@@ -693,7 +710,9 @@ class ConfigDialog(WsiPrepMixin):
         )
         layout.addRow(self.transformation_path)
         layout.addRow(self.tag_prefix)
-        layout.addRow(hp.make_h_layout(self.project_prefix, self.project_suffix, stretch_id=(0, 1)))
+        layout.addRow(
+            hp.make_h_layout(self.project_prefix, self.project_tag, self.project_suffix, stretch_id=(0, 1, 2))
+        )
         layout.addRow("Indexing mode", self.index_choice)
         layout.addRow(self.preview_btn)
         layout.addRow("Export type", self.export_type)

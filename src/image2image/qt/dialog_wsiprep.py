@@ -1045,6 +1045,7 @@ class ImageWsiPrepWindow(Window):
             "Common intensity",
             tooltip="Use common contrast limit for all images",
             func=self.on_contrast_limits,
+            value=CONFIG.common_intensity
         )
         hp.set_sizer_policy(self.common_contrast_limit, h_stretch=False)
         self.statusbar.addPermanentWidget(self.common_contrast_limit)

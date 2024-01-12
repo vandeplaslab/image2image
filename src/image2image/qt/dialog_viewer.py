@@ -51,6 +51,7 @@ class ImageViewerWindow(Window):
         connect(self._image_widget.transform_dlg.evt_transform, self.on_update_transform, state=state)
         connect(self._image_widget.evt_toggle_channel, self.on_toggle_channel, state=state)
         connect(self._image_widget.evt_toggle_all_channels, self.on_toggle_all_channels, state=state)
+        connect(self.view.viewer.events.status, self._status_changed, state=state)
 
     @property
     def data_model(self) -> DataModel:
