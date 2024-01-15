@@ -35,13 +35,13 @@ def combined_transform(
     """Combined transform.
 
     Transformations are performed in the following order:
-    - translation along x/y axis
+    - translation along x/y-axis
     - rotation around the center point
     - horizontal flip
     """
-    image_size = np.asarray(image_size)
-    image_spacing = np.asarray(image_spacing)
-    translation = np.asarray(translation)
+    image_size = np.asarray(image_size)  # type: ignore[assignment]
+    image_spacing = np.asarray(image_spacing)  # type: ignore[assignment]
+    translation = np.asarray(translation)  # type: ignore[assignment]
     tran = centered_translation_transform(translation)
     rot = centered_rotation_transform(image_size, image_spacing, rotation_angle)
     flip = np.eye(3)
