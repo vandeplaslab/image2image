@@ -267,7 +267,7 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
 
     def _make_help_menu(self) -> QMenu:
         from image2image.qt._dialogs import open_about
-        from image2image.qt._sentry import ask_opt_in, send_feedback
+        from image2image.qt._dialogs._sentry import ask_opt_in, send_feedback
         from image2image.utils.utilities import open_bug_report, open_docs, open_github, open_request
 
         menu_help = hp.make_menu(self, "Help")
@@ -313,7 +313,7 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
 
     def _make_statusbar(self) -> None:
         """Make statusbar."""
-        from image2image.qt._sentry import send_feedback
+        from image2image.qt._dialogs._sentry import send_feedback
 
         self.statusbar = QStatusBar()  # noqa
         self.statusbar.setSizeGripEnabled(False)

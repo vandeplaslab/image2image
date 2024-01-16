@@ -18,7 +18,7 @@ from superqt.utils import GeneratorWorker, create_worker
 
 from image2image import __version__
 from image2image.config import CONFIG
-from image2image.qt._select import LoadWidget
+from image2image.qt._dialogs._select import LoadWidget
 from image2image.qt.dialog_base import Window
 from image2image.utils.utilities import log_exception_or_error
 

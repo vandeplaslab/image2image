@@ -23,7 +23,7 @@ def run(
 
     import image2image.assets  # noqa: F401
     from image2image.config import CONFIG
-    from image2image.qt._sentry import install_error_monitor
+    from image2image.qt._dialogs._sentry import install_error_monitor
     from image2image.qt.event_loop import get_app
     from image2image.utils._appdirs import USER_LOG_DIR
 
