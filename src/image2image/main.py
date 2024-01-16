@@ -113,7 +113,7 @@ def run(
         logging.getLogger("qtreload").setLevel(logging.DEBUG)
 
         dev_dlg = QDevPopup(dlg, modules=["qtextra", "image2image", "image2image_io", "image2image_wsireg", "koyo"])
-        dev_dlg.qdev.evt_theme.connect(lambda: THEMES.set_theme_stylesheet(dlg))
+        dev_dlg.qdev.evt_stylesheet.connect(lambda: THEMES.set_theme_stylesheet(dlg))
         if hasattr(dlg, "statusbar"):
             dlg.dev_btn = make_qta_btn(  # type: ignore[attr-defined]
                 dlg,

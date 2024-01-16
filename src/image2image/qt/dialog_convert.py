@@ -133,13 +133,21 @@ class ImageConvertWindow(Window):
 
     def on_table_double_click(self, index: QModelIndex) -> None:
         """Double-clicked on table row."""
-        # row = index.row()
-        # column = index.column()
-        # self.table.item(row, self.TABLE_CONFIG.name).text()
-        # if column == self.TABLE_CONFIG.channels:
-        #     print("Selecting channels")
-        # elif column == self.TABLE_CONFIG.scenes:
-        #     print("Selecting scenes")
+        row = index.row()
+        column = index.column()
+        self.table.item(row, self.TABLE_CONFIG.name).text()
+        if column == self.TABLE_CONFIG.channels:
+            logger.trace("Selecting channels...")
+            self.on_select_channels(row)
+        elif column == self.TABLE_CONFIG.scenes:
+            logger.trace("Selecting scenes...")
+            self.on_select_scenes(row)
+
+    def on_select_channels(self, row: int) -> None:
+        """Select channels."""
+
+    def on_select_scenes(self, row: int) -> None:
+        """Select scenes."""
 
     def on_convert(self):
         """Process data."""
@@ -160,11 +168,13 @@ class ImageConvertWindow(Window):
                 paths.append(reader.path)
 
         output_dir = self.output_dir
+        CONFIG.as_uint8 = self.as_uint8.isChecked()
         if paths:
             self.worker = create_worker(
                 czis_to_ome_tiff,
                 paths=paths,
                 output_dir=output_dir,
+                as_uint8=CONFIG.as_uint8,
                 _start_thread=True,
                 _connect={
                     "aborted": self._on_export_aborted,
@@ -275,6 +285,13 @@ class ImageConvertWindow(Window):
             func=self.on_set_output_dir,
         )
 
+        self.as_uint8 = hp.make_checkbox(
+            self,
+            "Export as uint8",
+            tooltip="Convert to uint8 to reduce file size with minimal data loss.",
+            checked=True,
+            value=CONFIG.as_uint8,
+        )
         self.export_btn = hp.make_active_progress_btn(
             self,
             "Convert to OME-TIFF",
@@ -290,6 +307,7 @@ class ImageConvertWindow(Window):
         side_layout.addWidget(hp.make_h_line(self))
         side_layout.addWidget(self.directory_btn)
         side_layout.addWidget(self.output_dir_label)
+        side_layout.addWidget(self.as_uint8)
         side_layout.addWidget(self.export_btn)
 
         widget = QWidget()

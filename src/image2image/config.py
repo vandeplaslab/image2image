@@ -130,6 +130,7 @@ class Config(BaseConfig):
     confirm_close_convert: bool = Field(
         True, title="Confirm close", description="Confirm close convert app.", in_app=True
     )
+    as_uint8: bool = Field(True, title="Convert to uint8", description="Convert to uint8.", in_app=True)
 
     # telemetry
     telemetry_enabled: bool = Field(True, title="Enable telemetry", description="Enable telemetry.", in_app=True)
