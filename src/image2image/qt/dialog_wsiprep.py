@@ -47,7 +47,7 @@ from image2image.models.wsiprep import (
     load_from_file,
     remove_if_not_present,
 )
-from image2image.qt._select import LoadWidget
+from image2image.qt._dialogs._select import LoadWidget
 from image2image.qt.dialog_base import Window
 from image2image.utils.utilities import ensure_extension, get_contrast_limits, write_project
 
@@ -1035,7 +1035,7 @@ class ImageWsiPrepWindow(Window):
         """Make statusbar."""
         from qtextra._napari.image.components._viewer_key_bindings import toggle_grid
 
-        from image2image.qt._sentry import send_feedback
+        from image2image.qt._dialogs._sentry import send_feedback
 
         self.statusbar = QStatusBar()  # noqa
         self.statusbar.setSizeGripEnabled(False)

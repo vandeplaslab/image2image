@@ -6,6 +6,7 @@ from pathlib import Path
 
 import qtextra.helpers as hp
 from image2image_io.config import CONFIG as READER_CONFIG
+from image2image_io.readers import CziSceneImageReader
 from loguru import logger
 from qtextra.utils.table_config import TableConfig
 from qtextra.utils.utilities import connect
@@ -18,7 +19,7 @@ from superqt.utils import GeneratorWorker, create_worker
 from image2image import __version__
 from image2image.config import CONFIG
 from image2image.enums import ALLOWED_IMAGE_FORMATS_CZI_ONLY
-from image2image.qt._select import LoadWidget
+from image2image.qt._dialogs._select import LoadWidget
 from image2image.qt.dialog_base import Window
 from image2image.utils.utilities import log_exception_or_error
 
@@ -26,11 +27,19 @@ if ty.TYPE_CHECKING:
     from image2image.models.data import DataModel
 
 
-def serialize_n_or_list(channel_ids: int | list[int]) -> str:
-    """Serialize channels."""
-    if isinstance(channel_ids, int):
-        channel_ids = list(range(channel_ids))
-    return ",".join([str(x) for x in channel_ids])
+def get_metadata(
+    readers_metadata: dict[Path, dict[int, dict[str, list[bool | int | str]]]]
+) -> dict[Path, dict[int, dict[str, list[int | str]]]]:
+    """Cleanup metadata."""
+    metadata = {}
+    for path, reader_metadata in readers_metadata.items():
+        metadata_ = {}
+        for scene_index, scene_metadata in reader_metadata.items():
+            channel_ids = [x for x, keep in zip(scene_metadata["channel_ids"], scene_metadata["keep"]) if keep]
+            channel_names = [x for x, keep in zip(scene_metadata["channel_names"], scene_metadata["keep"]) if keep]
+            metadata_[scene_index] = {"channel_ids": channel_ids, "channel_names": channel_names}
+        metadata[path] = metadata_
+    return metadata
 
 
 class ImageConvertWindow(Window):
@@ -44,8 +53,7 @@ class ImageConvertWindow(Window):
     TABLE_CONFIG = (
         TableConfig()  # type: ignore[no-untyped-call]
         .add("name", "name", "str", 0)
-        .add("channels", "channels", "str", 0)
-        .add("scenes", "scenes", "int", 0)
+        .add("scenes & channels", "scenes", "int", 0)
         .add("progress", "progress", "str", 0)
     )
 
@@ -56,6 +64,7 @@ class ImageConvertWindow(Window):
         READER_CONFIG.split_czi = False
         if CONFIG.first_time_convert:
             hp.call_later(self, self.on_show_tutorial, 10_000)
+        self.reader_metadata: dict[Path, dict[int, dict[str, list[bool | int | str]]]] = {}
 
     def setup_events(self, state: bool = True) -> None:
         """Setup events."""
@@ -115,39 +124,58 @@ class ImageConvertWindow(Window):
                 self.table.insertRow(index)
                 # add name item
                 table_item = QTableWidgetItem(reader.key)
-                table_item.setFlags(table_item.flags() & ~Qt.ItemIsEditable)  # type: ignore[attr-defined]
+                table_item.setFlags(table_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
                 table_item.setTextAlignment(Qt.AlignCenter)  # type: ignore[attr-defined]
                 self.table.setItem(index, self.TABLE_CONFIG.name, table_item)
 
-                table_item = QTableWidgetItem(str(serialize_n_or_list(reader.channel_ids)))
-                table_item.setFlags(table_item.flags() & ~Qt.ItemIsEditable)  # type: ignore[attr-defined]
-                self.table.setItem(index, self.TABLE_CONFIG.channels, table_item)
-
-                table_item = QTableWidgetItem(str(serialize_n_or_list(reader.n_scenes)))
-                table_item.setFlags(table_item.flags() & ~Qt.ItemIsEditable)  # type: ignore[attr-defined]
+                table_item = QTableWidgetItem("")
+                table_item.setFlags(table_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
                 self.table.setItem(index, self.TABLE_CONFIG.scenes, table_item)
 
                 table_item = QTableWidgetItem("Ready!")
-                table_item.setFlags(table_item.flags() & ~Qt.ItemIsEditable)  # type: ignore[attr-defined]
+                table_item.setFlags(table_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
                 self.table.setItem(index, self.TABLE_CONFIG.progress, table_item)
+                reader_metadata = self.reader_metadata.get(reader.path, {})
+                if reader_metadata:
+                    self.reader_metadata[reader.path] = reader_metadata
+                else:
+                    self.reader_metadata[reader.path] = {}
+                    for scene_index in range(reader.n_scenes):
+                        reader_ = CziSceneImageReader(reader.path, scene_index=scene_index)
+                        self.reader_metadata[reader.path][scene_index] = {
+                            "keep": [True] * reader_.n_channels,
+                            "channel_ids": reader_.channel_ids,
+                            "channel_names": reader_.channel_names,
+                        }
+        self.on_update_reader_metadata()
 
     def on_table_double_click(self, index: QModelIndex) -> None:
         """Double-clicked on table row."""
-        row = index.row()
-        column = index.column()
-        self.table.item(row, self.TABLE_CONFIG.name).text()
-        if column == self.TABLE_CONFIG.channels:
-            logger.trace("Selecting channels...")
-            self.on_select_channels(row)
-        elif column == self.TABLE_CONFIG.scenes:
-            logger.trace("Selecting scenes...")
-            self.on_select_scenes(row)
+        self.on_select(index.row())
 
-    def on_select_channels(self, row: int) -> None:
+    def on_select(self, row: int) -> None:
         """Select channels."""
+        from image2image.qt._dialogs._rename import ChannelRenameDialog
 
-    def on_select_scenes(self, row: int) -> None:
-        """Select scenes."""
+        name = self.table.item(row, self.TABLE_CONFIG.name).text()
+
+        reader = self.data_model.get_reader_for_key(name)
+        reader_metadata = self.reader_metadata[reader.path]
+        dlg = ChannelRenameDialog(self, reader_metadata)
+        if dlg.exec_() == QDialog.DialogCode.Accepted:
+            self.reader_metadata[reader.path] = dlg.reader_metadata
+            self.on_update_reader_metadata()
+
+    def on_update_reader_metadata(self):
+        """Update reader metadata."""
+        for path, reader_metadata in self.reader_metadata.items():
+            key = path.name
+            row = hp.find_in_table(self.table, self.TABLE_CONFIG.name, key)
+            metadata = []
+            for scene_index, scene_metadata in reader_metadata.items():
+                channel_ids = [x for x, keep in zip(scene_metadata["channel_ids"], scene_metadata["keep"]) if keep]
+                metadata.append(f"{scene_index}: {channel_ids}")
+            self.table.item(row, self.TABLE_CONFIG.scenes).setText("\n".join(metadata))
 
     def on_convert(self):
         """Process data."""
@@ -175,6 +203,7 @@ class ImageConvertWindow(Window):
                 paths=paths,
                 output_dir=output_dir,
                 as_uint8=CONFIG.as_uint8,
+                metadata=get_metadata(self.reader_metadata),
                 _start_thread=True,
                 _connect={
                     "aborted": self._on_export_aborted,
@@ -264,19 +293,21 @@ class ImageConvertWindow(Window):
         )
         self._image_widget.info_text.setVisible(False)
 
-        columns = ["name", "channels", "scenes", "progress"]
+        columns = ["name", "scenes & channels", "progress"]
         self.table = QTableWidget(self)
         self.table.setColumnCount(len(columns))  # name, scenes, progress, key
         self.table.setHorizontalHeaderLabels(columns)
         self.table.setCornerButtonEnabled(False)
-        self.table.setTextElideMode(Qt.TextElideMode.ElideLeft)
+        # self.table.setTextElideMode(Qt.TextElideMode.ElideLeft)
+        self.table.setWordWrap(True)
         self.table.doubleClicked.connect(self.on_table_double_click)
 
-        header = self.table.horizontalHeader()
-        header.setSectionResizeMode(self.TABLE_CONFIG.name, QHeaderView.ResizeMode.Stretch)
-        header.setSectionResizeMode(self.TABLE_CONFIG.channels, QHeaderView.ResizeMode.ResizeToContents)
-        header.setSectionResizeMode(self.TABLE_CONFIG.scenes, QHeaderView.ResizeMode.ResizeToContents)
-        header.setSectionResizeMode(self.TABLE_CONFIG.progress, QHeaderView.ResizeMode.ResizeToContents)
+        horizontal_header = self.table.horizontalHeader()
+        horizontal_header.setSectionResizeMode(self.TABLE_CONFIG.name, QHeaderView.ResizeMode.Stretch)
+        horizontal_header.setSectionResizeMode(self.TABLE_CONFIG.scenes, QHeaderView.ResizeMode.ResizeToContents)
+        horizontal_header.setSectionResizeMode(self.TABLE_CONFIG.progress, QHeaderView.ResizeMode.ResizeToContents)
+        vertical_header = self.table.verticalHeader()
+        vertical_header.setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
 
         self.directory_btn = hp.make_btn(
             self,
@@ -309,6 +340,15 @@ class ImageConvertWindow(Window):
         side_layout.addWidget(self.output_dir_label)
         side_layout.addWidget(self.as_uint8)
         side_layout.addWidget(self.export_btn)
+        side_layout.addWidget(
+            hp.make_label(
+                self,
+                "<b>Tip.</b> Double-click on the row to select/deselect scenes/channels or rename channel names.",
+                alignment=Qt.AlignmentFlag.AlignHCenter,
+                object_name="tip_label",
+                enable_url=True,
+            )
+        )
 
         widget = QWidget()
         self.setCentralWidget(widget)

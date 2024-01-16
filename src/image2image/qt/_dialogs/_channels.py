@@ -19,7 +19,7 @@ if ty.TYPE_CHECKING:
     from qtextra._napari.image.wrapper import NapariImageView
 
     from image2image.models.data import DataModel
-    from image2image.qt._select import LoadWidget
+    from image2image.qt._dialogs._select import LoadWidget
 
 
 logger = logger.bind(src="ChannelsDialog")

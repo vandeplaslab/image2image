@@ -19,7 +19,7 @@ from superqt import ensure_main_thread
 from image2image import __version__
 from image2image.config import CONFIG
 from image2image.enums import ALLOWED_VIEWER_FORMATS
-from image2image.qt._select import LoadWithTransformWidget
+from image2image.qt._dialogs._select import LoadWithTransformWidget
 from image2image.qt.dialog_base import Window
 from image2image.utils.utilities import ensure_extension
 
@@ -304,7 +304,7 @@ class ImageViewerWindow(Window):
 
     def _make_statusbar(self) -> None:
         """Make statusbar."""
-        from image2image.qt._sentry import send_feedback
+        from image2image.qt._dialogs._sentry import send_feedback
 
         self.statusbar = QStatusBar()
         self.statusbar.setSizeGripEnabled(False)
