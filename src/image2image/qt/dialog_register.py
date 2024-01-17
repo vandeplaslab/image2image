@@ -776,12 +776,13 @@ class ImageRegistrationWindow(Window):
     def _update_layer_points(layer: Points, data: np.ndarray, block: bool = True) -> None:
         """Update points layer."""
         if block:
-            with layer.events.data.blocker():
+            with layer.events.data.blocker(), suppress(IndexError):
                 layer.data = data
                 layer.properties = _get_text_data(data)
         else:
-            layer.data = data
-            layer.properties = _get_text_data(data)
+            with suppress(IndexError):
+                layer.data = data
+                layer.properties = _get_text_data(data)
 
     def on_update_layer(self, which: str, _value: ty.Any = None) -> None:
         """Update points layer."""
