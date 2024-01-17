@@ -812,6 +812,9 @@ class ImageRegistrationWindow(Window):
 
         # update text information
         for layer in [self.fixed_points_layer, self.moving_points_layer]:
+            if len(layer.data) == 0:
+                continue
+
             if block:
                 with layer.text.events.blocker():
                     layer.text = _get_text_format()
