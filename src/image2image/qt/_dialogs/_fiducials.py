@@ -42,6 +42,8 @@ class FiducialsDialog(QtFramelessTool):
         .add("x-i(px)", "x_px_ims", "float", 50)
     )
 
+    last_point: int = 0
+
     def __init__(self, parent: ImageRegistrationWindow):
         super().__init__(parent)
         self.setMinimumWidth(600)
@@ -102,6 +104,12 @@ class FiducialsDialog(QtFramelessTool):
         row = index.row()
         self.on_select_point(row)
 
+    def on_select_last_point(self):
+        """Zoom in on last point."""
+        if self.last_point is not None:
+            row = self.last_point
+            self.on_select_point(row)
+
     def on_select_point(self, row: int):
         """Zoom in on point."""
         parent: ImageRegistrationWindow = self.parent()  # type: ignore[assignment]
@@ -110,6 +118,7 @@ class FiducialsDialog(QtFramelessTool):
                 y_micro, x_micro, y_ims, x_ims = self.points_data[row]
             except IndexError:
                 return
+            self.last_point = row
             # zoom-in on fixed data
             if not np.isnan(x_micro):
                 view_fixed = parent.view_fixed
@@ -177,7 +186,13 @@ class FiducialsDialog(QtFramelessTool):
             self.TABLE_CONFIG.header, self.TABLE_CONFIG.no_sort_columns, self.TABLE_CONFIG.hidden_columns
         )
         self.zoom_factor = hp.make_double_spin_box(
-            self, 1, 20, n_decimals=2, default=CONFIG.zoom_factor, func=self.on_apply
+            self,
+            1,
+            20,
+            n_decimals=2,
+            default=CONFIG.zoom_factor,
+            func=(self.on_apply, self.on_select_last_point),
+            step_size=0.25,
         )
 
         layout = hp.make_form_layout(self)
