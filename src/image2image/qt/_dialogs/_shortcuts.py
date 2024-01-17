@@ -12,16 +12,15 @@ class ShortcutsDialog(QtFramelessTool):
 
     def __init__(self, parent: QWidget):
         super().__init__(parent)
-        self.setMinimumWidth(200)
-        self.setMinimumHeight(200)
+        self.setMinimumWidth(250)
+        self.setMinimumHeight(300)
 
     # noinspection PyAttributeOutsideInit
     def make_panel(self):
         """Make panel."""
         return hp.make_v_layout(
             self._make_hide_handle(self.TITLE)[1],
-            hp.make_label(self, self.SHORTCUTS),
-            # stretch_id=1,
+            hp.make_scrollable_label(self, self.SHORTCUTS, object_name="shortcuts", wrap=True),
         )
 
 
@@ -40,13 +39,13 @@ class RegisterShortcutsDialog(ShortcutsDialog):
     <br><b>1</b> - Activate zoom mode in both images.
     <br><b>2</b> - Activate add-points mode in both images.
     <br><b>3</b> - Activate move-points mode in both images.
+    <br><b>A</b> - Zoom-in on previous point in both images (useful if trying to refine registration).
+    <br><b>D</b> - Zoom-in on next point in both images (useful if trying to refine registration).
     <br><b>L</b> - Use currently shown area in the 'Fixed' image as the 'Area of interest'.
     <br><b>Z</b> - Zoom-in on the currently set 'Area of interest'.
     <br><b>T</b> - Toggle between each of the transformed 'moving' images.
     <br><b>V</b> - Toggle visibility of the  transformed 'moving' images.
     """
-    # <br><b>A</b> - Zoom-in on previous point in both images.
-    # <br><b>D</b> - Zoom-in on next point in both images.
 
 
 class WsiPrepShortcutsDialog(ShortcutsDialog):

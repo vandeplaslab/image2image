@@ -20,6 +20,9 @@ if ty.TYPE_CHECKING:
     from image2image.qt.dialog_register import ImageRegistrationWindow
 
 
+logger = logger.bind(src="FiducialsDialog")
+
+
 class FiducialsDialog(QtFramelessTool):
     """Dialog to display fiducial marker information."""
 
@@ -45,6 +48,11 @@ class FiducialsDialog(QtFramelessTool):
         self.setMinimumHeight(400)
         self.points_data: np.ndarray | None = None
         self.on_load()
+
+    @property
+    def n_points(self) -> int:
+        """Number of points."""
+        return 0 if self.points_data is None else len(self.points_data)
 
     def connect_events(self, state: bool = True) -> None:
         """Connect events."""
@@ -91,15 +99,19 @@ class FiducialsDialog(QtFramelessTool):
 
     def on_double_click(self, index: QModelIndex) -> None:
         """Zoom in."""
-        parent: ImageRegistrationWindow = self.parent()  # type: ignore[assignment]
         row = index.row()
+        self.on_select_point(row)
+
+    def on_select_point(self, row: int):
+        """Zoom in on point."""
+        parent: ImageRegistrationWindow = self.parent()  # type: ignore[assignment]
         if self.points_data is not None:
             y_micro, x_micro, y_ims, x_ims = self.points_data[row]
             # zoom-in on fixed data
             if not np.isnan(x_micro):
                 view_fixed = parent.view_fixed
                 view_fixed.viewer.camera.center = (0.0, y_micro, x_micro)
-                view_fixed.viewer.camera.zoom = 7.5
+                view_fixed.viewer.camera.zoom = CONFIG.zoom_factor
                 logger.debug(
                     f"Applied focus center=({y_micro:.1f}, {x_micro:.1f}) zoom={view_fixed.viewer.camera.zoom:.3f} on"
                     f" micro data"
@@ -111,7 +123,7 @@ class FiducialsDialog(QtFramelessTool):
             if not np.isnan(x_ims):
                 view_moving = parent.view_moving
                 view_moving.viewer.camera.center = (0.0, y_ims, x_ims)
-                view_moving.viewer.camera.zoom = 7.5 * parent.transform_model.fixed_to_moving_ratio
+                view_moving.viewer.camera.zoom = CONFIG.zoom_factor * parent.transform_model.fixed_to_moving_ratio
                 logger.debug(
                     f"Applied focus center=({y_ims:.1f}, {x_ims:.1f}) zoom={view_moving.viewer.camera.zoom:.3f} on IMS"
                     f"data"
@@ -146,6 +158,10 @@ class FiducialsDialog(QtFramelessTool):
             self.table.scrollTo(model_index)
         self.points_data = array
 
+    def on_apply(self, _evt: ty.Any = None):
+        """Update settings."""
+        CONFIG.zoom_factor = self.zoom_factor.value()
+
     # noinspection PyAttributeOutsideInit
     def make_panel(self) -> QFormLayout:
         """Make panel."""
@@ -157,11 +173,15 @@ class FiducialsDialog(QtFramelessTool):
         self.table.setup_model(
             self.TABLE_CONFIG.header, self.TABLE_CONFIG.no_sort_columns, self.TABLE_CONFIG.hidden_columns
         )
+        self.zoom_factor = hp.make_double_spin_box(
+            self, 1, 20, n_decimals=2, default=CONFIG.zoom_factor, func=self.on_apply
+        )
 
         layout = hp.make_form_layout(self)
         hp.style_form_layout(layout)
         layout.addRow(header_layout)
         layout.addRow(self.table)
+        layout.addRow("Zoom factor", self.zoom_factor)
         layout.addRow(
             hp.make_label(
                 self,

@@ -349,6 +349,11 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
                 func=self.on_show_console,
             )
         )
+        self.shortcuts_btn = hp.make_qta_btn(
+            self, "shortcut", tooltip="Show me shortcuts", func=self.on_show_shortcuts, small=True
+        )
+        self.statusbar.addPermanentWidget(self.shortcuts_btn)
+        self.shortcuts_btn.hide()
 
         self.tutorial_btn = hp.make_qta_btn(
             self, "help", tooltip="Give me a quick tutorial!", func=self.on_show_tutorial, small=True
@@ -365,6 +370,9 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
         self.update_status_btn.hide()
         self.statusbar.addPermanentWidget(self.update_status_btn)
         self.setStatusBar(self.statusbar)
+
+    def on_show_shortcuts(self) -> None:
+        """Show shortcuts."""
 
     def on_show_update_info(self) -> None:
         """Show information about available updates."""

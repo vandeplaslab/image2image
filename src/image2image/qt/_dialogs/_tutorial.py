@@ -248,6 +248,7 @@ def show_viewer_tutorial(widget: "ImageViewerWindow") -> None:
                 " images (such as microscopy or IMS), apply appropriate image transformation and export as figures.",
                 widget=widget.view.widget,
                 position=Position.RIGHT,
+                position_offset=(100, 0),
             ),
             TutorialStep(
                 title="Open previous project",

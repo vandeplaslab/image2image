@@ -50,6 +50,15 @@ def combined_transform(
     return tran @ rot @ flip  # type: ignore[no-any-return]
 
 
+def scale_transform(image_spacing: tuple[float, float]) -> np.ndarray:
+    """Scale transform."""
+    image_spacing = np.asarray(image_spacing)
+    transform = np.eye(3)
+    transform[0, 0] = image_spacing[0]
+    transform[1, 1] = image_spacing[1]
+    return transform
+
+
 def centered_translation_transform(
     translation: tuple[float, float],
 ) -> np.ndarray:

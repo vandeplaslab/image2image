@@ -32,8 +32,15 @@ QLabel#reg_error {
     color: {{ error }};
 }
 
+QLabel#reg_warning {
+    color: {{ warning }};
+}
+
 QLabel#reg_success {
     color: {{ success }};
+}
+QLabel#shortcuts {
+    font-size: {{ increase(font_size, 3) }};
 }
 
 QPushButton#update_btn{

@@ -1,12 +1,13 @@
 """Transformation model."""
 import typing as ty
+from contextlib import suppress
 from datetime import datetime
 from pathlib import Path
 
 import numpy as np
 from koyo.typing import PathLike
 from loguru import logger
-from skimage.transform import ProjectiveTransform
+from skimage.transform import AffineTransform, ProjectiveTransform
 
 from image2image.models.base import BaseModel
 from image2image.models.data import DataModel
@@ -42,6 +43,8 @@ class Transformation(BaseModel):
     # Arrays of fixed and moving points
     fixed_points: ty.Optional[np.ndarray] = None
     moving_points: ty.Optional[np.ndarray] = None
+    # affine model
+    moving_initial_affine: ty.Optional[np.ndarray] = None
 
     @property
     def moving_to_fixed_ratio(self) -> float:
@@ -61,36 +64,57 @@ class Transformation(BaseModel):
         """Returns True if the transformation is valid."""
         return self.transform is not None
 
-    def clear(self, clear_model: bool = True) -> None:
+    def is_recommended(self) -> tuple[bool, str]:
+        """Returns True if the transformation is recommended."""
+        if self.transform is None:
+            return False, "No transformation found."
+        elif self.moving_points is not None and len(self.moving_points) < 5:
+            return False, "Too few moving points - we recommended at least 5 but the more the better."
+        elif self.fixed_points is not None and len(self.fixed_points) < 5:
+            return False, "Too few fixed points - we recommended at least 5 but the more the better."
+        return True, ""
+
+    def clear(self, clear_data: bool = True, clear_model: bool = True, clear_initial: bool = True) -> None:
         """Clear transformation."""
-        self.transform = None
         self.transformation_type = "affine"
-        self.time_created = None
-        self.fixed_points = None
-        self.moving_points = None
+        if clear_data:
+            self.transform = None
+            self.time_created = None
+            self.fixed_points = None
+            self.moving_points = None
+        if clear_initial:
+            self.moving_initial_affine = None
         if clear_model:
             self.fixed_model = None
             self.moving_model = None
 
-    def __call__(self, coords: np.ndarray) -> np.ndarray:
+    def __call__(self, coords: np.ndarray, inverse: bool = False) -> np.ndarray:
         """Transform coordinates."""
         if self.transform is None:
             raise ValueError("No transformation found.")
+        coords = np.asarray(coords)
         coords = coords.copy()
-        return self.transform(coords)  # type: ignore[no-any-return]
+        if inverse:
+            return self.inverse(coords)
+        coords = self.transform(coords)
+        return coords
 
     def inverse(self, coords: np.ndarray) -> np.ndarray:
         """Inverse transformation of coordinates."""
         if self.transform is None:
             raise ValueError("No transformation found.")
+        coords = np.asarray(coords)
         coords = coords.copy()
-        return self.transform.inverse(coords)  # type: ignore[no-any-return]
+        coords = self.transform.inverse(coords)
+        return coords
 
     def error(self) -> float:
         """Return error of the transformation."""
         if self.transform is None:
             raise ValueError("No transformation found.")
-        transformed_points = self.transform(self.moving_points)
+        moving_points = self.moving_points
+        moving_points = self.apply_moving_initial_transform(moving_points)  # type: ignore[arg-type]
+        transformed_points = self.transform(moving_points)
         return float(np.sqrt(np.sum((self.fixed_points - transformed_points) ** 2)))
 
     @property
@@ -99,6 +123,15 @@ class Transformation(BaseModel):
         if self.transform is None:
             raise ValueError("No transformation found.")
         return self.transform.params  # type: ignore[no-any-return]
+
+    def apply_moving_initial_transform(self, coords: np.ndarray, inverse: bool = True) -> np.ndarray:
+        """Transform coordinates."""
+        if self.moving_initial_affine is None:
+            return coords
+        transform = AffineTransform(matrix=self.moving_initial_affine)
+        if inverse:
+            return transform.inverse(coords)  # type: ignore[no-any-return]
+        return transform(coords)  # type: ignore[no-any-return]
 
     def compute(self, yx: bool = True, px: bool = True) -> ProjectiveTransform:
         """Compute transformation matrix."""
@@ -109,9 +142,14 @@ class Transformation(BaseModel):
         if moving_points is None or fixed_points is None:
             raise ValueError("No points found.")
 
+        # apply moving initial affine
+        moving_points = self.apply_moving_initial_transform(moving_points)
+
+        # swap yx to xy
         if not yx:
             moving_points = moving_points[:, ::-1]
             fixed_points = fixed_points[:, ::-1]
+        # swap px to um
         if not px:
             moving_points = moving_points * self.fixed_model.resolution  # type: ignore[union-attr]
             fixed_points = fixed_points * self.moving_model.resolution  # type: ignore[union-attr]
@@ -121,14 +159,28 @@ class Transformation(BaseModel):
             fixed_points,  # destination
             self.transformation_type,
         )
+        # if self.moving_initial_affine is not None:
+        #     transform = transform.params @ AffineTransform(matrix=self.moving_initial_affine)._inv_matrix
+        #     transform = AffineTransform(matrix=transform)
         return transform
 
-    def about(self, sep: str = "\n", error: bool = True, n: bool = True, split_by_dim: bool = False) -> str:
+    def about(
+        self,
+        sep: str = "\n",
+        error: bool = True,
+        n: bool = True,
+        split_by_dim: bool = False,
+        transform: ty.Union[ProjectiveTransform, np.ndarray, None] = None,
+    ) -> str:
         """Retrieve information about the model in textual format."""
         info = ""
         if self.transformation_type:
             info += f"type: {self.transformation_type}"
-        transform = self.transform
+        if transform is not None:
+            if isinstance(transform, np.ndarray):
+                transform = AffineTransform(matrix=transform)
+        else:
+            transform = self.transform
         if transform:
             if hasattr(transform, "scale"):
                 scale = transform.scale
@@ -150,7 +202,8 @@ class Transformation(BaseModel):
                 rotation = transform.rotation
                 info += f"{sep}rotation: {rotation:.3f}"
             if error:
-                info += f"{sep}error: {self.error():.2f}"
+                with suppress(ValueError):
+                    info += f"{sep}error: {self.error():.2f}"
         if n:
             if self.fixed_points is not None:
                 info += f"{sep}no. fixed: {len(self.fixed_points)}"
@@ -169,15 +222,18 @@ class Transformation(BaseModel):
         if self.time_created is None:
             raise ValueError("No time_created found.")
         fixed_pts = self.fixed_points
+        assert fixed_pts is not None, "No fixed points found."
         moving_pts = self.moving_points
+        assert moving_pts is not None, "No moving points found."
+        moving_pts = self.apply_moving_initial_transform(moving_pts)
         return {
             "schema_version": SCHEMA_VERSION,
             "tool": "register",
             "time_created": self.time_created.strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
-            "fixed_points_yx_px": fixed_pts.tolist(),  # type: ignore[union-attr]
-            "fixed_points_yx_um": (fixed_pts * fixed_mdl.resolution).tolist(),  # type: ignore[operator, union-attr]
-            "moving_points_yx_px": moving_pts.tolist(),  # type: ignore[union-attr]
-            "moving_points_yx_um": (moving_pts * moving_mdl.resolution).tolist(),  # type: ignore[operator, union-attr]
+            "fixed_points_yx_px": fixed_pts.tolist(),
+            "fixed_points_yx_um": (fixed_pts * fixed_mdl.resolution).tolist(),
+            "moving_points_yx_px": moving_pts.tolist(),
+            "moving_points_yx_um": (moving_pts * moving_mdl.resolution).tolist(),
             "transformation_type": self.transformation_type,
             "fixed_paths": [
                 {
@@ -195,6 +251,9 @@ class Transformation(BaseModel):
                 }
                 for (path, resolution, image_shape) in moving_mdl.path_resolution_shape_iter()
             ],
+            "initial_matrix_yx_um": self.moving_initial_affine.tolist()
+            if self.moving_initial_affine is not None
+            else [],
             "matrix_yx_px": self.compute(yx=True, px=True).params.tolist(),
             "matrix_yx_um": self.compute(yx=True, px=False).params.tolist(),
             "matrix_xy_px": self.compute(yx=False, px=True).params.tolist(),

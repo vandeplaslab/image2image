@@ -127,7 +127,7 @@ class SelectTransformDialog(QtFramelessTool):
         self.table.reset_data()
         self.table.add_data(data)
 
-    def on_load_transform(self):
+    def on_add_transform(self):
         """Load transformation matrix."""
         from image2image.config import CONFIG
         from image2image.enums import ALLOWED_EXPORT_REGISTER_FORMATS
@@ -154,6 +154,15 @@ class SelectTransformDialog(QtFramelessTool):
             self.transform_model.add_transform(path_, transform_data)
             self.on_update_transform_list()
 
+    def on_remove_transform(self):
+        """Remove transformation matrix."""
+        transform_name = self.transform_choice.currentText()
+        if transform_name == "Identity matrix":
+            hp.warn(self, "Cannot remove identity matrix", "Cannot remove identity matrix")
+            return
+        self.transform_model.remove_transform(transform_name)
+        self.on_update_transform_list()
+
     # noinspection PyAttributeOutsideInit
     def make_panel(self) -> QFormLayout:
         """Make panel."""
@@ -164,7 +173,14 @@ class SelectTransformDialog(QtFramelessTool):
         self.add_btn = hp.make_qta_btn(
             self,
             "add",
-            func=self.on_load_transform,
+            func=self.on_add_transform,
+            normal=True,
+            tooltip="Load transformation data (e.g. from image2register)",
+        )
+        self.remove_btn = hp.make_qta_btn(
+            self,
+            "remove",
+            func=self.on_remove_transform,
             normal=True,
             tooltip="Load transformation data (e.g. from image2register)",
         )
@@ -197,11 +213,7 @@ class SelectTransformDialog(QtFramelessTool):
         )
         layout.addRow(
             hp.make_label(self, "Transformation name"),
-            hp.make_h_layout(
-                self.transform_choice,
-                self.add_btn,
-                stretch_id=0,
-            ),
+            hp.make_h_layout(self.transform_choice, self.add_btn, self.remove_btn, stretch_id=0, spacing=1),
         )
         layout.addRow(self.transform_metadata)
         layout.addRow(self.table)

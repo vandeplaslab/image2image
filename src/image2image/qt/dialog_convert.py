@@ -335,11 +335,6 @@ class ImageConvertWindow(Window):
         side_layout.addWidget(self._image_widget)
         side_layout.addWidget(hp.make_h_line())
         side_layout.addWidget(self.table, stretch=True)
-        side_layout.addWidget(hp.make_h_line(self))
-        side_layout.addWidget(self.directory_btn)
-        side_layout.addWidget(self.output_dir_label)
-        side_layout.addWidget(self.as_uint8)
-        side_layout.addWidget(self.export_btn)
         side_layout.addWidget(
             hp.make_label(
                 self,
@@ -349,6 +344,11 @@ class ImageConvertWindow(Window):
                 enable_url=True,
             )
         )
+        side_layout.addWidget(hp.make_h_line(self))
+        side_layout.addWidget(self.directory_btn)
+        side_layout.addWidget(self.output_dir_label)
+        side_layout.addWidget(self.as_uint8)
+        side_layout.addWidget(self.export_btn)
 
         widget = QWidget()
         self.setCentralWidget(widget)

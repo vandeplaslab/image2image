@@ -31,6 +31,9 @@ class Config(BaseConfig):
 
     # Register-app parameters
     sync_views: bool = Field(True, title="Sync views", description="Sync views.", in_app=False)
+    zoom_factor: float = Field(
+        7.5, ge=1, le=10.0, step_size=0.25, n_decimals=2, title="Zoom factor", description="Zoom factor."
+    )
     opacity_fixed: int = Field(
         100, ge=0, le=100, step_size=10, title="Opacity (fixed)", description="Opacity of the fixed image", in_app=False
     )
