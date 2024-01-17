@@ -84,7 +84,6 @@ def get_random_image(array: list[np.ndarray]) -> list[np.ndarray]:
     fill_value = np.nan
     if not np.any(nan_mask):
         nan_mask = array_ == 0
-        fill_value = 0
     array_ = np.random.randint(128, 255, array_.shape)
     if np.any(nan_mask):
         array_ = array_.astype(np.float32) / 255
@@ -750,12 +749,17 @@ class ImageRegistrationWindow(Window):
             # predict point position in the moving image -> inverse transform
             predict_for_layer = self.moving_points_layer
             transformed_last_point = self.transform.inverse(self.fixed_points_layer.data[-1])
-            transformed_last_point = self.transform_model.apply_moving_initial_transform(transformed_last_point)
+            transformed_last_point = self.transform_model.apply_moving_initial_transform(
+                transformed_last_point, inverse=False
+            )
             logger.trace("Predicted moving points based on fixed points...")
         else:
             # predict point position in the fixed image -> transform
             predict_for_layer = self.fixed_points_layer
-            transformed_last_point = self.transform(self.moving_points_layer.data[-1])
+            transformed_last_point = self.transform_model.apply_moving_initial_transform(
+                self.moving_points_layer.data[-1], inverse=True
+            )
+            transformed_last_point = self.transform(transformed_last_point)
             logger.trace("Predicted fixed points based on moving points...")
 
         transformed_data = predict_for_layer.data
@@ -789,10 +793,12 @@ class ImageRegistrationWindow(Window):
         # update point size
         if self.fixed_points_layer and which == "fixed":
             self.fixed_points_layer.size = CONFIG.size_fixed
-            self.fixed_points_layer.current_size = CONFIG.size_fixed
+            with suppress(IndexError):
+                self.fixed_points_layer.current_size = CONFIG.size_fixed
         if self.moving_points_layer and which == "moving":
             self.moving_points_layer.size = CONFIG.size_moving
-            self.moving_points_layer.current_size = CONFIG.size_moving
+            with suppress(IndexError):
+                self.moving_points_layer.current_size = CONFIG.size_moving
         if self.fixed_image_layer and which == "fixed":
             self.fixed_image_layer[0].opacity = CONFIG.opacity_fixed / 100
         if self.transformed_moving_image_layer and which == "moving":
@@ -890,7 +896,6 @@ class ImageRegistrationWindow(Window):
                 ratio = self.transform_model.moving_to_fixed_ratio
             else:
                 func = self.transform_model
-                before_func = lambda x: x  # noqa
                 before_func = partial(self.transform_model.apply_moving_initial_transform, inverse=True)
                 callback = self.on_sync_views_fixed
                 camera = self.view_moving.viewer.camera
@@ -1132,8 +1137,8 @@ class ImageRegistrationWindow(Window):
         layout.addRow(hp.make_label(self, "Synchronize views"), self.synchronize_zoom)
         layout.addRow(hp.make_label(self, "Marker size (fixed)"), self.fixed_point_size)
         layout.addRow(hp.make_label(self, "Marker size (moving)"), self.moving_point_size)
-        layout.addRow(hp.make_label(self, "Opacity (fixed)"), self.fixed_opacity)
-        layout.addRow(hp.make_label(self, "Opacity (moving)"), self.moving_opacity)
+        layout.addRow(hp.make_label(self, "Image opacity (fixed)"), self.fixed_opacity)
+        layout.addRow(hp.make_label(self, "Image opacity (moving)"), self.moving_opacity)
         layout.addRow(hp.make_label(self, "Label size"), self.text_size)
         layout.addRow(hp.make_label(self, "Label color"), self.text_color)
         return layout

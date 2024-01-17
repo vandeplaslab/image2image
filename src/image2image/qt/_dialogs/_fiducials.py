@@ -106,7 +106,10 @@ class FiducialsDialog(QtFramelessTool):
         """Zoom in on point."""
         parent: ImageRegistrationWindow = self.parent()  # type: ignore[assignment]
         if self.points_data is not None:
-            y_micro, x_micro, y_ims, x_ims = self.points_data[row]
+            try:
+                y_micro, x_micro, y_ims, x_ims = self.points_data[row]
+            except IndexError:
+                return
             # zoom-in on fixed data
             if not np.isnan(x_micro):
                 view_fixed = parent.view_fixed

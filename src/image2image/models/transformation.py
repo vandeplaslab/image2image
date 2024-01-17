@@ -125,7 +125,11 @@ class Transformation(BaseModel):
         return self.transform.params  # type: ignore[no-any-return]
 
     def apply_moving_initial_transform(self, coords: np.ndarray, inverse: bool = True) -> np.ndarray:
-        """Transform coordinates."""
+        """Transform coordinates.
+
+        If transforming from moving to fixed, set inverse to True. Execute BEFORE any other transformations.
+        If transforming from fixed to moving, set inverse to False. Execute AFTER any other transformations.
+        """
         if self.moving_initial_affine is None:
             return coords
         transform = AffineTransform(matrix=self.moving_initial_affine)

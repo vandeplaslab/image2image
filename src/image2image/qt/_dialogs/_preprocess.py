@@ -29,26 +29,15 @@ class InitialTransformModel:
     def apply_rotate(self, which: str) -> None:
         """Apply rotation."""
         if which == "left":
-            self.rotate += 5
+            self.rotate += 15
         else:
-            self.rotate -= 5
+            self.rotate -= 15
         if self.rotate > 360:
             self.rotate -= 360
         elif self.rotate < 0:
             self.rotate += 360
         if self.rotate == 360:
             self.rotate = 0
-
-    def apply_translate(self, which: str) -> None:
-        """Apply rotation."""
-        if which == "up":
-            self.translate_y -= 250
-        elif which == "down":
-            self.translate_y += 250
-        elif which == "left":
-            self.translate_x -= 250
-        else:
-            self.translate_x += 250
 
     def affine(self, shape: tuple[int, int], scale: ty.Optional[tuple[float, float]] = None) -> np.ndarray | None:
         """Calculate affine transformation."""
@@ -95,7 +84,7 @@ class PreprocessMovingDialog(QtFramelessTool):
                 affine = self.initial_model.affine(shape, (1, 1))
                 layer.affine = affine if affine is not None else np.eye(3)
                 logger.info(
-                    f"Initial affine: {parent.transform_model.about('; ', transform=layer.affine.affine_matrix)}"
+                    f"Initial affine (rot={self.initial_model.rotate}; flip={self.initial_model.flip_lr}): {parent.transform_model.about('; ', transform=layer.affine.affine_matrix)}"
                 )
 
     def accept(self):

@@ -16,7 +16,7 @@ help=false
 while getopts uidnrh opt; do
   case $opt in
     u) update=true;;
-    i) update_app=$OPTARG;;
+    a) update_app=$OPTARG;;
     d) debug=true;;
     n) no_docs=true;;
     r) run=true;;
@@ -114,7 +114,7 @@ then
 
     # Re-install PySide6
     echo "Re-installing PyQt6..."
-    pip install -U PyQt6
+    pip install -U PyQt6==6.5.3
     echo "Reinstalled PyQt6"
 
     # Re-install pyinstaller
