@@ -1,5 +1,6 @@
 """Configuration."""
 import typing as ty
+from contextlib import contextmanager
 
 from koyo.config import BaseConfig
 from koyo.system import IS_MAC, IS_PYINSTALLER, is_envvar
@@ -153,6 +154,14 @@ class Config(BaseConfig):
     def _validate_orientation(value: ty.Union[str, ViewerOrientation]) -> ViewerOrientation:  # type: ignore[misc]
         """Validate path."""
         return ViewerOrientation(value)
+
+    @contextmanager
+    def no_sync_view(self):
+        """Context manager to disable sync view."""
+        current = self.sync_views
+        self.sync_views = False
+        yield
+        self.sync_views = current
 
 
 class State:

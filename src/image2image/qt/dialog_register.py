@@ -452,7 +452,6 @@ class ImageRegistrationWindow(Window):
 
         data = layer.data
         layer.data = np.delete(data, -1, 0)
-        self.fiducials_dlg.on_load()
         self.on_run()
 
     def on_remove_selected(self, which: str, _evt: ty.Any = None) -> None:
@@ -462,7 +461,6 @@ class ImageRegistrationWindow(Window):
         if layer.data.shape[0] == 0:
             return
         layer.remove_selected()
-        self.fiducials_dlg.on_load()
         self.on_run()
 
     def on_clear(self, which: str, force: bool = True) -> None:
@@ -472,7 +470,6 @@ class ImageRegistrationWindow(Window):
             layer.data = np.zeros((0, 2))
             self.evt_predicted.emit()  # noqa
             self.on_clear_transformation()
-            self.fiducials_dlg.on_load()
             self.on_run()
 
     def on_clear_transformation(self) -> None:
@@ -487,6 +484,7 @@ class ImageRegistrationWindow(Window):
     def on_run(self, _evt: ty.Any = None) -> None:
         """Compute transformation."""
         self._on_run()
+        self.fiducials_dlg.on_load()
 
     def _on_run(self) -> None:
         if not self.fixed_points_layer or not self.moving_points_layer:
@@ -574,7 +572,7 @@ class ImageRegistrationWindow(Window):
             dlg = ImportSelectDialog(self)
             if dlg.exec_():  # type: ignore[attr-defined]
                 config = dlg.config
-                logger.trace(f"Loaded configuration from {path}\n{config}")
+                logger.trace(f"Loaded configuration from {path}: {config}")
 
                 # reset all widgets
                 if config["fixed_image"]:
@@ -629,9 +627,10 @@ class ImageRegistrationWindow(Window):
                     self._update_layer_points(self.moving_points_layer, moving_points, block=False)
                 if fixed_points is not None:
                     self._update_layer_points(self.fixed_points_layer, fixed_points, block=False)
-                if moving_points is not None and fixed_points is not None:
+                if moving_points is not None or fixed_points is not None:
                     self.fiducials_dlg.on_load()  # update table
-                    self.on_run()
+                    if moving_points is not None and fixed_points is not None:
+                        self.on_run()
                 # force update of the text
                 self.on_update_text(block=False)
 
@@ -880,24 +879,35 @@ class ImageRegistrationWindow(Window):
     def on_update_settings(self):
         """Update config."""
         CONFIG.sync_views = self.synchronize_zoom.isChecked()
+        self.on_sync_views_fixed()
 
-    @qdebounced(timeout=200)
+    @qdebounced(timeout=200, leading=True)
     def on_sync_views_fixed(self, _event: Event | None = None) -> None:
         """Synchronize views."""
-        self._on_sync_views("fixed")
+        if not self._zooming:
+            self._on_sync_views("fixed")
 
-    @qdebounced(timeout=200)
+    @qdebounced(timeout=200, leading=True)
     def on_sync_views_moving(self, _event: Event | None = None) -> None:
         """Synchronize views."""
-        self._on_sync_views("moving")
+        if not self._zooming:
+            self._on_sync_views("moving")
 
-    def _on_sync_views(self, which: str) -> None:
-        if not CONFIG.sync_views or self.transform is None or self._zooming:
+    @qdebounced(timeout=200, leading=True)
+    def _on_sync_views(self, from_which: str):
+        self.__on_sync_views(from_which)
+
+    def __on_sync_views(self, from_which: str) -> None:
+        if not CONFIG.sync_views or self._zooming:
             return
+        if self.transform is None:
+            logger.trace("Cannot sync views - no transformation has been computed.")
+            return
+        to_which = "moving" if from_which == "fixed" else "fixed"
         with self.zooming():
             before_func = lambda x: x  # noqa
             after_func = lambda x: x  # noqa
-            if which == "fixed":
+            if from_which == "fixed":
                 func = self.transform_model.inverse
                 after_func = partial(self.transform_model.apply_moving_initial_transform, inverse=False)
                 camera = self.view_fixed.viewer.camera
@@ -921,6 +931,7 @@ class ImageRegistrationWindow(Window):
             with other_view.viewer.camera.events.blocker(callback):
                 other_view.viewer.camera.zoom = zoom
                 other_view.viewer.camera.center = (0.0, transformed_center[0], transformed_center[1])
+            logger.trace(f"Synchronized views: {from_which} -> {to_which}")
 
     # noinspection PyAttributeOutsideInit
     def _setup_ui(self) -> None:

@@ -36,10 +36,10 @@ class FiducialsDialog(QtFramelessTool):
         TableConfig()  # type: ignore[no-untyped-call]
         .add("", "check", "bool", 0, no_sort=True, hidden=True)
         .add("index", "index", "int", 50)
-        .add("y-m(px)", "y_px_micro", "float", 50)
-        .add("x-m(px)", "x_px_micro", "float", 50)
-        .add("y-i(px)", "y_px_ims", "float", 50)
-        .add("x-i(px)", "x_px_ims", "float", 50)
+        .add("y-f(px)", "y_px_fixed", "float", 50)
+        .add("x-f(px)", "x_px_fixed", "float", 50)
+        .add("y-m(px)", "y_px_moving", "float", 50)
+        .add("x-m(px)", "x_px_moving", "float", 50)
     )
 
     last_point: int = 0
@@ -94,7 +94,6 @@ class FiducialsDialog(QtFramelessTool):
                         parent.moving_points_layer.data = moving_points
                 logger.debug(f"Deleted index '{index}' from fiducial table")
                 self.table.remove_row(index)
-            # self.on_load()
             self.evt_update.emit()
 
     def on_double_click(self, index: QModelIndex) -> None:
@@ -110,36 +109,48 @@ class FiducialsDialog(QtFramelessTool):
 
     def on_select_point(self, row: int):
         """Zoom in on point."""
+        CONFIG.zoom_factor_fixed = self.zoom_factor_fixed.value()
+        CONFIG.zoom_factor_moving = self.zoom_factor_moving.value()
+
+        # zoom-in
         parent: ImageRegistrationWindow = self.parent()  # type: ignore[assignment]
         if self.points_data is not None:
             try:
-                y_micro, x_micro, y_ims, x_ims = self.points_data[row]
+                y_fixed, x_fixed, y_moving, x_moving = self.points_data[row]
             except IndexError:
                 return
-            self.last_point = row
-            # zoom-in on fixed data
-            if not np.isnan(x_micro):
-                view_fixed = parent.view_fixed
-                view_fixed.viewer.camera.center = (0.0, y_micro, x_micro)
-                view_fixed.viewer.camera.zoom = CONFIG.zoom_factor_fixed
-                logger.debug(
-                    f"Applied focus center=({y_micro:.1f}, {x_micro:.1f}) zoom={view_fixed.viewer.camera.zoom:.3f}"
-                    " on fixed data"
-                )
-                # no need to do this as it will be automatically synchronized
-                if CONFIG.sync_views:
-                    return
-            # zoom-in on moving data
-            if not np.isnan(x_ims):
-                view_moving = parent.view_moving
-                view_moving.viewer.camera.center = (0.0, y_ims, x_ims)
-                view_moving.viewer.camera.zoom = (
-                    CONFIG.zoom_factor_moving * parent.transform_model.fixed_to_moving_ratio
-                )
-                logger.debug(
-                    f"Applied focus center=({y_ims:.1f}, {x_ims:.1f}) zoom={view_moving.viewer.camera.zoom:.3f}"
-                    " on moving data"
-                )
+
+            with CONFIG.no_sync_view():
+                self.last_point = row
+                # zoom-in on fixed data
+                if not np.isnan(x_fixed):
+                    view = parent.view_fixed
+                    with view.viewer.camera.events.blocker():
+                        view.viewer.camera.center = (0.0, y_fixed, x_fixed)
+                        view.viewer.camera.zoom = CONFIG.zoom_factor_fixed
+                    logger.debug(
+                        f"Applied focus center=({y_fixed:.1f}, {x_fixed:.1f}) zoom={view.viewer.camera.zoom:.3f}"
+                        " on fixed data"
+                    )
+                else:
+                    logger.debug("Fixed point was NaN - can't zoom-in on the point.")
+
+                # zoom-in on moving data
+                if not np.isnan(x_moving):
+                    view = parent.view_moving
+                    with view.viewer.camera.events.blocker():
+                        view.viewer.camera.center = (0.0, y_moving, x_moving)
+                        view.viewer.camera.zoom = (
+                            CONFIG.zoom_factor_moving * parent.transform_model.fixed_to_moving_ratio
+                        )
+                    logger.debug(
+                        f"Applied focus center=({y_moving:.1f}, {x_moving:.1f}) zoom={view.viewer.camera.zoom:.3f}"
+                        " on moving data"
+                    )
+                else:
+                    logger.debug("Moving point was NaN - can't zoom-in on the point.")
+        else:
+            logger.debug("No fiducial points to zoom-in on.")
 
     def on_load(self, _evt: ty.Any = None) -> None:
         """On load."""
@@ -170,11 +181,6 @@ class FiducialsDialog(QtFramelessTool):
             self.table.scrollTo(model_index)
         self.points_data = array
 
-    def on_apply(self, _evt: ty.Any = None):
-        """Update settings."""
-        CONFIG.zoom_factor_fixed = self.zoom_factor_fixed.value()
-        CONFIG.zoom_factor_moving = self.zoom_factor_moving.value()
-
     # noinspection PyAttributeOutsideInit
     def make_panel(self) -> QFormLayout:
         """Make panel."""
@@ -189,19 +195,19 @@ class FiducialsDialog(QtFramelessTool):
         self.zoom_factor_fixed = hp.make_double_spin_box(
             self,
             1,
-            20,
+            100,
             n_decimals=2,
             default=CONFIG.zoom_factor_fixed,
-            func=(self.on_apply, self.on_select_last_point),
+            func=self.on_select_last_point,
             step_size=0.25,
         )
         self.zoom_factor_moving = hp.make_double_spin_box(
             self,
             1,
-            20,
+            100,
             n_decimals=2,
             default=CONFIG.zoom_factor_moving,
-            func=(self.on_apply, self.on_select_last_point),
+            func=self.on_select_last_point,
             step_size=0.25,
         )
 

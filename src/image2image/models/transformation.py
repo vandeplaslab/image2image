@@ -233,6 +233,7 @@ class Transformation(BaseModel):
         moving_pts = self.moving_points
         assert moving_pts is not None, "No moving points found."
         moving_pts = self.apply_moving_initial_transform(moving_pts)
+
         return {
             "schema_version": SCHEMA_VERSION,
             "tool": "register",
