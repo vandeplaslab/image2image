@@ -2,7 +2,7 @@
 from pathlib import Path
 import inspect
 
-from autoims import __version__
+from image2image import __version__
 
 parent = Path(inspect.getfile(lambda: None)).parent.resolve()
 source_dir = parent / "dist" / "image2image.dmg"
