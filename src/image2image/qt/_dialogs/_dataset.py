@@ -39,27 +39,38 @@ class CloseDatasetDialog(QtDialog):
         super().__init__(parent)
         self.keys = self.get_keys()
         self.setMinimumWidth(600)
+        self.setMaximumHeight(800)
+
+    def on_filter(self):
+        """Filter."""
+        text = self.filter_by_name.text()
+        for checkbox in self.checkboxes:
+            checkbox.setVisible(text in checkbox.text())
 
     # noinspection PyAttributeOutsideInit
     def make_panel(self) -> QVBoxLayout:
         """Make panel."""
-        self.all_check = hp.make_checkbox(
+        self.filter_by_name = hp.make_line_edit(
+            self, placeholder="Type in name or path to filter...", func_changed=self.on_filter
+        )
+
+        self.all_check = hp.make_btn(
             self,
             "Check all",
-            clicked=self.on_check_all,
-            value=True,
+            func=self.on_check_all,
+            tooltip="Check all datasets that are currently visible. Only visible datasets will be removed.",
         )
 
         # iterate over all available paths
-        self.checkboxes = []
         scroll_area, scroll_widget = hp.make_scroll_area(self)
         scroll_layout = hp.make_form_layout(scroll_area)
         wrapper = self.model.wrapper
+        self.checkboxes = []
         if wrapper:
             for reader in wrapper.reader_iter():
                 # make checkbox for each path
                 checkbox = hp.make_checkbox(
-                    scroll_area, f"{reader.key}\n{reader.path}\n", value=True, clicked=self.on_apply
+                    scroll_area, f"{reader.key}\n{reader.path}\n", value=False, clicked=self.on_apply
                 )
                 scroll_layout.addRow(checkbox)
                 self.checkboxes.append(checkbox)
@@ -75,9 +86,10 @@ class CloseDatasetDialog(QtDialog):
                 wrap=True,
             )
         )
-        layout.addWidget(self.all_check)
-        layout.addWidget(hp.make_h_line())
         layout.addWidget(scroll_widget, stretch=True)
+        layout.addWidget(hp.make_h_line())
+        layout.addWidget(self.filter_by_name)
+        layout.addWidget(self.all_check)
         layout.addLayout(
             hp.make_h_layout(
                 hp.make_btn(self, "OK", func=self.accept),
@@ -89,7 +101,8 @@ class CloseDatasetDialog(QtDialog):
     def on_check_all(self, state: bool) -> None:
         """Check all."""
         for checkbox in self.checkboxes:
-            checkbox.setChecked(state)
+            if checkbox.isVisible():
+                checkbox.setChecked(state)
 
     def on_apply(self):
         """Apply."""
