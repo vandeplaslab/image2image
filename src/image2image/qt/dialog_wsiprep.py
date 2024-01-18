@@ -925,6 +925,7 @@ class ImageWsiPrepWindow(Window):
         menu_tools = hp.make_menu(self, "Tools")
         hp.make_menu_item(self, "Show scale bar controls...", "Ctrl+S", menu=menu_tools, func=self.on_show_scalebar)
         menu_tools.addSeparator()
+        hp.make_menu_item(self, "Show Logger...", "Ctrl+L", menu=menu_tools, func=self.on_show_logger)
         hp.make_menu_item(self, "Show IPython console...", "Ctrl+T", menu=menu_tools, func=self.on_show_console)
 
         # set actions

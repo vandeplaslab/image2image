@@ -13,6 +13,7 @@ from qtextra._napari.mixins import ImageViewMixin
 from qtextra.config import THEMES
 from qtextra.mixins import IndicatorMixin
 from qtextra.widgets.qt_image_button import QtThemeButton
+from qtextra.widgets.qt_logger import QtLoggerDialog
 from qtpy.QtCore import Qt, Signal  # type: ignore[attr-defined]
 from qtpy.QtWidgets import QMainWindow, QMenu, QProgressBar, QStatusBar, QWidget
 from superqt.utils import create_worker, ensure_main_thread
@@ -20,6 +21,7 @@ from superqt.utils import create_worker, ensure_main_thread
 from image2image.config import CONFIG
 from image2image.models.data import DataModel
 from image2image.qt._dialogs._update import check_version
+from image2image.utils._appdirs import USER_LOG_DIR
 from image2image.utils.utilities import (
     get_colormap,
     get_contrast_limits,
@@ -64,6 +66,9 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
         READER_CONFIG.init_pyramid = True
         READER_CONFIG.auto_pyramid = True
         READER_CONFIG.split_czi = True
+
+        # add logger
+        self.logger = QtLoggerDialog(self, USER_LOG_DIR)
 
     def on_toggle_theme(self) -> None:
         """Toggle theme."""
@@ -225,6 +230,10 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
             view.layers.selection.select_only(layer)
         else:
             view.layers.selection.toggle(layer)
+
+    def on_show_logger(self) -> None:
+        """View console."""
+        self.logger.show()
 
     def on_show_console(self) -> None:
         """View console."""

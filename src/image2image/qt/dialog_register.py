@@ -1070,6 +1070,7 @@ class ImageRegistrationWindow(Window):
             self, "Show shortcuts...", "Ctrl+S", menu=menu_tools, func=self.on_show_shortcuts, icon="shortcut"
         )
         menu_tools.addSeparator()
+        hp.make_menu_item(self, "Show Logger...", "Ctrl+L", menu=menu_tools, func=self.on_show_logger)
         hp.make_menu_item(self, "Show IPython console...", "Ctrl+T", menu=menu_tools, func=self.on_show_console)
 
         # set actions

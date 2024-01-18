@@ -5,8 +5,11 @@ import qtextra.helpers as hp
 from loguru import logger
 from qtextra.config import THEMES
 from qtextra.widgets.qt_dialog import QtDialog
+from qtextra.widgets.qt_logger import QtLoggerDialog
 from qtpy.QtCore import Qt
 from qtpy.QtWidgets import QVBoxLayout
+
+from image2image.utils._appdirs import USER_LOG_DIR
 
 REGISTER_TEXT = "<b>Registration App</b><br>Co-register your microscopy and imaging mass spectrometry data."
 VIEWER_TEXT = "<b>Viewer App</b><br>Overlay your microscopy and imaging mass spectrometry data."
@@ -20,8 +23,8 @@ class Launcher(QtDialog):
     """General launcher application."""
 
     def __init__(self, parent=None):
-        super().__init__(parent, title="Image2Image Launcher")
-        self.setFixedSize(self.sizeHint())
+        super().__init__(parent, title="image2image Launcher")
+        self.logger = QtLoggerDialog(self, USER_LOG_DIR)
 
     def make_panel(self) -> QVBoxLayout:
         """Make panel."""
@@ -87,8 +90,14 @@ class Launcher(QtDialog):
                 alignment=Qt.AlignCenter,  # type: ignore[attr-defined]
             ),
         )
+        layout.addWidget(hp.make_h_line())
+        layout.addWidget(hp.make_btn(self, "Show logger...", func=self.on_show_logger))
         layout.addStretch(1)
         return layout
+
+    def on_show_logger(self) -> None:
+        """View console."""
+        self.logger.show()
 
     @staticmethod
     def on_convert():

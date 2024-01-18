@@ -282,6 +282,7 @@ class ImageFusionWindow(Window):
 
         # Tools menu
         menu_tools = hp.make_menu(self, "Tools")
+        hp.make_menu_item(self, "Show Logger...", "Ctrl+L", menu=menu_tools, func=self.on_show_logger)
         hp.make_menu_item(self, "Show IPython console...", "Ctrl+T", menu=menu_tools, func=self.on_show_console)
 
         # set actions
