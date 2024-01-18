@@ -15,7 +15,16 @@ from qtextra.widgets.qt_dialog import QtDialog, QtFramelessTool
 from qtextra.widgets.qt_table_view import FilterProxyModel, QtCheckableTableView
 from qtpy.QtCore import Qt, Signal  # type: ignore[attr-defined]
 from qtpy.QtGui import QDoubleValidator, QDropEvent
-from qtpy.QtWidgets import QFormLayout, QHeaderView, QLineEdit, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget
+from qtpy.QtWidgets import (
+    QDialog,
+    QFormLayout,
+    QHeaderView,
+    QLineEdit,
+    QTableWidget,
+    QTableWidgetItem,
+    QVBoxLayout,
+    QWidget,
+)
 from superqt.utils import create_worker
 
 from image2image.config import CONFIG, STATE
@@ -40,6 +49,7 @@ class CloseDatasetDialog(QtDialog):
         self.keys = self.get_keys()
         self.setMinimumWidth(600)
         self.setMaximumHeight(800)
+        self.on_apply()
 
     def accept(self):
         """Accept."""
@@ -51,12 +61,14 @@ class CloseDatasetDialog(QtDialog):
         for checkbox in self.checkboxes:
             if not checkbox.isHidden():
                 checkbox.setChecked(state)
+        self.on_apply()
 
     def on_apply(self):
         """Apply."""
         self.keys = self.get_keys()
         all_checked = len(self.keys) == len(self.checkboxes)
         self.all_check.setCheckState(Qt.Checked if all_checked else Qt.Unchecked)  # type: ignore[attr-defined]
+        hp.disable_widgets(self.ok_btn, disabled=len(self.keys) == 0)
 
     def get_keys(self) -> list[str]:
         """Return state."""
@@ -103,6 +115,8 @@ class CloseDatasetDialog(QtDialog):
                 scroll_layout.addRow(checkbox)
                 self.checkboxes.append(checkbox)
 
+        self.ok_btn = hp.make_btn(self, "OK", func=self.accept)
+
         layout = hp.make_v_layout()
         layout.addWidget(
             hp.make_label(
@@ -120,7 +134,7 @@ class CloseDatasetDialog(QtDialog):
         layout.addWidget(self.all_check)
         layout.addLayout(
             hp.make_h_layout(
-                hp.make_btn(self, "OK", func=self.accept),
+                self.ok_btn,
                 hp.make_btn(self, "Cancel", func=self.reject),
             )
         )
@@ -308,17 +322,11 @@ class ExtractChannelsDialog(QtDialog):
             hp.make_h_layout(
                 hp.make_label(self, "m/z"),
                 self.mz_edit,
-                hp.make_qta_btn(self, "add", tooltip="Add peak", func=self.on_add, normal=True),
+                hp.make_btn(self, "Add m/z", tooltip="Add peak", func=self.on_add),
                 stretch_id=1,
             )
         )
-        layout.addRow(
-            hp.make_h_layout(
-                hp.make_label(self, "ppm"),
-                self.ppm_edit,
-                stretch_id=1,
-            )
-        )
+        layout.addRow(hp.make_h_layout(hp.make_label(self, "ppm"), self.ppm_edit, stretch_id=1))
         layout.addRow(self.table)
         layout.addRow(
             hp.make_label(
@@ -331,7 +339,7 @@ class ExtractChannelsDialog(QtDialog):
         )
         layout.addRow(
             hp.make_h_layout(
-                hp.make_btn(self, "OK", func=self.accept),
+                hp.make_btn(self, "Extract", func=self.accept),
                 hp.make_btn(self, "Cancel", func=self.reject),
             )
         )
@@ -450,8 +458,11 @@ class SelectDataDialog(QtFramelessTool):
                         self.table.setCellWidget(
                             index,
                             self.TABLE_CONFIG.extract,
-                            hp.make_qta_btn(
-                                self, "add", normal=True, func=partial(self.on_extract_channels, key=reader.key)
+                            hp.make_btn(
+                                self,
+                                "Extract...",
+                                func=partial(self.on_extract_channels, key=reader.key),
+                                object_name="extract_btn",
                             ),
                         )
                     else:
@@ -649,14 +660,16 @@ class SelectDataDialog(QtFramelessTool):
             return
 
         dlg = ExtractChannelsDialog(self, key)
-        path, mzs, ppm = None, None, None
-        if dlg.exec_():  # type: ignore[attr-defined]
+        key, mzs, ppm = None, None, None
+        if dlg.exec_() == QDialog.DialogCode.Accepted:  # type: ignore[attr-defined]
             key = dlg.key_to_extract
             mzs = dlg.mzs
             ppm = dlg.ppm
 
-        if path and mzs and ppm:
+        logger.trace(f"Extracting data for {key} ({mzs}, {ppm})")
+        if key and mzs and ppm:
             reader: CoordinateImageReader = self.model.get_reader_for_key(key)
+            logger.trace(f"Extracting data for {key} ({reader}")
             if reader:
                 self.evt_loading.emit()  # noqa
                 create_worker(

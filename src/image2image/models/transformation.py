@@ -57,7 +57,10 @@ class Transformation(BaseModel):
     def fixed_to_moving_ratio(self) -> float:
         """Ratio between the moving and fixed model."""
         if self.moving_model and self.fixed_model:
-            return self.fixed_model.min_resolution / self.moving_model.min_resolution
+            try:
+                return self.fixed_model.min_resolution / self.moving_model.min_resolution
+            except ValueError:
+                return 1.0
         return 1.0
 
     def is_valid(self) -> bool:

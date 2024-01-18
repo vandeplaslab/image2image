@@ -156,6 +156,7 @@ class ImageRegistrationWindow(Window):
             visual = self.view_fixed.widget.layer_to_visual[layer]
             init_points_layer(layer, visual, False)
             connect(layer.events.data, self.on_run, state=True)
+            connect(layer.events.data, self.fiducials_dlg.on_load, state=True)
             connect(layer.events.add_point, partial(self.on_predict, "fixed"), state=True)
         return self.view_fixed.layers["Fixed (points)"]
 
@@ -174,6 +175,7 @@ class ImageRegistrationWindow(Window):
             visual = self.view_moving.widget.layer_to_visual[layer]
             init_points_layer(layer, visual, True)
             connect(layer.events.data, self.on_run, state=True)
+            connect(layer.events.data, self.fiducials_dlg.on_load, state=True)
             connect(layer.events.add_point, partial(self.on_predict, "moving"), state=True)
         return self.view_moving.layers["Moving (points)"]
 
@@ -450,6 +452,7 @@ class ImageRegistrationWindow(Window):
 
         data = layer.data
         layer.data = np.delete(data, -1, 0)
+        self.fiducials_dlg.on_load()
         self.on_run()
 
     def on_remove_selected(self, which: str, _evt: ty.Any = None) -> None:
@@ -459,6 +462,7 @@ class ImageRegistrationWindow(Window):
         if layer.data.shape[0] == 0:
             return
         layer.remove_selected()
+        self.fiducials_dlg.on_load()
         self.on_run()
 
     def on_clear(self, which: str, force: bool = True) -> None:
@@ -468,7 +472,8 @@ class ImageRegistrationWindow(Window):
             layer.data = np.zeros((0, 2))
             self.evt_predicted.emit()  # noqa
             self.on_clear_transformation()
-        self.on_run()
+            self.fiducials_dlg.on_load()
+            self.on_run()
 
     def on_clear_transformation(self) -> None:
         """Clear transformation and remove image."""
@@ -625,6 +630,7 @@ class ImageRegistrationWindow(Window):
                 if fixed_points is not None:
                     self._update_layer_points(self.fixed_points_layer, fixed_points, block=False)
                 if moving_points is not None and fixed_points is not None:
+                    self.fiducials_dlg.on_load()  # update table
                     self.on_run()
                 # force update of the text
                 self.on_update_text(block=False)

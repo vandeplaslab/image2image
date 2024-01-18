@@ -13,7 +13,7 @@ no_docs=true
 run=false
 help=false
 
-while getopts uidnrh opt; do
+while getopts uadnrh opt; do
   case $opt in
     u) update=true;;
     a) update_app=$OPTARG;;
