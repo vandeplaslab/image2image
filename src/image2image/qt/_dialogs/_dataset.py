@@ -41,11 +41,38 @@ class CloseDatasetDialog(QtDialog):
         self.setMinimumWidth(600)
         self.setMaximumHeight(800)
 
+    def accept(self):
+        """Accept."""
+        self.keys = self.get_keys()
+        return super().accept()
+
+    def on_check_all(self, state: bool) -> None:
+        """Check all."""
+        for checkbox in self.checkboxes:
+            if not checkbox.isHidden():
+                checkbox.setChecked(state)
+
+    def on_apply(self):
+        """Apply."""
+        self.keys = self.get_keys()
+        all_checked = len(self.keys) == len(self.checkboxes)
+        self.all_check.setCheckState(Qt.Checked if all_checked else Qt.Unchecked)  # type: ignore[attr-defined]
+
+    def get_keys(self) -> list[str]:
+        """Return state."""
+        keys = []
+        for checkbox in self.checkboxes:
+            if checkbox.isChecked():
+                text = checkbox.text()
+                key = text.split("\n")[0]
+                keys.append(key)
+        return keys
+
     def on_filter(self):
         """Filter."""
         text = self.filter_by_name.text()
         for checkbox in self.checkboxes:
-            checkbox.setVisible(text in checkbox.text())
+            checkbox.show() if text in checkbox.text() else checkbox.hide()
 
     # noinspection PyAttributeOutsideInit
     def make_panel(self) -> QVBoxLayout:
@@ -54,11 +81,12 @@ class CloseDatasetDialog(QtDialog):
             self, placeholder="Type in name or path to filter...", func_changed=self.on_filter
         )
 
-        self.all_check = hp.make_btn(
+        self.all_check = hp.make_checkbox(
             self,
             "Check all",
             func=self.on_check_all,
             tooltip="Check all datasets that are currently visible. Only visible datasets will be removed.",
+            value=False,
         )
 
         # iterate over all available paths
@@ -97,28 +125,6 @@ class CloseDatasetDialog(QtDialog):
             )
         )
         return layout
-
-    def on_check_all(self, state: bool) -> None:
-        """Check all."""
-        for checkbox in self.checkboxes:
-            if checkbox.isVisible():
-                checkbox.setChecked(state)
-
-    def on_apply(self):
-        """Apply."""
-        self.keys = self.get_keys()
-        all_checked = len(self.keys) == len(self.checkboxes)
-        self.all_check.setCheckState(Qt.Checked if all_checked else Qt.Unchecked)  # type: ignore[attr-defined]
-
-    def get_keys(self) -> list[str]:
-        """Return state."""
-        keys = []
-        for checkbox in self.checkboxes:
-            if checkbox.isChecked():
-                text = checkbox.text()
-                key = text.split("\n")[0]
-                keys.append(key)
-        return keys
 
 
 class SelectChannelsToLoadDialog(QtDialog):
