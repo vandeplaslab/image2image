@@ -1,6 +1,6 @@
 param (
     [switch]$update = $false,
-    [switch]$update_i2i = $false,
+    [switch]$update_app = $false,
     [switch]$debug = $false,
     [switch]$run = $false,
     [switch]$help = $false
@@ -11,7 +11,7 @@ if ($help) {
 
     Output parameters:
     -update: Update all modules. Default=False
-    -update_i2i: Update all modules. Default=False
+    -update_app: Update all modules. Default=False
     -debug: Add debugging statement. Default=False
     -no_docs: Don't build documentation. Default=False
     -run: Run application after it has been built.
@@ -46,12 +46,12 @@ if ($update) {
     echo "Reinstalled koyo"
 
     # Re-install image2image
-    echo "Re-installing image2image-reader..."
-    $new_dir = Join-Path $github_dir -ChildPath "image2image-reader" -Resolve
+    echo "Re-installing image2image-io..."
+    $new_dir = Join-Path $github_dir -ChildPath "image2image-io" -Resolve
     cd $new_dir
     pip install -U .
     cd $start_dir
-    echo "Reinstalled image2image-reader"
+    echo "Reinstalled image2image-io"
 
     # Re-install image2image
     echo "Re-installing image2image..."
@@ -78,14 +78,14 @@ if ($update) {
 }
 
 # only update ionglow
-if ($update_i2i) {
+if ($update_app) {
     # Re-install image2image
-    echo "Re-installing image2image-reader..."
-    $new_dir = Join-Path $github_dir -ChildPath "image2image-reader" -Resolve
+    echo "Re-installing image2image-io..."
+    $new_dir = Join-Path $github_dir -ChildPath "image2image-io" -Resolve
     cd $new_dir
     pip install -U .
     cd $start_dir
-    echo "Reinstalled image2image-reader"
+    echo "Reinstalled image2image-io"
 
     echo "Re-installing image2image..."
     $new_dir = Join-Path -Path $github_dir -ChildPath "image2image" -Resolve
