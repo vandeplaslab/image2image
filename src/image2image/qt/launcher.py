@@ -12,8 +12,8 @@ REGISTER_TEXT = "<b>Registration App</b><br>Co-register your microscopy and imag
 VIEWER_TEXT = "<b>Viewer App</b><br>Overlay your microscopy and imaging mass spectrometry data."
 CROP_TEXT = "<b>Crop App</b><br>Crop your microscopy data to reduce it's size (handy for Image Fusion)."
 CONVERT_TEXT = "<b>CZI to OME-TIFF App</b><br>Convert your multi-scene CZI image to OME-TIFF."
-EXPORT_TEXT = "<b>Fusion App</b><br>Export your data for Image Fusion in MATLAB compatible format."
-SYNC_TEXT = "<b>Sync App</b><br>(coming)"
+EXPORT_TEXT = "<b>Fusion Preparation App</b><br>Export your data for Image Fusion in MATLAB compatible format."
+# to add apps: volume viewer, sync viewer,
 
 
 class Launcher(QtDialog):
@@ -21,6 +21,7 @@ class Launcher(QtDialog):
 
     def __init__(self, parent=None):
         super().__init__(parent, title="Image2Image Launcher")
+        self.setFixedSize(self.sizeHint())
 
     def make_panel(self) -> QVBoxLayout:
         """Make panel."""
