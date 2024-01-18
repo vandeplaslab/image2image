@@ -24,6 +24,7 @@ class Launcher(QtDialog):
 
     def __init__(self, parent=None):
         super().__init__(parent, title="image2image Launcher")
+        self.console = None
         self.logger = QtLoggerDialog(self, USER_LOG_DIR)
 
     def make_panel(self) -> QVBoxLayout:
@@ -92,12 +93,21 @@ class Launcher(QtDialog):
         )
         layout.addWidget(hp.make_h_line())
         layout.addWidget(hp.make_btn(self, "Show logger...", func=self.on_show_logger))
+        layout.addWidget(hp.make_btn(self, "Show IPython console...", func=self.on_show_console))
         layout.addStretch(1)
         return layout
 
     def on_show_logger(self) -> None:
         """View console."""
         self.logger.show()
+
+    def on_show_console(self) -> None:
+        """View console."""
+        if self.console is None:
+            from qtextra.dialogs.qt_console import QtConsoleDialog
+
+            self.console = QtConsoleDialog(self)
+        self.console.show()
 
     @staticmethod
     def on_convert():

@@ -13,10 +13,11 @@ no_docs=true
 run=false
 help=false
 
-while getopts uadnrh opt; do
+while getopts uajdnrh opt; do
   case $opt in
     u) update=true;;
     a) update_app=$OPTARG;;
+    j) just_app=false;;
     d) debug=true;;
     n) no_docs=true;;
     r) run=true;;
@@ -29,6 +30,7 @@ done
 echo "Building macOS pyinstaller package..."
 echo "update: $update"
 echo "update_app: $update_app"
+echo "just_app: $just_app"
 echo "debug: $debug"
 echo "no_docs: $no_docs"
 echo "run: $run"
@@ -40,12 +42,13 @@ shift "$(( OPTIND - 1 ))"
 if $help
 then
   echo "Usage: ./build.sh [-update] [-update_app] [-debug] [-no_docs] [-run] [-help]"
-  echo "  -update: update the i2i package before building"
-  echo "  -update_app: update the i2i package to a specific commit before building"
-  echo "  -debug: build the package in debug mode"
-  echo "  -no_docs: do not build the documentation"
-  echo "  -run: run the package after building"
-  echo "  -help: show this help message"
+  echo "  -u: update the i2i package before building"
+  echo "  -a: update the i2i package to a specific commit before building"
+  echo "  -j: update the i2i package only"
+  echo "  -d: build the package in debug mode"
+  echo "  -n: do not build the documentation"
+  echo "  -r: run the package after building"
+  echo "  -h: show this help message"
   exit 0
 fi
 
@@ -133,6 +136,33 @@ then
     cd $start_dir
     echo "Reinstalled image2image-io"
 
+    # Re-install image2image
+    echo "Re-installing image2image..."
+    new_dir=$(realpath $github_dir/image2image)
+    cd $new_dir || exit 1
+    pip install -U .
+    cd $start_dir
+    echo "Reinstalled image2image"
+
+    # Re-install qtextra
+    echo "Re-installing qtextra..."
+    new_dir=$(realpath $github_dir/qtextra)
+    cd $new_dir || exit 1
+    pip install -U .
+    cd $start_dir
+    echo "Reinstalled qtextra"
+
+    # Re-install koyo
+    echo "Re-installing koyo..."
+    new_dir=$(realpath $github_dir/koyo)
+    cd $new_dir || exit 1
+    pip install -U .
+    cd $start_dir
+    echo "Reinstalled koyo"
+fi
+
+if $just_app
+then
     # Re-install image2image
     echo "Re-installing image2image..."
     new_dir=$(realpath $github_dir/image2image)
