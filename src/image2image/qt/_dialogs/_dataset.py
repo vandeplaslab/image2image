@@ -38,6 +38,7 @@ class CloseDatasetDialog(QtDialog):
 
         super().__init__(parent)
         self.keys = self.get_keys()
+        self.setMinimumWidth(600)
 
     # noinspection PyAttributeOutsideInit
     def make_panel(self) -> QVBoxLayout:
