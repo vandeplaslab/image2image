@@ -118,6 +118,7 @@ class ImageViewerWindow(Window):
         from image2image.qt._dialogs._scalebar import QtScaleBarControls
 
         dlg = QtScaleBarControls(self.view.viewer, self.view.widget)
+        dlg.set_px_size(self.data_model.min_resolution)
         dlg.show_above_widget(self.scalebar_btn)
 
     def on_show_save_figure(self) -> None:

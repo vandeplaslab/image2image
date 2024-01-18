@@ -1010,6 +1010,7 @@ class ImageWsiPrepWindow(Window):
         from image2image.qt._dialogs._scalebar import QtScaleBarControls
 
         dlg = QtScaleBarControls(self.view.viewer, self.view.widget)
+        dlg.set_px_size(self.data_model.min_resolution)
         dlg.show_above_widget(self.scalebar_btn)
 
     def on_show_grid(self) -> None:
@@ -1045,7 +1046,7 @@ class ImageWsiPrepWindow(Window):
             "Common intensity",
             tooltip="Use common contrast limit for all images",
             func=self.on_contrast_limits,
-            value=CONFIG.common_intensity
+            value=CONFIG.common_intensity,
         )
         hp.set_sizer_policy(self.common_contrast_limit, h_stretch=False)
         self.statusbar.addPermanentWidget(self.common_contrast_limit)

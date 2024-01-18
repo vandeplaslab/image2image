@@ -566,11 +566,12 @@ class ImageCropWindow(Window):
         self.menubar.addAction(self._make_help_menu().menuAction())
         self.setMenuBar(self.menubar)
 
-    def on_show_scalebar(self):
+    def on_show_scalebar(self) -> None:
         """Show scale bar controls for the viewer."""
-        from qtextra._napari.common.component_controls.qt_scalebar_controls import QtScaleBarControls
+        from image2image.qt._dialogs._scalebar import QtScaleBarControls
 
         dlg = QtScaleBarControls(self.view.viewer, self.view.widget)
+        dlg.set_px_size(self.data_model.min_resolution)
         dlg.show_below_widget(self._image_widget)
 
     @property
