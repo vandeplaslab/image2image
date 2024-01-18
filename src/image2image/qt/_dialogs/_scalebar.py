@@ -21,5 +21,4 @@ class QtScaleBarControls(_QtScaleBarControls):
 
     def set_px_size(self, px_size: float):
         """Set pixel size based on the smallest resolution."""
-        self.pixel_size.setValue(px_size)
         self.units_combobox.setCurrentText("Micrometers")
