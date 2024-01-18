@@ -109,46 +109,46 @@ class FiducialsDialog(QtFramelessTool):
 
     def on_select_point(self, row: int):
         """Zoom in on point."""
-        CONFIG.zoom_factor_fixed = self.zoom_factor_fixed.value()
-        CONFIG.zoom_factor_moving = self.zoom_factor_moving.value()
+        CONFIG.zoom_factor = self.zoom_factor.value()
 
         # zoom-in
         parent: ImageRegistrationWindow = self.parent()  # type: ignore[assignment]
         if self.points_data is not None:
             try:
                 y_fixed, x_fixed, y_moving, x_moving = self.points_data[row]
+                self.last_point = row
             except IndexError:
                 return
 
-            with CONFIG.no_sync_view():
-                self.last_point = row
-                # zoom-in on fixed data
-                if not np.isnan(x_fixed):
-                    view = parent.view_fixed
-                    with view.viewer.camera.events.blocker():
-                        view.viewer.camera.center = (0.0, y_fixed, x_fixed)
-                        view.viewer.camera.zoom = CONFIG.zoom_factor_fixed
-                    logger.debug(
-                        f"Applied focus center=({y_fixed:.1f}, {x_fixed:.1f}) zoom={view.viewer.camera.zoom:.3f}"
-                        " on fixed data"
-                    )
-                else:
-                    logger.debug("Fixed point was NaN - can't zoom-in on the point.")
+            # zoom-in on fixed data
+            if not np.isnan(x_fixed):
+                view = parent.view_fixed
+                with view.viewer.camera.events.blocker():
+                    view.viewer.camera.center = (0.0, y_fixed, x_fixed)
+                    view.viewer.camera.zoom = CONFIG.zoom_factor
+                logger.debug(
+                    f"Applied focus center=({y_fixed:.1f}, {x_fixed:.1f}) zoom={view.viewer.camera.zoom:.3f}"
+                    " on fixed data"
+                )
+            else:
+                logger.debug("Fixed point was NaN - can't zoom-in on the point.")
 
-                # zoom-in on moving data
-                if not np.isnan(x_moving):
-                    view = parent.view_moving
-                    with view.viewer.camera.events.blocker():
-                        view.viewer.camera.center = (0.0, y_moving, x_moving)
-                        view.viewer.camera.zoom = (
-                            CONFIG.zoom_factor_moving * parent.transform_model.fixed_to_moving_ratio
-                        )
-                    logger.debug(
-                        f"Applied focus center=({y_moving:.1f}, {x_moving:.1f}) zoom={view.viewer.camera.zoom:.3f}"
-                        " on moving data"
-                    )
-                else:
-                    logger.debug("Moving point was NaN - can't zoom-in on the point.")
+            # sync views will take care of the rest
+            if CONFIG.sync_views and parent.transform is not None:
+                return
+
+            # zoom-in on moving data
+            if not np.isnan(x_moving):
+                view = parent.view_moving
+                with view.viewer.camera.events.blocker():
+                    view.viewer.camera.center = (0.0, y_moving, x_moving)
+                    view.viewer.camera.zoom = CONFIG.zoom_factor * parent.transform_model.fixed_to_moving_ratio
+                logger.debug(
+                    f"Applied focus center=({y_moving:.1f}, {x_moving:.1f}) zoom={view.viewer.camera.zoom:.3f}"
+                    " on moving data"
+                )
+            else:
+                logger.debug("Moving point was NaN - can't zoom-in on the point.")
         else:
             logger.debug("No fiducial points to zoom-in on.")
 
@@ -192,21 +192,12 @@ class FiducialsDialog(QtFramelessTool):
         self.table.setup_model(
             self.TABLE_CONFIG.header, self.TABLE_CONFIG.no_sort_columns, self.TABLE_CONFIG.hidden_columns
         )
-        self.zoom_factor_fixed = hp.make_double_spin_box(
+        self.zoom_factor = hp.make_double_spin_box(
             self,
             1,
             100,
             n_decimals=2,
-            default=CONFIG.zoom_factor_fixed,
-            func=self.on_select_last_point,
-            step_size=0.25,
-        )
-        self.zoom_factor_moving = hp.make_double_spin_box(
-            self,
-            1,
-            100,
-            n_decimals=2,
-            default=CONFIG.zoom_factor_moving,
+            default=CONFIG.zoom_factor,
             func=self.on_select_last_point,
             step_size=0.25,
         )
@@ -215,8 +206,7 @@ class FiducialsDialog(QtFramelessTool):
         hp.style_form_layout(layout)
         layout.addRow(header_layout)
         layout.addRow(self.table)
-        layout.addRow("Zoom factor (fixed image)", self.zoom_factor_fixed)
-        layout.addRow("Zoom factor (moving image)", self.zoom_factor_moving)
+        layout.addRow("Zoom factor", self.zoom_factor)
         layout.addRow(
             hp.make_label(
                 self,

@@ -621,14 +621,17 @@ class SelectDataDialog(QtFramelessTool):
     def _on_loaded_dataset(self, model: DataModel) -> None:
         """Finished loading data."""
         channel_list = []
+        wrapper = model.wrapper
         if not self.select_channels:
-            wrapper = model.wrapper
             if wrapper:
                 channel_list = wrapper.channel_names_for_names(model.just_added_keys)
         else:
-            dlg = SelectChannelsToLoadDialog(self, model)
-            if dlg.exec_():  # type: ignore
-                channel_list = dlg.channels
+            if wrapper:
+                channel_list_ = list(wrapper.channel_names_for_names(self.model.just_added_keys))
+                if channel_list_:
+                    dlg = SelectChannelsToLoadDialog(self, model)
+                    if dlg.exec_():  # type: ignore
+                        channel_list = dlg.channels
         logger.trace(f"Loaded {len(channel_list)} channels")
         if not channel_list:
             model.remove_keys(model.just_added_keys)

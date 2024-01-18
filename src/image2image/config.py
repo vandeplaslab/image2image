@@ -1,9 +1,7 @@
 """Configuration."""
 import typing as ty
-from contextlib import contextmanager
 
 from koyo.config import BaseConfig
-from koyo.system import IS_MAC, IS_PYINSTALLER, is_envvar
 from koyo.typing import PathLike
 from pydantic import Field, validator
 
@@ -32,11 +30,8 @@ class Config(BaseConfig):
 
     # Register-app parameters
     sync_views: bool = Field(True, title="Sync views", description="Sync views.", in_app=False)
-    zoom_factor_fixed: float = Field(
-        7.5, ge=0.5, le=20.0, step_size=0.25, n_decimals=2, title="Zoom factor", description="Zoom factor."
-    )
-    zoom_factor_moving: float = Field(
-        7.5, ge=0.5, le=20.0, step_size=0.25, n_decimals=2, title="Zoom factor", description="Zoom factor."
+    zoom_factor: float = Field(
+        7.5, ge=0.5, le=100.0, step_size=0.25, n_decimals=2, title="Zoom factor", description="Zoom factor."
     )
     opacity_fixed: int = Field(
         100, ge=0, le=100, step_size=10, title="Opacity (fixed)", description="Opacity of the fixed image", in_app=False
@@ -154,14 +149,6 @@ class Config(BaseConfig):
     def _validate_orientation(value: ty.Union[str, ViewerOrientation]) -> ViewerOrientation:  # type: ignore[misc]
         """Validate path."""
         return ViewerOrientation(value)
-
-    @contextmanager
-    def no_sync_view(self):
-        """Context manager to disable sync view."""
-        current = self.sync_views
-        self.sync_views = False
-        yield
-        self.sync_views = current
 
 
 class State:
