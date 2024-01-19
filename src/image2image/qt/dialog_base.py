@@ -40,7 +40,7 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
     allow_drop: bool = True
     evt_dropped = Signal("QEvent")
 
-    def __init__(self, parent: QWidget | None, title: str, delay_events: bool = False):
+    def __init__(self, parent: QWidget | None, title: str, delay_events: bool = False, run_check_version: bool = True):
         super().__init__(parent)
         self.setAttribute(Qt.WA_DeleteOnClose)  # type: ignore[attr-defined]
         self.setWindowTitle(title)
@@ -50,14 +50,15 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
         self.setMinimumSize(1200, 800)
 
         self._setup_ui()
+        # check for updates every now and in then every 4 hours
+        if run_check_version:
+            hp.call_later(self, self.on_check_new_version, 5 * 1000)
+        self.version_timer = hp.make_periodic_timer(self, self.on_check_new_version, 4 * 3600 * 1000)
+
         if not delay_events:
             self.setup_events()
         else:
             hp.call_later(self, self.setup_events, 3000)
-
-        # check for updates every now and in then every 4 hours
-        hp.call_later(self, self.on_check_new_version, 5 * 1000)
-        self.version_timer = hp.make_periodic_timer(self, self.on_check_new_version, 4 * 3600 * 1000)
 
         # synchronize themes
         THEMES.evt_theme_changed.connect(self.on_changed_theme)
@@ -252,7 +253,7 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
 
     def _get_console_variables(self) -> dict:
         """Get variables for the console."""
-        return {"window": self, "config": CONFIG}
+        return {"window": self, "CONFIG": CONFIG, "READER_CONFIG": READER_CONFIG}
 
     def _make_icon(self) -> None:
         """Make icon."""

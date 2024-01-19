@@ -7,18 +7,17 @@
 
 
 update=false
-update_i2i=false
-debug=false
+update_app=false
+just_app=false
 no_docs=true
 run=false
 help=false
 
-while getopts uajdnrh opt; do
+while getopts uajnrh opt; do
   case $opt in
     u) update=true;;
-    a) update_app=$OPTARG;;
-    j) just_app=false;;
-    d) debug=true;;
+    a) update_app=true;;
+    j) just_app=true;;
     n) no_docs=true;;
     r) run=true;;
     h) help=true;;
@@ -31,7 +30,6 @@ echo "Building macOS pyinstaller package..."
 echo "update: $update"
 echo "update_app: $update_app"
 echo "just_app: $just_app"
-echo "debug: $debug"
 echo "no_docs: $no_docs"
 echo "run: $run"
 echo "help: $help"
@@ -41,11 +39,10 @@ shift "$(( OPTIND - 1 ))"
 
 if $help
 then
-  echo "Usage: ./build.sh [-update] [-update_app] [-debug] [-no_docs] [-run] [-help]"
+  echo "Usage: ./build.sh [-update] [-update_app] [-no_docs] [-run] [-help]"
   echo "  -u: update the i2i package before building"
   echo "  -a: update the i2i package to a specific commit before building"
   echo "  -j: update the i2i package only"
-  echo "  -d: build the package in debug mode"
   echo "  -n: do not build the documentation"
   echo "  -r: run the package after building"
   echo "  -h: show this help message"
@@ -79,97 +76,43 @@ python_ver=$(python -V) 2>&1
 echo "Python version "$python_ver
 echo "Python path: " $(which python)
 
+declare -a local_install=()
+declare -a to_install=()
+
 if $update
 then
-    # Re-install qtextra
-    echo "Re-installing qtextra..."
-    cd $(realpath $github_dir/qtextra) || exit 1
-    pip install .
-    echo "Reinstalled qtextra"
-
-    # Re-install koyo
-    echo "Re-installing koyo..."
-    new_dir=$(realpath $github_dir/koyo)
-    cd $new_dir || exit 1
-    pip install .
-    echo "Reinstalled koyo"
-
-    # Re-install image2image
-    echo "Re-installing image2image..."
-    new_dir=$(realpath $github_dir/image2image)
-    cd $new_dir || exit 1
-    pip install -U .
-    cd $start_dir
-    echo "Reinstalled image2image"
-
-    # Re-install image2image
-    echo "Re-installing image2image-io..."
-    new_dir=$(realpath $github_dir/image2image-io)
-    cd $new_dir || exit 1
-    pip install -U .
-    cd $start_dir
-    echo "Reinstalled image2image-io"
-
-    # Re-install napari (latest)
-    echo "Re-installing napari..."
-    pip install -U napari==0.4.18
-    echo "Reinstalled napari"
-
-    # Re-install PySide6
-    echo "Re-installing PyQt6..."
-    pip install -U PyQt6==6.5.3
-    echo "Reinstalled PyQt6"
-
-    # Re-install pyinstaller
-    echo "Re-installing pyinstaller..."
-    pip install -U pyinstaller
-    echo "Reinstalled pyinstaller"
+    local_install+=("qtextra")
+    local_install+=("koyo")
+    local_install+=("image2image")
+    local_install+=("image2image-io")
 fi
 
 if $update_app
 then
-    # Re-install image2image
-    echo "Re-installing image2image-io..."
-    new_dir=$(realpath $github_dir/image2image-io)
-    cd $new_dir || exit 1
-    pip install -U .
-    cd $start_dir
-    echo "Reinstalled image2image-io"
-
-    # Re-install image2image
-    echo "Re-installing image2image..."
-    new_dir=$(realpath $github_dir/image2image)
-    cd $new_dir || exit 1
-    pip install -U .
-    cd $start_dir
-    echo "Reinstalled image2image"
-
-    # Re-install qtextra
-    echo "Re-installing qtextra..."
-    new_dir=$(realpath $github_dir/qtextra)
-    cd $new_dir || exit 1
-    pip install -U .
-    cd $start_dir
-    echo "Reinstalled qtextra"
-
-    # Re-install koyo
-    echo "Re-installing koyo..."
-    new_dir=$(realpath $github_dir/koyo)
-    cd $new_dir || exit 1
-    pip install -U .
-    cd $start_dir
-    echo "Reinstalled koyo"
+    local_install+=("image2image-io")
+    local_install+=("image2image")
 fi
 
 if $just_app
 then
-    # Re-install image2image
-    echo "Re-installing image2image..."
-    new_dir=$(realpath $github_dir/image2image)
-    cd $new_dir || exit 1
+    local_install+=("image2image")
+fi
+
+# iterate over the list
+for pkg in "${local_install[@]}"
+do
+    echo "Installing package: " $pkg
+    cd $(realpath $github_dir/$pkg) || exit 1
     pip install -U .
+    echo "Installed package: " $pkg
     cd $start_dir
-    echo "Reinstalled image2image"
+done
+
+if $update
+then
+  pip install -U napari==0.4.18
+  pip install -U PyQt6==6.5.3
+  pip install -U pyinstaller
 fi
 
 # Get path
@@ -177,10 +120,5 @@ filename="image2image_split.spec"
 
 
 # Build bundle
-echo "Building bundle... debug=$debug; filename=$filename"
-if $debug
-then
-    pyinstaller --windowed --noconfirm --clean --codesign-identity vandeplaslab --debug=all $filename
-else
-    pyinstaller --noconfirm --clean $filename
-fi
+echo "Building bundle... filename=$filename"
+pyinstaller --noconfirm --clean $filename

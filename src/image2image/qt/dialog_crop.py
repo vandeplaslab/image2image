@@ -44,8 +44,12 @@ class ImageCropWindow(Window):
     _console = None
     _editing = False
 
-    def __init__(self, parent: QWidget | None = None):
-        super().__init__(parent, f"image2crop: Crop and export microscopy data app (v{__version__})")
+    def __init__(self, parent: QWidget | None = None, run_check_version: bool = True):
+        super().__init__(
+            parent,
+            f"image2crop: Crop and export microscopy data app (v{__version__})",
+            run_check_version=run_check_version,
+        )
         READER_CONFIG.view_type = "overlay"  # type: ignore[assignment]
         if CONFIG.first_time_crop:
             hp.call_later(self, self.on_show_tutorial, 10_000)

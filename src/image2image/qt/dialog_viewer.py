@@ -35,8 +35,10 @@ class ImageViewerWindow(Window):
     shape_layer: list[Shapes] | None = None
     _console = None
 
-    def __init__(self, parent: QWidget | None):
-        super().__init__(parent, f"image2viewer: Simple viewer app (v{__version__})")
+    def __init__(self, parent: QWidget | None, run_check_version: bool = True):
+        super().__init__(
+            parent, f"image2viewer: Simple viewer app (v{__version__})", run_check_version=run_check_version
+        )
         READER_CONFIG.view_type = "overlay"
         READER_CONFIG.only_last_pyramid = False
         READER_CONFIG.init_pyramid = True

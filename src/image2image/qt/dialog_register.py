@@ -108,8 +108,13 @@ class ImageRegistrationWindow(Window):
     evt_fixed_dropped = Signal("QEvent")
     evt_moving_dropped = Signal("QEvent")
 
-    def __init__(self, parent: QWidget | None):
-        super().__init__(parent, f"image2register: Simple image registration tool (v{__version__})", delay_events=True)
+    def __init__(self, parent: QWidget | None, run_check_version: bool = True):
+        super().__init__(
+            parent,
+            f"image2register: Simple image registration tool (v{__version__})",
+            delay_events=True,
+            run_check_version=run_check_version,
+        )
         self.transform_model = Transformation(
             fixed_model=self.fixed_model,
             moving_model=self.moving_model,

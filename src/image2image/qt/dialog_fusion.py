@@ -40,8 +40,12 @@ class ImageFusionWindow(Window):
         .add("progress", "progress", "str", 0)
     )
 
-    def __init__(self, parent: QWidget | None):
-        super().__init__(parent, f"image2export: Export images in MATLAB fusion format (v{__version__})")
+    def __init__(self, parent: QWidget | None, run_check_version: bool = True):
+        super().__init__(
+            parent,
+            f"image2export: Export images in MATLAB fusion format (v{__version__})",
+            run_check_version=run_check_version,
+        )
         READER_CONFIG.auto_pyramid = False
         READER_CONFIG.init_pyramid = False
         READER_CONFIG.split_czi = False
