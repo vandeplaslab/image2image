@@ -9,17 +9,19 @@
 update=false
 update_app=false
 just_app=false
+just_reader=false
 no_docs=true
-run=false
+execute=false
 help=false
 
-while getopts uajnrh opt; do
+while getopts uajrneh opt; do
   case $opt in
     u) update=true;;
     a) update_app=true;;
     j) just_app=true;;
+    r) just_reader=true;;
     n) no_docs=true;;
-    r) run=true;;
+    e) execute=true;;
     h) help=true;;
     *) echo "Invalid option: -$OPTARG" >&2
        exit 1;;
@@ -31,7 +33,7 @@ echo "update: $update"
 echo "update_app: $update_app"
 echo "just_app: $just_app"
 echo "no_docs: $no_docs"
-echo "run: $run"
+echo "execute: $execute"
 echo "help: $help"
 
 
@@ -39,12 +41,13 @@ shift "$(( OPTIND - 1 ))"
 
 if $help
 then
-  echo "Usage: ./build.sh [-update] [-update_app] [-no_docs] [-run] [-help]"
+  echo "Usage: ./build.sh [-update] [-update_app] [-no_docs] [-execute] [-help]"
   echo "  -u: update the i2i package before building"
   echo "  -a: update the i2i package to a specific commit before building"
-  echo "  -j: update the i2i package only"
+  echo "  -j: update the image2image package only"
+  echo "  -r: update the image2image-io package only"
   echo "  -n: do not build the documentation"
-  echo "  -r: run the package after building"
+  echo "  -e: execute the package after building"
   echo "  -h: show this help message"
   exit 0
 fi
@@ -91,6 +94,11 @@ if $update_app
 then
     local_install+=("image2image-io")
     local_install+=("image2image")
+fi
+
+if $just_reader
+then
+    local_install+=("image2image-io")
 fi
 
 if $just_app
