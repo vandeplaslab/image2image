@@ -198,7 +198,7 @@ class RegistrationGroup(BaseModel):
         as_uint8: bool = False,
     ) -> Path:
         """Generate iwsireg configuration file."""
-        from image2image_io._reader import get_simple_reader
+        from image2image_io.readers import get_simple_reader
         from image2image_wsireg.enums import CoordinateFlip
         from image2image_wsireg.models import Preprocessing
         from image2image_wsireg.workflows import IWsiReg

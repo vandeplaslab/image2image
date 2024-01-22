@@ -7,7 +7,7 @@ import numpy as np
 from loguru import logger
 from qtextra import helpers as hp
 from qtextra.widgets.qt_dialog import QtFramelessTool
-from qtpy.QtCore import QModelIndex, Qt, Signal  # type: ignore[attr-defined]
+from qtpy.QtCore import Qt  # type: ignore[attr-defined]
 from qtpy.QtWidgets import QFormLayout
 
 if ty.TYPE_CHECKING:
@@ -39,7 +39,7 @@ class InitialTransformModel:
         if self.rotate == 360:
             self.rotate = 0
 
-    def affine(self, shape: tuple[int, int], scale: ty.Optional[tuple[float, float]] = None) -> np.ndarray | None:
+    def affine(self, shape: tuple[int, int], scale: tuple[float, float] | None = None) -> np.ndarray | None:
         """Calculate affine transformation."""
         from image2image.utils.transform import combined_transform, scale_transform
 
@@ -84,7 +84,8 @@ class PreprocessMovingDialog(QtFramelessTool):
                 affine = self.initial_model.affine(shape, (1, 1))
                 layer.affine = affine if affine is not None else np.eye(3)
                 logger.info(
-                    f"Initial affine (rot={self.initial_model.rotate}; flip={self.initial_model.flip_lr}): {parent.transform_model.about('; ', transform=layer.affine.affine_matrix)}"
+                    f"Initial affine (rot={self.initial_model.rotate}; flip={self.initial_model.flip_lr}):"
+                    f" {parent.transform_model.about('; ', transform=layer.affine.affine_matrix)}"
                 )
 
     def accept(self):

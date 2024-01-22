@@ -11,7 +11,7 @@ from loguru import logger
 from qtextra.utils.table_config import TableConfig
 from qtextra.utils.utilities import connect
 from qtextra.widgets.qt_close_window import QtConfirmCloseDialog
-from qtpy.QtCore import QModelIndex, Qt
+from qtpy.QtCore import Qt
 from qtpy.QtWidgets import QDialog, QHeaderView, QMenuBar, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget
 from superqt import ensure_main_thread
 from superqt.utils import GeneratorWorker, create_worker
@@ -177,7 +177,7 @@ class ImageConvertWindow(Window):
 
     def on_convert(self):
         """Process data."""
-        from image2image_io._writer import czis_to_ome_tiff
+        from image2image_io.writers import czis_to_ome_tiff
 
         if self.output_dir is None:
             hp.warn(self, "No output directory was selected. Please select directory where to save data.")
