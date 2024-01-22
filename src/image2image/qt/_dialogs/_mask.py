@@ -133,8 +133,7 @@ class MasksDialog(QtFramelessTool):
     ) -> ty.Generator[tuple[GeoJSONReader, BaseReader, np.ndarray, np.ndarray, str, dict, int, int], None, None]:
         """Export masks."""
         n = int(len(masks) * len(images))
-        i = 1
-        for mask_key in masks:
+        for index, mask_key in enumerate(masks, start=1):
             mask_reader: GeoJSONReader = data_model.get_reader_for_key(mask_key)  # type: ignore[assignment]
             if not mask_reader:
                 raise ValueError(f"Could not find mask reader for '{mask_key}'")
@@ -154,10 +153,9 @@ class MasksDialog(QtFramelessTool):
                     transformed_mask_indexed,
                     display_name,
                     shapes,
-                    i,
+                    index,
                     n,
                 )
-                i += 1
 
     def _on_export_run(
         self,
@@ -261,17 +259,9 @@ class MasksDialog(QtFramelessTool):
         self.preview_btn.active = True
 
     @ensure_main_thread()
-    def _on_preview(
-        self,
-        mask_reader: GeoJSONReader,
-        image_reader: BaseReader,
-        transformed_mask: np.ndarray,
-        _transformed_mask_indexed: np.ndarray,
-        _display_name: str,
-        _shapes: dict,
-        current: int,
-        total: int,
-    ) -> None:
+    def _on_preview(self, res) -> None:
+        """Preview."""
+        mask_reader, image_reader, transformed_mask, _, _, _, current, total = res
         parent: ImageViewerWindow = self.parent()  # type: ignore[assignment]
         transform = image_reader.transform
         parent.view.add_image(

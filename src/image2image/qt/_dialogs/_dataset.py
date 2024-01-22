@@ -282,6 +282,13 @@ class ExtractChannelsDialog(QtDialog):
         self.mzs = None
         self.ppm = None
 
+    def on_accept(self):
+        """Accept."""
+        n = len(self.mzs)
+        if n > 0 and hp.confirm(self, "Would you like to extract <b>{n}</b> ion images?"):
+            logger.trace(f"Extracting {n} ion images...")
+            self.accept()
+
     def on_add(self) -> None:
         """Add peak."""
         value = self.mz_edit.value()
@@ -331,7 +338,8 @@ class ExtractChannelsDialog(QtDialog):
         layout.addRow(
             hp.make_label(
                 self,
-                "<b>Tip.</b> Press <b>Delete</b> or <b>Backspace</b> to delete a peak.",
+                "<b>Tip.</b> Press <b>Delete</b> or <b>Backspace</b> to delete a peak."
+                "<b>Tip.</b> It is a lot more efficient to extra many peaks at once than one at a time.",
                 alignment=Qt.AlignmentFlag.AlignHCenter,
                 object_name="tip_label",
                 enable_url=True,
@@ -339,7 +347,7 @@ class ExtractChannelsDialog(QtDialog):
         )
         layout.addRow(
             hp.make_h_layout(
-                hp.make_btn(self, "Extract", func=self.accept),
+                hp.make_btn(self, "Extract", func=self.on_accept),
                 hp.make_btn(self, "Cancel", func=self.reject),
             )
         )

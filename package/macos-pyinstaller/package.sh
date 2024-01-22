@@ -1,6 +1,7 @@
 #!/bin/sh
 
 # sign app with hash of my securityDeveloper ID Application
+echo "Signing app..."
 codesign \
   --deep \
   --force \
@@ -13,7 +14,6 @@ echo "Signed app"
 
 # remove existing file
 mkdir -p dist/dmg
-
 # remove existing file
 mkdir -p dist/dmg
 rm -r dist/dmg/*
@@ -26,6 +26,7 @@ ln -s /Applications dist/dmg/Applications
 mv "dist/image2image.app" dist/dmg
 
 # create dmg file
+echo "Creating dmg..."
 hdiutil create \
   -volname "image2image" \
   -srcfolder ./dist/dmg \

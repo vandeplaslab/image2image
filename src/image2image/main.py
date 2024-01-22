@@ -17,6 +17,7 @@ def run(
 
     from image2image_io.config import CONFIG as READER_CONFIG
     from koyo.faulthandler import install_segfault_handler, maybe_submit_segfault
+    from koyo.hooks import install_debugger_hook, install_logger_hook
     from koyo.logging import set_loguru_log
     from qtextra.config import THEMES
     from qtextra.utils.context import _maybe_allow_interrupt
@@ -32,12 +33,13 @@ def run(
     set_loguru_log(level=level, no_color=no_color, diagnose=True, catch=True, logger=logger, remove=False)
     logger.enable("image2image")
     logger.enable("image2image_io")
+    logger.enable("koyo")
     logger.info(f"Enabled logger - logging to '{log_path}' at level={level}")
 
     if dev:
-        from koyo.hooks import install_debugger_hook
-
         install_debugger_hook()
+    else:
+        install_logger_hook()
 
     # load config
     READER_CONFIG.load()

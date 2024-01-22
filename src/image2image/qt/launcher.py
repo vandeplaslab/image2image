@@ -2,11 +2,16 @@
 from __future__ import annotations
 
 import qtextra.helpers as hp
+from image2image_io.config import CONFIG as READER_CONFIG
 from loguru import logger
 from qtextra.config import THEMES
 from qtextra.widgets.qt_dialog import QtDialog
+from qtextra.widgets.qt_logger import QtLoggerDialog
 from qtpy.QtCore import Qt
 from qtpy.QtWidgets import QVBoxLayout
+
+from image2image.config import CONFIG
+from image2image.utils._appdirs import USER_LOG_DIR
 
 REGISTER_TEXT = "<b>Registration App</b><br>Co-register your microscopy and imaging mass spectrometry data."
 VIEWER_TEXT = "<b>Viewer App</b><br>Overlay your microscopy and imaging mass spectrometry data."
@@ -20,8 +25,11 @@ class Launcher(QtDialog):
     """General launcher application."""
 
     def __init__(self, parent=None):
-        super().__init__(parent, title="Image2Image Launcher")
-        self.setFixedSize(self.sizeHint())
+        super().__init__(parent, title="image2image Launcher")
+        self.console = None
+        self.logger = QtLoggerDialog(self, USER_LOG_DIR)
+        self.setMaximumWidth(600)
+        self.setMaximumHeight(800)
 
     def make_panel(self) -> QVBoxLayout:
         """Make panel."""
@@ -87,8 +95,24 @@ class Launcher(QtDialog):
                 alignment=Qt.AlignCenter,  # type: ignore[attr-defined]
             ),
         )
+        layout.addWidget(hp.make_h_line())
+        layout.addWidget(hp.make_btn(self, "Show logger...", func=self.on_show_logger))
+        layout.addWidget(hp.make_btn(self, "Show IPython console...", func=self.on_show_console))
         layout.addStretch(1)
         return layout
+
+    def on_show_logger(self) -> None:
+        """View console."""
+        self.logger.show()
+
+    def on_show_console(self) -> None:
+        """View console."""
+        if self.console is None:
+            from qtextra.dialogs.qt_console import QtConsoleDialog
+
+            self.console = QtConsoleDialog(self)
+            self.console.push_variables({"window": self, "CONFIG": CONFIG, "READER_CONFIG": READER_CONFIG})
+        self.console.show()
 
     @staticmethod
     def on_convert():
@@ -96,7 +120,7 @@ class Launcher(QtDialog):
         from image2image.qt.dialog_convert import ImageConvertWindow
 
         logger.debug("Opening czi2tiff application.")
-        dlg = ImageConvertWindow(None)
+        dlg = ImageConvertWindow(None, run_check_version=False)
         THEMES.set_theme_stylesheet(dlg)
         dlg.setMinimumSize(500, 500)
         dlg.show()
@@ -107,7 +131,7 @@ class Launcher(QtDialog):
         from image2image.qt.dialog_fusion import ImageFusionWindow
 
         logger.debug("Opening export application.")
-        dlg = ImageFusionWindow(None)
+        dlg = ImageFusionWindow(None, run_check_version=False)
         THEMES.set_theme_stylesheet(dlg)
         dlg.setMinimumSize(500, 500)
         dlg.show()
@@ -118,7 +142,7 @@ class Launcher(QtDialog):
         from image2image.qt.dialog_register import ImageRegistrationWindow
 
         logger.debug("Opening registration application.")
-        dlg = ImageRegistrationWindow(None)
+        dlg = ImageRegistrationWindow(None, run_check_version=False)
         THEMES.set_theme_stylesheet(dlg)
         dlg.setMinimumSize(1200, 700)
         dlg.show()
@@ -129,7 +153,7 @@ class Launcher(QtDialog):
         from image2image.qt.dialog_viewer import ImageViewerWindow
 
         logger.debug("Opening viewer application.")
-        dlg = ImageViewerWindow(None)
+        dlg = ImageViewerWindow(None, run_check_version=False)
         THEMES.set_theme_stylesheet(dlg)
         dlg.setMinimumSize(1200, 700)
         dlg.show()
@@ -140,7 +164,7 @@ class Launcher(QtDialog):
         from image2image.qt.dialog_crop import ImageCropWindow
 
         logger.debug("Opening crop application.")
-        dlg = ImageCropWindow(None)
+        dlg = ImageCropWindow(None, run_check_version=False)
         THEMES.set_theme_stylesheet(dlg)
         dlg.setMinimumSize(1200, 700)
         dlg.show()

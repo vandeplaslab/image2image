@@ -98,8 +98,12 @@ class ImageWsiPrepWindow(Window):
         .add("flip(l-r)", "flip_lr", "bool", 70, sizing="fixed", tooltip="Flip image left-right.", checkable=True)
     )
 
-    def __init__(self, parent: QWidget | None = None):
-        super().__init__(parent, f"image2wsiprep: Prepare your microscopy data for co-registration (v{__version__})")
+    def __init__(self, parent: QWidget | None = None, run_check_version: bool = True):
+        super().__init__(
+            parent,
+            f"image2wsiprep: Prepare your microscopy data for co-registration (v{__version__})",
+            run_check_version=run_check_version,
+        )
         self.registration = Registration()
         READER_CONFIG.only_last_pyramid = True
         READER_CONFIG.init_pyramid = False
@@ -925,6 +929,7 @@ class ImageWsiPrepWindow(Window):
         menu_tools = hp.make_menu(self, "Tools")
         hp.make_menu_item(self, "Show scale bar controls...", "Ctrl+S", menu=menu_tools, func=self.on_show_scalebar)
         menu_tools.addSeparator()
+        hp.make_menu_item(self, "Show Logger...", "Ctrl+L", menu=menu_tools, func=self.on_show_logger)
         hp.make_menu_item(self, "Show IPython console...", "Ctrl+T", menu=menu_tools, func=self.on_show_console)
 
         # set actions

@@ -13,6 +13,7 @@ from qtextra._napari.mixins import ImageViewMixin
 from qtextra.config import THEMES
 from qtextra.mixins import IndicatorMixin
 from qtextra.widgets.qt_image_button import QtThemeButton
+from qtextra.widgets.qt_logger import QtLoggerDialog
 from qtpy.QtCore import Qt, Signal  # type: ignore[attr-defined]
 from qtpy.QtWidgets import QMainWindow, QMenu, QProgressBar, QStatusBar, QWidget
 from superqt.utils import create_worker, ensure_main_thread
@@ -20,6 +21,7 @@ from superqt.utils import create_worker, ensure_main_thread
 from image2image.config import CONFIG
 from image2image.models.data import DataModel
 from image2image.qt._dialogs._update import check_version
+from image2image.utils._appdirs import USER_LOG_DIR
 from image2image.utils.utilities import (
     get_colormap,
     get_contrast_limits,
@@ -38,7 +40,7 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
     allow_drop: bool = True
     evt_dropped = Signal("QEvent")
 
-    def __init__(self, parent: QWidget | None, title: str, delay_events: bool = False):
+    def __init__(self, parent: QWidget | None, title: str, delay_events: bool = False, run_check_version: bool = True):
         super().__init__(parent)
         self.setAttribute(Qt.WA_DeleteOnClose)  # type: ignore[attr-defined]
         self.setWindowTitle(title)
@@ -48,14 +50,15 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
         self.setMinimumSize(1200, 800)
 
         self._setup_ui()
+        # check for updates every now and in then every 4 hours
+        if run_check_version:
+            hp.call_later(self, self.on_check_new_version, 5 * 1000)
+        self.version_timer = hp.make_periodic_timer(self, self.on_check_new_version, 4 * 3600 * 1000)
+
         if not delay_events:
             self.setup_events()
         else:
             hp.call_later(self, self.setup_events, 3000)
-
-        # check for updates every now and in then every 4 hours
-        hp.call_later(self, self.on_check_new_version, 5 * 1000)
-        self.version_timer = hp.make_periodic_timer(self, self.on_check_new_version, 4 * 3600 * 1000)
 
         # synchronize themes
         THEMES.evt_theme_changed.connect(self.on_changed_theme)
@@ -64,6 +67,9 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
         READER_CONFIG.init_pyramid = True
         READER_CONFIG.auto_pyramid = True
         READER_CONFIG.split_czi = True
+
+        # add logger
+        self.logger = QtLoggerDialog(self, USER_LOG_DIR)
 
     def on_toggle_theme(self) -> None:
         """Toggle theme."""
@@ -226,6 +232,10 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
         else:
             view.layers.selection.toggle(layer)
 
+    def on_show_logger(self) -> None:
+        """View console."""
+        self.logger.show()
+
     def on_show_console(self) -> None:
         """View console."""
         if self._console is None:
@@ -243,7 +253,7 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
 
     def _get_console_variables(self) -> dict:
         """Get variables for the console."""
-        return {"window": self, "config": CONFIG}
+        return {"window": self, "CONFIG": CONFIG, "READER_CONFIG": READER_CONFIG}
 
     def _make_icon(self) -> None:
         """Make icon."""

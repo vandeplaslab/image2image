@@ -35,8 +35,8 @@ class ImageViewerWindow(Window):
     shape_layer: list[Shapes] | None = None
     _console = None
 
-    def __init__(self, parent: QWidget | None):
-        super().__init__(parent, f"image2viewer: Simple viewer app (v{__version__})")
+    def __init__(self, parent: QWidget | None, run_check_version: bool = True):
+        super().__init__(parent, f"image2viewer: Viewer app (v{__version__})", run_check_version=run_check_version)
         READER_CONFIG.view_type = "overlay"
         READER_CONFIG.only_last_pyramid = False
         READER_CONFIG.init_pyramid = True
@@ -408,6 +408,7 @@ class ImageViewerWindow(Window):
             self, "Show scale bar controls...", "Ctrl+S", menu=menu_tools, icon="ruler", func=self.on_show_scalebar
         )
         menu_tools.addSeparator()
+        hp.make_menu_item(self, "Show Logger...", "Ctrl+L", menu=menu_tools, func=self.on_show_logger)
         hp.make_menu_item(
             self, "Show IPython console...", "Ctrl+T", menu=menu_tools, icon="ipython", func=self.on_show_console
         )
