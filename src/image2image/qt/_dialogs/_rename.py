@@ -1,7 +1,4 @@
 """Rename channels."""
-import typing as ty
-from contextlib import contextmanager
-
 from loguru import logger
 from qtextra import helpers as hp
 from qtextra.utils.table_config import TableConfig

@@ -37,6 +37,7 @@ class ImageFusionWindow(Window):
     TABLE_CONFIG = (
         TableConfig()  # type: ignore[no-untyped-call]
         .add("name", "name", "str", 0)
+        .add("channels", "metadata", "str", 0)
         .add("progress", "progress", "str", 0)
     )
 
@@ -51,6 +52,7 @@ class ImageFusionWindow(Window):
         READER_CONFIG.split_czi = False
         if CONFIG.first_time_fusion:
             hp.call_later(self, self.on_show_tutorial, 10_000)
+        self.reader_metadata: dict[Path, dict[int, dict[str, list[bool | int | str]]]] = {}
 
     def setup_events(self, state: bool = True) -> None:
         """Setup events."""
@@ -114,9 +116,25 @@ class ImageFusionWindow(Window):
                 table_item.setTextAlignment(Qt.AlignCenter)  # type: ignore[attr-defined]
                 self.table.setItem(index, self.TABLE_CONFIG.name, table_item)
 
+                table_item = QTableWidgetItem("")
+                table_item.setFlags(table_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+                self.table.setItem(index, self.TABLE_CONFIG.metadata, table_item)
+
                 table_item = QTableWidgetItem("Ready!")
                 table_item.setFlags(table_item.flags() & ~Qt.ItemIsEditable)  # type: ignore[attr-defined]
                 self.table.setItem(index, self.TABLE_CONFIG.progress, table_item)
+                reader_metadata = self.reader_metadata.get(reader.path, {})
+                if reader_metadata:
+                    self.reader_metadata[reader.path] = reader_metadata
+                else:
+                    self.reader_metadata[reader.path] = {}
+                    for scene_index in range(reader.n_scenes):
+                        self.reader_metadata[reader.path][scene_index] = {
+                            "keep": [True] * reader.n_channels,
+                            "channel_ids": reader.channel_ids,
+                            "channel_names": reader.channel_names,
+                        }
+        self.on_update_reader_metadata()
 
     def on_export(self):
         """Process data."""
@@ -222,21 +240,52 @@ class ImageFusionWindow(Window):
             self.output_dir_label.setText(f"<b>Output directory</b>: {hp.hyper(self.output_dir)}")
             logger.debug(f"Output directory set to {self._output_dir}")
 
+    def on_select(self, row: int) -> None:
+        """Select channels."""
+        from image2image.qt._dialogs._rename import ChannelRenameDialog
+
+        name = self.table.item(row, self.TABLE_CONFIG.name).text()
+
+        reader = self.data_model.get_reader_for_key(name)
+        reader_metadata = self.reader_metadata[reader.path]
+        dlg = ChannelRenameDialog(self, reader_metadata)
+        if dlg.exec_() == QDialog.DialogCode.Accepted:
+            self.reader_metadata[reader.path] = dlg.reader_metadata
+            self.on_update_reader_metadata()
+
+    def on_update_reader_metadata(self):
+        """Update reader metadata."""
+        for path, reader_metadata in self.reader_metadata.items():
+            key = path.name
+            row = hp.find_in_table(self.table, self.TABLE_CONFIG.name, key)
+            if row is None:
+                continue
+            metadata = []
+            for scene_index, scene_metadata in reader_metadata.items():
+                channel_ids = [x for x, keep in zip(scene_metadata["channel_ids"], scene_metadata["keep"]) if keep]
+                metadata.append(f"{scene_index}: {channel_ids}")
+            self.table.item(row, self.TABLE_CONFIG.metadata).setText("\n".join(metadata))
+
     def _setup_ui(self):
         """Create panel."""
         self._image_widget = LoadWidget(self, None, select_channels=False)
         self._image_widget.info_text.setVisible(False)
 
-        columns = ["name", "progress"]
+        columns = self.TABLE_CONFIG.to_columns()
         self.table = QTableWidget(self)
         self.table.setColumnCount(len(columns))  # name, progress, key
         self.table.setHorizontalHeaderLabels(columns)
         self.table.setCornerButtonEnabled(False)
         self.table.setTextElideMode(Qt.TextElideMode.ElideLeft)
+        self.table.setWordWrap(True)
+        # self.table.doubleClicked.connect(lambda index: self.on_select(index.row()))
 
-        header = self.table.horizontalHeader()
-        header.setSectionResizeMode(self.TABLE_CONFIG.name, QHeaderView.ResizeMode.Stretch)
-        header.setSectionResizeMode(self.TABLE_CONFIG.progress, QHeaderView.ResizeMode.ResizeToContents)
+        horizontal_header = self.table.horizontalHeader()
+        horizontal_header.setSectionResizeMode(self.TABLE_CONFIG.name, QHeaderView.ResizeMode.Stretch)
+        horizontal_header.setSectionResizeMode(self.TABLE_CONFIG.metadata, QHeaderView.ResizeMode.ResizeToContents)
+        horizontal_header.setSectionResizeMode(self.TABLE_CONFIG.progress, QHeaderView.ResizeMode.ResizeToContents)
+        vertical_header = self.table.verticalHeader()
+        vertical_header.setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
 
         self.directory_btn = hp.make_btn(
             self,
@@ -304,12 +353,7 @@ class ImageFusionWindow(Window):
 
     def _get_console_variables(self) -> dict:
         variables = super()._get_console_variables()
-        variables.update(
-            {
-                "data_model": self.data_model,
-                "wrapper": self.data_model.wrapper,
-            }
-        )
+        variables.update({"data_model": self.data_model, "wrapper": self.data_model.wrapper})
         return variables
 
     def close(self, force=False):
@@ -329,8 +373,7 @@ class ImageFusionWindow(Window):
             evt.spontaneous()
             and CONFIG.confirm_close_fusion
             and self.data_model.is_valid()
-            and QtConfirmCloseDialog(self, "confirm_close_fusion", config=CONFIG).exec_()  # type: ignore # type: ignore[attr-defined]
-            != QDialog.DialogCode.Accepted
+            and QtConfirmCloseDialog(self, "confirm_close_fusion", config=CONFIG).exec_() != QDialog.DialogCode.Accepted
         ):
             evt.ignore()
             return
