@@ -58,7 +58,7 @@ def _make_analysis(path: str):
             "../_runtimehooks/hook-bundle.py",
             "../_runtimehooks/hook-multiprocessing.py",
         ],
-        excludes=[] + ["tcl", "Tkconstants", "Tkinter"],
+        excludes=["tcl", "Tkconstants", "Tkinter"],
         cipher=block_cipher,
     )
 
