@@ -171,6 +171,8 @@ class ImageConvertWindow(Window):
         for path, reader_metadata in self.reader_metadata.items():
             key = path.name
             row = hp.find_in_table(self.table, self.TABLE_CONFIG.name, key)
+            if row is None:
+                continue
             metadata = []
             for scene_index, scene_metadata in reader_metadata.items():
                 channel_ids = [x for x, keep in zip(scene_metadata["channel_ids"], scene_metadata["keep"]) if keep]
