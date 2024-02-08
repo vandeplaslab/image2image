@@ -126,14 +126,6 @@ def run(
             )
             dlg.statusbar.addPermanentWidget(dlg.dev_btn)  # type: ignore[attr-defined]
 
-        # dev = qdev(dlg, modules=["qtextra", "image2image", "image2image_io", "image2image_wsireg", "koyo"])
-        # dev.hide()
-        # dev.evt_theme.connect(lambda: THEMES.set_theme_stylesheet(dlg))
-        # if hasattr(dlg, "centralWidget"):
-        #     dlg.centralWidget().layout().addWidget(dev)
-        # else:
-        #     dlg.layout().addWidget(dev)
-
         # install_debugger_hook()
         os.environ["IMAGE2IMAGE_DEV_MODE"] = "1"
     else:

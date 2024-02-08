@@ -12,6 +12,7 @@ from qtextra import helpers as hp
 from qtextra.utils.table_config import TableConfig
 from qtextra.widgets.qt_dialog import QtFramelessTool
 from qtextra.widgets.qt_table_view import QtCheckableTableView
+from qtpy.QtCore import Qt
 from qtpy.QtWidgets import QFormLayout
 from superqt.utils import GeneratorWorker, create_worker, ensure_main_thread
 
@@ -37,6 +38,7 @@ class MasksDialog(QtFramelessTool):
         TableConfig()  # type: ignore[no-untyped-call]
         .add("", "check", "bool", 25, no_sort=True, sizing="fixed")
         .add("name", "name", "str", 100)
+        .add("display name", "display_name", "str", 100)
         .add("path", "path", "str", 0, hidden=True)
         .add("key", "key", "str", 0, hidden=True)
     )
@@ -78,7 +80,7 @@ class MasksDialog(QtFramelessTool):
                             f"For the time being, only masks with '{DEFAULT_TRANSFORM_NAME}' transform are compatible."
                         )
                         continue
-                    masks.append([True, reader.name, reader.path, reader.key])
+                    masks.append([True, reader.name, reader.display_name, reader.path, reader.key])
         logger.debug(f"Discovered {len(images)} images and {len(masks)} masks.")
         # update table
         self.table_geo.reset_data()
@@ -182,7 +184,7 @@ class MasksDialog(QtFramelessTool):
         ) in self._on_transform_mask(mask_shape, masks, images, data_model):
             name = mask_reader.path.stem
             output_dir = Path(output_dir)
-            output_path = output_dir / f"{name}-{image_reader.path.stem}.h5"
+            output_path = output_dir / f"{name}_ds={image_reader.path.stem}.h5"
             logger.debug(f"Exporting mask to '{output_path}'")
             write_masks(
                 output_path,
@@ -305,6 +307,15 @@ class MasksDialog(QtFramelessTool):
         hp.toast(self, "Failed", f"Failed export or preview: {exc}", icon="error")
         log_exception_or_error(exc)
 
+    def on_select(self, row: int) -> None:
+        """Select channels."""
+        display_name = self.table_geo.get_value(self.TABLE_GEO_CONFIG.display_name, row)
+
+        new_display_name = hp.get_text(self, "Enter new display name", "Display name", display_name)
+        if not new_display_name or display_name == new_display_name:
+            return
+        self.table_geo.set_value(self.TABLE_GEO_CONFIG.display_name, row, new_display_name)
+
     # noinspection PyAttributeOutsideInit
     def make_panel(self) -> QFormLayout:
         """Make panel."""
@@ -320,6 +331,7 @@ class MasksDialog(QtFramelessTool):
             self.TABLE_GEO_CONFIG.no_sort_columns,
             self.TABLE_GEO_CONFIG.hidden_columns,
         )
+        self.table_geo.doubleClicked.connect(lambda index: self.on_select(index.row()))
 
         self.table_image = QtCheckableTableView(
             self, config=self.TABLE_IMAGE_CONFIG, enable_all_check=False, sortable=False
@@ -353,6 +365,16 @@ class MasksDialog(QtFramelessTool):
         layout.addRow(header_layout)
         layout.addRow(hp.make_h_line_with_text("Masks to export."))
         layout.addRow(self.table_geo)
+        layout.addRow(
+            hp.make_label(
+                self,
+                "<b>Tip.</b> You can double-click on the 'display name' column value to change how the mask will be"
+                " named.",
+                alignment=Qt.AlignmentFlag.AlignHCenter,
+                object_name="tip_label",
+                enable_url=True,
+            )
+        )
         layout.addRow(hp.make_h_line_with_text("Images to export masks for."))
         layout.addRow(self.table_image)
         layout.addRow(hp.make_h_line_with_text("Export"))
