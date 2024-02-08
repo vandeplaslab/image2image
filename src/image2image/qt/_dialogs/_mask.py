@@ -76,8 +76,11 @@ class MasksDialog(QtFramelessTool):
                     images.append([False, reader.name, f"{shape[0]} * {shape[1]}", reader.path, reader.key])
                 if reader.reader_type == "shapes":
                     if not reader.is_identity_transform():
-                        logger.warning(
+                        hp.toast(
+                            self,
+                            "Incompatible mask transform",
                             f"For the time being, only masks with '{DEFAULT_TRANSFORM_NAME}' transform are compatible."
+                            f" If this is an issue, please get in touch to discuss further.",
                         )
                         continue
                     masks.append([True, reader.name, reader.display_name, reader.path, reader.key])
@@ -97,7 +100,8 @@ class MasksDialog(QtFramelessTool):
                 self, "Could not export masks.", "Could not export masks - there is not data loaded.", icon="error"
             )
             return False, None
-        # get the image(s) with identity transform
+        # get the image(s) with identity transform - this is the image to which the GeoJSON mask is to be transformed
+        # from and therefore is the 'original' image shape from which to warp from.
         mask_shape = None
         for _, reader in wrapper.data.items():
             if reader.reader_type == "image" and reader.is_identity_transform():
@@ -111,8 +115,13 @@ class MasksDialog(QtFramelessTool):
                 icon="error",
             )
             return False, None
+        # retrieve the masks and images
         masks: list[str] = [
             self.table_geo.get_value(self.TABLE_GEO_CONFIG.key, index) for index in self.table_geo.get_all_checked()
+        ]
+        display_names: list[str] = [
+            self.table_geo.get_value(self.TABLE_GEO_CONFIG.display_name, index)
+            for index in self.table_geo.get_all_checked()
         ]
         images: list[str] = [
             self.table_image.get_value(self.TABLE_IMAGE_CONFIG.key, index)
@@ -124,12 +133,13 @@ class MasksDialog(QtFramelessTool):
         if not images:
             hp.toast(self, "Could not export masks.", "Could not export masks - no images selected.", icon="error")
             return False, None
-        return True, (data_model, masks, images, mask_shape)
+        return True, (data_model, masks, display_names, images, mask_shape)
 
     @staticmethod
     def _on_transform_mask(
         mask_shape: tuple[int, int],
         masks: list[str],
+        display_names: list[str],
         images: list[str],
         data_model: DataModel,
     ) -> ty.Generator[tuple[GeoJSONReader, BaseReader, np.ndarray, np.ndarray, str, dict, int, int], None, None]:
@@ -141,7 +151,8 @@ class MasksDialog(QtFramelessTool):
                 raise ValueError(f"Could not find mask reader for '{mask_key}'")
             mask = mask_reader.to_mask(mask_shape)
             mask_indexed = mask_reader.to_mask(mask_shape, with_index=True)
-            display_name, shapes = mask_reader.to_shapes()
+            _, shapes = mask_reader.to_shapes()
+            display_name = display_names[index - 1]
             for image_key in images:
                 image_reader = data_model.get_reader_for_key(image_key)
                 if not image_reader:
@@ -163,6 +174,7 @@ class MasksDialog(QtFramelessTool):
         self,
         mask_shape: tuple[int, int],
         masks: list[str],
+        display_names: list[str],
         images: list[str],
         data_model: DataModel,
         output_dir: Path,
@@ -181,8 +193,8 @@ class MasksDialog(QtFramelessTool):
             shapes,
             current,
             total,
-        ) in self._on_transform_mask(mask_shape, masks, images, data_model):
-            name = mask_reader.path.stem
+        ) in self._on_transform_mask(mask_shape, masks, display_names, images, data_model):
+            name = display_name or mask_reader.path.stem
             output_dir = Path(output_dir)
             output_path = output_dir / f"{name}_ds={image_reader.path.stem}.h5"
             logger.debug(f"Exporting mask to '{output_path}'")
@@ -212,7 +224,7 @@ class MasksDialog(QtFramelessTool):
         if not valid or data is None:
             return
         # export masks
-        data_model, masks, images, mask_shape = data
+        data_model, masks, display_names, images, mask_shape = data
         output_dir_ = hp.get_directory(self, "Select output directory", base_dir=CONFIG.output_dir)
         if output_dir_:
             output_dir = Path(output_dir_)
@@ -220,6 +232,7 @@ class MasksDialog(QtFramelessTool):
                 self._on_export_run,
                 mask_shape=mask_shape,
                 masks=masks,
+                display_names=display_names,
                 images=images,
                 data_model=data_model,
                 output_dir=output_dir,
@@ -240,12 +253,13 @@ class MasksDialog(QtFramelessTool):
         if not valid or data is None:
             return
         # export masks
-        data_model, masks, images, mask_shape = data
+        data_model, masks, display_names, images, mask_shape = data
         logger.debug(f"Exporting {len(masks)} masks for {len(images)} images with {mask_shape} shape.")
         self.worker_preview = create_worker(
             self._on_transform_mask,
             mask_shape=mask_shape,
             masks=masks,
+            display_names=display_names,
             images=images,
             data_model=data_model,
             _connect={
@@ -263,12 +277,12 @@ class MasksDialog(QtFramelessTool):
     @ensure_main_thread()
     def _on_preview(self, res) -> None:
         """Preview."""
-        mask_reader, image_reader, transformed_mask, _, _, _, current, total = res
+        mask_reader, image_reader, transformed_mask, _, display_name, _, current, total = res
         parent: ImageViewerWindow = self.parent()  # type: ignore[assignment]
         transform = image_reader.transform
         parent.view.add_image(
             transformed_mask,
-            name=f"{mask_reader.name} | {image_reader.name}",
+            name=f"{display_name} - {mask_reader.name} | {image_reader.name}",
             colormap="red",
             affine=transform,
             scale=image_reader.scale,
