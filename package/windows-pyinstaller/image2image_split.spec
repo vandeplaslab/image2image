@@ -86,7 +86,7 @@ def _make_analysis(path: str):
             "../_runtimehooks/hook-bundle.py",
             "../_runtimehooks/hook-multiprocessing.py",
         ],
-        excludes=[] + ["tcl", "Tkconstants", "Tkinter"],
+        excludes=["tcl", "Tkconstants", "Tkinter"],
         cipher=block_cipher,
     )
 
@@ -118,21 +118,6 @@ with MeasureTimer() as timer:
 
     launcher_exe = _make_exe(launcher_pyz, launcher_analysis, "image2image")
     print(f"EXE took {timer.format(timer.elapsed_since_last())}")
-    # # viewer app
-    # viewer_analysis = _make_analysis("../../src/image2image/__main_viewer__.py")
-    # viewer_exe = _make_exe(PYZ(viewer_analysis.pure), viewer_analysis, "image2viewer")
-    # # register app
-    # register_analysis = _make_analysis("../../src/image2image/__main_register__.py")
-    # register_exe = _make_exe(PYZ(register_analysis.pure), register_analysis, "image2register")
-    # # crop app
-    # crop_analysis = _make_analysis("../../src/image2image/__main_crop__.py")
-    # crop_exe = _make_exe(PYZ(crop_analysis.pure), crop_analysis, "image2crop")
-    # # convert app
-    # convert_analysis = _make_analysis("../../src/image2image/__main_convert__.py")
-    # convert_exe = _make_exe(PYZ(convert_analysis.pure), convert_analysis, "czi2tiff")
-    # # fusion app
-    # fusion_analysis = _make_analysis("../../src/image2image/__main_fusion.py")
-    # fusion_exe = _make_exe(PYZ(fusion_analysis.pure), fusion_analysis, "image2fusion")
 
     # collect all
     image2image_coll = COLLECT(
@@ -141,31 +126,6 @@ with MeasureTimer() as timer:
         launcher_analysis.binaries,
         launcher_analysis.zipfiles,
         launcher_analysis.datas,
-        # # viewer
-        # viewer_exe,
-        # viewer_analysis.binaries,
-        # viewer_analysis.zipfiles,
-        # viewer_analysis.datas,
-        # # register
-        # register_exe,
-        # register_analysis.binaries,
-        # register_analysis.zipfiles,
-        # register_analysis.datas,
-        # # crop
-        # crop_exe,
-        # crop_analysis.binaries,
-        # crop_analysis.zipfiles,
-        # crop_analysis.datas,
-        # # convert
-        # convert_exe,
-        # convert_analysis.binaries,
-        # convert_analysis.zipfiles,
-        # convert_analysis.datas,
-        # # fusion
-        # fusion_exe,
-        # fusion_analysis.binaries,
-        # fusion_analysis.zipfiles,
-        # fusion_analysis.datas,
         strip=False,
         debug="all",
         upx=True,
