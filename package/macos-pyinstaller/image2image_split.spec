@@ -73,7 +73,6 @@ def _make_exe(pyz: PYZ, analysis: Analysis, name: str):
         debug="all",
         strip=False,
         upx=True,
-        # console=True,
         console=False,
         windowed=True,
         bootloader_ignore_signals=False,

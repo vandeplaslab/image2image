@@ -14,8 +14,6 @@ echo "Signed app"
 
 # remove existing file
 mkdir -p dist/dmg
-# remove existing file
-mkdir -p dist/dmg
 rm -r dist/dmg/*
 
 # create dmg file that user can drag the App.app to Applications using hdiutil

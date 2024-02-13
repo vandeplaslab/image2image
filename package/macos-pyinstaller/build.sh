@@ -88,6 +88,10 @@ then
     local_install+=("koyo")
     local_install+=("image2image")
     local_install+=("image2image-io")
+
+    to_install+=("napari==0.4.18")
+    to_install+=("PyQt6==6.5.3")
+    to_install+=("pyinstaller")
 fi
 
 if $update_app
@@ -116,12 +120,13 @@ do
     cd $start_dir
 done
 
-if $update
-then
-  pip install -U napari==0.4.18
-  pip install -U PyQt6==6.5.3
-  pip install -U pyinstaller
-fi
+# iterate over the list
+for pkg in "${to_install[@]}"
+do
+    echo "Installing package: " $pkg
+    pip install -U $pkg
+    echo "Installed package: " $pkg
+done
 
 # Get path
 filename="image2image_split.spec"
