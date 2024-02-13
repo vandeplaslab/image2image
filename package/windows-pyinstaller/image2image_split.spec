@@ -76,8 +76,6 @@ def _make_analysis(path: str):
             "freetype",
             "magicgui.backends._qtpy",
             "imzy",
-            "rasterio",
-            "rasterio.sample",
         ],
         hookspath=[
             "../_hooks",

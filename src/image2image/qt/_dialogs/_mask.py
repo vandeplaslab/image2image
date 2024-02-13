@@ -12,6 +12,7 @@ from qtextra import helpers as hp
 from qtextra.utils.table_config import TableConfig
 from qtextra.widgets.qt_dialog import QtFramelessTool
 from qtextra.widgets.qt_table_view import QtCheckableTableView
+from qtpy.QtCore import Qt
 from qtpy.QtWidgets import QFormLayout
 from superqt.utils import GeneratorWorker, create_worker, ensure_main_thread
 
@@ -37,6 +38,7 @@ class MasksDialog(QtFramelessTool):
         TableConfig()  # type: ignore[no-untyped-call]
         .add("", "check", "bool", 25, no_sort=True, sizing="fixed")
         .add("name", "name", "str", 100)
+        .add("display name", "display_name", "str", 100)
         .add("path", "path", "str", 0, hidden=True)
         .add("key", "key", "str", 0, hidden=True)
     )
@@ -74,11 +76,14 @@ class MasksDialog(QtFramelessTool):
                     images.append([False, reader.name, f"{shape[0]} * {shape[1]}", reader.path, reader.key])
                 if reader.reader_type == "shapes":
                     if not reader.is_identity_transform():
-                        logger.warning(
+                        hp.toast(
+                            self,
+                            "Incompatible mask transform",
                             f"For the time being, only masks with '{DEFAULT_TRANSFORM_NAME}' transform are compatible."
+                            f" If this is an issue, please get in touch to discuss further.",
                         )
                         continue
-                    masks.append([True, reader.name, reader.path, reader.key])
+                    masks.append([True, reader.name, reader.display_name, reader.path, reader.key])
         logger.debug(f"Discovered {len(images)} images and {len(masks)} masks.")
         # update table
         self.table_geo.reset_data()
@@ -95,7 +100,8 @@ class MasksDialog(QtFramelessTool):
                 self, "Could not export masks.", "Could not export masks - there is not data loaded.", icon="error"
             )
             return False, None
-        # get the image(s) with identity transform
+        # get the image(s) with identity transform - this is the image to which the GeoJSON mask is to be transformed
+        # from and therefore is the 'original' image shape from which to warp from.
         mask_shape = None
         for _, reader in wrapper.data.items():
             if reader.reader_type == "image" and reader.is_identity_transform():
@@ -109,8 +115,13 @@ class MasksDialog(QtFramelessTool):
                 icon="error",
             )
             return False, None
+        # retrieve the masks and images
         masks: list[str] = [
             self.table_geo.get_value(self.TABLE_GEO_CONFIG.key, index) for index in self.table_geo.get_all_checked()
+        ]
+        display_names: list[str] = [
+            self.table_geo.get_value(self.TABLE_GEO_CONFIG.display_name, index)
+            for index in self.table_geo.get_all_checked()
         ]
         images: list[str] = [
             self.table_image.get_value(self.TABLE_IMAGE_CONFIG.key, index)
@@ -122,12 +133,13 @@ class MasksDialog(QtFramelessTool):
         if not images:
             hp.toast(self, "Could not export masks.", "Could not export masks - no images selected.", icon="error")
             return False, None
-        return True, (data_model, masks, images, mask_shape)
+        return True, (data_model, masks, display_names, images, mask_shape)
 
     @staticmethod
     def _on_transform_mask(
         mask_shape: tuple[int, int],
         masks: list[str],
+        display_names: list[str],
         images: list[str],
         data_model: DataModel,
     ) -> ty.Generator[tuple[GeoJSONReader, BaseReader, np.ndarray, np.ndarray, str, dict, int, int], None, None]:
@@ -139,7 +151,8 @@ class MasksDialog(QtFramelessTool):
                 raise ValueError(f"Could not find mask reader for '{mask_key}'")
             mask = mask_reader.to_mask(mask_shape)
             mask_indexed = mask_reader.to_mask(mask_shape, with_index=True)
-            display_name, shapes = mask_reader.to_shapes()
+            _, shapes = mask_reader.to_shapes()
+            display_name = display_names[index - 1]
             for image_key in images:
                 image_reader = data_model.get_reader_for_key(image_key)
                 if not image_reader:
@@ -161,6 +174,7 @@ class MasksDialog(QtFramelessTool):
         self,
         mask_shape: tuple[int, int],
         masks: list[str],
+        display_names: list[str],
         images: list[str],
         data_model: DataModel,
         output_dir: Path,
@@ -179,10 +193,10 @@ class MasksDialog(QtFramelessTool):
             shapes,
             current,
             total,
-        ) in self._on_transform_mask(mask_shape, masks, images, data_model):
-            name = mask_reader.path.stem
+        ) in self._on_transform_mask(mask_shape, masks, display_names, images, data_model):
+            name = display_name or mask_reader.path.stem
             output_dir = Path(output_dir)
-            output_path = output_dir / f"{name}-{image_reader.path.stem}.h5"
+            output_path = output_dir / f"{name}_ds={image_reader.path.stem}.h5"
             logger.debug(f"Exporting mask to '{output_path}'")
             write_masks(
                 output_path,
@@ -210,7 +224,7 @@ class MasksDialog(QtFramelessTool):
         if not valid or data is None:
             return
         # export masks
-        data_model, masks, images, mask_shape = data
+        data_model, masks, display_names, images, mask_shape = data
         output_dir_ = hp.get_directory(self, "Select output directory", base_dir=CONFIG.output_dir)
         if output_dir_:
             output_dir = Path(output_dir_)
@@ -218,6 +232,7 @@ class MasksDialog(QtFramelessTool):
                 self._on_export_run,
                 mask_shape=mask_shape,
                 masks=masks,
+                display_names=display_names,
                 images=images,
                 data_model=data_model,
                 output_dir=output_dir,
@@ -238,12 +253,13 @@ class MasksDialog(QtFramelessTool):
         if not valid or data is None:
             return
         # export masks
-        data_model, masks, images, mask_shape = data
+        data_model, masks, display_names, images, mask_shape = data
         logger.debug(f"Exporting {len(masks)} masks for {len(images)} images with {mask_shape} shape.")
         self.worker_preview = create_worker(
             self._on_transform_mask,
             mask_shape=mask_shape,
             masks=masks,
+            display_names=display_names,
             images=images,
             data_model=data_model,
             _connect={
@@ -261,12 +277,12 @@ class MasksDialog(QtFramelessTool):
     @ensure_main_thread()
     def _on_preview(self, res) -> None:
         """Preview."""
-        mask_reader, image_reader, transformed_mask, _, _, _, current, total = res
+        mask_reader, image_reader, transformed_mask, _, display_name, _, current, total = res
         parent: ImageViewerWindow = self.parent()  # type: ignore[assignment]
         transform = image_reader.transform
         parent.view.add_image(
             transformed_mask,
-            name=f"{mask_reader.name} | {image_reader.name}",
+            name=f"{display_name} - {mask_reader.name} | {image_reader.name}",
             colormap="red",
             affine=transform,
             scale=image_reader.scale,
@@ -305,6 +321,15 @@ class MasksDialog(QtFramelessTool):
         hp.toast(self, "Failed", f"Failed export or preview: {exc}", icon="error")
         log_exception_or_error(exc)
 
+    def on_select(self, row: int) -> None:
+        """Select channels."""
+        display_name = self.table_geo.get_value(self.TABLE_GEO_CONFIG.display_name, row)
+
+        new_display_name = hp.get_text(self, "Enter new display name", "Display name", display_name)
+        if not new_display_name or display_name == new_display_name:
+            return
+        self.table_geo.set_value(self.TABLE_GEO_CONFIG.display_name, row, new_display_name)
+
     # noinspection PyAttributeOutsideInit
     def make_panel(self) -> QFormLayout:
         """Make panel."""
@@ -320,6 +345,7 @@ class MasksDialog(QtFramelessTool):
             self.TABLE_GEO_CONFIG.no_sort_columns,
             self.TABLE_GEO_CONFIG.hidden_columns,
         )
+        self.table_geo.doubleClicked.connect(lambda index: self.on_select(index.row()))
 
         self.table_image = QtCheckableTableView(
             self, config=self.TABLE_IMAGE_CONFIG, enable_all_check=False, sortable=False
@@ -353,6 +379,16 @@ class MasksDialog(QtFramelessTool):
         layout.addRow(header_layout)
         layout.addRow(hp.make_h_line_with_text("Masks to export."))
         layout.addRow(self.table_geo)
+        layout.addRow(
+            hp.make_label(
+                self,
+                "<b>Tip.</b> You can double-click on the 'display name' column value to change how the mask will be"
+                " named.",
+                alignment=Qt.AlignmentFlag.AlignHCenter,
+                object_name="tip_label",
+                enable_url=True,
+            )
+        )
         layout.addRow(hp.make_h_line_with_text("Images to export masks for."))
         layout.addRow(self.table_image)
         layout.addRow(hp.make_h_line_with_text("Export"))

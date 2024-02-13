@@ -660,7 +660,7 @@ def crop_regions(
     data_model: DataModel, output_dir: Path, regions: list[tuple[int, int, int, int]]
 ) -> ty.Generator[tuple[Path, int, int], None, None]:
     """Crop images."""
-    from image2image_io._writer import write_ome_tiff_from_array
+    from image2image_io.writers import write_ome_tiff_from_array
 
     n = len(regions)
     for current, (left, right, top, bottom) in enumerate(regions, start=1):

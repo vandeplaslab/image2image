@@ -11,7 +11,7 @@ from loguru import logger
 from qtextra.utils.table_config import TableConfig
 from qtextra.utils.utilities import connect
 from qtextra.widgets.qt_close_window import QtConfirmCloseDialog
-from qtpy.QtCore import QModelIndex, Qt
+from qtpy.QtCore import Qt
 from qtpy.QtWidgets import QDialog, QHeaderView, QMenuBar, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget
 from superqt import ensure_main_thread
 from superqt.utils import GeneratorWorker, create_worker
@@ -53,7 +53,7 @@ class ImageConvertWindow(Window):
     TABLE_CONFIG = (
         TableConfig()  # type: ignore[no-untyped-call]
         .add("name", "name", "str", 0)
-        .add("scenes & channels", "scenes", "int", 0)
+        .add("scenes & channels", "metadata", "str", 0)
         .add("progress", "progress", "str", 0)
     )
 
@@ -132,7 +132,7 @@ class ImageConvertWindow(Window):
 
                 table_item = QTableWidgetItem("")
                 table_item.setFlags(table_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
-                self.table.setItem(index, self.TABLE_CONFIG.scenes, table_item)
+                self.table.setItem(index, self.TABLE_CONFIG.metadata, table_item)
 
                 table_item = QTableWidgetItem("Ready!")
                 table_item.setFlags(table_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
@@ -150,10 +150,6 @@ class ImageConvertWindow(Window):
                             "channel_names": reader_.channel_names,
                         }
         self.on_update_reader_metadata()
-
-    def on_table_double_click(self, index: QModelIndex) -> None:
-        """Double-clicked on table row."""
-        self.on_select(index.row())
 
     def on_select(self, row: int) -> None:
         """Select channels."""
@@ -173,15 +169,17 @@ class ImageConvertWindow(Window):
         for path, reader_metadata in self.reader_metadata.items():
             key = path.name
             row = hp.find_in_table(self.table, self.TABLE_CONFIG.name, key)
+            if row is None:
+                continue
             metadata = []
             for scene_index, scene_metadata in reader_metadata.items():
                 channel_ids = [x for x, keep in zip(scene_metadata["channel_ids"], scene_metadata["keep"]) if keep]
                 metadata.append(f"{scene_index}: {channel_ids}")
-            self.table.item(row, self.TABLE_CONFIG.scenes).setText("\n".join(metadata))
+            self.table.item(row, self.TABLE_CONFIG.metadata).setText("\n".join(metadata))
 
     def on_convert(self):
         """Process data."""
-        from image2image_io._writer import czis_to_ome_tiff
+        from image2image_io.writers import czis_to_ome_tiff
 
         if self.output_dir is None:
             hp.warn(self, "No output directory was selected. Please select directory where to save data.")
@@ -295,18 +293,18 @@ class ImageConvertWindow(Window):
         )
         self._image_widget.info_text.setVisible(False)
 
-        columns = ["name", "scenes & channels", "progress"]
+        columns = self.TABLE_CONFIG.to_columns()
         self.table = QTableWidget(self)
         self.table.setColumnCount(len(columns))  # name, scenes, progress, key
         self.table.setHorizontalHeaderLabels(columns)
         self.table.setCornerButtonEnabled(False)
-        # self.table.setTextElideMode(Qt.TextElideMode.ElideLeft)
+        self.table.setTextElideMode(Qt.TextElideMode.ElideLeft)
         self.table.setWordWrap(True)
-        self.table.doubleClicked.connect(self.on_table_double_click)
+        self.table.doubleClicked.connect(lambda index: self.on_select(index.row()))
 
         horizontal_header = self.table.horizontalHeader()
         horizontal_header.setSectionResizeMode(self.TABLE_CONFIG.name, QHeaderView.ResizeMode.Stretch)
-        horizontal_header.setSectionResizeMode(self.TABLE_CONFIG.scenes, QHeaderView.ResizeMode.ResizeToContents)
+        horizontal_header.setSectionResizeMode(self.TABLE_CONFIG.metadata, QHeaderView.ResizeMode.ResizeToContents)
         horizontal_header.setSectionResizeMode(self.TABLE_CONFIG.progress, QHeaderView.ResizeMode.ResizeToContents)
         vertical_header = self.table.verticalHeader()
         vertical_header.setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)

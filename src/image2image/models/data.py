@@ -3,9 +3,9 @@ import typing as ty
 from pathlib import Path
 
 import numpy as np
-from image2image_io._reader import get_alternative_path, sanitize_path, sanitize_read_path
-from image2image_io.wrapper import ImageWrapper
+from image2image_io.readers import get_alternative_path, sanitize_path, sanitize_read_path
 from image2image_io.readers._base_reader import BaseReader
+from image2image_io.wrapper import ImageWrapper
 from koyo.timer import MeasureTimer
 from koyo.typing import PathLike
 from loguru import logger
@@ -146,7 +146,7 @@ class DataModel(BaseModel):
         paths: ty.Union[PathLike, ty.Sequence[PathLike]] = None,
     ) -> ty.Optional["ImageWrapper"]:
         """Read data from file."""
-        from image2image_io._reader import read_data
+        from image2image_io.readers import read_data
 
         transform_data = transform_data or {}
         resolution = resolution or {}

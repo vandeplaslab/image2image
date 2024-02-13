@@ -1,13 +1,10 @@
 """Rename channels."""
-import typing as ty
-from contextlib import contextmanager
-
 from loguru import logger
 from qtextra import helpers as hp
 from qtextra.utils.table_config import TableConfig
 from qtextra.widgets.qt_dialog import QtFramelessTool
 from qtextra.widgets.qt_table_view import FilterProxyModel, QtCheckableTableView
-from qtpy.QtCore import Qt, Signal  # type: ignore[attr-defined]
+from qtpy.QtCore import Signal  # type: ignore[attr-defined]
 from qtpy.QtWidgets import QFormLayout, QWidget
 
 from image2image.config import STATE
