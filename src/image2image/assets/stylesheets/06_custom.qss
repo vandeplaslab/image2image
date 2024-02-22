@@ -73,3 +73,7 @@ QtPushButton#extract_btn {
     margin: 4px 4px 4px 4px;
     border: 2px solid {{ highlight }};
 }
+
+QtImagePushButton[wide_border"true"] {
+    background-color: {{ success }};
+}

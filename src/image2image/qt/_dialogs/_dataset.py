@@ -282,7 +282,30 @@ class ExtractChannelsDialog(QtDialog):
         self.mzs = None
         self.ppm = None
 
-    def on_accept(self):
+    def on_open_peaklist(self) -> None:
+        """Open peaklist."""
+        import pandas as pd
+
+        path = hp.get_filename(
+            self,
+            title="Select peak list...",
+            base_dir=CONFIG.fixed_dir,
+            file_filter="CSV files (*.csv);;",
+            multiple=False,
+        )
+        if path:
+            df = pd.read_csv(path, sep=",")
+            if "mz" in df.columns:
+                mzs = df.mz.values
+            elif "m/z" in df.columns:
+                mzs = df["m/z"].values
+            else:
+                hp.warn(self, "The file does not contain a column named 'mz' or 'm/z'.")
+                return
+            data = [[True, mz] for mz in mzs]
+            self.table.add_data(data)
+
+    def on_accept(self) -> None:
         """Accept."""
         n = len(self.mzs)
         if n > 0 and hp.confirm(self, "Would you like to extract <b>{n}</b> ion images?"):
@@ -347,6 +370,7 @@ class ExtractChannelsDialog(QtDialog):
         )
         layout.addRow(
             hp.make_h_layout(
+                hp.make_btn(self, "Open peaklist", func=self.on_open_peaklist),
                 hp.make_btn(self, "Extract", func=self.on_accept),
                 hp.make_btn(self, "Cancel", func=self.reject),
             )

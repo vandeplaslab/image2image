@@ -8,21 +8,25 @@
 
 update=false
 update_app=false
-just_app=false
-just_reader=false
+update_deps=false
+update_just_reader=false
+update_just_app=false
 no_docs=true
-execute=false
 help=false
+uv=false
+package=false
 
-while getopts uajrneh opt; do
+while getopts uadjrnrvhp opt; do
   case $opt in
     u) update=true;;
     a) update_app=true;;
-    j) just_app=true;;
-    r) just_reader=true;;
+    d) update_deps=true;;
+    r) update_just_reader=true;;
+    j) update_just_app=true;;
     n) no_docs=true;;
-    e) execute=true;;
     h) help=true;;
+    v) uv=true;;
+    p) package=true;;
     *) echo "Invalid option: -$OPTARG" >&2
        exit 1;;
   esac
@@ -31,9 +35,12 @@ done
 echo "Building macOS pyinstaller package..."
 echo "update: $update"
 echo "update_app: $update_app"
-echo "just_app: $just_app"
+echo "update_deps: $update_deps"
+echo "update_just_reader: $update_just_reader"
+echo "update_just_app: $update_just_app"
 echo "no_docs: $no_docs"
-echo "execute: $execute"
+echo "uv: $uv"
+echo "package: $package"
 echo "help: $help"
 
 
@@ -41,14 +48,15 @@ shift "$(( OPTIND - 1 ))"
 
 if $help
 then
-  echo "Usage: ./build.sh [-update] [-update_app] [-no_docs] [-execute] [-help]"
-  echo "  -u: update the i2i package before building"
-  echo "  -a: update the i2i package to a specific commit before building"
-  echo "  -j: update the image2image package only"
-  echo "  -r: update the image2image-io package only"
-  echo "  -n: do not build the documentation"
-  echo "  -e: execute the package after building"
-  echo "  -h: show this help message"
+  echo "Usage: ./build.sh [-update] [-update_app] [-no_docs] [-uv] [-run] [-help]"
+  echo "  -u / update: update the i2i package before building"
+  echo "  -a / update_app: update the i2i package to a specific commit before building"
+  echo "  -r / update_just_reader: update the i2i-io package to a specific commit before building"
+  echo "  -j / update_just_app: update the i2i package to a specific commit before building"
+  echo "  -n / no_docs: do not build the documentation"
+  echo "  -v / uv: use uv for updates"
+  echo "  -p / package: package the application"
+  echo "  -h / help: show this help message"
   exit 0
 fi
 
@@ -68,7 +76,12 @@ start_dir=$PWD
 echo "Current directory: " $start_dir
 github_dir=$(realpath $start_dir/../../../)
 echo "GitHub directory: " $github_dir
-source_path=$(realpath $start_dir/../../venv_package/bin/activate)
+if $uv
+then
+  source_path=$(realpath $start_dir/../../venv_package_uv/bin/activate)
+else
+  source_path=$(realpath $start_dir/../../venv_package/bin/activate)
+fi
 echo "Source path: " $source_path
 
 # activate appropriate environment
@@ -80,7 +93,7 @@ echo "Python version "$python_ver
 echo "Python path: " $(which python)
 
 declare -a local_install=()
-declare -a to_install=()
+declare -a pip_install=()
 
 if $update
 then
@@ -89,9 +102,9 @@ then
     local_install+=("image2image")
     local_install+=("image2image-io")
 
-    to_install+=("napari==0.4.18")
-    to_install+=("PyQt6==6.5.3")
-    to_install+=("pyinstaller")
+    pip_install+=("napari==0.4.18")
+    pip_install+=("PyQt6==6.5.3")
+    pip_install+=("pyinstaller")
 fi
 
 if $update_app
@@ -100,12 +113,12 @@ then
     local_install+=("image2image")
 fi
 
-if $just_reader
+if $update_just_reader
 then
     local_install+=("image2image-io")
 fi
 
-if $just_app
+if $update_just_app
 then
     local_install+=("image2image")
 fi
@@ -115,23 +128,41 @@ for pkg in "${local_install[@]}"
 do
     echo "Installing package: " $pkg
     cd $(realpath $github_dir/$pkg) || exit 1
-    pip install -U .
+    if $uv
+    then
+      uv pip install -U "$pkg @ ."
+    else
+      pip install -U .
+    fi
     echo "Installed package: " $pkg
     cd $start_dir
 done
 
 # iterate over the list
-for pkg in "${to_install[@]}"
+for pkg in "${pip_install[@]}"
 do
     echo "Installing package: " $pkg
-    pip install -U $pkg
+    if $uv
+    then
+      uv pip uninstall $pkg
+      uv pip install -U $pkg
+    else
+      pip install -U $pkg
+    fi
     echo "Installed package: " $pkg
 done
 
 # Get path
-filename="image2image_split.spec"
+filename="image2image.spec"
 
 
 # Build bundle
 echo "Building bundle... filename=$filename"
 pyinstaller --noconfirm --clean $filename
+
+if $package
+then
+  echo "Packaging application..."
+  sh ./package.sh
+  echo "Packaging complete."
+fi

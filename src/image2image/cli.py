@@ -2,8 +2,14 @@
 import typing as ty
 
 import click
+from koyo.system import IS_MAC, IS_MAC_ARM, IS_PYINSTALLER
 
 from image2image import __version__
+
+if IS_MAC_ARM and IS_PYINSTALLER:
+    AVAILABLE_TOOLS = ty.Literal["launcher", "register", "viewer", "crop", "fusion"]  # type: ignore
+else:
+    AVAILABLE_TOOLS = ty.Literal["launcher", "register", "viewer", "crop", "fusion", "convert"]  # type: ignore
 
 
 def dev_options(func):
@@ -52,7 +58,7 @@ def dev_options(func):
 @click.pass_context
 def cli(
     ctx: click.Context,
-    tool: ty.Literal["launcher", "register", "viewer", "crop", "fusion", "convert"],
+    tool: AVAILABLE_TOOLS,
     verbosity: float,
     no_color: bool,
     dev: bool = False,
@@ -71,16 +77,13 @@ def cli(
     """
     import os
 
-    from koyo.system import IS_MAC
-    from koyo.utilities import running_as_pyinstaller_app
-
     from image2image.main import run
 
     if IS_MAC:
         os.environ["OBJC_DISABLE_INITIALIZE_FORK_SAFETY"] = "YES"
 
     if dev:
-        if running_as_pyinstaller_app():
+        if IS_PYINSTALLER:
             click.echo("Developer mode is disabled in bundled app.")
             dev = False
         else:
