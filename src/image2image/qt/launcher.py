@@ -78,7 +78,6 @@ class Launcher(QtDialog):
         )
         # convert app
         btn = hp.make_qta_btn(self, "change", tooltip="Open czi2tiff application.", func=self.on_convert)
-        hp.disable_widgets(btn, disabled=IS_PYINSTALLER and IS_MAC_ARM)
         btn.set_xxlarge()
         layout.addLayout(
             hp.make_h_layout(
@@ -121,6 +120,13 @@ class Launcher(QtDialog):
     @staticmethod
     def on_convert():
         """Open registration application."""
+        if IS_PYINSTALLER and IS_MAC_ARM:
+            hp.warn(
+                "Not available on Apple Silicon - there is a bug that I can't find nor fix - sorry!",
+                "App not available on this platform.",
+            )
+            return
+
         from image2image.qt.dialog_convert import ImageConvertWindow
 
         logger.debug("Opening czi2tiff application.")
