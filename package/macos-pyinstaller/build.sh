@@ -163,6 +163,11 @@ pyinstaller --noconfirm --clean $filename
 if $package
 then
   echo "Packaging application..."
-  sh ./package.sh
+  if $uv
+  then
+    sh ./package.sh -v
+  else
+    ./package.sh
+  fi
   echo "Packaging complete."
 fi

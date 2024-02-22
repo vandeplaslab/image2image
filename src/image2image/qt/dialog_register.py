@@ -363,7 +363,7 @@ class ImageRegistrationWindow(Window):
                         affine=initial_affine,
                     )
                 )
-            logger.trace(f"Added '{name}' to fixed view in {timer()}.")
+            logger.trace(f"Added '{name}' to fixed view with {initial_affine.flatten()} in {timer()}.")
         # hide away other layers if user selected 'random' view
         if READER_CONFIG.view_type == ViewType.RANDOM:
             for index, layer in enumerate(moving_image_layer):
