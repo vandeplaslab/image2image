@@ -5,6 +5,15 @@ import typing as ty
 
 from loguru import logger
 
+LOG_FMT = "[<level>{level: <8}</level>][{time:YYYY-MM-DD HH:mm:ss:SSS}][{extra[src]}] {message}"
+COLOR_LOG_FMT = (
+    "<green>[<level>{level: <8}</level>]</green>"
+    "<cyan>[{time:YYYY-MM-DD HH:mm:ss:SSS}]</cyan>"
+    "<red>[{process}]</red>"
+    "<blue>[{extra[src]}]</blue>"
+    " {message}"
+)
+
 
 def run(
     level: int = 10,
@@ -28,16 +37,35 @@ def run(
     from image2image.qt.event_loop import get_app
     from image2image.utils._appdirs import USER_LOG_DIR
 
+    # setup file logger
     log_path = USER_LOG_DIR / f"log_tool={tool}.txt"
-    set_loguru_log(log_path, level=level, no_color=True, diagnose=True, catch=True, logger=logger)
-    set_loguru_log(level=level, no_color=no_color, diagnose=True, catch=True, logger=logger, remove=False)
-    logger.enable("image2image")
-    logger.enable("image2image_io")
-    logger.enable("koyo")
+    set_loguru_log(
+        log_path,
+        level=level,
+        no_color=True,
+        diagnose=True,
+        catch=True,
+        logger=logger,
+        fmt=LOG_FMT,
+    )
+
+    # setup console logger
+    set_loguru_log(
+        level=level,
+        no_color=no_color,
+        diagnose=True,
+        catch=True,
+        logger=logger,
+        remove=False,
+        fmt=LOG_FMT if no_color else COLOR_LOG_FMT,
+    )
+    logger.configure(extra={"src": "CLI"})
+    [logger.enable(module) for module in ["image2image", "image2image_io", "koyo", "qtextra"]]
     logger.info(f"Enabled logger - logging to '{log_path}' at level={level}")
 
     if dev:
         install_debugger_hook()
+        logger.debug(f"Installed debugger hook: {sys.excepthook.__name__}")
     else:
         install_logger_hook()
 
@@ -53,8 +81,9 @@ def run(
     app = get_app()
 
     # install error monitor
-    install_error_monitor()
-    maybe_submit_segfault(USER_LOG_DIR)
+    if not dev:
+        install_error_monitor()
+        maybe_submit_segfault(USER_LOG_DIR)
     install_segfault_handler(USER_LOG_DIR)
 
     if tool == "launcher":
@@ -112,7 +141,7 @@ def run(
         # from qtextra.utils.dev import qdev
 
         logger.enable("qtextra")
-        logging.getLogger("qtreload").setLevel(logging.DEBUG)
+        logging.getLogger("qtreload").setLevel(level)
 
         dev_dlg = QDevPopup(dlg, modules=["qtextra", "image2image", "image2image_io", "image2image_wsireg", "koyo"])
         dev_dlg.qdev.evt_stylesheet.connect(lambda: THEMES.set_theme_stylesheet(dlg))

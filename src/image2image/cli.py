@@ -2,7 +2,6 @@
 import typing as ty
 
 import click
-from koyo.utilities import running_as_pyinstaller_app
 
 from image2image import __version__
 
@@ -52,12 +51,12 @@ def dev_options(func):
 )
 @click.pass_context
 def cli(
-    ctx,
+    ctx: click.Context,
     tool: ty.Literal["launcher", "register", "viewer", "crop", "fusion", "convert"],
     verbosity: float,
     no_color: bool,
     dev: bool = False,
-    extras=None,
+    extras: ty.Any = None,
 ):
     """Launch image2image app.
 
@@ -70,7 +69,15 @@ def cli(
     sync - opens dialog where you can sync images (not yet implemented)
     crop - opens dialog where you can crop images (not yet implemented)
     """
+    import os
+
+    from koyo.system import IS_MAC
+    from koyo.utilities import running_as_pyinstaller_app
+
     from image2image.main import run
+
+    if IS_MAC:
+        os.environ["OBJC_DISABLE_INITIALIZE_FORK_SAFETY"] = "YES"
 
     if dev:
         if running_as_pyinstaller_app():

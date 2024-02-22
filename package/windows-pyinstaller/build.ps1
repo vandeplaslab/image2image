@@ -1,7 +1,9 @@
 param (
+    [switch]$activate = $false,
     [switch]$update = $false,
     [switch]$update_app = $false,
-    [switch]$debug = $false,
+    [switch]$update_deps = $false,
+    [switch]$zip = $false,
     [switch]$run = $false,
     [switch]$help = $false
 )
@@ -10,10 +12,11 @@ if ($help) {
     Write-Output "Package app for Windows
 
     Output parameters:
+    -activate: Activate environment. Default=False
     -update: Update all modules. Default=False
     -update_app: Update all modules. Default=False
-    -debug: Add debugging statement. Default=False
-    -no_docs: Don't build documentation. Default=False
+    -update_deps: Update all dependencies. Default=False
+    -zip: Compress distribution. Default=False
     -run: Run application after it has been built.
     -help: Print this message.
     "
@@ -21,6 +24,9 @@ if ($help) {
 }
 # activate environment
 conda activate image2image_package
+if ($activate) {
+    Exit
+}
 
 $python_ver = &{python -V} 2>&1
 echo "Python version "$python_ver
@@ -30,87 +36,63 @@ echo "Current directory: " $start_dir.Path
 $github_dir = $start_dir | Split-Path | Split-Path | Split-Path
 echo "Github directory: " $github_dir
 
+[System.Collections.ArrayList]$local_install = @()
+[System.Collections.ArrayList]$pip_install = @()
+
+# update all dependencies and app
 if ($update) {
-    # Re-install qtextra
-    echo "Re-installing qtextra..."
-    $new_dir = Join-Path -Path $github_dir -ChildPath "qtextra" -Resolve
-    cd $new_dir
-    pip install .
-    echo "Reinstalled qtextra"
+    $local_install.Add("qtextra")
+    $local_install.Add("koyo")
+    $local_install.Add("image2image-io")
+    $local_install.Add("image2image")
 
-    # Re-install koyo
-    echo "Re-installing koyo..."
-    $new_dir = Join-Path -Path $github_dir -ChildPath "koyo" -Resolve
-    cd $new_dir
-    pip install .
-    echo "Reinstalled koyo"
-
-    # Re-install image2image
-    echo "Re-installing image2image-io..."
-    $new_dir = Join-Path $github_dir -ChildPath "image2image-io" -Resolve
-    cd $new_dir
-    pip install -U .
-    cd $start_dir
-    echo "Reinstalled image2image-io"
-
-    # Re-install image2image
-    echo "Re-installing image2image..."
-    $new_dir = Join-Path $github_dir -ChildPath "image2image" -Resolve
-    cd $new_dir
-    pip install -U .
-    cd $start_dir
-    echo "Reinstalled image2image"
-
-    # Re-install napari (latest)
-    echo "Re-installing napari..."
-    pip install -U napari==0.4.18
-    echo "Reinstalled napari"
-
-    # Re-install PySide2
-    echo "Re-installing PySide2..."
-    pip install -U pyside2
-    echo "Reinstalled PySide2"
-
-    # Re-install pyinstaller
-    echo "Re-installing pyinstaller..."
-    pip install -U pyinstaller
-    echo "Reinstalled pyinstaller"
+    $pip_install.Add("napari==0.4.18")
+    $pip_install.Add("pyside2")
+    $pip_install.Add("pyinstaller")
 }
 
-# only update ionglow
+# only update app
 if ($update_app) {
-    # Re-install image2image
-    echo "Re-installing image2image-io..."
-    $new_dir = Join-Path $github_dir -ChildPath "image2image-io" -Resolve
-    cd $new_dir
-    pip install -U .
-    cd $start_dir
-    echo "Reinstalled image2image-io"
+    $local_install.Add("image2image-io")
+    $local_install.Add("image2image")
+}
 
-    echo "Re-installing image2image..."
-    $new_dir = Join-Path -Path $github_dir -ChildPath "image2image" -Resolve
+# only update dependencies
+if ($update_deps) {
+    $local_install.Add("qtextra")
+    $local_install.Add("koyo")
+}
+
+# install local packages
+foreach ($package in $local_install) {
+    echo "Re-installing $package..."
+    $new_dir = Join-Path -Path $github_dir -ChildPath $package -Resolve
     cd $new_dir
-    pip install -U .
+    pip install .
     cd $start_dir
-    echo "Reinstalled image2image"
+    echo "Reinstalled $package"
+}
+# install pip packages
+foreach ($package in $pip_install) {
+    echo "Re-installing $package..."
+    pip install -U $package
+    echo "Reinstalled $package"
 }
 
 # Get path
-#$filename = "image2image.spec"
-$filename = "image2image_split.spec"
+$filename = "image2image.spec"
 
 # Build bundle
-Write-Output "Debugging: $debug; Filename: $filename"
-if ($debug) {
-    pyinstaller.exe --noconfirm --clean --debug=all $filename
-} else {
-    pyinstaller.exe --noconfirm --clean $filename
-}
-
+Write-Output "Filename: $filename"
+pyinstaller.exe --noconfirm --clean $filename
 conda deactivate image2image_package
 
 # Copy runner script
 Copy-Item -Path "run_image2image.bat" -Destination "dist/"
+
+if ($zip) {
+    Start-Process "zip.ps1"
+}
 
 if ($run) {
     cd dist
