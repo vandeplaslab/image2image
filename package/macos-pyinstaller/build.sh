@@ -12,20 +12,18 @@ update_deps=false
 update_just_reader=false
 update_just_app=false
 no_docs=true
-run=false
 help=false
 uv=false
 package=false
 
-while getopts uadjknrvhp opt; do
+while getopts uadjrnrvhp opt; do
   case $opt in
     u) update=true;;
     a) update_app=true;;
     d) update_deps=true;;
-    j) update_just_reader=true;;
-    k) update_just_app=true;;
+    r) update_just_reader=true;;
+    j) update_just_app=true;;
     n) no_docs=true;;
-    r) run=true;;
     h) help=true;;
     v) uv=true;;
     p) package=true;;
@@ -41,7 +39,6 @@ echo "update_deps: $update_deps"
 echo "update_just_reader: $update_just_reader"
 echo "update_just_app: $update_just_app"
 echo "no_docs: $no_docs"
-echo "run: $run"
 echo "uv: $uv"
 echo "package: $package"
 echo "help: $help"
@@ -52,15 +49,14 @@ shift "$(( OPTIND - 1 ))"
 if $help
 then
   echo "Usage: ./build.sh [-update] [-update_app] [-no_docs] [-uv] [-run] [-help]"
-  echo "  -update: update the i2i package before building"
-  echo "  -update_app: update the i2i package to a specific commit before building"
-  echo "  -update_just_reader: update the i2i-io package to a specific commit before building"
-  echo "  -update_just_app: update the i2i package to a specific commit before building"
-  echo "  -no_docs: do not build the documentation"
-  echo "  -run: run the package after building"
-  echo "  -uv: use uv for updates"
-  echo "  -package: package the application"
-  echo "  -help: show this help message"
+  echo "  -u / update: update the i2i package before building"
+  echo "  -a / update_app: update the i2i package to a specific commit before building"
+  echo "  -r / update_just_reader: update the i2i-io package to a specific commit before building"
+  echo "  -j / update_just_app: update the i2i package to a specific commit before building"
+  echo "  -n / no_docs: do not build the documentation"
+  echo "  -v / uv: use uv for updates"
+  echo "  -p / package: package the application"
+  echo "  -h / help: show this help message"
   exit 0
 fi
 

@@ -2,9 +2,15 @@
 import typing as ty
 
 import click
+from koyo.system import IS_MAC_ARM, IS_PYINSTALLER
 from koyo.utilities import running_as_pyinstaller_app
 
 from image2image import __version__
+
+if IS_MAC_ARM and IS_PYINSTALLER:
+    AVAILABLE_TOOLS = ty.Literal["launcher", "register", "viewer", "crop", "fusion"]  # type: ignore
+else:
+    AVAILABLE_TOOLS = ty.Literal["launcher", "register", "viewer", "crop", "fusion", "convert"]  # type: ignore
 
 
 def dev_options(func):
@@ -53,7 +59,7 @@ def dev_options(func):
 @click.pass_context
 def cli(
     ctx,
-    tool: ty.Literal["launcher", "register", "viewer", "crop", "fusion", "convert"],
+    tool: AVAILABLE_TOOLS,
     verbosity: float,
     no_color: bool,
     dev: bool = False,

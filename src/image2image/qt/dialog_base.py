@@ -336,7 +336,7 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
         self.feedback_btn = hp.make_qta_btn(
             self,
             "feedback",
-            tooltip="Refresh task list ahead of schedule.",
+            tooltip="Send feedback to the developers.",
             func=partial(send_feedback, parent=self),
             small=True,
         )
@@ -350,15 +350,6 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
         self.theme_btn.set_small()
         self.statusbar.addPermanentWidget(self.theme_btn)
 
-        self.statusbar.addPermanentWidget(
-            hp.make_qta_btn(
-                self,
-                "ipython",
-                tooltip="Open IPython console",
-                small=True,
-                func=self.on_show_console,
-            )
-        )
         self.shortcuts_btn = hp.make_qta_btn(
             self, "shortcut", tooltip="Show me shortcuts", func=self.on_show_shortcuts, small=True
         )
@@ -369,7 +360,15 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
             self, "help", tooltip="Give me a quick tutorial!", func=self.on_show_tutorial, small=True
         )
         self.statusbar.addPermanentWidget(self.tutorial_btn)
-
+        self.statusbar.addPermanentWidget(
+            hp.make_qta_btn(
+                self,
+                "ipython",
+                tooltip="Open IPython console",
+                small=True,
+                func=self.on_show_console,
+            )
+        )
         self.update_status_btn = hp.make_btn(
             self,
             "Update available - click here to download!",

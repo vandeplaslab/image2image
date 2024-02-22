@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import qtextra.helpers as hp
 from image2image_io.config import CONFIG as READER_CONFIG
+from koyo.system import IS_MAC_ARM, IS_PYINSTALLER
 from loguru import logger
 from qtextra.config import THEMES
 from qtextra.widgets.qt_dialog import QtDialog
@@ -13,12 +14,14 @@ from qtpy.QtWidgets import QVBoxLayout
 from image2image.config import CONFIG
 from image2image.utils._appdirs import USER_LOG_DIR
 
+# to add apps: volume viewer, sync viewer,
 REGISTER_TEXT = "<b>Registration App</b><br>Co-register your microscopy and imaging mass spectrometry data."
 VIEWER_TEXT = "<b>Viewer App</b><br>Overlay your microscopy and imaging mass spectrometry data."
 CROP_TEXT = "<b>Crop App</b><br>Crop your microscopy data to reduce it's size (handy for Image Fusion)."
+FUSION_APP = "<b>Fusion Preparation App</b><br>Export your data for Image Fusion in MATLAB compatible format."
 CONVERT_TEXT = "<b>CZI to OME-TIFF App</b><br>Convert your multi-scene CZI image to OME-TIFF."
-EXPORT_TEXT = "<b>Fusion Preparation App</b><br>Export your data for Image Fusion in MATLAB compatible format."
-# to add apps: volume viewer, sync viewer,
+if IS_PYINSTALLER and IS_MAC_ARM:
+    CONVERT_TEXT += "<br><br><i>Not available on Apple Silicon - a bug I can't find...</i>"
 
 
 class Launcher(QtDialog):
@@ -75,6 +78,7 @@ class Launcher(QtDialog):
         )
         # convert app
         btn = hp.make_qta_btn(self, "change", tooltip="Open czi2tiff application.", func=self.on_convert)
+        hp.disable_widgets(btn, disabled=IS_PYINSTALLER and IS_MAC_ARM)
         btn.set_xxlarge()
         layout.addLayout(
             hp.make_h_layout(
@@ -90,7 +94,7 @@ class Launcher(QtDialog):
         layout.addLayout(
             hp.make_h_layout(
                 btn,
-                hp.make_label(self, EXPORT_TEXT, alignment=Qt.AlignHCenter, wrap=True),  # type: ignore[attr-defined]
+                hp.make_label(self, FUSION_APP, alignment=Qt.AlignHCenter, wrap=True),  # type: ignore[attr-defined]
                 stretch_id=0,
                 alignment=Qt.AlignCenter,  # type: ignore[attr-defined]
             ),

@@ -113,6 +113,10 @@ class ImageViewerWindow(Window):
                 layer.affine = wrapper.get_affine(reader, reader.resolution)
                 logger.trace(f"Updated affine for '{name}' with resolution={reader.resolution}.")
 
+    def on_activate_scalebar(self) -> None:
+        """Activate scalebar."""
+        self.view.viewer.scale_bar.visible = not self.view.viewer.scale_bar.visible
+
     def on_show_scalebar(self) -> None:
         """Show scale bar controls for the viewer."""
         from image2image.qt._dialogs._scalebar import QtScaleBarControls
@@ -334,7 +338,8 @@ class ImageViewerWindow(Window):
             self,
             "ruler",
             tooltip="Show scalebar.",
-            func=self.on_show_scalebar,
+            func=self.on_activate_scalebar,
+            func_menu=self.on_show_scalebar,
             small=True,
         )
         self.statusbar.addPermanentWidget(self.scalebar_btn)
@@ -342,7 +347,7 @@ class ImageViewerWindow(Window):
         self.feedback_btn = hp.make_qta_btn(
             self,
             "feedback",
-            tooltip="Refresh task list ahead of schedule.",
+            tooltip="Send feedback to the developers.",
             func=partial(send_feedback, parent=self),
             small=True,
         )
@@ -354,8 +359,12 @@ class ImageViewerWindow(Window):
             self.theme_btn.dark = CONFIG.theme == "dark"
         self.theme_btn.clicked.connect(self.on_toggle_theme)
         self.theme_btn.set_small()
-
         self.statusbar.addPermanentWidget(self.theme_btn)
+
+        self.tutorial_btn = hp.make_qta_btn(
+            self, "help", tooltip="Give me a quick tutorial!", func=self.on_show_tutorial, small=True
+        )
+        self.statusbar.addPermanentWidget(self.tutorial_btn)
         self.statusbar.addPermanentWidget(
             hp.make_qta_btn(
                 self,
@@ -365,11 +374,6 @@ class ImageViewerWindow(Window):
                 func=self.on_show_console,
             )
         )
-        self.tutorial_btn = hp.make_qta_btn(
-            self, "help", tooltip="Give me a quick tutorial!", func=self.on_show_tutorial, small=True
-        )
-        self.statusbar.addPermanentWidget(self.tutorial_btn)
-
         self.update_status_btn = hp.make_btn(
             self,
             "Update available - click here to download!",
