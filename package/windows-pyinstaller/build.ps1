@@ -85,13 +85,20 @@ $filename = "image2image.spec"
 # Build bundle
 Write-Output "Filename: $filename"
 pyinstaller.exe --noconfirm --clean $filename
-conda deactivate image2image_package
 
 # Copy runner script
 Copy-Item -Path "run_image2image.bat" -Destination "dist/"
 
 if ($zip) {
-    Start-Process "zip.ps1"
+    echo "Zipping files..."
+    python zip.py
+    echo "Zipped files"
+}
+
+if ($run) {
+    cd dist
+    Start-Process "run_autoims.bat"
+    cd ../
 }
 
 if ($run) {
@@ -99,3 +106,4 @@ if ($run) {
     Start-Process "run_image2image.bat"
     cd ../
 }
+conda deactivate image2image_package
