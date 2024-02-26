@@ -136,8 +136,8 @@ do
     cd $(realpath $github_dir/$pkg) || exit 1
     if $uv
     then
-      uv pip uninstall $pkg
-      uv pip install -U "$pkg @ ."
+#      uv pip uninstall $pkg
+      uv pip install -U "$pkg @ ." --force-reinstall
     else
       pip install -U .
     fi

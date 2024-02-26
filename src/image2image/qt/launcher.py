@@ -122,6 +122,7 @@ class Launcher(QtDialog):
         """Open registration application."""
         if IS_PYINSTALLER and IS_MAC_ARM:
             hp.warn_pretty(
+                None,
                 "Not available on Apple Silicon - there is a bug that I can't find nor fix - sorry!",
                 "App not available on this platform.",
             )

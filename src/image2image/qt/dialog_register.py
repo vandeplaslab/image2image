@@ -542,7 +542,7 @@ class ImageRegistrationWindow(Window):
         if not is_valid:
             hp.warn_pretty(
                 self,
-                f"Cannot save transformations in this state. Reason<br><br><b>Reason</b><br>{reason}"
+                f"Cannot save transformations in this state.<br><br><b>Reason</b><br>{reason}"
                 f"<br><br><b>Please fix these issues and try again.</b>",
             )
             return
@@ -961,7 +961,9 @@ class ImageRegistrationWindow(Window):
     def _setup_ui(self) -> None:
         """Create panel."""
         view_layout = self._make_image_layout()
+        # side_widget, scroll_widget = hp.make_scroll_area(self, horizontal=Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         side_widget = QWidget()
+        scroll_widget = side_widget
         side_widget.setMinimumWidth(375)
         side_widget.setMaximumWidth(375)
         self.import_project_btn = hp.make_btn(
@@ -1038,7 +1040,7 @@ class ImageRegistrationWindow(Window):
         layout.setSpacing(1)
         layout.addLayout(view_layout, stretch=True)
         layout.addWidget(hp.make_v_line())
-        layout.addWidget(side_widget)
+        layout.addWidget(scroll_widget)
 
         widget = QWidget()  # noqa
         self.setCentralWidget(widget)
