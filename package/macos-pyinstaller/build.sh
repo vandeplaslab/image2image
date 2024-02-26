@@ -136,7 +136,6 @@ do
     cd $(realpath $github_dir/$pkg) || exit 1
     if $uv
     then
-#      uv pip uninstall $pkg
       uv pip install -U "$pkg @ ." --force-reinstall
     else
       pip install -U .
@@ -177,7 +176,7 @@ then
   then
     sh ./package.sh -v
   else
-    ./package.sh
+    sh ./package.sh
   fi
   echo "Packaging complete."
 fi
