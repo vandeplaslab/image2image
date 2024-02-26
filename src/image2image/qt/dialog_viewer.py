@@ -151,7 +151,8 @@ class ImageViewerWindow(Window):
             try:
                 paths, paths_missing, transform_data, resolution = load_viewer_setup_from_file(path)
             except ValueError as e:
-                hp.warn(self, f"Failed to load transformation from {path}\n{e}", "Failed to load transformation")
+                hp.warn_pretty(self, f"Failed to load config from {path}\n{e}", "Failed to load config")
+                logger.exception(e)
                 return
 
             # locate paths that are missing

@@ -300,7 +300,7 @@ class ExtractChannelsDialog(QtDialog):
             elif "m/z" in df.columns:
                 mzs = df["m/z"].values
             else:
-                hp.warn(self, "The file does not contain a column named 'mz' or 'm/z'.")
+                hp.warn_pretty(self, "The file does not contain a column named 'mz' or 'm/z'.")
                 return
             data = [[True, mz] for mz in mzs]
             self.table.add_data(data)
@@ -540,7 +540,7 @@ class SelectDataDialog(QtFramelessTool):
 
                 if self.n_max and self.model.n_paths >= self.n_max:
                     verb = "image" if self.n_max == 1 else "images"
-                    hp.warn(
+                    hp.warn_pretty(
                         self,
                         f"Maximum number of images reached. You can only have {self.n_max} {verb} loaded at at"
                         f" time. Please remove other images first.",
@@ -687,7 +687,7 @@ class SelectDataDialog(QtFramelessTool):
         """Extract channels from the list."""
         if not self.model.get_extractable_paths():
             logger.warning("No paths to extract data from.")
-            hp.warn(
+            hp.warn_pretty(
                 self,
                 "No paths to extract data from. Only <b>.imzML</b>, <b>.tdf</b> and <b>.tsf</b> files support data"
                 " extraction.",

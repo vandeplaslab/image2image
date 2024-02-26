@@ -149,7 +149,8 @@ class SelectTransformDialog(QtFramelessTool):
                     transform_data = TransformData.from_i2r(path_, validate_paths=False)
                 logger.trace(f"Loaded transform data in {timer()}")
             except ValueError as e:
-                hp.warn(self, f"Failed to load transformation from {path_}\n{e}", "Failed to load transformation")
+                hp.warn_pretty(self, f"Failed to load transformation from {path_}\n{e}", "Failed to load transformation")
+                logger.exception(e)
                 return
             self.transform_model.add_transform(path_, transform_data)
             self.on_update_transform_list()
@@ -158,7 +159,7 @@ class SelectTransformDialog(QtFramelessTool):
         """Remove transformation matrix."""
         transform_name = self.transform_choice.currentText()
         if transform_name == "Identity matrix":
-            hp.warn(self, "Cannot remove identity matrix", "Cannot remove identity matrix")
+            hp.warn_pretty(self, "Cannot remove identity matrix", "Cannot remove identity matrix")
             return
         self.transform_model.remove_transform(transform_name)
         self.on_update_transform_list()

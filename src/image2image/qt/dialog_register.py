@@ -465,13 +465,20 @@ class ImageRegistrationWindow(Window):
         # there is no data to remove
         if layer.data.shape[0] == 0:
             return
-        layer.remove_selected()
+        try:
+            layer.remove_selected()
+        except IndexError:
+            logger.warning(f"Failed to remove selected points from '{which}'.")
         self.on_run()
 
     def on_clear(self, which: str, force: bool = True) -> None:
         """Remove point to the image."""
-        if force or hp.confirm(self, "Are you sure you want to remove all data points from the points layer?"):
-            layer = self.fixed_points_layer if which == "fixed" else self.moving_points_layer
+        layer = self.fixed_points_layer if which == "fixed" else self.moving_points_layer
+        if (
+            # (layer and len(layer.data) > 0) and (
+            force
+            or hp.confirm(self, "Are you sure you want to remove all data points from the points layer?")
+        ):
             layer.data = np.zeros((0, 2))
             self.evt_predicted.emit()  # noqa
             self.on_clear_transformation()
@@ -529,11 +536,23 @@ class ImageRegistrationWindow(Window):
         transform = self.transform_model
         if not transform.is_valid():
             logger.warning("Cannot save transformation - no transformation has been computed.")
-            hp.warn(self, "Cannot save transformation - no transformation has been computed.")
+            hp.warn_pretty(self, "Cannot save transformation - no transformation has been computed.")
+            return
+        is_valid, reason = transform.is_error()
+        if not is_valid:
+            hp.warn_pretty(
+                self,
+                f"Cannot save transformations in this state. Reason<br><br><b>Reason</b><br>{reason}"
+                f"<br><br><b>Please fix these issues and try again.</b>",
+            )
             return
         is_recommended, reason = transform.is_recommended()
-        if not is_recommended:
-            hp.warn(self, f"Saving transformations in this state is not recommended.<br><br>Reason<br>{reason}")
+        if not is_recommended and not hp.confirm(
+            self,
+            f"Saving transformations in this state is not recommended.<br><br><b>Reason</b><br>{reason}"
+            f"<br><br>Do you wish to continue?",
+        ):
+            return
 
         # get filename which is based on the moving dataset
         filename = self.moving_model.get_filename() + "_transform.i2r.json"
@@ -599,7 +618,8 @@ class ImageRegistrationWindow(Window):
                         _moving_resolution,
                     ) = load_transform_from_file(path, **config)
                 except (ValueError, KeyError) as e:
-                    hp.warn(self, f"Failed to load transformation from {path}\n{e}", "Failed to load transformation")
+                    hp.warn_pretty(self, f"Failed to load config from {path}\n{e}", "Failed to load config")
+                    logger.exception(e)
                     return
 
                 # locate paths that are missing
@@ -906,7 +926,6 @@ class ImageRegistrationWindow(Window):
         if not CONFIG.sync_views or self._zooming:
             return
         if self.transform is None:
-            logger.trace("Cannot sync views - no transformation has been computed.")
             return
         to_which = "moving" if from_which == "fixed" else "fixed"
         with self.zooming():

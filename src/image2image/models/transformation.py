@@ -67,15 +67,32 @@ class Transformation(BaseModel):
         """Returns True if the transformation is valid."""
         return self.transform is not None
 
+    def is_error(self) -> tuple[bool, str]:
+        """Returns True if the transformation is valid."""
+        is_valid = True
+        error = []
+        if self.transform is None:
+            is_valid = False
+            error.append("No transformation found.")
+        if self.fixed_model and not self.fixed_model.paths:
+            is_valid = False
+            error.append("No fixed image found (fixed path is not set) - <b>please load fixed image</b>.")
+        if self.moving_model and not self.moving_model.paths:
+            is_valid = False
+            error.append("No moving image found (moving path is not set) - <b>please load moving image</b>.")
+        return is_valid, "<br>".join(error)
+
     def is_recommended(self) -> tuple[bool, str]:
         """Returns True if the transformation is recommended."""
-        if self.transform is None:
-            return False, "No transformation found."
-        elif self.moving_points is not None and len(self.moving_points) < 5:
-            return False, "Too few moving points - we recommended at least 5 but the more the better."
-        elif self.fixed_points is not None and len(self.fixed_points) < 5:
-            return False, "Too few fixed points - we recommended at least 5 but the more the better."
-        return True, ""
+        recommended = True
+        error = []
+        if self.moving_points is not None and len(self.moving_points) < 5:
+            recommended = False
+            error.append(f"Too few moving points - we recommended at least 5 - you have {len(self.moving_points)}.")
+        if self.fixed_points is not None and len(self.fixed_points) < 5:
+            recommended = False
+            error.append(f"Too few fixed points - we recommended at least 5 - you have {len(self.fixed_points)}.")
+        return recommended, "<br>".join(error)
 
     def clear(self, clear_data: bool = True, clear_model: bool = True, clear_initial: bool = True) -> None:
         """Clear transformation."""
@@ -372,13 +389,20 @@ def _read_image2register_latest_config(config: ty.Dict, validate_paths: bool = T
     if validate_paths:
         fixed_paths, fixed_missing_paths = _get_paths(paths)
     fixed_res = [temp["pixel_size_um"] for temp in config["fixed_paths"]]
-    fixed_resolution = float(np.min(fixed_res))
+    if fixed_res:
+        fixed_resolution = float(np.min(fixed_res))
+    else:
+        fixed_resolution = 0.0
 
     paths = [temp["path"] for temp in config["moving_paths"]]
-    moving_res = [temp["pixel_size_um"] for temp in config["moving_paths"]]
-    moving_resolution = float(np.min(moving_res))
     if validate_paths:
         moving_paths, moving_missing_paths = _get_paths(paths)
+    moving_res = [temp["pixel_size_um"] for temp in config["moving_paths"]]
+    if moving_res:
+        moving_resolution = float(np.min(moving_res))
+    else:
+        moving_resolution = 0.0
+
     fixed_points = np.array(config["fixed_points_yx_px"])
     moving_points = np.array(config["moving_points_yx_px"])
     transformation_type = config["transformation_type"]

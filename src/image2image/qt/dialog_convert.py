@@ -182,7 +182,7 @@ class ImageConvertWindow(Window):
         from image2image_io.writers import czis_to_ome_tiff
 
         if self.output_dir is None:
-            hp.warn(self, "No output directory was selected. Please select directory where to save data.")
+            hp.warn_pretty(self, "No output directory was selected. Please select directory where to save data.")
             return
 
         paths = []

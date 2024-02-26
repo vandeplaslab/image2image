@@ -104,9 +104,12 @@ class PreprocessMovingDialog(QtFramelessTool):
     def reject(self):
         """Reject changes."""
         parent: ImageRegistrationWindow = self.parent()
-        parent.transform_model.moving_initial_affine = None
-        for layer in parent.moving_image_layer:
-            layer.affine = np.eye(3)
+        try:
+            parent.transform_model.moving_initial_affine = None
+            for layer in parent.moving_image_layer:
+                layer.affine = np.eye(3)
+        except TypeError:
+            pass
         logger.trace("Initial affine reset.")
         return super().reject()
 
