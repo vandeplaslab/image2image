@@ -98,13 +98,19 @@ declare -a pip_install=()
 if $update
 then
     local_install+=("qtextra")
-    local_install+=("koyo")
     local_install+=("image2image")
     local_install+=("image2image-io")
+    local_install+=("koyo")
 
     pip_install+=("napari==0.4.18")
     pip_install+=("PyQt6==6.5.3")
     pip_install+=("pyinstaller")
+fi
+
+if $update_deps
+then
+  local_install+=("qtextra")
+  local_install+=("koyo")
 fi
 
 if $update_app
@@ -130,6 +136,7 @@ do
     cd $(realpath $github_dir/$pkg) || exit 1
     if $uv
     then
+      uv pip uninstall $pkg
       uv pip install -U "$pkg @ ."
     else
       pip install -U .
@@ -155,6 +162,9 @@ done
 # Get path
 filename="image2image.spec"
 
+echo "### Printing versions ###"
+python print_versions.py
+echo "### End of versions ###"
 
 # Build bundle
 echo "Building bundle... filename=$filename"
