@@ -12,6 +12,7 @@ from qtextra.widgets.qt_table_view import FilterProxyModel, QtCheckableTableView
 from qtpy.QtCore import Qt, Signal  # type: ignore[attr-defined]
 from qtpy.QtWidgets import QFormLayout
 from superqt.utils import ensure_main_thread
+from collections import Counter
 
 from image2image.config import STATE
 
@@ -38,6 +39,7 @@ class OverlayChannelsDialog(QtFramelessTool):
     TABLE_CONFIG = (
         TableConfig()  # type: ignore[no-untyped-call]
         .add("", "check", "bool", 25, no_sort=True, sizing="fixed")
+        .add("index", "index", "int", 50, sizing="contents")
         .add("channel name", "channel_name", "str", 125)
         .add("dataset", "dataset", "str", 250)
         .add("key", "key", "str", 0, hidden=True)
@@ -142,9 +144,11 @@ class OverlayChannelsDialog(QtFramelessTool):
         data = []
         wrapper = self.model.wrapper
         if wrapper:
+            counter = Counter()
             for name in wrapper.channel_names():
                 channel_name, dataset = name.split(" | ")
-                data.append([False, channel_name, dataset, name])
+                data.append([False, counter[dataset], channel_name, dataset, name])
+                counter[dataset] += 1
         existing_data = self.table.get_data()
         if existing_data:
             for exist_row in existing_data:

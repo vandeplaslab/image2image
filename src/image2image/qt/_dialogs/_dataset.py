@@ -5,6 +5,7 @@ import typing as ty
 from contextlib import contextmanager
 from functools import partial
 from pathlib import Path
+from collections import Counter
 
 from koyo.typing import PathLike
 from loguru import logger
@@ -147,6 +148,7 @@ class SelectChannelsToLoadDialog(QtDialog):
     TABLE_CONFIG = (
         TableConfig()  # type: ignore
         .add("", "check", "bool", 25, no_sort=True, sizing="fixed")
+        .add("index", "index", "int", 50, sizing="contents")
         .add("channel name (full)", "channel_name_full", "str", 400)
     )
 
@@ -186,9 +188,12 @@ class SelectChannelsToLoadDialog(QtDialog):
                 self.warning_label.show()
             if not channel_list:
                 self.warning_no_channels_label.show()
+            counter = Counter()
             for _i, channel_name in enumerate(channel_list):
                 check = auto_check
-                data.append([check, channel_name])
+                _, dataset = channel_name.split(" | ")
+                data.append([check, counter[dataset], channel_name])
+                counter[dataset] += 1
         else:
             logger.warning(f"Wrapper was not specified - {wrapper}")
             self.warning_no_channels_label.show()
