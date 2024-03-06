@@ -275,6 +275,18 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
         hp.make_menu_item(self, "Open 'Log' directory", menu=menu_config, func=lambda: open_directory_alt(USER_LOG_DIR))
         return menu_config
 
+    def _make_apps_menu (self) -> QMenu:
+        from koyo.system import IS_MAC_ARM, IS_PYINSTALLER
+
+        menu_apps = hp.make_menu(self, "Apps")
+        hp.make_menu_item(self, "Open 'Register' App", menu=menu_apps, func=self.on_register)
+        hp.make_menu_item(self, "Open 'Viewer' App", menu=menu_apps, func=self.on_viewer)
+        hp.make_menu_item(self, "Open 'Crop' App", menu=menu_apps, func=self.on_crop)
+        hp.make_menu_item(self, "Open 'CZI to OME-TIFF' App", menu=menu_apps, func=self.on_convert,
+                          disabled=IS_MAC_ARM and IS_PYINSTALLER)
+        hp.make_menu_item(self, "Open 'Fusion' App", menu=menu_apps, func=self.on_export)
+        return menu_apps
+
     def _make_help_menu(self) -> QMenu:
         from image2image.qt._dialogs import open_about
         from image2image.qt._dialogs._sentry import ask_opt_in, send_feedback
@@ -445,3 +457,68 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
             self.statusbar.showMessage(d["coordinates"])
         else:
             self.statusbar.showMessage("")
+
+    @staticmethod
+    def on_convert():
+        """Open registration application."""
+        from koyo.system import IS_MAC_ARM, IS_PYINSTALLER
+
+        if IS_PYINSTALLER and IS_MAC_ARM:
+            hp.warn_pretty(
+                None,
+                "Not available on Apple Silicon - there is a bug that I can't find nor fix - sorry!",
+                "App not available on this platform.",
+            )
+            return
+
+        from image2image.qt.dialog_convert import ImageConvertWindow
+
+        logger.debug("Opening czi2tiff application.")
+        dlg = ImageConvertWindow(None, run_check_version=False)
+        THEMES.set_theme_stylesheet(dlg)
+        dlg.setMinimumSize(500, 500)
+        dlg.show()
+
+    @staticmethod
+    def on_export():
+        """Open registration application."""
+        from image2image.qt.dialog_fusion import ImageFusionWindow
+
+        logger.debug("Opening export application.")
+        dlg = ImageFusionWindow(None, run_check_version=False)
+        THEMES.set_theme_stylesheet(dlg)
+        dlg.setMinimumSize(500, 500)
+        dlg.show()
+
+    @staticmethod
+    def on_register():
+        """Open registration application."""
+        from image2image.qt.dialog_register import ImageRegistrationWindow
+
+        logger.debug("Opening registration application.")
+        dlg = ImageRegistrationWindow(None, run_check_version=False)
+        THEMES.set_theme_stylesheet(dlg)
+        dlg.setMinimumSize(1200, 700)
+        dlg.show()
+
+    @staticmethod
+    def on_viewer():
+        """Open registration application."""
+        from image2image.qt.dialog_viewer import ImageViewerWindow
+
+        logger.debug("Opening viewer application.")
+        dlg = ImageViewerWindow(None, run_check_version=False)
+        THEMES.set_theme_stylesheet(dlg)
+        dlg.setMinimumSize(1200, 700)
+        dlg.show()
+
+    @staticmethod
+    def on_crop():
+        """Open registration application."""
+        from image2image.qt.dialog_crop import ImageCropWindow
+
+        logger.debug("Opening crop application.")
+        dlg = ImageCropWindow(None, run_check_version=False)
+        THEMES.set_theme_stylesheet(dlg)
+        dlg.setMinimumSize(1200, 700)
+        dlg.show()

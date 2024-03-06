@@ -398,6 +398,7 @@ class ImageConvertWindow(Window):
         self.menubar = QMenuBar(self)
         self.menubar.addAction(menu_file.menuAction())
         self.menubar.addAction(menu_tools.menuAction())
+        self.menubar.addAction(self._make_apps_menu().menuAction())
         self.menubar.addAction(self._make_config_menu().menuAction())
         self.menubar.addAction(self._make_help_menu().menuAction())
         self.setMenuBar(self.menubar)

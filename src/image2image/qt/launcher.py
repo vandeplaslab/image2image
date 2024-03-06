@@ -18,8 +18,8 @@ from image2image.utils._appdirs import USER_LOG_DIR
 REGISTER_TEXT = "<b>Registration App</b><br>Co-register your microscopy and imaging mass spectrometry data."
 VIEWER_TEXT = "<b>Viewer App</b><br>Overlay your microscopy and imaging mass spectrometry data."
 CROP_TEXT = "<b>Crop App</b><br>Crop your microscopy data to reduce it's size (handy for Image Fusion)."
-FUSION_APP = "<b>Fusion Preparation App</b><br>Export your data for Image Fusion in MATLAB compatible format."
 CONVERT_TEXT = "<b>CZI to OME-TIFF App</b><br>Convert your multi-scene CZI image to OME-TIFF."
+FUSION_APP = "<b>Fusion Preparation App</b><br>Export your data for Image Fusion in MATLAB compatible format."
 if IS_PYINSTALLER and IS_MAC_ARM:
     CONVERT_TEXT += "<br><br><i>Not available on Apple Silicon - a bug I can't find...</i>"
 
@@ -36,9 +36,11 @@ class Launcher(QtDialog):
 
     def make_panel(self) -> QVBoxLayout:
         """Make panel."""
+        from image2image.qt.dialog_base import DialogBase
+
         layout = QVBoxLayout()
         # register app
-        btn = hp.make_qta_btn(self, "register", tooltip="Open registration application.", func=self.on_register)
+        btn = hp.make_qta_btn(self, "register", tooltip="Open registration application.", func=DialogBase.on_register)
         btn.set_xxlarge()
         layout.addLayout(
             hp.make_h_layout(
@@ -55,7 +57,7 @@ class Launcher(QtDialog):
             ),
         )
         # viewer app
-        btn = hp.make_qta_btn(self, "viewer", tooltip="Open viewer application.", func=self.on_viewer)
+        btn = hp.make_qta_btn(self, "viewer", tooltip="Open viewer application.", func=DialogBase.on_viewer)
         btn.set_xxlarge()
         layout.addLayout(
             hp.make_h_layout(
@@ -66,7 +68,7 @@ class Launcher(QtDialog):
             ),
         )
         # crop app
-        btn = hp.make_qta_btn(self, "crop", tooltip="Open crop application.", func=self.on_crop)
+        btn = hp.make_qta_btn(self, "crop", tooltip="Open crop application.", func=DialogBase.on_crop)
         btn.set_xxlarge()
         layout.addLayout(
             hp.make_h_layout(
@@ -77,7 +79,7 @@ class Launcher(QtDialog):
             ),
         )
         # convert app
-        btn = hp.make_qta_btn(self, "change", tooltip="Open czi2tiff application.", func=self.on_convert)
+        btn = hp.make_qta_btn(self, "change", tooltip="Open czi2tiff application.", func=DialogBase.on_convert)
         btn.set_xxlarge()
         layout.addLayout(
             hp.make_h_layout(
@@ -88,7 +90,7 @@ class Launcher(QtDialog):
             ),
         )
         # export app
-        btn = hp.make_qta_btn(self, "export", tooltip="Open export application.", func=self.on_export)
+        btn = hp.make_qta_btn(self, "export", tooltip="Open export application.", func=DialogBase.on_export)
         btn.set_xxlarge()
         layout.addLayout(
             hp.make_h_layout(
@@ -117,68 +119,6 @@ class Launcher(QtDialog):
             self.console.push_variables({"window": self, "CONFIG": CONFIG, "READER_CONFIG": READER_CONFIG})
         self.console.show()
 
-    @staticmethod
-    def on_convert():
-        """Open registration application."""
-        if IS_PYINSTALLER and IS_MAC_ARM:
-            hp.warn_pretty(
-                None,
-                "Not available on Apple Silicon - there is a bug that I can't find nor fix - sorry!",
-                "App not available on this platform.",
-            )
-            return
-
-        from image2image.qt.dialog_convert import ImageConvertWindow
-
-        logger.debug("Opening czi2tiff application.")
-        dlg = ImageConvertWindow(None, run_check_version=False)
-        THEMES.set_theme_stylesheet(dlg)
-        dlg.setMinimumSize(500, 500)
-        dlg.show()
-
-    @staticmethod
-    def on_export():
-        """Open registration application."""
-        from image2image.qt.dialog_fusion import ImageFusionWindow
-
-        logger.debug("Opening export application.")
-        dlg = ImageFusionWindow(None, run_check_version=False)
-        THEMES.set_theme_stylesheet(dlg)
-        dlg.setMinimumSize(500, 500)
-        dlg.show()
-
-    @staticmethod
-    def on_register():
-        """Open registration application."""
-        from image2image.qt.dialog_register import ImageRegistrationWindow
-
-        logger.debug("Opening registration application.")
-        dlg = ImageRegistrationWindow(None, run_check_version=False)
-        THEMES.set_theme_stylesheet(dlg)
-        dlg.setMinimumSize(1200, 700)
-        dlg.show()
-
-    @staticmethod
-    def on_viewer():
-        """Open registration application."""
-        from image2image.qt.dialog_viewer import ImageViewerWindow
-
-        logger.debug("Opening viewer application.")
-        dlg = ImageViewerWindow(None, run_check_version=False)
-        THEMES.set_theme_stylesheet(dlg)
-        dlg.setMinimumSize(1200, 700)
-        dlg.show()
-
-    @staticmethod
-    def on_crop():
-        """Open registration application."""
-        from image2image.qt.dialog_crop import ImageCropWindow
-
-        logger.debug("Opening crop application.")
-        dlg = ImageCropWindow(None, run_check_version=False)
-        THEMES.set_theme_stylesheet(dlg)
-        dlg.setMinimumSize(1200, 700)
-        dlg.show()
 
 
 if __name__ == "__main__":  # pragma: no cover
