@@ -52,6 +52,15 @@ ALLOWED_IMAGE_FORMATS_WITH_GEOJSON = (
     "PNG (*.png);;"
     "GeoJSON (*.geojson *.json);;"
 )
+ALLOWED_IMAGE_FORMATS_MICROSCOPY_ONLY = (
+    "Any microscopy (*.czi *.ome.tiff *.tiff *.scn"
+    "*.tif *.qptiff *.qptiff.raw *.qptiff.intermediate *.svs *.ndpi *.jpg"
+    " *.jpeg *.png *.geojson *.json);; "
+    "CZI (*.czi);; "
+    "TIFF (*.ome.tiff *.tiff *.scn *.tif *.svs *.ndpi *.qptiff *.qptiff.raw *.qptiff.intermediate);; "
+    "JPEG (*.jpg *.jpeg);; "
+    "PNG (*.png);;"
+)
 ALLOWED_IMAGE_FORMATS_CZI_ONLY = "Any Zeiss CZI (*.czi);;"
 ALLOWED_IMAGE_FORMATS_TIFF_ONLY = (
     "Any OME-TIFF (*.ome.tiff *.tiff *.scn *.tif *.svs *.ndpi *.qptiff *.qptiff.raw *.qptiff.intermediate);; "

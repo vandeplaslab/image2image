@@ -6,7 +6,7 @@ from pathlib import Path
 
 import qtextra.helpers as hp
 from image2image_io.config import CONFIG as READER_CONFIG
-from image2image_io.readers import CziSceneImageReader
+from image2image_io.readers import CziSceneImageReader, get_simple_reader
 from loguru import logger
 from qtextra.utils.table_config import TableConfig
 from qtextra.utils.utilities import connect
@@ -18,7 +18,7 @@ from superqt.utils import GeneratorWorker, create_worker
 
 from image2image import __version__
 from image2image.config import CONFIG
-from image2image.enums import ALLOWED_IMAGE_FORMATS_CZI_ONLY
+from image2image.enums import ALLOWED_IMAGE_FORMATS_MICROSCOPY_ONLY
 from image2image.qt._dialogs._select import LoadWidget
 from image2image.qt.dialog_base import Window
 from image2image.utils.utilities import log_exception_or_error
@@ -59,7 +59,9 @@ class ImageConvertWindow(Window):
 
     def __init__(self, parent: QWidget | None, run_check_version: bool = True):
         super().__init__(
-            parent, f"czi2tiff: Convert CZI file to OME-TIFF (v{__version__})", run_check_version=run_check_version
+            parent,
+            f"microscopy2tiff: Convert microscopy files to OME-TIFF (v{__version__})",
+            run_check_version=run_check_version,
         )
         READER_CONFIG.auto_pyramid = False
         READER_CONFIG.init_pyramid = False
@@ -142,8 +144,13 @@ class ImageConvertWindow(Window):
                     self.reader_metadata[reader.path] = reader_metadata
                 else:
                     self.reader_metadata[reader.path] = {}
+
                     for scene_index in range(reader.n_scenes):
-                        reader_ = CziSceneImageReader(reader.path, scene_index=scene_index)
+                        reader_ = (
+                            CziSceneImageReader(reader.path, scene_index=scene_index)
+                            if reader.path.suffix == ".czi"
+                            else get_simple_reader(reader.path, auto_pyramid=False, init_pyramid=False)
+                        )
                         self.reader_metadata[reader.path][scene_index] = {
                             "keep": [True] * reader_.n_channels,
                             "channel_ids": reader_.channel_ids,
@@ -179,7 +186,7 @@ class ImageConvertWindow(Window):
 
     def on_convert(self):
         """Process data."""
-        from image2image_io.writers import czis_to_ome_tiff
+        from image2image_io.writers import images_to_ome_tiff
 
         if self.output_dir is None:
             hp.warn_pretty(self, "No output directory was selected. Please select directory where to save data.")
@@ -199,10 +206,11 @@ class ImageConvertWindow(Window):
         CONFIG.as_uint8 = self.as_uint8.isChecked()
         if paths:
             self.worker = create_worker(
-                czis_to_ome_tiff,
+                images_to_ome_tiff,
                 paths=paths,
                 output_dir=output_dir,
                 as_uint8=CONFIG.as_uint8,
+                tile_size=int(self.tile_size.currentText()),
                 metadata=get_metadata(self.reader_metadata),
                 _start_thread=True,
                 _connect={
@@ -289,7 +297,7 @@ class ImageConvertWindow(Window):
         self.output_dir_label = hp.make_label(self, f"Output directory: {hp.hyper(self.output_dir)}", enable_url=True)
 
         self._image_widget = LoadWidget(
-            self, None, select_channels=False, available_formats=ALLOWED_IMAGE_FORMATS_CZI_ONLY
+            self, None, select_channels=False, available_formats=ALLOWED_IMAGE_FORMATS_MICROSCOPY_ONLY
         )
         self._image_widget.info_text.setVisible(False)
 
@@ -316,9 +324,15 @@ class ImageConvertWindow(Window):
             func=self.on_set_output_dir,
         )
 
+        self.tile_size = hp.make_combobox(
+            self,
+            ["256", "512", "1024", "2048", "4096"],
+            tooltip="Specify size of the tile. Default is 512",
+            default="512",
+            value=CONFIG.tile_size,
+        )
         self.as_uint8 = hp.make_checkbox(
             self,
-            "Export as uint8",
             tooltip="Convert to uint8 to reduce file size with minimal data loss.",
             checked=True,
             value=CONFIG.as_uint8,
@@ -347,7 +361,8 @@ class ImageConvertWindow(Window):
         side_layout.addWidget(hp.make_h_line(self))
         side_layout.addWidget(self.directory_btn)
         side_layout.addWidget(self.output_dir_label)
-        side_layout.addWidget(self.as_uint8)
+        side_layout.addLayout(hp.make_h_layout(hp.make_label(self, "Tile size:"), self.tile_size, stretch_after=True))
+        side_layout.addLayout(hp.make_h_layout(hp.make_label(self, "As uint8 (dynamic range 0-255):"), self.as_uint8))
         side_layout.addWidget(self.export_btn)
 
         widget = QWidget()
@@ -366,7 +381,7 @@ class ImageConvertWindow(Window):
         menu_file = hp.make_menu(self, "File")
         hp.make_menu_item(
             self,
-            "Add image (.czi,)...",
+            "Add image (.czi, .ome.tiff, .tiff, .scn, and others)...",
             "Ctrl+I",
             menu=menu_file,
             func=self._image_widget.on_select_dataset,
