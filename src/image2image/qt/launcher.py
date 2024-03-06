@@ -79,7 +79,7 @@ class Launcher(QtDialog):
             ),
         )
         # convert app
-        btn = hp.make_qta_btn(self, "change", tooltip="Open czi2tiff application.", func=DialogBase.on_convert)
+        btn = hp.make_qta_btn(self, "change", tooltip="Open convert application.", func=DialogBase.on_convert)
         btn.set_xxlarge()
         layout.addLayout(
             hp.make_h_layout(

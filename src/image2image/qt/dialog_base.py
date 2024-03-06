@@ -275,15 +275,20 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
         hp.make_menu_item(self, "Open 'Log' directory", menu=menu_config, func=lambda: open_directory_alt(USER_LOG_DIR))
         return menu_config
 
-    def _make_apps_menu (self) -> QMenu:
+    def _make_apps_menu(self) -> QMenu:
         from koyo.system import IS_MAC_ARM, IS_PYINSTALLER
 
         menu_apps = hp.make_menu(self, "Apps")
         hp.make_menu_item(self, "Open 'Register' App", menu=menu_apps, func=self.on_register)
         hp.make_menu_item(self, "Open 'Viewer' App", menu=menu_apps, func=self.on_viewer)
         hp.make_menu_item(self, "Open 'Crop' App", menu=menu_apps, func=self.on_crop)
-        hp.make_menu_item(self, "Open 'CZI to OME-TIFF' App", menu=menu_apps, func=self.on_convert,
-                          disabled=IS_MAC_ARM and IS_PYINSTALLER)
+        hp.make_menu_item(
+            self,
+            "Open 'Microscopy to OME-TIFF' App",
+            menu=menu_apps,
+            func=self.on_convert,
+            disabled=IS_MAC_ARM and IS_PYINSTALLER,
+        )
         hp.make_menu_item(self, "Open 'Fusion' App", menu=menu_apps, func=self.on_export)
         return menu_apps
 
@@ -473,7 +478,7 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
 
         from image2image.qt.dialog_convert import ImageConvertWindow
 
-        logger.debug("Opening czi2tiff application.")
+        logger.debug("Opening microscopy2tiff application.")
         dlg = ImageConvertWindow(None, run_check_version=False)
         THEMES.set_theme_stylesheet(dlg)
         dlg.setMinimumSize(500, 500)

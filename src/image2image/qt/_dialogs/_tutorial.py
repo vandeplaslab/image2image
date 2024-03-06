@@ -17,7 +17,7 @@ def show_convert_tutorial(widget: "ImageConvertWindow") -> None:
     tut.set_steps(
         [
             TutorialStep(
-                title="Welcome to czi2tiff!",
+                title="Welcome to microscopy2tiff!",
                 message="We would like to show you around before you get started!<br>This app allows you to convert"
                 " Zeiss CZI images to OME-TIFF format. Sometimes, CZI image might contain multiple scenes which"
                 " are not always supported by other software. This app lets you convert each scene to a OME-TIFF file"
