@@ -238,6 +238,7 @@ class RegistrationGroup(BaseModel):
                 affine = image.affine(reader.image_shape, reader.scale)
                 if not RegistrationImage.is_identity(affine):
                     pre.affine = affine
+            # affine matrix without rotation/flip
             elif "affine(translate)" in export_mode:
                 affine = image.affine(reader.image_shape, reader.scale, only_translate=True)
                 if not RegistrationImage.is_identity(affine):
@@ -246,14 +247,22 @@ class RegistrationGroup(BaseModel):
                 # pre.rotate_counter_clockwise = image.rotate  # we store it as clockwise...
                 if image.flip_lr:
                     pre.flip = CoordinateFlip.HORIZONTAL
-            # use rotation/flip if present and user explicitly requested it
-            elif "rotation/flip" in export_mode:
+            # use translation/rotation/flip if present and user explicitly requested it
+            elif "translation/rotation/flip" in export_mode:
                 pre.rotate_counter_clockwise = 360 - image.rotate  # we store it as clockwise...
                 # pre.rotate_counter_clockwise = image.rotate  # we store it as clockwise...
                 if image.flip_lr:
                     pre.flip = CoordinateFlip.HORIZONTAL
+                if image.translate_x:
+                    pre.translate_x = int(image.translate_x)
+                if image.translate_y:
+                    pre.translate_y = int(image.translate_y)
             if first_only:
                 pre.channel_indices = [0]
+                pre.channel_names = [reader.channel_names[0]]
+            else:
+                pre.channel_indices = image.channel_ids
+                pre.channel_names = [reader.channel_names]
 
             kws: dict[str, ty.Any] = {}
             if "with mask" in export_mode:

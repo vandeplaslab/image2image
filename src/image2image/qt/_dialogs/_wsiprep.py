@@ -656,13 +656,14 @@ class ConfigDialog(WsiPrepMixin):
             [
                 "Export with mask + affine initialization",
                 "Export with mask + affine(translate) + rotation/flip initialization",
-                "Export with mask + rotation/flip initialization",
+                "Export with mask + translation/rotation/flip initialization",
                 "Export with mask + no initialization",
                 "Export with no mask + affine initialization",
                 "Export with no mask + affine(translate) + rotation/flip initialization",
-                "Export with no mask + rotation/flip initialization",
+                "Export with no mask + translation/rotation/flip initialization",
                 "Export with no mask + no initialization",
             ],
+            default="Export with mask + translation/rotation/flip initialization",
         )
         self.first_channel_only = hp.make_checkbox(
             self,
