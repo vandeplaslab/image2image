@@ -1,7 +1,7 @@
 """Utility tool to co-register IMS data with microscopy modality."""
 from loguru import logger
 
-__version__ = "0.1.6a0"
+__version__ = "0.1.6a1"
 __author__ = "Lukasz G. Migas"
 __email__ = "lukas.migas@yahoo.com"
 

@@ -445,9 +445,7 @@ class ImageViewerWindow(Window):
         if (
             not force
             or not CONFIG.confirm_close_viewer
-            or QtConfirmCloseDialog(
-                self, "confirm_close_viewer", self.on_save_to_project, CONFIG
-            ).exec_()  # type: ignore[attr-defined]
+            or QtConfirmCloseDialog(self, "confirm_close_viewer", self.on_save_to_project, CONFIG).exec_()  # type: ignore[attr-defined]
             == QDialog.DialogCode.Accepted
         ):
             return super().close()
@@ -459,9 +457,7 @@ class ImageViewerWindow(Window):
             evt.spontaneous()
             and CONFIG.confirm_close_viewer
             and self.data_model.is_valid()
-            and QtConfirmCloseDialog(
-                self, "confirm_close_viewer", self.on_save_to_project, CONFIG
-            ).exec_()  # type: ignore[attr-defined]
+            and QtConfirmCloseDialog(self, "confirm_close_viewer", self.on_save_to_project, CONFIG).exec_()  # type: ignore[attr-defined]
             != QDialog.DialogCode.Accepted
         ):
             evt.ignore()
