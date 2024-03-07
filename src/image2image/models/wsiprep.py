@@ -238,7 +238,8 @@ class RegistrationGroup(BaseModel):
                     pre.affine = affine
             # use rotation/flip if present and user explicitly requested it
             elif "rotation/flip" in export_mode:
-                pre.rotate_counter_clockwise = 360 - image.rotate  # we store it as clockwise...
+                # pre.rotate_counter_clockwise = 360 - image.rotate  # we store it as clockwise...
+                pre.rotate_counter_clockwise = image.rotate  # we store it as clockwise...
                 if image.flip_lr:
                     pre.flip = CoordinateFlip.VERTICAL
             if first_only:

@@ -301,7 +301,7 @@ class MaskDialog(WsiPrepMixin):
         if len(self.crop_layer.data) == 0:
             left, right, top, bottom = self._get_default_crop_area()
             rect = np.asarray([[top, left], [top, right], [bottom, right], [bottom, left]])
-            self.crop_layer.data = [(rect, "rectangle")]
+            self.crop_layer.data = [(rect, "polygon")]
         self.crop_layer.selected_data = [0]
         self.crop_layer.mode = "select"
 
