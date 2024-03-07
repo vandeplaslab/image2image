@@ -104,6 +104,10 @@ class ImageWsiPrepWindow(Window):
             run_check_version=run_check_version,
         )
         self.registration = Registration()
+        self._setup_config()
+
+    @staticmethod
+    def _setup_config() -> None:
         READER_CONFIG.only_last_pyramid = True
         READER_CONFIG.init_pyramid = False
 
@@ -1264,9 +1268,7 @@ class ImageWsiPrepWindow(Window):
         if (
             not force
             or not CONFIG.confirm_close_wsiprep
-            or QtConfirmCloseDialog(
-                self, "confirm_close_wsiprep", self.on_save_to_project, CONFIG
-            ).exec_()  # type: ignore[attr-defined]
+            or QtConfirmCloseDialog(self, "confirm_close_wsiprep", self.on_save_to_project, CONFIG).exec_()  # type: ignore[attr-defined]
             == QDialog.DialogCode.Accepted
         ):
             return super().close()
@@ -1278,9 +1280,7 @@ class ImageWsiPrepWindow(Window):
             evt.spontaneous()
             and CONFIG.confirm_close_wsiprep
             and (self.data_model.is_valid() or self.registration.is_valid())
-            and QtConfirmCloseDialog(
-                self, "confirm_close_wsiprep", self.on_save_to_project, CONFIG
-            ).exec_()  # type: ignore[attr-defined]
+            and QtConfirmCloseDialog(self, "confirm_close_wsiprep", self.on_save_to_project, CONFIG).exec_()  # type: ignore[attr-defined]
             != QDialog.DialogCode.Accepted
         ):
             evt.ignore()
