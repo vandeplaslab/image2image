@@ -655,9 +655,11 @@ class ConfigDialog(WsiPrepMixin):
             self,
             [
                 "Export with mask + affine initialization",
+                "Export with mask + affine(translate) + rotation/flip initialization",
                 "Export with mask + rotation/flip initialization",
                 "Export with mask + no initialization",
                 "Export with no mask + affine initialization",
+                "Export with no mask + affine(translate) + rotation/flip initialization",
                 "Export with no mask + rotation/flip initialization",
                 "Export with no mask + no initialization",
             ],

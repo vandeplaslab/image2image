@@ -228,9 +228,11 @@ class ImageWsiPrepWindow(Window):
                 if contrast_range:
                     all_contrast_range.extend(contrast_range)
             if all_contrast_range:
-                self.contrast_limit.setRange(min(all_contrast_range), max(all_contrast_range))
+                min_val = min(all_contrast_range)
+                max_val = max(all_contrast_range)
+                self.contrast_limit.setRange(0 if min_val > 0 else min_val, 255 if max_val < 255 else max_val)
                 if not self.common_contrast_limit.isChecked():
-                    self.contrast_limit.setValue((min(all_contrast_range), max(all_contrast_range)))
+                    self.contrast_limit.setValue((min_val, max_val))
                 self.contrast_limit.setDecimals(2 if max(all_contrast_range) < 1 else 0)
             self.on_contrast_limits()
 
@@ -278,7 +280,7 @@ class ImageWsiPrepWindow(Window):
                 index = self.table.selectionModel().currentIndex().row()
                 key = self.table.get_value(self.TABLE_CONFIG.key, index)
                 if key in self.view.layers:
-                    self.view.layers[key].colormap = "yellow"
+                    self.view.layers[key].colormap = "gray_r"  # "yellow"
             logger.trace(f"Highlighted image in {timer()}")
 
     def check_if_can_update(

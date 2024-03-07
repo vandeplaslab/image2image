@@ -81,16 +81,18 @@ class RegistrationImage(BaseModel):
         else:
             self.translate_x += CONFIG.translate_step_size
 
-    def affine(self, shape: tuple[int, int], scale: ty.Optional[tuple[float, float]] = None) -> np.ndarray:
+    def affine(
+        self, shape: tuple[int, int], scale: ty.Optional[tuple[float, float]] = None, only_translate: bool = False
+    ) -> np.ndarray:
         """Calculate affine transformation."""
         if scale is None:
             scale = self.scale
         return combined_transform(
             shape,
             scale,
-            self.rotate,
+            0 if only_translate else self.rotate,
             (self.translate_y, self.translate_x),
-            self.flip_lr,
+            False if only_translate else self.flip_lr,
         )
 
     @classmethod
@@ -232,16 +234,24 @@ class RegistrationGroup(BaseModel):
             pre = Preprocessing.fluorescence()
 
             # use affine matrix if present and user explicitly requested it
-            if "affine" in export_mode:
+            if "affine initialization" in export_mode:
                 affine = image.affine(reader.image_shape, reader.scale)
                 if not RegistrationImage.is_identity(affine):
                     pre.affine = affine
+            elif "affine(translate)" in export_mode:
+                affine = image.affine(reader.image_shape, reader.scale, only_translate=True)
+                if not RegistrationImage.is_identity(affine):
+                    pre.affine = affine
+                pre.rotate_counter_clockwise = 360 - image.rotate  # we store it as clockwise...
+                # pre.rotate_counter_clockwise = image.rotate  # we store it as clockwise...
+                if image.flip_lr:
+                    pre.flip = CoordinateFlip.HORIZONTAL
             # use rotation/flip if present and user explicitly requested it
             elif "rotation/flip" in export_mode:
-                # pre.rotate_counter_clockwise = 360 - image.rotate  # we store it as clockwise...
-                pre.rotate_counter_clockwise = image.rotate  # we store it as clockwise...
+                pre.rotate_counter_clockwise = 360 - image.rotate  # we store it as clockwise...
+                # pre.rotate_counter_clockwise = image.rotate  # we store it as clockwise...
                 if image.flip_lr:
-                    pre.flip = CoordinateFlip.VERTICAL
+                    pre.flip = CoordinateFlip.HORIZONTAL
             if first_only:
                 pre.channel_indices = [0]
 

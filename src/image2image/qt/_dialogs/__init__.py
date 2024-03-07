@@ -1,5 +1,4 @@
 """Various dialogs."""
-from image2image.qt._dialogs._sysinfo import open_sysinfo
 from image2image.qt._dialogs._about import AboutDialog, open_about
 from image2image.qt._dialogs._channels import OverlayChannelsDialog
 from image2image.qt._dialogs._dataset import (
@@ -11,6 +10,7 @@ from image2image.qt._dialogs._dataset import (
 from image2image.qt._dialogs._fiducials import FiducialsDialog
 from image2image.qt._dialogs._locate import LocateFilesDialog
 from image2image.qt._dialogs._misc import ImportSelectDialog
+from image2image.qt._dialogs._sysinfo import open_sysinfo
 from image2image.qt._dialogs._transform import SelectTransformDialog
 
 __all__ = [

@@ -2,10 +2,10 @@
 from __future__ import annotations
 
 import typing as ty
+from collections import Counter
 from contextlib import contextmanager
 from functools import partial
 from pathlib import Path
-from collections import Counter
 
 from koyo.typing import PathLike
 from loguru import logger
@@ -418,6 +418,7 @@ class SelectDataDialog(QtFramelessTool):
         .add("rotation", "rotation", "str", 0)
         .add("flip", "flip", "button", 0)
         .add("extract", "extract", "button", 0)
+        .add("", "remove", "button", 0)
         .add("swap", "swap", "button", 0)
     )
 
@@ -508,6 +509,16 @@ class SelectDataDialog(QtFramelessTool):
                         item.setTextAlignment(Qt.AlignCenter)  # type: ignore[attr-defined]
                         self.table.setItem(index, self.TABLE_CONFIG.extract, item)
 
+                    # remove button
+                    self.table.setCellWidget(
+                        index,
+                        self.TABLE_CONFIG.remove,
+                        hp.make_qta_btn(
+                            self,
+                            "delete",
+                            func=partial(self.on_remove_dataset, key=reader.key),
+                        ),
+                    )
                     # add swap button
                     self.table.setCellWidget(
                         index,
@@ -688,6 +699,12 @@ class SelectDataDialog(QtFramelessTool):
         log_exception_or_error(exception)
         self.evt_loaded.emit(None, None)  # noqa
 
+    def on_remove_dataset(self, key: str) -> None:
+        """Remove dataset."""
+        self.model.remove_keys([key])
+        self.evt_closed.emit(self.model)  # noqa
+        self.on_populate_table()
+
     def on_extract_channels(self, key: str) -> None:
         """Extract channels from the list."""
         if not self.model.get_extractable_paths():
@@ -737,7 +754,7 @@ class SelectDataDialog(QtFramelessTool):
         """Make panel."""
         _, header_layout = self._make_hide_handle()
         self._title_label.setText("Images")
-        column_names = ["name", "pixel size (μm)", "type", "rotation", "flip", "extract", "swap"]
+        column_names = self.TABLE_CONFIG.to_columns()
         self.table = QTableWidget(self)
         self.table.setColumnCount(len(column_names))  # name, resolution, layer type, extract, key
         self.table.setHorizontalHeaderLabels(column_names)
@@ -770,6 +787,10 @@ class SelectDataDialog(QtFramelessTool):
         header.setSectionHidden(self.TABLE_CONFIG.swap, not self.allow_swap)
         header.setSectionResizeMode(
             self.TABLE_CONFIG.extract,
+            QHeaderView.ResizeToContents,  # type: ignore[attr-defined]
+        )
+        header.setSectionResizeMode(
+            self.TABLE_CONFIG.remove,
             QHeaderView.ResizeToContents,  # type: ignore[attr-defined]
         )
 
