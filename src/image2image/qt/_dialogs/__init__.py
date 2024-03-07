@@ -1,4 +1,5 @@
 """Various dialogs."""
+from image2image.qt._dialogs._sysinfo import open_sysinfo
 from image2image.qt._dialogs._about import AboutDialog, open_about
 from image2image.qt._dialogs._channels import OverlayChannelsDialog
 from image2image.qt._dialogs._dataset import (

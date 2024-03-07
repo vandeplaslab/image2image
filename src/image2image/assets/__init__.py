@@ -23,8 +23,6 @@ update_styles({x.stem: str(x) for x in STYLES_PATH.iterdir() if x.suffix == ".qs
 
 update_icon_mapping(
     {
-        "save": "fa5s.save",
-        "screenshot": "mdi.camera-outline",
         "ipython": "mdi.console",
         "ruler": "fa5s.ruler-horizontal",
         "add": "ri.add-circle-fill",
@@ -36,16 +34,6 @@ update_icon_mapping(
         "zoom": "mdi.magnify",
         "close": "fa5s.trash-alt",
         "bring_to_top": "fa5s.angle-double-up",
-        "github": "fa5b.github",
-        "request": "msc.request-changes",
-        "web": "mdi.web",
-        "bug": "fa5s.bug",
-        "info": "fa5s.info-circle",
-        "warning": "fa5s.exclamation-triangle",
-        "error": "fa5s.times-circle",
-        "critical": "fa5s.times-circle",
-        "debug": "ph.megaphone",
-        "success": "fa5s.check",
         "lock_closed": "fa5s.lock",
         "lock_open": "fa5s.lock-open",
         "telemetry": "mdi.telegram",
@@ -69,13 +57,9 @@ update_icon_mapping(
         "flip_lr": "fa5s.arrows-alt-h",
         "group": "mdi6.group",
         "ungroup": "mdi6.ungroup",
-        "true": "mdi6.check-circle-outline",
-        "false": "mdi6.close-circle-outline",
         "keep_image": "mdi6.check-circle-outline",
         "remove_image": "mdi6.close-circle-outline",
         "shortcut": "mdi6.tooltip-text",
-        "dev": "mdi6.code-braces",
-        "reload": "mdi6.cached",
     }
 )
 

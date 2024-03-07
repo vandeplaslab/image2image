@@ -295,7 +295,7 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
         return menu_apps
 
     def _make_help_menu(self) -> QMenu:
-        from image2image.qt._dialogs import open_about
+        from image2image.qt._dialogs import open_about, open_sysinfo
         from image2image.qt._dialogs._sentry import ask_opt_in, send_feedback
         from image2image.utils.utilities import open_bug_report, open_docs, open_github, open_request
 
@@ -337,6 +337,9 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
             icon="feedback",
         )
         hp.make_menu_item(self, "Telemetry...", menu=menu_help, func=partial(ask_opt_in, parent=self), icon="telemetry")
+        hp.make_menu_item(
+            self, "System info...", menu=menu_help, func=partial(open_sysinfo, parent=self), icon="settings"
+        )
         hp.make_menu_item(self, "About...", menu=menu_help, func=partial(open_about, parent=self), icon="info")
         menu_help.addSeparator()
         hp.make_menu_item(
