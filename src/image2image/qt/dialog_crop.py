@@ -51,6 +51,7 @@ class ImageCropWindow(Window):
             run_check_version=run_check_version,
         )
         READER_CONFIG.view_type = "overlay"  # type: ignore[assignment]
+        READER_CONFIG.split_rgb = False
         if CONFIG.first_time_crop:
             hp.call_later(self, self.on_show_tutorial, 10_000)
 

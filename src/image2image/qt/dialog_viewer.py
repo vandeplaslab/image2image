@@ -40,6 +40,7 @@ class ImageViewerWindow(Window):
         READER_CONFIG.view_type = "overlay"
         READER_CONFIG.only_last_pyramid = False
         READER_CONFIG.init_pyramid = True
+        READER_CONFIG.split_rgb = False
         if CONFIG.first_time_viewer:
             hp.call_later(self, self.on_show_tutorial, 10_000)
 
