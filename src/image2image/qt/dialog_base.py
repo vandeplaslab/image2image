@@ -102,6 +102,9 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
         is_new_available, reason = res
         if not is_new_available:
             logger.debug("Using the latest version of the app.")
+            hp.toast(
+                self, "No new version", "You are using the latest version of the app.", icon="info", position="top_left"
+            )
             return
         hp.long_toast(self, "New version available!", reason, 15_000, icon="info", position="top_left")
         logger.debug("Checked for latest version.")
@@ -159,6 +162,7 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
         view_kind: str = "view",
         scale: bool = False,
     ) -> tuple[list[Image] | None, list[Shapes] | None]:
+        # TODO: add support for display RGB images in single layer (respect 'split_rgb=False')
         wrapper = model.wrapper
         if not wrapper:
             logger.error("Failed to get wrapper.")
@@ -181,9 +185,7 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
                 # get current transform and scale
                 # current_affine = reader.transform
                 current_affine = wrapper.get_affine(reader, reader.resolution) if scale else reader.transform
-                # current_affine = (
-                #     wrapper.update_affine(reader.transform, reader.resolution) if scale else reader.transform
-                # )
+
                 current_scale = reader.scale if scale else (1, 1)
                 if reader.reader_type == "shapes" and hasattr(reader, "to_shapes_kwargs"):
                     shape_layer.append(
@@ -336,6 +338,15 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
         )
         hp.make_menu_item(self, "Telemetry...", menu=menu_help, func=partial(ask_opt_in, parent=self), icon="telemetry")
         hp.make_menu_item(self, "About...", menu=menu_help, func=partial(open_about, parent=self), icon="info")
+        menu_help.addSeparator()
+        hp.make_menu_item(
+            self,
+            "Check for updates...",
+            "",
+            icon="reload",
+            menu=menu_help,
+            func=self.on_check_new_version,
+        )
         return menu_help
 
     def _make_statusbar(self) -> None:

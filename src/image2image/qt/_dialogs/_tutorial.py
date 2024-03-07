@@ -19,16 +19,17 @@ def show_convert_tutorial(widget: "ImageConvertWindow") -> None:
             TutorialStep(
                 title="Welcome to microscopy2tiff!",
                 message="We would like to show you around before you get started!<br>This app allows you to convert"
-                " Zeiss CZI images to OME-TIFF format. Sometimes, CZI image might contain multiple scenes which"
-                " are not always supported by other software. This app lets you convert each scene to a OME-TIFF file"
-                " which can be opened in other software.<br><br>Note. Some of the metadata might be lost during the"
-                " process",
+                " many microscopy images to OME-TIFF format. This can be particularly useful if you have non-tiled"
+                " TIFF images that are slow to load or multi-scene CZI image that are not supported in some"
+                " applications. This app lets you convert each scene to a OME-TIFF file which can be opened in other"
+                " software.<br><br>Note. Some of the metadata might be lost during the process and we don't support"
+                " 3D or 4D+ images at the moment and are unlikely to do so in the future.",
                 widget=widget._image_widget,
                 position=Position.BOTTOM,
             ),
             TutorialStep(
                 title="List of images",
-                message="Here is a list of CZI images that will be converted to OME-TIFF format. If the CZI image has"
+                message="Here is a list of images that will be converted to OME-TIFF format. If the CZI image has"
                 " multiple scenes (no. scenes), each scene will be converted to a separate OME-TIFF file.",
                 widget=widget.table,
                 position=Position.BOTTOM,
