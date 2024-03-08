@@ -37,11 +37,15 @@ PREFERRED_COLORMAPS = [
 ]
 
 
-def get_groups(filenames: list[str], keyword: str) -> dict[str, list[str]]:
+def get_groups(filenames: list[str], keyword: str, by_slide: bool = False) -> dict[str, list[str]]:
     """Get groups."""
     groups: dict[str, list[str]] = {"no group": []}
-    for filename in filenames:
-        group = extract_number(filename, keyword)
+    for index, filename in enumerate(filenames):
+        if by_slide:
+            group = str(index)
+        else:
+            group = extract_number(filename, keyword)
+
         if group is None:
             groups["no group"].append(filename)
         else:
