@@ -342,7 +342,6 @@ class RegistrationGroup(BaseModel):
         index_to_image, kind, reference = self.sort(registration)
         if len(index_to_image) == 1:
             return "<no preview available>"
-            # raise ValueErro   r("Cannot register a single image")
 
         if kind == "cascade" and target_mode != "next":
             return self._preview_cascade_paths(
@@ -707,6 +706,112 @@ class Registration(BaseModel):
     def group_iter(self) -> ty.Generator[int, None, None]:
         """Iterate over groups."""
         yield from self.groups.keys()
+
+    def is_single_project(self) -> bool:
+        """Check whether each group contains only one image."""
+        return all(len(group.keys) == 1 for group in self.groups.values())
+
+    def to_iwsireg(
+        self,
+        output_dir: PathLike,
+        name: str,
+        transformations: tuple[str, ...] = ("rigid", "affine"),
+        prefix: str = "c",
+        index_mode: str = "auto",
+        export_mode: str = "all",
+        first_only: bool = False,
+        direct: bool = False,
+        as_uint8: bool = False,
+    ) -> Path:
+        """Generate iwsireg configuration file."""
+        from image2image_io.readers import get_simple_reader
+        from image2image_wsireg.enums import CoordinateFlip
+        from image2image_wsireg.models import Preprocessing
+        from image2image_wsireg.workflows import IWsiReg
+
+        if export_mode == "all":
+            export_mode = "Export with mask + affine initialization"
+
+        # create iwsireg object
+        path = Path(output_dir) / f"{name}.wsireg"
+        obj = IWsiReg(name=name, output_dir=output_dir, cache=True, merge=True)
+
+        for group in self.groups.values():
+            # retrieve images
+            images = [self.images[key] for key in group.keys]
+            for image in images:
+                if not image.path:
+                    continue
+                assert image.path.exists(), f"Path does not exist: {image.path}"
+
+            # sort images according to the image order, and if one is not specified, use the key
+            if all(image.image_order == 0 for image in images):
+                for index, image in enumerate(natsorted(images, key=lambda x: x.key)):
+                    image.image_order = index
+
+            index_to_image, kind, reference = group.sort(self)
+            for index, key in index_to_image.items():
+                image = self.images[key]
+                name_index = index if index_mode == "auto" else image.metadata[index_mode]
+                reader = get_simple_reader(image.path)
+                if reader.is_rgb:
+                    pre = Preprocessing.brightfield()
+                else:
+                    pre = Preprocessing.fluorescence()
+
+                affine: ty.Optional[np.ndarray] = image.affine(reader.image_shape, reader.scale)
+                if RegistrationImage.is_identity(affine):
+                    affine = None
+
+                # use affine matrix if present and user explicitly requested it
+                if "affine initialization" in export_mode and affine is not None:
+                    pre.affine = affine
+                # affine matrix without rotation/flip
+                elif "affine(translate)" in export_mode:
+                    affine = image.affine(reader.image_shape, reader.scale, only_translate=True)
+                    if not RegistrationImage.is_identity(affine):
+                        pre.affine = affine
+                    pre.rotate_counter_clockwise = 360 - image.rotate  # we store it as clockwise...
+                    # pre.rotate_counter_clockwise = image.rotate  # we store it as clockwise...
+                    if image.flip_lr:
+                        pre.flip = CoordinateFlip.HORIZONTAL
+                # use translation/rotation/flip if present and user explicitly requested it
+                elif "translation/rotation/flip" in export_mode:
+                    pre.rotate_counter_clockwise = 360 - image.rotate  # we store it as clockwise...
+                    # pre.rotate_counter_clockwise = image.rotate  # we store it as clockwise...
+                    if image.flip_lr:
+                        pre.flip = CoordinateFlip.HORIZONTAL
+                    if image.translate_x:
+                        pre.translate_x = int(image.translate_x)
+                    if image.translate_y:
+                        pre.translate_y = int(image.translate_y)
+                if first_only:
+                    pre.channel_indices = [0]
+                    pre.channel_names = [reader.channel_names[0]]
+                else:
+                    pre.channel_indices = reader.channel_ids
+                    pre.channel_names = reader.channel_names
+
+                kws: dict[str, ty.Any] = {}
+                if "with mask" in export_mode:
+                    inv_affine = np.linalg.inv(affine) if affine is not None else None
+                    # if is_reference:
+                    kws["mask_bbox"] = group.get_mask_bbox(reader, inv_affine)
+                    kws["mask_polygon"] = group.get_mask_polygon(reader, inv_affine)
+                    kws["transform_mask"] = True
+                if as_uint8:
+                    kws["export"] = {"as_uint8": True}
+                # add modality to the project
+                obj.add_modality(
+                    f"{prefix}{name_index}", image.path, pixel_size=reader.resolution, preprocessing=pre, **kws
+                )
+
+        # validate the registration
+        if not obj.validate(allow_not_registered=True):
+            raise ValueError("Invalid registration")
+        # save the registration
+        obj.save()
+        return path
 
 
 def load_from_file(path: PathLike, validate_paths: bool = True) -> tuple[list[Path], list[Path], dict]:
