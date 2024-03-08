@@ -342,7 +342,7 @@ class RegistrationGroup(BaseModel):
         index_to_image, kind, reference = self.sort(registration)
         if len(index_to_image) == 1:
             return "<no preview available>"
-            # raise ValueError("Cannot register a single image")
+            # raise ValueErro   r("Cannot register a single image")
 
         if kind == "cascade" and target_mode != "next":
             return self._preview_cascade_paths(
