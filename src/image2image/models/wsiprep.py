@@ -231,6 +231,7 @@ class RegistrationGroup(BaseModel):
             image = registration.images[key]
             name_index = index if index_mode == "auto" else image.metadata[index_mode]
             reader = get_simple_reader(image.path)
+            # pre = Preprocessing.brightfield()
             pre = Preprocessing.fluorescence()
 
             # use affine matrix if present and user explicitly requested it
@@ -261,8 +262,8 @@ class RegistrationGroup(BaseModel):
                 pre.channel_indices = [0]
                 pre.channel_names = [reader.channel_names[0]]
             else:
-                pre.channel_indices = image.channel_ids
-                pre.channel_names = [reader.channel_names]
+                pre.channel_indices = reader.channel_ids
+                pre.channel_names = reader.channel_names
 
             kws: dict[str, ty.Any] = {}
             if "with mask" in export_mode:

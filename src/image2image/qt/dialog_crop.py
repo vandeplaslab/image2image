@@ -673,8 +673,11 @@ def crop_regions(
                 logger.warning(f"Skipping {output_path} as it already exists.")
                 yield output_path, current, n
                 continue
+            # try:
             filename = write_ome_tiff_from_array(output_path, reader, cropped)
             yield Path(filename), current, n
+            # except Exception:
+            #     yield None, current, n
 
 
 def preview_regions(
