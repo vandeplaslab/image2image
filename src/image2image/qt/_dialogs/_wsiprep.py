@@ -67,25 +67,26 @@ class GroupByDialog(WsiPrepMixin):
     def __init__(self, parent: ImageWsiPrepWindow):
         super().__init__(parent)
         self.setMinimumWidth(400)
+        self.on_preview_group_by()
 
     def connect_events(self, state: bool = True) -> None:
         """Connect events."""
         connect(self.parent()._image_widget.dataset_dlg.evt_loaded, self.on_preview_group_by, state=state)
         connect(self.parent()._image_widget.dataset_dlg.evt_closed, self.on_preview_group_by, state=state)
 
-    def _get_groups(self) -> tuple[dict[str, list[str]], dict[str, int]]:
+    def _get_groups(self, by_slide: bool = False) -> tuple[dict[str, list[str]], dict[str, int]]:
         """Return mapping between image key and group ID."""
         value = self.group_by.text()
-        if value:
+        if value or by_slide:
             filenames: list[str] = self.table.get_col_data(self.TABLE_CONFIG.key)
-            groups = get_groups(filenames, value)
+            groups = get_groups(filenames, value, by_slide=by_slide)
             dataset_to_group_map = groups_to_group_id(groups)
             return groups, dataset_to_group_map
         return {}, {}
 
     def on_preview_group_by(self) -> None:
         """Preview groups specified by user."""
-        groups, dataset_to_group_map = self._get_groups()
+        groups, dataset_to_group_map = self._get_groups(by_slide=self.group_by.text() == "")
         if dataset_to_group_map:
             ret = format_group_info(groups)
             self.label.setText(ret)
@@ -142,6 +143,36 @@ class GroupByDialog(WsiPrepMixin):
             self.parent()._generate_group_options()
         logger.trace(f"Grouped images in {timer()}")
 
+    def on_group_by_slide(self) -> None:
+        """Group by slide. Each slide is given it's own group."""
+        if self.table.n_rows == 0:
+            return
+        groups, dataset_to_group_map = self._get_groups(by_slide=True)
+        if (
+            groups
+            and self.registration.is_grouped()
+            and not hp.confirm(
+                self,
+                "Are you sure you wish to group images?<br>This will overwrite any previous groupings and <b>will"
+                " result in loss of any masks</b>!",
+                "Are you sure?",
+            )
+        ):
+            return
+        with MeasureTimer() as timer, self.table.block_model():
+            values = [-1] * self.table.n_rows
+            if dataset_to_group_map:
+                for key, group_id in tqdm(
+                    dataset_to_group_map.items(), desc="Grouping images...", total=self.table.n_rows
+                ):
+                    self.registration.images[key].group_id = group_id
+                    index = self.table.find_index_of(self.TABLE_CONFIG.key, key)
+                    values[index] = group_id
+                self.registration.regroup()
+                self.table.update_column(self.TABLE_CONFIG.group_id, values, match_to_sort=False)
+            self.parent()._generate_group_options()
+        logger.trace(f"Grouped images in {timer()}")
+
     def on_order_by(self) -> None:
         """Reorder images according to the current group identification."""
         if self.table.n_rows == 0:
@@ -170,6 +201,7 @@ class GroupByDialog(WsiPrepMixin):
     # noinspection PyAttributeOutsideInit
     def make_panel(self) -> QLayout:
         """Make panel."""
+        self.group_by_slide_btn = hp.make_btn(self, "Group by slide", func=self.on_group_by_slide)
         self.group_by = hp.make_line_edit(
             self, placeholder="Type in part of the filename", func_changed=self.on_preview_group_by
         )
@@ -201,9 +233,14 @@ class GroupByDialog(WsiPrepMixin):
             )
         )
         layout.addRow(hp.make_h_line())
+        layout.addRow(self.group_by_slide_btn)
+        layout.addRow(hp.make_h_line_with_text("or"))
         layout.addRow(self.group_by)
-        layout.addRow(hp.make_h_layout(self.add_metadata_btn, self.group_by_btn, self.reorder_btn))
+        layout.addRow(self.group_by_btn)
         layout.addRow(hp.make_h_line(self))
+        layout.addRow(self.reorder_btn)
+        layout.addRow(self.add_metadata_btn)
+        layout.addRow(hp.make_h_line_with_text("Preview"))
         layout.addRow(self.label)
         return layout
 
@@ -229,11 +266,11 @@ class MaskDialog(WsiPrepMixin):
     @property
     def crop_layer(self) -> Shapes:
         """Crop layer."""
-        if "Crop rectangle" not in self.view.layers:
+        if "Mask" not in self.view.layers:
             layer = self.view.viewer.add_shapes(
                 None,
                 edge_width=5,
-                name="Crop rectangle",
+                name="Mask",
                 face_color="green",
                 edge_color="white",
                 opacity=0.5,
@@ -241,9 +278,11 @@ class MaskDialog(WsiPrepMixin):
             visual = self.view.widget.layer_to_visual[layer]
             init_shapes_layer(layer, visual)
             connect(self.crop_layer.events.set_data, self.on_update_crop_from_canvas, state=True)
-            if hasattr(self, "layer_controls"):
-                self.layer_controls.set_layer(layer)
-        return self.view.layers["Crop rectangle"]
+
+        layer = self.view.layers["Mask"]
+        if hasattr(self, "layer_controls"):
+            self.layer_controls.set_layer(layer)
+        return layer
 
     def _get_default_crop_area(self) -> tuple[int, int, int, int]:
         (_, y, x) = self.view.viewer.camera.center
@@ -673,7 +712,7 @@ class ConfigDialog(WsiPrepMixin):
             " and only want to co-register by e.g. the DAPI channel.",
         )
         self.target_mode = hp.make_combobox(
-            self, ["sequential", "reference", "next"], tooltip="Select target type...", func=self.on_preview
+            self, ["sequential", "reference", "next", "none"], tooltip="Select target type...", func=self.on_preview
         )
 
         self.preview_btn = hp.make_btn(self, "Preview", tooltip="Preview registration paths...", func=self.on_preview)

@@ -428,11 +428,11 @@ class ImageCropWindow(Window):
     @property
     def crop_layer(self) -> Shapes:
         """Crop layer."""
-        if "Crop rectangle" not in self.view.layers:
+        if "Mask" not in self.view.layers:
             layer = self.view.viewer.add_shapes(
                 None,
                 edge_width=5,
-                name="Crop rectangle",
+                name="Mask",
                 face_color="green",
                 edge_color="white",
                 opacity=0.5,
@@ -440,7 +440,7 @@ class ImageCropWindow(Window):
             visual = self.view.widget.layer_to_visual[layer]
             init_shapes_layer(layer, visual)
             connect(self.crop_layer.events.set_data, self.on_update_crop_from_canvas, state=True)
-        return self.view.layers["Crop rectangle"]
+        return self.view.layers["Mask"]
 
     def _setup_ui(self):
         """Create panel."""

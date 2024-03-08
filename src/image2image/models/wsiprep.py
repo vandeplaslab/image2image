@@ -231,8 +231,10 @@ class RegistrationGroup(BaseModel):
             image = registration.images[key]
             name_index = index if index_mode == "auto" else image.metadata[index_mode]
             reader = get_simple_reader(image.path)
-            # pre = Preprocessing.brightfield()
-            pre = Preprocessing.fluorescence()
+            if reader.is_rgb:
+                pre = Preprocessing.brightfield()
+            else:
+                pre = Preprocessing.fluorescence()
 
             # use affine matrix if present and user explicitly requested it
             if "affine initialization" in export_mode:
