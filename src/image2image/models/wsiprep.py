@@ -45,6 +45,8 @@ class RegistrationImage(BaseModel):
     lock: bool = Field(False, title="Lock")
     channel_ids: list = Field(default_factory=list, title="Channel ids")
     metadata: ty.Dict = Field(default_factory=dict, title="Metadata")
+    mask_bbox: ty.Optional[tuple[int, int, int, int]] = Field(None, title="Mask bounding box")
+    mask_polygon: ty.Optional[np.ndarray] = Field(None, title="Mask polygon")
 
     @classmethod
     def from_reader(cls, reader: "BaseReader") -> "RegistrationImage":
@@ -173,16 +175,26 @@ class RegistrationGroup(BaseModel):
             "mask_polygon": self.mask_polygon,
         }
 
-    def get_mask_bbox(self, image: "BaseReader") -> ty.Optional[tuple[int, int, int, int]]:
+    def get_mask_bbox(
+        self, image: "BaseReader", affine: ty.Optional[np.ndarray] = None
+    ) -> ty.Optional[tuple[int, int, int, int]]:
         """Get mask bounding box."""
         if self.mask_bbox:
-            return tuple(np.round(np.asarray(self.mask_bbox) * image.inv_resolution).astype(int))
+            bbox = np.asarray(self.mask_bbox)
+            # if affine is not None:
+            #     bbox = np.dot(affine[:2, :2], bbox.T).T + affine[:2, 2]
+            # convert to pixel coordinates and round
+            return tuple(np.round(bbox * image.inv_resolution).astype(int))
         return None
 
-    def get_mask_polygon(self, image: "BaseReader") -> ty.Optional[np.ndarray]:
+    def get_mask_polygon(self, image: "BaseReader", affine: ty.Optional[np.ndarray] = None) -> ty.Optional[np.ndarray]:
         """Get mask polygon."""
         if self.mask_polygon is not None:
-            yx = self.mask_polygon * image.inv_resolution
+            yx = self.mask_polygon
+            if affine is not None:
+                yx = np.dot(affine[:2, :2], yx.T).T + affine[:2, 2]
+            # convert to pixel coordinates and round
+            yx = yx * image.inv_resolution
             return np.round(yx).astype(np.int32)[:, ::-1]
         return None
 
@@ -221,8 +233,8 @@ class RegistrationGroup(BaseModel):
                 image.image_order = index
 
         index_to_image, kind, reference = self.sort(registration)
-        if len(index_to_image) == 1:
-            raise ValueError("Cannot register a single image")
+        # if len(index_to_image) == 1:
+        #     raise ValueError("Cannot register a single image")
 
         # create iwsireg object
         path = Path(output_dir) / f"{name}.wsireg"
@@ -236,11 +248,13 @@ class RegistrationGroup(BaseModel):
             else:
                 pre = Preprocessing.fluorescence()
 
+            affine = image.affine(reader.image_shape, reader.scale)
+            if RegistrationImage.is_identity(affine):
+                affine = None
+
             # use affine matrix if present and user explicitly requested it
-            if "affine initialization" in export_mode:
-                affine = image.affine(reader.image_shape, reader.scale)
-                if not RegistrationImage.is_identity(affine):
-                    pre.affine = affine
+            if "affine initialization" in export_mode and affine is not None:
+                pre.affine = affine
             # affine matrix without rotation/flip
             elif "affine(translate)" in export_mode:
                 affine = image.affine(reader.image_shape, reader.scale, only_translate=True)
@@ -269,10 +283,11 @@ class RegistrationGroup(BaseModel):
 
             kws: dict[str, ty.Any] = {}
             if "with mask" in export_mode:
+                inv_affine = np.linalg.inv(affine) if affine is not None else None
                 # if is_reference:
-                kws["mask_bbox"] = self.get_mask_bbox(reader)
-                kws["mask_polygon"] = self.get_mask_polygon(reader)
-                kws["transform_mask"] = False
+                kws["mask_bbox"] = self.get_mask_bbox(reader, inv_affine)
+                kws["mask_polygon"] = self.get_mask_polygon(reader, inv_affine)
+                kws["transform_mask"] = True
             if as_uint8:
                 kws["export"] = {"as_uint8": True}
             # add modality to the project
@@ -326,7 +341,8 @@ class RegistrationGroup(BaseModel):
 
         index_to_image, kind, reference = self.sort(registration)
         if len(index_to_image) == 1:
-            raise ValueError("Cannot register a single image")
+            return "<no preview available>"
+            # raise ValueError("Cannot register a single image")
 
         if kind == "cascade" and target_mode != "next":
             return self._preview_cascade_paths(
@@ -352,7 +368,7 @@ class RegistrationGroup(BaseModel):
         #     return self._preview_next_paths(
         #         registration, index_to_image, reference, prefix=prefix, index_mode=index_mode,
         #     )
-        return ""
+        return "<no preview available>"
 
     def _add_cascade_paths(
         self,
