@@ -736,7 +736,7 @@ class Registration(BaseModel):
         path = Path(output_dir) / f"{name}.wsireg"
         obj = IWsiReg(name=name, output_dir=output_dir, cache=True, merge=True)
 
-        for group in self.groups.values():
+        for group_index, group in enumerate(self.groups.values()):
             # retrieve images
             images = [self.images[key] for key in group.keys]
             for image in images:
@@ -803,7 +803,11 @@ class Registration(BaseModel):
                     kws["export"] = {"as_uint8": True}
                 # add modality to the project
                 obj.add_modality(
-                    f"{prefix}{name_index}", image.path, pixel_size=reader.resolution, preprocessing=pre, **kws
+                    f"{group_index}-{prefix}{name_index}",
+                    image.path,
+                    pixel_size=reader.resolution,
+                    preprocessing=pre,
+                    **kws,
                 )
 
         # validate the registration

@@ -538,10 +538,12 @@ class ConfigDialog(WsiPrepMixin):
             project_suffix = "-" + project_suffix
         return project_prefix, project_suffix
 
-    def _get_project_name(self, group: RegistrationGroup) -> str:
+    def _get_project_name(self, group: RegistrationGroup | None) -> str:
         project_prefix, project_suffix = self._get_suffix_prefix()
         CONFIG.project_tag = project_tag = self.project_tag.text() or "group"
-        return f"{project_prefix}{project_tag}={group.group_id}{project_suffix}.wsireg"
+        if group:
+            return f"{project_prefix}{project_tag}={group.group_id}{project_suffix}.wsireg"
+        return f"{project_prefix}{project_tag}{project_suffix}.wsireg"
 
     def on_export(self):
         """Export to disk."""
@@ -565,22 +567,34 @@ class ConfigDialog(WsiPrepMixin):
         export_mode = self.export_type.currentText()
         first_only = self.first_channel_only.isChecked()
         target_mode = self.target_mode.currentText()
-        n = len(self.registration.groups)
-        logger.trace(f"Generating configs for {n} groups...")
-        with MeasureTimer():
-            for _group_id, group in tqdm(self.registration.groups.items(), desc="Generating configs...", total=n):
-                path = group.to_iwsireg(
-                    self.registration,
-                    self.output_dir,
-                    self._get_project_name(group),
-                    prefix=prefix,
-                    index_mode=index_mode,
-                    export_mode=export_mode,
-                    first_only=first_only,
-                    direct=target_mode == "reference",
-                    transformations=transformations,
-                )
-                logger.trace(f"Generated config for group '{group.group_id}' at '{path}'")
+        if self.registration.is_single_project():
+            self.registration.to_iwsireg(
+                self.output_dir,
+                self._get_project_name(None),
+                prefix=prefix,
+                index_mode=index_mode,
+                export_mode=export_mode,
+                first_only=first_only,
+                direct=target_mode == "reference",
+                transformations=transformations,
+            )
+        else:
+            n = len(self.registration.groups)
+            logger.trace(f"Generating configs for {n} groups...")
+            with MeasureTimer():
+                for _group_id, group in tqdm(self.registration.groups.items(), desc="Generating configs...", total=n):
+                    path = group.to_iwsireg(
+                        self.registration,
+                        self.output_dir,
+                        self._get_project_name(group),
+                        prefix=prefix,
+                        index_mode=index_mode,
+                        export_mode=export_mode,
+                        first_only=first_only,
+                        direct=target_mode == "reference",
+                        transformations=transformations,
+                    )
+                    logger.trace(f"Generated config for group '{group.group_id}' at '{path}'")
 
     def on_preview(self):
         """Preview registration paths."""
