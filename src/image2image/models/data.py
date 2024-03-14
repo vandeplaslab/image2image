@@ -58,7 +58,7 @@ class DataModel(BaseModel):
             path_or_paths = [path_or_paths]
         for path in path_or_paths:
             path_ = path
-            path = sanitize_read_path(path, raise_error=False)
+            path = sanitize_read_path(path, raise_on_error=False)
             if path is None:
                 logger.warning(f"Failed to add '{path_}' to model paths.")
             elif path not in self.paths:
