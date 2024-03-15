@@ -1,4 +1,5 @@
 """Viewer dialog."""
+
 from __future__ import annotations
 
 import typing as ty
@@ -9,7 +10,7 @@ import qtextra.helpers as hp
 from image2image_io.config import CONFIG as READER_CONFIG
 from koyo.timer import MeasureTimer
 from loguru import logger
-from napari.layers import Image, Shapes
+from napari.layers import Image, Points, Shapes
 from qtextra.utils.utilities import connect
 from qtextra.widgets.qt_close_window import QtConfirmCloseDialog
 from qtextra.widgets.qt_image_button import QtThemeButton
@@ -33,6 +34,7 @@ class ImageViewerWindow(Window):
 
     image_layer: list[Image] | None = None
     shape_layer: list[Shapes] | None = None
+    points_layer: list[Shapes] | None = None
     _console = None
 
     def __init__(self, parent: QWidget | None, run_check_version: bool = True):
@@ -84,7 +86,7 @@ class ImageViewerWindow(Window):
 
     def plot_image_layers(self, channel_list: list[str] | None = None) -> None:
         """Plot image layers."""
-        self.image_layer, self.shape_layer = self._plot_image_layers(
+        self.image_layer, self.shape_layer, self.points_layer = self._plot_image_layers(
             self.data_model, self.view, channel_list, "view", True
         )
 

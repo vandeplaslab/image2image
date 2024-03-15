@@ -1,4 +1,5 @@
 """Viewer dialog."""
+
 from __future__ import annotations
 
 import typing as ty
@@ -91,7 +92,7 @@ class ImageCropWindow(Window):
 
     def plot_image_layers(self, channel_list: list[str] | None = None) -> None:
         """Plot image layers."""
-        self.image_layer, self.shape_layer = self._plot_image_layers(
+        self.image_layer, self.shape_layer, self.points_layer = self._plot_image_layers(
             self.data_model, self.view, channel_list, "view", True
         )
 

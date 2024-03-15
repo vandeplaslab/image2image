@@ -1,4 +1,5 @@
 """Dialog window base class."""
+
 from __future__ import annotations
 
 import typing as ty
@@ -8,7 +9,7 @@ import qtextra.helpers as hp
 from image2image_io.config import CONFIG as READER_CONFIG
 from koyo.timer import MeasureTimer
 from loguru import logger
-from napari.layers import Image, Layer, Shapes
+from napari.layers import Image, Layer, Points, Shapes
 from qtextra._napari.mixins import ImageViewMixin
 from qtextra.config import THEMES
 from qtextra.mixins import IndicatorMixin
@@ -123,7 +124,9 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
     ) -> None:
         if name not in view_wrapper.layers:
             logger.warning(f"Layer '{name}' not found in the view.")
-            self.image_layer, self.shape_layer = self._plot_image_layers(model, view_wrapper, [name], view_kind, True)
+            self.image_layer, self.shape_layer, self.points_layer = self._plot_image_layers(
+                model, view_wrapper, [name], view_kind, True
+            )
             return
         view_wrapper.layers[name].visible = state
 
@@ -148,7 +151,7 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
                     continue
                 if name not in view_wrapper.layers:
                     logger.warning(f"Layer '{name}' not found in the view.")
-                    self.image_layer, self.shape_layer = self._plot_image_layers(
+                    self.image_layer, self.shape_layer, self.points_layer = self._plot_image_layers(
                         model, view_wrapper, [name], view_kind, True
                     )
                     continue
@@ -161,7 +164,7 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
         channel_list: list[str] | None = None,
         view_kind: str = "view",
         scale: bool = False,
-    ) -> tuple[list[Image] | None, list[Shapes] | None]:
+    ) -> tuple[list[Image] | None, list[Shapes] | None, list[Points] | None]:
         # TODO: add support for display RGB images in single layer (respect 'split_rgb=False')
         wrapper = model.wrapper
         if not wrapper:
@@ -169,7 +172,7 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
             return None, None
         if channel_list is None:
             channel_list = wrapper.channel_names()
-        image_layer, shape_layer = [], []
+        image_layer, shape_layer, points_layer = [], [], []
         for index, (name, array, reader) in enumerate(wrapper.channel_image_for_channel_names_iter(channel_list)):
             if name not in channel_list:
                 continue
@@ -178,6 +181,8 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
                 if name in view_wrapper.layers:
                     if reader.reader_type == "shapes":
                         shape_layer.append(view_wrapper.layers[name])
+                    elif reader.reader_type == "points":
+                        points_layer.append(view_wrapper.layers[name])
                     else:
                         image_layer.append(view_wrapper.layers[name])
                     continue
@@ -190,6 +195,10 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
                 if reader.reader_type == "shapes" and hasattr(reader, "to_shapes_kwargs"):
                     shape_layer.append(
                         view_wrapper.viewer.add_shapes(**reader.to_shapes_kwargs(name=name, affine=current_affine))
+                    )
+                elif reader.reader_type == "points" and hasattr(reader, "to_points_kwargs"):
+                    points_layer.append(
+                        view_wrapper.viewer.add_points(**reader.to_points_kwargs(name=name, affine=current_affine))
                     )
                 else:
                     if array is None:
@@ -210,14 +219,14 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
                     if contrast_limits_range:
                         image_layer[-1].contrast_limits_range = contrast_limits_range
                 logger.trace(f"Added '{name}' to {view_kind} in {timer()}.")
-        return image_layer, shape_layer
+        return image_layer, shape_layer, points_layer
 
     @staticmethod
     def _close_model(model: DataModel, view_wrapper: NapariImageView, view_kind: str = "view") -> None:
         """Close model."""
         try:
             channel_names = model.channel_names()
-            layer_names = [layer.name for layer in view_wrapper.layers if isinstance(layer, (Image, Shapes))]
+            layer_names = [layer.name for layer in view_wrapper.layers if isinstance(layer, (Image, Shapes, Points))]
             for name in layer_names:
                 if name not in channel_names:
                     del view_wrapper.layers[name]

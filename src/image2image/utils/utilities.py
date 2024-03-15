@@ -1,4 +1,5 @@
 """Utilities."""
+
 from __future__ import annotations
 
 import random
@@ -221,13 +222,13 @@ def get_contrast_limits(array: list[np.ndarray]) -> tuple[tuple[float, float] | 
         array_ = array_[::50, ::50]
     elif array_.size > 1e7:
         array_ = array_[::100, ::100]
-    if array_.dtype == np.uint8:
-        data_range = max_range = (0, 255)
+    # if array_.dtype == np.uint8:
+    #     data_range = max_range = (0, 255)
     elif array_.dtype in [np.int16, np.int32, np.uint16]:
         max_range = np.iinfo(array_.dtype).min, np.iinfo(array_.dtype).max
 
     if data_range is None:
-        data_range = calc_data_range(array_)
+        data_range = calc_data_range(array_.astype(np.float32))
     return data_range, max_range
 
 

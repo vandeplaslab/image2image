@@ -1,4 +1,5 @@
 """Registration dialog."""
+
 from __future__ import annotations
 
 import typing as ty
@@ -276,7 +277,7 @@ class ImageRegistrationWindow(Window):
         logger.info(f"Loaded fixed data in {timer()}")
 
     def _plot_fixed_layers(self, channel_list: list[str] | None = None) -> None:
-        self.fixed_image_layer, _ = self._plot_image_layers(
+        self.fixed_image_layer, _, _ = self._plot_image_layers(
             self.fixed_model, self.view_fixed, channel_list, "fixed view"
         )
         if isinstance(self.fixed_image_layer, list) and len(self.fixed_image_layer) > 1:
@@ -476,8 +477,7 @@ class ImageRegistrationWindow(Window):
         layer = self.fixed_points_layer if which == "fixed" else self.moving_points_layer
         if (
             # (layer and len(layer.data) > 0) and (
-            force
-            or hp.confirm(self, "Are you sure you want to remove all data points from the points layer?")
+            force or hp.confirm(self, "Are you sure you want to remove all data points from the points layer?")
         ):
             layer.data = np.zeros((0, 2))
             self.evt_predicted.emit()  # noqa
@@ -1395,9 +1395,7 @@ class ImageRegistrationWindow(Window):
         if (
             not force
             or not CONFIG.confirm_close_register
-            or QtConfirmCloseDialog(
-                self, "confirm_close_register", self.on_save_to_project, CONFIG
-            ).exec_()  # type: ignore[attr-defined]
+            or QtConfirmCloseDialog(self, "confirm_close_register", self.on_save_to_project, CONFIG).exec_()  # type: ignore[attr-defined]
             == QDialog.DialogCode.Accepted
         ):
             return super().close()
@@ -1409,9 +1407,7 @@ class ImageRegistrationWindow(Window):
             evt.spontaneous()
             and CONFIG.confirm_close_register
             and self.transform_model.is_valid()
-            and QtConfirmCloseDialog(
-                self, "confirm_close_register", self.on_save_to_project, CONFIG
-            ).exec_()  # type: ignore[attr-defined]
+            and QtConfirmCloseDialog(self, "confirm_close_register", self.on_save_to_project, CONFIG).exec_()  # type: ignore[attr-defined]
             != QDialog.DialogCode.Accepted
         ):
             evt.ignore()

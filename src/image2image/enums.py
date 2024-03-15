@@ -1,4 +1,5 @@
 """Enums."""
+
 from enum import auto
 
 from image2image_io.enums import ViewType
@@ -41,7 +42,8 @@ ALLOWED_IMAGE_FORMATS = (
 )
 ALLOWED_IMAGE_FORMATS_WITH_GEOJSON = (
     "Any imaging (*.d *.tsf *.tdf *.imzML  *.ibd *.data *.metadata.h5 peaks_*.h5 *.npy *.czi *.ome.tiff *.tiff *.scn"
-    "*.tif *.qptiff *.qptiff.raw *.qptiff.intermediate *.svs *.ndpi *.jpg *.jpeg *.png *.geojson *.json);; "
+    "*.tif *.qptiff *.qptiff.raw *.qptiff.intermediate *.svs *.ndpi *.jpg *.jpeg *.png *.geojson *.json *.csv"
+    " *.parquet);; "
     "Bruker (*.d *.tsf *.tdf);; "
     "imzML (*.imzML *.ibd);; "
     "ionglow (*.data *.metadata.h5 peaks_*.h5);;"
@@ -51,6 +53,7 @@ ALLOWED_IMAGE_FORMATS_WITH_GEOJSON = (
     "JPEG (*.jpg *.jpeg);; "
     "PNG (*.png);;"
     "GeoJSON (*.geojson *.json);;"
+    "Points (*.csv *.parquet);;"
 )
 ALLOWED_IMAGE_FORMATS_MICROSCOPY_ONLY = (
     "Any microscopy (*.czi *.ome.tiff *.tiff *.scn"
