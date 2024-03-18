@@ -906,13 +906,13 @@ class ImageRegistrationWindow(Window):
         CONFIG.sync_views = self.synchronize_zoom.isChecked()
         self.on_sync_views_fixed()
 
-    @qdebounced(timeout=200, leading=True)
+    @qdebounced(timeout=100, leading=True)
     def on_sync_views_fixed(self, _event: Event | None = None) -> None:
         """Synchronize views."""
         if not self._zooming:
             self._on_sync_views("fixed")
 
-    @qdebounced(timeout=200, leading=True)
+    @qdebounced(timeout=100, leading=True)
     def on_sync_views_moving(self, _event: Event | None = None) -> None:
         """Synchronize views."""
         if not self._zooming:
