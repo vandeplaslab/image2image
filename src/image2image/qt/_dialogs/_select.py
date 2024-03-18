@@ -61,6 +61,7 @@ class LoadWidget(QWidget):
         available_formats: str | None = None,
         allow_flip_rotation: bool = False,
         allow_swap: bool = False,
+        allow_iterate: bool = False,
         project_extension: list[str] | None = None,
     ):
         """Init."""
@@ -83,7 +84,11 @@ class LoadWidget(QWidget):
             project_extension=project_extension,
         )
 
-        self.channel_dlg = OverlayChannelsDialog(self, self.model, self.view, self.CHANNEL_FIXED) if self.view else None
+        self.channel_dlg = (
+            OverlayChannelsDialog(self, self.model, self.view, self.CHANNEL_FIXED, allow_iterate=allow_iterate)
+            if self.view
+            else None
+        )
         self.dataset_dlg.evt_loading.connect(lambda: self.active_icon.set_active(True))
         self.dataset_dlg.evt_loaded.connect(lambda _: self.active_icon.set_active(False))
         connect(self.dataset_dlg.evt_swap, self.evt_swap.emit)
@@ -233,6 +238,7 @@ class MovingWidget(LoadWidget):
         allow_flip_rotation: bool = False,
         allow_swap: bool = False,
         project_extension: list[str] | None = None,
+        allow_iterate: bool = False,
     ):
         super().__init__(
             parent,
@@ -243,6 +249,7 @@ class MovingWidget(LoadWidget):
             allow_flip_rotation=allow_flip_rotation,
             allow_swap=allow_swap,
             project_extension=project_extension,
+            allow_iterate=allow_iterate,
         )
 
         # extra events
@@ -323,6 +330,7 @@ class LoadWithTransformWidget(LoadWidget):
         allow_flip_rotation: bool = False,
         allow_swap: bool = False,
         project_extension: list[str] | None = None,
+        allow_iterate: bool = False,
     ):
         """Init."""
         super().__init__(
@@ -334,6 +342,7 @@ class LoadWithTransformWidget(LoadWidget):
             allow_flip_rotation=allow_flip_rotation,
             allow_swap=allow_swap,
             project_extension=project_extension,
+            allow_iterate=allow_iterate,
         )
         self.transform_model = TransformModel()
         self.transform_model.add_transform("Identity matrix", TransformData.from_array(np.eye(3, dtype=np.float64)))

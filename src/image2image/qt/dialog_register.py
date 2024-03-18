@@ -984,6 +984,7 @@ class ImageRegistrationWindow(Window):
             self.view_moving,
             allow_swap=False,
             project_extension=[".i2r.json", ".i2r.toml"],
+            allow_iterate=True,
         )
 
         self.transform_error = hp.make_label(

@@ -262,6 +262,7 @@ class ImageViewerWindow(Window):
             self.view,
             allow_geojson=True,
             project_extension=[".i2v.json", ".i2v.toml"],
+            allow_iterate=True,
         )
 
         self.import_project_btn = hp.make_btn(

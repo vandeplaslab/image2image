@@ -52,7 +52,7 @@ class OverlayChannelsDialog(QtFramelessTool):
         model: "DataModel",
         view: "NapariImageView",
         is_fixed: ty.Optional[bool] = False,
-        allow_iterate: bool = True,
+        allow_iterate: bool = False,
     ):
         self.model = model
         self.view = view
