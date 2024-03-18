@@ -1,4 +1,5 @@
 """Viewer dialog."""
+
 from __future__ import annotations
 
 import typing as ty
@@ -29,15 +30,33 @@ if ty.TYPE_CHECKING:
 
 
 def get_metadata(
-    readers_metadata: dict[Path, dict[int, dict[str, list[bool | int | str]]]]
+    readers_metadata: dict[Path, dict[int, dict[str, list[bool | int | str]]]],
 ) -> dict[Path, dict[int, dict[str, list[int | str]]]]:
     """Cleanup metadata."""
     metadata = {}
     for path, reader_metadata in readers_metadata.items():
         metadata_ = {}
         for scene_index, scene_metadata in reader_metadata.items():
-            channel_ids = [x for x, keep in zip(scene_metadata["channel_ids"], scene_metadata["keep"]) if keep]
-            channel_names = [x for x, keep in zip(scene_metadata["channel_names"], scene_metadata["keep"]) if keep]
+            channel_name_to_ids = {}
+            # iterate over channels and merge if necessary
+            for index, channel_id in enumerate(scene_metadata["channel_ids"]):
+                if channel_id in scene_metadata["channel_id_to_merge"]:
+                    merge_channel_name = scene_metadata["channel_id_to_merge"][channel_id]
+                    channel_name = scene_metadata["channel_names"][index]
+                    if merge_channel_name not in channel_name_to_ids:
+                        channel_name_to_ids[merge_channel_name] = []
+                    channel_name_to_ids[merge_channel_name].append(channel_id)
+                    if not scene_metadata["merge_and_keep"] and scene_metadata["keep"][index]:
+                        scene_metadata[channel_name] = channel_id
+                if scene_metadata["keep"][index]:
+                    channel_name_to_ids[scene_metadata["channel_names"][index]] = channel_id
+
+            # cleanup by removing any duplicates and sorting indices
+            for channel_name in channel_name_to_ids.keys():
+                if isinstance(channel_name_to_ids[channel_name], list):
+                    channel_name_to_ids[channel_name] = sorted(list(set(channel_name_to_ids[channel_name])))
+            channel_names = list(channel_name_to_ids.keys())
+            channel_ids = list(channel_name_to_ids.values())
             metadata_[scene_index] = {"channel_ids": channel_ids, "channel_names": channel_names}
         metadata[path] = metadata_
     return metadata
@@ -154,7 +173,6 @@ class ImageConvertWindow(Window):
                     self.reader_metadata[reader.path] = reader_metadata
                 else:
                     self.reader_metadata[reader.path] = {}
-
                     for scene_index in range(reader.n_scenes):
                         reader_ = (
                             CziSceneImageReader(reader.path, scene_index=scene_index)
@@ -165,6 +183,8 @@ class ImageConvertWindow(Window):
                             "keep": [True] * reader_.n_channels,
                             "channel_ids": reader_.channel_ids,
                             "channel_names": reader_.channel_names,
+                            "channel_id_to_merge": {},  # dict of int: str
+                            "merge_and_keep": False,  # bool
                         }
         self.on_update_reader_metadata()
 
@@ -179,9 +199,11 @@ class ImageConvertWindow(Window):
         if column == self.TABLE_CONFIG.metadata:
             reader_metadata = self.reader_metadata[reader.path]
             dlg = ChannelRenameDialog(self, reader_metadata)
-            if dlg.exec_() == QDialog.DialogCode.Accepted:
+            result = dlg.exec_()
+            if result == QDialog.DialogCode.Accepted:
                 self.reader_metadata[reader.path] = dlg.reader_metadata
                 self.on_update_reader_metadata()
+                logger.trace(f"Updated metadata for {name}")
         # elif column == self.TABLE_CONFIG.resolution:
         #     new_resolution = hp.get_double(
         #         self,
@@ -200,15 +222,21 @@ class ImageConvertWindow(Window):
 
     def on_update_reader_metadata(self):
         """Update reader metadata."""
-        for path, reader_metadata in self.reader_metadata.items():
+        reader_metadata = get_metadata(self.reader_metadata)
+        for path, reader_metadata_ in reader_metadata.items():
             key = path.name
             row = hp.find_in_table(self.table, self.TABLE_CONFIG.name, key)
             if row is None:
                 continue
             metadata = []
-            for scene_index, scene_metadata in reader_metadata.items():
-                channel_ids = [x for x, keep in zip(scene_metadata["channel_ids"], scene_metadata["keep"]) if keep]
-                metadata.append(f"{scene_index}: {channel_ids}")
+            has_scenes = len(reader_metadata_) > 1
+            for index, (scene_index, scene_metadata) in enumerate(reader_metadata_.items()):
+                channel_ids = scene_metadata["channel_ids"]
+                channel_names = scene_metadata["channel_names"]
+                if index == 0 and has_scenes:
+                    metadata.append(f"scene {scene_index}")
+                for channel_index, channel_name in zip(channel_ids, channel_names):
+                    metadata.append(f"- {channel_name}: {channel_index}")
             self.table.item(row, self.TABLE_CONFIG.metadata).setText("\n".join(metadata))
 
     def on_convert(self):
@@ -239,6 +267,7 @@ class ImageConvertWindow(Window):
                 as_uint8=CONFIG.as_uint8,
                 tile_size=int(self.tile_size.currentText()),
                 metadata=get_metadata(self.reader_metadata),
+                overwrite=self.overwrite.isChecked(),
                 _start_thread=True,
                 _connect={
                     "aborted": self._on_export_aborted,
@@ -361,7 +390,15 @@ class ImageConvertWindow(Window):
         )
         self.as_uint8 = hp.make_checkbox(
             self,
+            "Reduce data size (uint8 - dynamic range 0-255)",
             tooltip="Convert to uint8 to reduce file size with minimal data loss.",
+            checked=True,
+            value=CONFIG.as_uint8,
+        )
+        self.overwrite = hp.make_checkbox(
+            self,
+            "Overwrite existing files",
+            tooltip="Overwrite existing files without having to delete them (e.g. if adding merged channels).",
             checked=True,
             value=CONFIG.as_uint8,
         )
@@ -380,17 +417,29 @@ class ImageConvertWindow(Window):
         side_layout.addWidget(
             hp.make_label(
                 self,
-                "<b>Tip.</b> Double-click on the row to select/deselect scenes/channels or rename channel names.",
+                "<b>Tip.</b> Double-click on the scenes & channels row to select/deselect scenes/channels, "
+                "rename channel names or merge multiple channels together.",
                 alignment=Qt.AlignmentFlag.AlignHCenter,
                 object_name="tip_label",
                 enable_url=True,
+                wrap=True,
             )
         )
         side_layout.addWidget(hp.make_h_line(self))
         side_layout.addWidget(self.directory_btn)
         side_layout.addWidget(self.output_dir_label)
-        side_layout.addLayout(hp.make_h_layout(hp.make_label(self, "Tile size:"), self.tile_size, stretch_after=True))
-        side_layout.addLayout(hp.make_h_layout(hp.make_label(self, "As uint8 (dynamic range 0-255):"), self.as_uint8))
+        side_layout.addLayout(
+            hp.make_h_layout(
+                hp.make_label(self, "Tile size:"),
+                self.tile_size,
+                hp.make_v_line(),
+                self.as_uint8,
+                hp.make_v_line(),
+                self.overwrite,
+                stretch_after=True,
+            )
+        )
+        # side_layout.addLayout(hp.make_h_layout()
         side_layout.addWidget(self.export_btn)
 
         widget = QWidget()

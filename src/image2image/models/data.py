@@ -1,4 +1,5 @@
 """Image data models."""
+
 import typing as ty
 from pathlib import Path
 
@@ -257,6 +258,13 @@ class DataModel(BaseModel):
                     "type": reader.reader_type,
                     "reader_kws": reader.reader_kws,
                 }
+
+    def dataset_names(self, reader_type: tuple[str, ...] = ("all",)) -> ty.List[str]:
+        """Return list of datasets."""
+        wrapper = self.wrapper
+        if wrapper:
+            return wrapper.dataset_names(reader_type)
+        return []
 
     def channel_names(self) -> ty.List[str]:
         """Return list of channel names."""

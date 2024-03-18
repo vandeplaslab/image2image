@@ -43,7 +43,7 @@ ALLOWED_IMAGE_FORMATS = (
 ALLOWED_IMAGE_FORMATS_WITH_GEOJSON = (
     "Any imaging (*.d *.tsf *.tdf *.imzML  *.ibd *.data *.metadata.h5 peaks_*.h5 *.npy *.czi *.ome.tiff *.tiff *.scn"
     "*.tif *.qptiff *.qptiff.raw *.qptiff.intermediate *.svs *.ndpi *.jpg *.jpeg *.png *.geojson *.json *.csv"
-    " *.parquet);; "
+    " *.txt *.parquet);; "
     "Bruker (*.d *.tsf *.tdf);; "
     "imzML (*.imzML *.ibd);; "
     "ionglow (*.data *.metadata.h5 peaks_*.h5);;"

@@ -30,6 +30,7 @@ from image2image.utils.utilities import (
 )
 
 if ty.TYPE_CHECKING:
+    from image2image_io.readers import BaseReader
     from qtextra._napari.image.wrapper import NapariImageView
 
 
@@ -71,6 +72,7 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
 
         # add logger
         self.logger = QtLoggerDialog(self, USER_LOG_DIR)
+        self.temporary_layers = {}
 
     def on_toggle_theme(self) -> None:
         """Toggle theme."""
@@ -165,11 +167,10 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
         view_kind: str = "view",
         scale: bool = False,
     ) -> tuple[list[Image] | None, list[Shapes] | None, list[Points] | None]:
-        # TODO: add support for display RGB images in single layer (respect 'split_rgb=False')
         wrapper = model.wrapper
         if not wrapper:
             logger.error("Failed to get wrapper.")
-            return None, None
+            return None, None, None
         if channel_list is None:
             channel_list = wrapper.channel_names()
         image_layer, shape_layer, points_layer = [], [], []
@@ -220,6 +221,66 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
                         image_layer[-1].contrast_limits_range = contrast_limits_range
                 logger.trace(f"Added '{name}' to {view_kind} in {timer()}.")
         return image_layer, shape_layer, points_layer
+
+    @staticmethod
+    def _get_reader_for_key(model: DataModel, key: str) -> tuple[BaseReader | None, str | None]:
+        wrapper = model.wrapper
+        if not wrapper:
+            logger.error("Failed to get wrapper.")
+            return None, None
+        reader = wrapper.data[key]
+        return reader, f"temporary-{reader.reader_type}"
+
+    def _plot_temporary_layer(
+        self,
+        model: DataModel,
+        view_wrapper: NapariImageView,
+        key: str,
+        channel_index: int,
+        scale: bool = False,
+    ):
+        wrapper = model.wrapper
+        if not wrapper:
+            logger.error("Failed to get wrapper.")
+            return None, None, None
+        reader = wrapper.data[key]
+
+        # get current transform and scale
+        # current_affine = reader.transform
+        current_affine = wrapper.get_affine(reader, reader.resolution) if scale else reader.transform
+        name = f"temporary-{reader.reader_type}"
+
+        layer = None
+        if name in view_wrapper.layers:
+            layer = view_wrapper.layers[name]
+
+        current_scale = reader.scale if scale else (1, 1)
+        if reader.reader_type == "shapes" and hasattr(reader, "to_shapes_kwargs"):
+            view_wrapper.remove_layer(name)
+            layer = view_wrapper.viewer.add_shapes(**reader.to_shapes_kwargs(name=name, affine=current_affine))
+        elif reader.reader_type == "points" and hasattr(reader, "to_points_kwargs"):
+            view_wrapper.remove_layer(name)
+            layer = view_wrapper.viewer.add_points(**reader.to_points_kwargs(name=name, affine=current_affine))
+        else:
+            array = reader.get_channel_pyramid(channel_index)
+            contrast_limits, contrast_limits_range = get_contrast_limits(array)
+            if layer and len(array) == 1:
+                layer.data = array[0]
+                layer.contrast_limits = contrast_limits
+            else:
+                view_wrapper.remove_layer(name)
+                layer = view_wrapper.viewer.add_image(
+                    array,
+                    name=name,
+                    blending="additive",
+                    colormap=get_colormap(channel_index, view_wrapper.layers),
+                    affine=current_affine,
+                    scale=current_scale,
+                    contrast_limits=contrast_limits,
+                )
+            if contrast_limits_range:
+                layer.contrast_limits_range = contrast_limits_range
+        self.temporary_layers[key] = layer
 
     @staticmethod
     def _close_model(model: DataModel, view_wrapper: NapariImageView, view_kind: str = "view") -> None:

@@ -1,4 +1,5 @@
 """Widget for loading data."""
+
 from __future__ import annotations
 
 import typing as ty
@@ -39,6 +40,11 @@ class LoadWidget(QWidget):
     evt_toggle_channel = Signal(str, bool)
     evt_toggle_all_channels = Signal(bool, list)
     evt_swap = Signal(str, str)
+
+    # temporary images
+    evt_update_temp = Signal(tuple)
+    evt_add_channel = Signal(tuple)
+    evt_remove_temp = Signal(tuple)
 
     IS_FIXED: bool = True
     INFO_TEXT = "Select data..."
