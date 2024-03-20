@@ -175,6 +175,7 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
             channel_list = wrapper.channel_names()
         image_layer, shape_layer, points_layer = [], [], []
         for index, (name, array, reader) in enumerate(wrapper.channel_image_for_channel_names_iter(channel_list)):
+            channel_name = name.split(" | ")[0]
             if name not in channel_list:
                 continue
             logger.trace(f"Adding '{name}' to view...")
@@ -199,7 +200,9 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
                     )
                 elif reader.reader_type == "points" and hasattr(reader, "to_points_kwargs"):
                     points_layer.append(
-                        view_wrapper.viewer.add_points(**reader.to_points_kwargs(name=name, affine=current_affine))
+                        view_wrapper.viewer.add_points(
+                            **reader.to_points_kwargs(channel_name=channel_name, name=name, affine=current_affine)
+                        )
                     )
                 else:
                     if array is None:
@@ -246,38 +249,43 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
         reader = wrapper.data[key]
 
         # get current transform and scale
-        # current_affine = reader.transform
         current_affine = wrapper.get_affine(reader, reader.resolution) if scale else reader.transform
-        name = f"temporary-{reader.reader_type}"
+        current_scale = reader.scale if scale else (1, 1)
 
+        # get temporary layer
+        name = f"temporary-{reader.reader_type}"
         layer = None
         if name in view_wrapper.layers:
             layer = view_wrapper.layers[name]
 
-        current_scale = reader.scale if scale else (1, 1)
         if reader.reader_type == "shapes" and hasattr(reader, "to_shapes_kwargs"):
             view_wrapper.remove_layer(name)
             layer = view_wrapper.viewer.add_shapes(**reader.to_shapes_kwargs(name=name, affine=current_affine))
         elif reader.reader_type == "points" and hasattr(reader, "to_points_kwargs"):
             view_wrapper.remove_layer(name)
-            layer = view_wrapper.viewer.add_points(**reader.to_points_kwargs(name=name, affine=current_affine))
+            channel_name = reader.channel_names[channel_index]
+            layer = view_wrapper.viewer.add_points(
+                **reader.to_points_kwargs(channel_name=channel_name, name=name, affine=current_affine)
+            )
         else:
             array = reader.get_channel_pyramid(channel_index)
             contrast_limits, contrast_limits_range = get_contrast_limits(array)
-            if layer and len(array) == 1:
-                layer.data = array[0]
-                layer.contrast_limits = contrast_limits
-            else:
-                view_wrapper.remove_layer(name)
-                layer = view_wrapper.viewer.add_image(
-                    array,
-                    name=name,
-                    blending="additive",
-                    colormap=get_colormap(channel_index, view_wrapper.layers),
-                    affine=current_affine,
-                    scale=current_scale,
-                    contrast_limits=contrast_limits,
-                )
+            # if layer and len(array) == 1:
+            #     layer.affine = current_affine
+            #     layer.scale = current_scale
+            #     layer.data = array[0]
+            #     layer.contrast_limits = contrast_limits
+            # else:
+            view_wrapper.remove_layer(name)
+            layer = view_wrapper.viewer.add_image(
+                array,
+                name=name,
+                blending="additive",
+                colormap=get_colormap(channel_index, view_wrapper.layers),
+                affine=current_affine,
+                scale=current_scale,
+                contrast_limits=contrast_limits,
+            )
             if contrast_limits_range:
                 layer.contrast_limits_range = contrast_limits_range
         self.temporary_layers[key] = layer

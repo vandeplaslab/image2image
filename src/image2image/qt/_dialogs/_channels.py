@@ -305,6 +305,12 @@ class IterateWidget(QWidget):
 
     def on_change_source(self, value: str) -> None:
         """Change source."""
+        parent: OverlayChannelsDialog = self.parent()
+        current = self.dataset_combo.currentText()
+        if current:
+            reader = parent.model.get_reader_for_key(current)
+            with hp.qt_signals_blocked(self.index_spinbox):
+                self.index_spinbox.setMaximum(reader.n_channels - 1)
         self.current_index = 0
         self._update_current()
 

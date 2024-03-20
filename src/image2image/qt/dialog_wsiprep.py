@@ -1,4 +1,5 @@
 """Three-D dialog."""
+
 from __future__ import annotations
 
 import typing as ty
@@ -31,6 +32,7 @@ from qtpy.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+from skimage.exposure import rescale_intensity
 from superqt import QLabeledDoubleRangeSlider, ensure_main_thread
 from superqt.utils import qdebounced
 from tqdm import tqdm
@@ -238,6 +240,7 @@ class ImageWsiPrepWindow(Window):
 
     def _plot_model(self, reader: BaseReader, model: RegistrationImage) -> tuple[float, float] | None:
         image = reader.get_channel(0, -1)
+        image = rescale_intensity(image, out_range=(0, 255))
         contrast_limits, contrast_limits_range = get_contrast_limits([image])
         if contrast_limits:
             contrast_limits = (contrast_limits[0], contrast_limits[1] / 2)
