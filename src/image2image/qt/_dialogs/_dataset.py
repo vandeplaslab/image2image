@@ -1,4 +1,5 @@
 """Windows for dataset management."""
+
 from __future__ import annotations
 
 import typing as ty
@@ -8,6 +9,7 @@ from functools import partial
 from pathlib import Path
 
 from koyo.typing import PathLike
+from koyo.utilities import pluralize
 from loguru import logger
 from qtextra import helpers as hp
 from qtextra.utils.table_config import TableConfig
@@ -313,7 +315,7 @@ class ExtractChannelsDialog(QtDialog):
     def on_accept(self) -> None:
         """Accept."""
         n = len(self.mzs)
-        if n > 0 and hp.confirm(self, "Would you like to extract <b>{n}</b> ion images?"):
+        if n > 0 and hp.confirm(self, f"Would you like to extract <b>{n}</b> ion {pluralize('image', n)}?"):
             logger.trace(f"Extracting {n} ion images...")
             self.accept()
 
@@ -666,7 +668,7 @@ class SelectDataDialog(QtFramelessTool):
             },
         )
 
-    def _on_loaded_dataset(self, model: DataModel) -> None:
+    def _on_loaded_dataset(self, model: DataModel, select: bool = True) -> None:
         """Finished loading data."""
         channel_list = []
         wrapper = model.wrapper
@@ -676,7 +678,7 @@ class SelectDataDialog(QtFramelessTool):
         else:
             if wrapper:
                 channel_list_ = list(wrapper.channel_names_for_names(self.model.just_added_keys))
-                if channel_list_:
+                if channel_list_ and select:
                     dlg = SelectChannelsToLoadDialog(self, model)
                     if dlg.exec_():  # type: ignore
                         channel_list = dlg.channels

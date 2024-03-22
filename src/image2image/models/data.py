@@ -117,8 +117,8 @@ class DataModel(BaseModel):
                             self.just_added_keys.remove(key)
                             logger.trace(f"Removed '{key}' from just_added_keys.")
         # remove wrapper
-        if not self.paths:
-            self.wrapper = None
+        # if not self.paths:
+        #     self.wrapper = None
 
     def has_key(self, key: str) -> bool:
         """Check if key is in the model."""
@@ -159,7 +159,9 @@ class DataModel(BaseModel):
 
         if not paths:
             logger.trace("No paths to load.")
-            return None
+            if self.wrapper is None:
+                self.wrapper = ImageWrapper()
+            return self.wrapper
 
         just_added_keys = []
         for path in paths:

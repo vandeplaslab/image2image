@@ -225,7 +225,39 @@ class ImageRegistrationWindow(Window):
             self.on_sync_views_moving,
             state=True,
         )
-        logger.trace("Connected events...")
+        # temporary images
+        connect(self._moving_widget.evt_update_temp, self.on_plot_temporary, state=state)
+        connect(self._moving_widget.evt_remove_temp, self.on_remove_temporary, state=state)
+        connect(self._moving_widget.evt_add_channel, self.on_add_temporary_to_viewer, state=state)
+
+    def on_plot_temporary(self, res: tuple[str, int]) -> None:
+        """Plot temporary layer."""
+        key, channel_index = res
+        with MeasureTimer() as timer:
+            self._plot_temporary_layer(self.moving_model, self.view_moving, key, channel_index, True)
+        logger.trace(f"Plotted temporary layer for '{key}' in {timer()}.")
+
+    def on_remove_temporary(self, res: tuple[str, int]) -> None:
+        """Remove temporary layer."""
+        key, _ = res
+        layer_name = self._get_reader_for_key(self.moving_model, key)
+        if layer_name:
+            self.view_moving.remove_layer(layer_name)
+
+    def on_add_temporary_to_viewer(self, res: tuple[str, int]) -> None:
+        """Add temporary layer to viewer."""
+        key, channel_index = res
+        indices = self._moving_widget.channel_dlg.table.find_indices_of(
+            self._moving_widget.channel_dlg.TABLE_CONFIG.dataset, key
+        )
+        index = self._moving_widget.channel_dlg.table.find_index_of_value_with_indices(
+            self._moving_widget.channel_dlg.TABLE_CONFIG.index, channel_index, indices
+        )
+        if index != -1:
+            self._moving_widget.channel_dlg.table.set_value(
+                self._moving_widget.channel_dlg.TABLE_CONFIG.check, index, True
+            )
+            logger.trace(f"Added image {channel_index} for '{key}' to viewer.")
 
     def on_indicator(self, which: str, state: bool = True) -> None:
         """Set indicator."""

@@ -25,6 +25,8 @@ from image2image.qt.dialog_base import Window
 from image2image.utils.utilities import ensure_extension
 
 if ty.TYPE_CHECKING:
+    from image2image_io.readers import ShapesReader
+
     from image2image.models.data import DataModel
     from image2image.models.transform import TransformModel
 
@@ -48,9 +50,7 @@ class ImageViewerWindow(Window):
 
     def setup_events(self, state: bool = True) -> None:
         """Setup events."""
-        connect(self._image_widget.evt_update_temp, self.on_plot_temporary, state=state)
-        connect(self._image_widget.evt_remove_temp, self.on_remove_temporary, state=state)
-        connect(self._image_widget.evt_add_channel, self.on_add_temporary_to_viewer, state=state)
+        # wrapper
         connect(self._image_widget.dataset_dlg.evt_loaded, self.on_load_image, state=state)
         connect(self._image_widget.dataset_dlg.evt_closed, self.on_close_image, state=state)
         connect(self._image_widget.dataset_dlg.evt_resolution, self.on_update_transform, state=state)
@@ -58,6 +58,10 @@ class ImageViewerWindow(Window):
         connect(self._image_widget.evt_toggle_channel, self.on_toggle_channel, state=state)
         connect(self._image_widget.evt_toggle_all_channels, self.on_toggle_all_channels, state=state)
         connect(self.view.viewer.events.status, self._status_changed, state=state)
+        # temporary images
+        connect(self._image_widget.evt_update_temp, self.on_plot_temporary, state=state)
+        connect(self._image_widget.evt_remove_temp, self.on_remove_temporary, state=state)
+        connect(self._image_widget.evt_add_channel, self.on_add_temporary_to_viewer, state=state)
 
     def on_plot_temporary(self, res: tuple[str, int]) -> None:
         """Plot temporary layer."""
@@ -70,7 +74,8 @@ class ImageViewerWindow(Window):
         """Remove temporary layer."""
         key, _ = res
         layer_name = self._get_reader_for_key(self.data_model, key)
-        self.view.remove_layer(layer_name)
+        if layer_name:
+            self.view.remove_layer(layer_name)
 
     def on_add_temporary_to_viewer(self, res: tuple[str, int]) -> None:
         """Add temporary layer to viewer."""
@@ -243,6 +248,34 @@ class ImageViewerWindow(Window):
                 position="top_left",
             )
 
+    def on_create_mask(self) -> None:
+        """Add shapes mask to the viewer."""
+        from image2image_io.readers import ShapesReader
+
+        if "Mask" not in self.view.viewer.layers:
+            layer = self.view.viewer.add_shapes(
+                name="Mask", face_color="red", edge_color="black", opacity=0.5, edge_width=2
+            )
+            connect(layer.events.set_data, self.on_update_mask_reader, state=True)
+            wrapper = self.data_model.get_wrapper()
+            if wrapper:
+                reader = ShapesReader.create("mask")
+                self.data_model.add_paths(["mask"])
+                wrapper.add(reader)
+                self._image_widget.dataset_dlg._on_loaded_dataset(self.data_model, select=False)
+
+    def on_update_mask_reader(self, event) -> None:
+        """Update reader based on layer data."""
+        from image2image_io.readers.shapes_reader import napari_to_shapes_data
+
+        wrapper = self.data_model.wrapper
+        layer: Shapes = self.view.get_layer("Mask")
+        if wrapper:
+            reader: ShapesReader = wrapper.get_reader_for_key("mask")
+            if reader:
+                reader._channel_names = ["Mask"]
+                reader.shape_data = napari_to_shapes_data(layer.name, layer.data, layer.shape_type)
+
     def on_save_masks(self) -> None:
         """Export masks."""
         # Ask user which layer(s) to export (select layer(s) from list) - only shapes
@@ -268,6 +301,12 @@ class ImageViewerWindow(Window):
         self.import_project_btn = hp.make_btn(
             self, "Import project...", tooltip="Load previous project", func=self.on_load_from_project
         )
+        self.create_mask_btn = hp.make_btn(
+            self,
+            "Create mask",
+            tooltip="Create mask using shapes. The mask can be subsequently exported as a HDF5 file.",
+            func=self.on_create_mask,
+        )
         self.export_mask_btn = hp.make_btn(
             self,
             "Export GeoJSON as masks...",
@@ -287,8 +326,10 @@ class ImageViewerWindow(Window):
         side_layout.addRow(self.import_project_btn)
         side_layout.addRow(hp.make_h_line_with_text("or"))
         side_layout.addRow(self._image_widget)
-        side_layout.addRow(hp.make_h_line_with_text("Export"))
+        side_layout.addRow(hp.make_h_line_with_text("Masks"))
+        side_layout.addRow(self.create_mask_btn)
         side_layout.addRow(self.export_mask_btn)
+        side_layout.addRow(hp.make_h_line_with_text("Export"))
         side_layout.addRow(self.export_project_btn)
         side_layout.addRow(hp.make_h_line_with_text("Layer controls"))
         side_layout.addRow(self.view.widget.controls)

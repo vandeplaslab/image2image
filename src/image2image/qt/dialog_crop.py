@@ -339,6 +339,7 @@ class ImageCropWindow(Window):
             self.crop_layer.data = [(rect, "rectangle")]
         self.crop_layer.selected_data = [0]
         self.crop_layer.mode = "select"
+        self.view.select_one_layer(self.crop_layer)
 
     def on_reset_crop(self):
         """Reset crop area."""

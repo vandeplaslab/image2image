@@ -32,9 +32,6 @@ class OverlayChannelsDialog(QtFramelessTool):
 
     HIDE_WHEN_CLOSE = True
 
-    # event emitted when the popup closes
-    evt_close = Signal()
-
     _editing: bool = False
 
     TABLE_CONFIG = (
@@ -78,9 +75,10 @@ class OverlayChannelsDialog(QtFramelessTool):
         # table events
         connect(self.table.evt_checked, self.on_toggle_channel, state=state)
         connect(self.view.layers.events, self.sync_layers, state=state)
-        connect(self.iterate_widget.evt_update, parent.evt_update_temp.emit)
-        connect(self.iterate_widget.evt_add, parent.evt_add_channel.emit)
-        connect(self.iterate_widget.evt_close, parent.evt_remove_temp.emit)
+        connect(self.iterate_widget.evt_update, parent.evt_update_temp.emit, state=state)
+        connect(self.iterate_widget.evt_add, parent.evt_add_channel.emit, state=state)
+        connect(self.iterate_widget.evt_close, parent.evt_remove_temp.emit, state=state)
+        connect(self.evt_hide, self.iterate_widget.on_close, state=state)
 
     @ensure_main_thread
     def sync_layers(self, event: Event) -> None:
@@ -273,7 +271,7 @@ class IterateWidget(QWidget):
     def setup_ui(self):
         """Setup UI."""
         self.dataset_combo = hp.make_combobox(self, func=self.on_change_source)
-        self.index_spinbox = hp.make_int_spin_box(self, min=0, max=1000, func=self.on_change_index)
+        self.index_spinbox = hp.make_int_spin_box(self, min=0, max=1_000, func=self.on_change_index)
         self.channel_label = hp.make_label(self, "", bold=True, alignment=Qt.AlignmentFlag.AlignCenter)
 
         layout = hp.make_form_layout(self)
@@ -338,3 +336,9 @@ class IterateWidget(QWidget):
     def on_add_to_viewer(self) -> None:
         """Add image to viewer."""
         self.evt_add.emit((self.dataset_combo.currentText(), self.current_index))
+        logger.trace("Added temporary image to the viewer.")
+
+    def on_close(self):
+        """Close event."""
+        self.evt_close.emit((self.dataset_combo.currentText(), self.current_index))
+        logger.trace("Removed temporary image.")
