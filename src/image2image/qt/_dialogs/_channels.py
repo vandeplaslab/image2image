@@ -226,11 +226,6 @@ class OverlayChannelsDialog(QtFramelessTool):
         layout.addRow(self.table)
         if STATE.allow_filters:
             layout.addRow(hp.make_h_layout(self.filter_by_name, self.filter_by_dataset, stretch_id=(0, 1), spacing=1))
-        if self.allow_iterate:
-            layout.addRow(hp.make_h_line(self))
-        layout.addRow(self.iterate_widget)
-        layout.addRow(hp.make_h_line(self))
-        layout.addRow(self.info)
         layout.addRow(
             hp.make_label(
                 self,
@@ -240,6 +235,11 @@ class OverlayChannelsDialog(QtFramelessTool):
                 enable_url=True,
             )
         )
+        if self.allow_iterate:
+            layout.addRow(hp.make_h_line_with_text("Iterate through images"))
+        layout.addRow(self.iterate_widget)
+        layout.addRow(hp.make_h_line(self))
+        layout.addRow(self.info)
         return layout
 
     def keyPressEvent(self, evt):

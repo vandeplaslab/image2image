@@ -31,6 +31,10 @@ if ty.TYPE_CHECKING:
     from image2image.models.transform import TransformModel
 
 
+MASK_LAYER_NAME = "Mask"
+MASK_FILENAME = "mask.tmp"
+
+
 class ImageViewerWindow(Window):
     """Image viewer dialog."""
 
@@ -252,15 +256,15 @@ class ImageViewerWindow(Window):
         """Add shapes mask to the viewer."""
         from image2image_io.readers import ShapesReader
 
-        if "Mask" not in self.view.viewer.layers:
+        if MASK_LAYER_NAME not in self.view.viewer.layers:
             layer = self.view.viewer.add_shapes(
-                name="Mask", face_color="red", edge_color="black", opacity=0.5, edge_width=2
+                name=f"{MASK_LAYER_NAME} | mask.tmp", face_color="green", edge_color="red", opacity=0.5, edge_width=2
             )
             connect(layer.events.set_data, self.on_update_mask_reader, state=True)
             wrapper = self.data_model.get_wrapper()
             if wrapper:
-                reader = ShapesReader.create("mask")
-                self.data_model.add_paths(["mask"])
+                reader = ShapesReader.create(MASK_FILENAME)
+                self.data_model.add_paths([MASK_FILENAME])
                 wrapper.add(reader)
                 self._image_widget.dataset_dlg._on_loaded_dataset(self.data_model, select=False)
 
@@ -269,12 +273,15 @@ class ImageViewerWindow(Window):
         from image2image_io.readers.shapes_reader import napari_to_shapes_data
 
         wrapper = self.data_model.wrapper
-        layer: Shapes = self.view.get_layer("Mask")
-        if wrapper:
-            reader: ShapesReader = wrapper.get_reader_for_key("mask")
-            if reader:
-                reader._channel_names = ["Mask"]
-                reader.shape_data = napari_to_shapes_data(layer.name, layer.data, layer.shape_type)
+        layer: Shapes = self.view.get_layer(f"{MASK_LAYER_NAME} | mask.tmp")
+        if wrapper and layer:
+            try:
+                reader: ShapesReader = wrapper.get_reader_for_key(MASK_FILENAME)
+                if reader:
+                    reader._channel_names = [MASK_LAYER_NAME]
+                    reader.shape_data = napari_to_shapes_data(layer.name, layer.data, layer.shape_type)
+            except KeyError:
+                logger.exception("Failed to update mask reader.")
 
     def on_save_masks(self) -> None:
         """Export masks."""
@@ -309,7 +316,7 @@ class ImageViewerWindow(Window):
         )
         self.export_mask_btn = hp.make_btn(
             self,
-            "Export GeoJSON as masks...",
+            "Export GeoJSON/shape masks...",
             tooltip="Export masks/regions in a AutoIMS compatible format",
             func=self.on_save_masks,
         )

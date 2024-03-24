@@ -8,6 +8,7 @@ from pathlib import Path
 
 import numpy as np
 from image2image_io.enums import DEFAULT_TRANSFORM_NAME
+from koyo.system import IS_MAC
 from loguru import logger
 from qtextra import helpers as hp
 from qtextra.utils.table_config import TableConfig
@@ -173,6 +174,7 @@ class MasksDialog(QtFramelessTool):
 
     def _on_export_run(
         self,
+        fmt: str,
         mask_shape: tuple[int, int],
         masks: list[str],
         display_names: list[str],
@@ -180,7 +182,7 @@ class MasksDialog(QtFramelessTool):
         data_model: DataModel,
         output_dir: Path,
     ) -> ty.Generator[tuple[int, int], None, None]:
-        from image2image_io.utils.mask import write_masks
+        from image2image_io.utils.mask import write_masks_as_geojson, write_masks_as_hdf5, write_masks_as_image
 
         if output_dir is None:
             raise ValueError("Output directory is None.")
@@ -197,16 +199,24 @@ class MasksDialog(QtFramelessTool):
         ) in self._on_transform_mask(mask_shape, masks, display_names, images, data_model):
             name = display_name or mask_reader.path.stem
             output_dir = Path(output_dir)
-            output_path = output_dir / f"{name}_ds={image_reader.path.stem}.h5"
+            extension = {"hdf5": "h5", "binary": "png", "geojson": "geojson"}[fmt]
+            output_path = output_dir / f"{name}_ds={image_reader.path.stem}.{extension}"
             logger.debug(f"Exporting mask to '{output_path}'")
-            write_masks(
-                output_path,
-                display_name,
-                transformed_mask,
-                shapes,
-                display_name,
-                metadata={"polygon_index": transformed_mask_indexed},
-            )
+            if fmt == "hdf5":
+                write_masks_as_hdf5(
+                    output_path,
+                    display_name,
+                    transformed_mask,
+                    shapes,
+                    display_name,
+                    metadata={"polygon_index": transformed_mask_indexed},
+                )
+            elif fmt == "binary":
+                write_masks_as_image(output_path, transformed_mask)
+            elif fmt == "geojson":
+                write_masks_as_geojson(output_path, shapes, display_name)
+            else:
+                raise ValueError(f"Unsupported format '{fmt}'")
             logger.debug(f"Exported mask to '{output_path}'")
             yield current, total
 
@@ -219,7 +229,7 @@ class MasksDialog(QtFramelessTool):
             self.worker_export.quit()
             logger.trace("Requested aborting of the export process.")
 
-    def on_export(self) -> None:
+    def on_export(self, fmt: str) -> None:
         """Export masks."""
         valid, data = self._validate()
         if not valid or data is None:
@@ -229,26 +239,38 @@ class MasksDialog(QtFramelessTool):
         output_dir_ = hp.get_directory(self, "Select output directory", base_dir=CONFIG.output_dir)
         if output_dir_:
             output_dir = Path(output_dir_)
-            for res in self._on_export_run(mask_shape, masks, display_names, images, data_model, output_dir):
-                print("???", res)
-            # self.worker_export = create_worker(
-            #     self._on_export_run,
-            #     mask_shape=mask_shape,
-            #     masks=masks,
-            #     display_names=display_names,
-            #     images=images,
-            #     data_model=data_model,
-            #     output_dir=output_dir,
-            #     _connect={
-            #         "yielded": self._on_export,
-            #         "errored": self._on_error,
-            #         "finished": partial(self._on_finished, which="export"),
-            #         "aborted": partial(self._on_aborted, which="export"),
-            #     },
-            #     _worker_class=GeneratorWorker,
-            # )
-            # hp.disable_widgets(self.export_btn.active_btn, disabled=True)
-            # self.export_btn.active = True
+            if IS_MAC:
+                hp.disable_widgets(self.export_btn.active_btn, disabled=True)
+                self.export_btn.active = True
+                try:
+                    for res in self._on_export_run(
+                        fmt, mask_shape, masks, display_names, images, data_model, output_dir
+                    ):
+                        self._on_exported(res)
+                except Exception as exc:
+                    self._on_error(exc)
+                finally:
+                    self._on_finished("export")
+            else:
+                self.worker_export = create_worker(
+                    self._on_export_run,
+                    fmt=fmt,
+                    mask_shape=mask_shape,
+                    masks=masks,
+                    display_names=display_names,
+                    images=images,
+                    data_model=data_model,
+                    output_dir=output_dir,
+                    _connect={
+                        "yielded": self._on_exported,
+                        "errored": self._on_error,
+                        "finished": partial(self._on_finished, which="export"),
+                        "aborted": partial(self._on_aborted, which="export"),
+                    },
+                    _worker_class=GeneratorWorker,
+                )
+                hp.disable_widgets(self.export_btn.active_btn, disabled=True)
+                self.export_btn.active = True
 
     def on_preview(self) -> None:
         """Export masks."""
@@ -258,24 +280,34 @@ class MasksDialog(QtFramelessTool):
         # export masks
         data_model, masks, display_names, images, mask_shape = data
         logger.debug(f"Exporting {len(masks)} masks for {len(images)} images with {mask_shape} shape.")
-        self.worker_preview = create_worker(
-            self._on_transform_mask,
-            mask_shape=mask_shape,
-            masks=masks,
-            display_names=display_names,
-            images=images,
-            data_model=data_model,
-            _connect={
-                "yielded": self._on_preview,
-                "errored": self._on_error,
-                "finished": partial(self._on_finished, which="preview"),
-                "aborted": partial(self._on_aborted, which="preview"),
-            },
-            _worker_class=GeneratorWorker,
-        )
-
-        hp.disable_widgets(self.preview_btn.active_btn, disabled=True)
-        self.preview_btn.active = True
+        if IS_MAC:
+            hp.disable_widgets(self.preview_btn.active_btn, disabled=True)
+            self.preview_btn.active = True
+            try:
+                for res in self._on_transform_mask(mask_shape, masks, display_names, images, data_model):
+                    self._on_preview(res)
+            except Exception as exc:
+                self._on_error(exc)
+            finally:
+                self._on_finished("preview")
+        else:
+            self.worker_preview = create_worker(
+                self._on_transform_mask,
+                mask_shape=mask_shape,
+                masks=masks,
+                display_names=display_names,
+                images=images,
+                data_model=data_model,
+                _connect={
+                    "yielded": self._on_preview,
+                    "errored": self._on_error,
+                    "finished": partial(self._on_finished, which="preview"),
+                    "aborted": partial(self._on_aborted, which="preview"),
+                },
+                _worker_class=GeneratorWorker,
+            )
+            hp.disable_widgets(self.preview_btn.active_btn, disabled=True)
+            self.preview_btn.active = True
 
     @ensure_main_thread()
     def _on_preview(self, res) -> None:
@@ -295,7 +327,7 @@ class MasksDialog(QtFramelessTool):
         self.preview_btn.setRange(0, total)
         self.preview_btn.setValue(current)
 
-    def _on_export(self, args: tuple[int, int]) -> None:
+    def _on_exported(self, args: tuple[int, int]) -> None:
         current, total = args
         self.export_btn.setRange(0, total)
         self.export_btn.setValue(current)
@@ -332,6 +364,16 @@ class MasksDialog(QtFramelessTool):
         if not new_display_name or display_name == new_display_name:
             return
         self.table_geo.set_value(self.TABLE_GEO_CONFIG.display_name, row, new_display_name)
+
+    def on_export_menu(self):
+        """Export masks."""
+        menu = hp.make_menu(self, "Tools")
+        hp.make_menu_item(self, "Save as HDF5", menu=menu, func=partial(self.on_export, "hdf5"), icon="hdf5")
+        hp.make_menu_item(
+            self, "Save as binary image", menu=menu, func=partial(self.on_export, "binary"), icon="binary"
+        )
+        hp.make_menu_item(self, "Save as GeoJSON", menu=menu, func=partial(self.on_export, "geojson"), icon="json")
+        hp.show_left_of_mouse(menu)
 
     # noinspection PyAttributeOutsideInit
     def make_panel(self) -> QFormLayout:
@@ -371,9 +413,9 @@ class MasksDialog(QtFramelessTool):
 
         self.export_btn = hp.make_active_progress_btn(
             self,
-            "Export mask to HDF5...",
-            tooltip="Export mask as a AutoIMS compatible HDF5 file.",
-            func=self.on_export,
+            "Export masks...",
+            tooltip="Export mask as a AutoIMS compatible HDF5, GeoJSON or binary file.",
+            func=self.on_export_menu,
             cancel_func=partial(self.on_cancel, which="export"),
         )
 

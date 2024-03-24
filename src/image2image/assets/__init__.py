@@ -1,4 +1,5 @@
 """Assets."""
+
 from pathlib import Path
 
 from qtextra.assets import update_icon_mapping, update_styles
@@ -60,6 +61,9 @@ update_icon_mapping(
         "keep_image": "mdi6.check-circle-outline",
         "remove_image": "mdi6.close-circle-outline",
         "shortcut": "mdi6.tooltip-text",
+        "json": "mdi6.code-json",
+        "binary": "msc.file-binary",
+        "hdf5": "fa5s.file",
     }
 )
 
