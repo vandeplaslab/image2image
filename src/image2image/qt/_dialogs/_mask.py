@@ -63,6 +63,9 @@ class MasksDialog(QtFramelessTool):
         self.setMinimumHeight(400)
         self.on_load()
 
+        parent._image_widget.dataset_dlg.evt_loaded.connect(self.on_load)
+        parent._image_widget.dataset_dlg.evt_closed.connect(self.on_load)
+
     def on_load(self) -> None:
         """Load data."""
         parent: ImageViewerWindow = self.parent()  # type: ignore[assignment]
@@ -92,6 +95,7 @@ class MasksDialog(QtFramelessTool):
         self.table_geo.add_data(masks)
         self.table_image.reset_data()
         self.table_image.add_data(images)
+        logger.trace("Updated masks and images tables.")
 
     def _validate(self) -> tuple[bool, tuple | None]:
         parent: ImageViewerWindow = self.parent()  # type: ignore[assignment]
@@ -159,6 +163,8 @@ class MasksDialog(QtFramelessTool):
                 image_reader = data_model.get_reader_for_key(image_key)
                 if not image_reader:
                     raise ValueError(f"Could not find image reader for '{image_key}'")
+                # masks must be transformed to the image shape - sometimes that might involve warping if affine matrix
+                # is specified
                 transformed_mask = image_reader.warp(mask)
                 transformed_mask_indexed = image_reader.warp(mask_indexed)
                 yield (

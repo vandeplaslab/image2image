@@ -6,6 +6,7 @@ import typing as ty
 from functools import partial
 from pathlib import Path
 
+import numpy as np
 import qtextra.helpers as hp
 from image2image_io.config import CONFIG as READER_CONFIG
 from koyo.timer import MeasureTimer
@@ -58,6 +59,7 @@ class ImageViewerWindow(Window):
         connect(self._image_widget.dataset_dlg.evt_loaded, self.on_load_image, state=state)
         connect(self._image_widget.dataset_dlg.evt_closed, self.on_close_image, state=state)
         connect(self._image_widget.dataset_dlg.evt_resolution, self.on_update_transform, state=state)
+        connect(self._image_widget.dataset_dlg.evt_resolution, self.on_update_mask_reader, state=state)
         connect(self._image_widget.transform_dlg.evt_transform, self.on_update_transform, state=state)
         connect(self._image_widget.evt_toggle_channel, self.on_toggle_channel, state=state)
         connect(self._image_widget.evt_toggle_all_channels, self.on_toggle_all_channels, state=state)
@@ -256,19 +258,33 @@ class ImageViewerWindow(Window):
         """Add shapes mask to the viewer."""
         from image2image_io.readers import ShapesReader
 
-        if MASK_LAYER_NAME not in self.view.viewer.layers:
-            layer = self.view.viewer.add_shapes(
-                name=f"{MASK_LAYER_NAME} | mask.tmp", face_color="green", edge_color="red", opacity=0.5, edge_width=2
-            )
-            connect(layer.events.set_data, self.on_update_mask_reader, state=True)
-            wrapper = self.data_model.get_wrapper()
-            if wrapper:
-                reader = ShapesReader.create(MASK_FILENAME)
+        wrapper = self.data_model.get_wrapper()
+        scale = (1, 1)
+        affine = np.eye(3)
+        if wrapper:
+            if MASK_FILENAME not in wrapper.data:
+                reader = ShapesReader.create(MASK_FILENAME, channel_names=[MASK_LAYER_NAME])
                 self.data_model.add_paths([MASK_FILENAME])
                 wrapper.add(reader)
                 self._image_widget.dataset_dlg._on_loaded_dataset(self.data_model, select=False)
+            else:
+                reader = wrapper.get_reader_for_key(MASK_FILENAME)
+                affine = wrapper.get_affine(reader, reader.resolution)
+                scale = reader.scale
 
-    def on_update_mask_reader(self, event) -> None:
+        if f"{MASK_LAYER_NAME} | mask.tmp" not in self.view.viewer.layers:
+            layer = self.view.viewer.add_shapes(
+                name=f"{MASK_LAYER_NAME} | mask.tmp",
+                face_color="green",
+                edge_color="red",
+                opacity=0.5,
+                edge_width=2,
+                scale=scale,
+                affine=affine,
+            )
+            connect(layer.events.set_data, self.on_update_mask_reader, state=True)
+
+    def on_update_mask_reader(self, _event=None) -> None:
         """Update reader based on layer data."""
         from image2image_io.readers.shapes_reader import napari_to_shapes_data
 
@@ -281,7 +297,7 @@ class ImageViewerWindow(Window):
                     reader._channel_names = [MASK_LAYER_NAME]
                     reader.shape_data = napari_to_shapes_data(layer.name, layer.data, layer.shape_type)
             except KeyError:
-                logger.exception("Failed to update mask reader.")
+                return
 
     def on_save_masks(self) -> None:
         """Export masks."""
