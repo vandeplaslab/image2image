@@ -35,6 +35,11 @@ PREFERRED_COLORMAPS = [
     "magenta",
     "yellow",
     "cyan",
+    "#469990",
+    "#bfef45",
+    "#f58231",
+    "#42d4f4",
+    "#800000",
 ]
 
 

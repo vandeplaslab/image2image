@@ -251,6 +251,7 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
         # get current transform and scale
         current_affine = wrapper.get_affine(reader, reader.resolution) if scale else reader.transform
         current_scale = reader.scale if scale else (1, 1)
+        full_channel_name = f"{reader.channel_names[channel_index]} | {key}"
 
         # get temporary layer
         name = f"temporary-{reader.reader_type}"
@@ -271,8 +272,8 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
             array = reader.get_channel_pyramid(channel_index)
             contrast_limits, contrast_limits_range = get_contrast_limits(array)
             if layer:
-                layer_name = layer.name
-                if layer_name.split(" | ")[1] == name.split(" | ")[1]:
+                layer_name = layer.metadata.get("name", " | ")
+                if layer_name.split(" | ")[1] == full_channel_name.split(" | ")[1]:
                     if layer and len(array) == 1:
                         layer.data = array[0]
                         layer.contrast_limits = contrast_limits
@@ -287,6 +288,7 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
                     affine=current_affine,
                     scale=current_scale,
                     contrast_limits=contrast_limits,
+                    metadata={"name": full_channel_name},
                 )
             if contrast_limits_range:
                 layer.contrast_limits_range = contrast_limits_range
