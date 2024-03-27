@@ -254,7 +254,7 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
 
         # get temporary layer
         name = f"temporary-{reader.reader_type}"
-        layer = None
+        layer, updated = None, False
         if name in view_wrapper.layers:
             layer = view_wrapper.layers[name]
 
@@ -270,22 +270,24 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
         else:
             array = reader.get_channel_pyramid(channel_index)
             contrast_limits, contrast_limits_range = get_contrast_limits(array)
-            # if layer and len(array) == 1:
-            #     layer.affine = current_affine
-            #     layer.scale = current_scale
-            #     layer.data = array[0]
-            #     layer.contrast_limits = contrast_limits
-            # else:
-            view_wrapper.remove_layer(name)
-            layer = view_wrapper.viewer.add_image(
-                array,
-                name=name,
-                blending="additive",
-                colormap=get_colormap(channel_index, view_wrapper.layers),
-                affine=current_affine,
-                scale=current_scale,
-                contrast_limits=contrast_limits,
-            )
+            if layer:
+                layer_name = layer.name
+                if layer_name.split(" | ")[1] == name.split(" | ")[1]:
+                    if layer and len(array) == 1:
+                        layer.data = array[0]
+                        layer.contrast_limits = contrast_limits
+                        updated = True
+            if not updated:
+                view_wrapper.remove_layer(name)
+                layer = view_wrapper.viewer.add_image(
+                    array,
+                    name=name,
+                    blending="additive",
+                    colormap=get_colormap(channel_index, view_wrapper.layers),
+                    affine=current_affine,
+                    scale=current_scale,
+                    contrast_limits=contrast_limits,
+                )
             if contrast_limits_range:
                 layer.contrast_limits_range = contrast_limits_range
         self.temporary_layers[key] = layer
