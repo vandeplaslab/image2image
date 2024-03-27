@@ -8,6 +8,7 @@ from contextlib import contextmanager
 from functools import partial
 from pathlib import Path
 
+from image2image_io.config import CONFIG as READER_CONFIG
 from koyo.typing import PathLike
 from koyo.utilities import pluralize
 from loguru import logger
@@ -796,6 +797,17 @@ class SelectDataDialog(QtFramelessTool):
             QHeaderView.ResizeToContents,  # type: ignore[attr-defined]
         )
 
+        self.shapes_combo = hp.make_combobox(
+            self,
+            ["polygon", "path", "polygon or path"],
+            value=READER_CONFIG.shape_display,
+            tooltip="Select how shapes should be displayed when loading from GeoJSON."
+            "\npolygon - filled polygons (can be slow)"
+            "\npath - only outlines of polygons (much faster)"
+            "\npolygon or path - use polygons if number of shapes is not too high, otherwise use paths",
+            func=self.on_update_config,
+        )
+
         layout = hp.make_form_layout()
         hp.style_form_layout(layout)
         layout.addRow(header_layout)
@@ -808,6 +820,9 @@ class SelectDataDialog(QtFramelessTool):
         )
         layout.addRow(hp.make_h_line())
         layout.addRow(self.table)
+        layout.addRow(hp.make_h_line())
+        layout.addRow(hp.make_h_layout(hp.make_label(self, "Shapes display"), self.shapes_combo, stretch_after=True))
+        layout.addRow(hp.make_h_line())
         layout.addRow(
             hp.make_label(
                 self,
@@ -818,6 +833,10 @@ class SelectDataDialog(QtFramelessTool):
             )
         )
         return layout
+
+    def on_update_config(self, _=None) -> None:
+        """Update configuration."""
+        READER_CONFIG.shape_display = self.shapes_combo.currentText()
 
     # noinspection PyAttributeOutsideInit
     @contextmanager
