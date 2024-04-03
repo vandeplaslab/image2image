@@ -57,7 +57,8 @@ class ImageViewerWindow(Window):
         """Setup events."""
         # wrapper
         connect(self._image_widget.dataset_dlg.evt_loaded, self.on_load_image, state=state)
-        connect(self._image_widget.dataset_dlg.evt_closed, self.on_close_image, state=state)
+        connect(self._image_widget.dataset_dlg.evt_closing, self.on_closing_image, state=state)
+        # connect(self._image_widget.dataset_dlg.evt_closed, self.on_close_image, state=state)
         connect(self._image_widget.dataset_dlg.evt_resolution, self.on_update_transform, state=state)
         connect(self._image_widget.dataset_dlg.evt_resolution, self.on_update_mask_reader, state=state)
         connect(self._image_widget.transform_dlg.evt_transform, self.on_update_transform, state=state)
@@ -131,6 +132,10 @@ class ImageViewerWindow(Window):
         self.image_layer, self.shape_layer, self.points_layer = self._plot_image_layers(
             self.data_model, self.view, channel_list, "view", True
         )
+
+    def on_closing_image(self, model: DataModel, channel_names: list[str]) -> None:
+        """Close fixed image."""
+        self._closing_model(model, channel_names, self.view, "view")
 
     def on_close_image(self, model: DataModel) -> None:
         """Close fixed image."""

@@ -284,6 +284,7 @@ class ImageCropWindow(Window):
             left, right, top, bottom = self._get_crop_area_for_index(index)
             regions.append((left, right, top, bottom))
 
+        CONFIG.output_dir = output_dir_
         if regions:
             self.worker_crop = create_worker(
                 crop_regions,

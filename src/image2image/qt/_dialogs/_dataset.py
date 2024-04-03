@@ -408,6 +408,7 @@ class SelectDataDialog(QtFramelessTool):
     _editing = False
     evt_loading = Signal()
     evt_loaded = Signal(object, object)
+    evt_closing = Signal(object, list)
     evt_closed = Signal(object)
     evt_resolution = Signal(str)
     evt_project = Signal(str)
@@ -638,6 +639,7 @@ class SelectDataDialog(QtFramelessTool):
             else:
                 keys = self.model.keys
             if keys:
+                self.evt_closing.emit(self.model, self.model.get_channel_names_for_keys(keys))  # noqa
                 self.model.remove_keys(keys)
                 self.evt_closed.emit(self.model)  # noqa
             self.on_populate_table()
@@ -704,6 +706,7 @@ class SelectDataDialog(QtFramelessTool):
 
     def on_remove_dataset(self, key: str) -> None:
         """Remove dataset."""
+        self.evt_closing.emit(self.model, self.model.get_channel_names_for_keys([key]))  # noqa
         self.model.remove_keys([key])
         self.evt_closed.emit(self.model)  # noqa
         self.on_populate_table()

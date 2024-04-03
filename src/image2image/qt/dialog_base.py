@@ -295,6 +295,18 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
         self.temporary_layers[key] = layer
 
     @staticmethod
+    def _closing_model(
+        model: DataModel, channel_names: list[str], view_wrapper: NapariImageView, view_kind: str = "view"
+    ) -> None:
+        """Close model."""
+        try:
+            for name in channel_names:
+                view_wrapper.remove_layer(name, silent=True)
+                logger.trace(f"Removed '{name}' from {view_kind}.")
+        except Exception as e:
+            log_exception_or_error(e)
+
+    @staticmethod
     def _close_model(model: DataModel, view_wrapper: NapariImageView, view_kind: str = "view") -> None:
         """Close model."""
         try:
@@ -302,7 +314,7 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
             layer_names = [layer.name for layer in view_wrapper.layers if isinstance(layer, (Image, Shapes, Points))]
             for name in layer_names:
                 if name not in channel_names:
-                    del view_wrapper.layers[name]
+                    view_wrapper.remove_layer(name, silent=True)
                     logger.trace(f"Removed '{name}' from {view_kind}.")
         except Exception as e:
             log_exception_or_error(e)

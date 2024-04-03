@@ -68,6 +68,15 @@ class DataModel(BaseModel):
             else:
                 logger.warning(f"Path '{path}' already in model paths.")
 
+    def get_channel_names_for_keys(self, key_or_keys: ty.Union[str, ty.Sequence[str]]) -> list[str]:
+        """Get channel names for removed keys."""
+        if not key_or_keys:
+            return []
+        if isinstance(key_or_keys, str):
+            key_or_keys = [key_or_keys]
+        wrapper = self.wrapper
+        return wrapper.channel_names_for_names(key_or_keys)
+
     def remove_keys(self, key_or_keys: ty.Union[str, ty.Sequence[str]]) -> None:
         """Remove keys."""
         if not key_or_keys:
