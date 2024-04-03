@@ -203,9 +203,13 @@ def get_colormap(index: int, layer_list) -> VispyColormap | str:
     if index < len(PREFERRED_COLORMAPS):
         colormap = PREFERRED_COLORMAPS[index]
         if colormap not in used:
+            if colormap.startswith("#"):
+                return vispy_colormap(colormap)
             return colormap
     for colormap in PREFERRED_COLORMAPS:
         if colormap not in used:
+            if colormap.startswith("#"):
+                return vispy_colormap(colormap)
             return colormap
     return vispy_colormap(get_random_hex_color())
 
