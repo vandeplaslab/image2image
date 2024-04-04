@@ -394,8 +394,7 @@ def load_crop_setup_from_file(path: PathLike) -> I2C_METADATA:
 
     if "schema_version" not in data:
         raise ValueError("Cannot read config file.")
-    if data["schema_version"] == "1.0":
-        return _read_image2crop_latest_config(data)
+    return _read_image2crop_latest_config(data)
 
 
 def _read_image2crop_latest_config(config: ty.Dict) -> I2C_METADATA:
@@ -413,9 +412,9 @@ def _read_image2crop_latest_config(config: ty.Dict) -> I2C_METADATA:
     }
     resolution = {Path(temp["path"]).name: temp["pixel_size_um"] for temp in config["images"]}
     paths, paths_missing = _get_paths(paths)
-    crop = config["crop"][0]
+    regions = config["crop"]
     if not paths:
         paths = []
     if not paths_missing:
         paths_missing = []
-    return paths, paths_missing, transform_data, resolution, crop
+    return paths, paths_missing, transform_data, resolution, regions

@@ -1,4 +1,5 @@
 """Viewer dialog."""
+
 from __future__ import annotations
 
 import typing as ty
@@ -56,6 +57,7 @@ class ImageFusionWindow(Window):
 
     def setup_events(self, state: bool = True) -> None:
         """Setup events."""
+        # connect(self._image_widget.dataset_dlg.evt_project, self._on_load_from_project, state=state)
         connect(self._image_widget.dataset_dlg.evt_loaded, self.on_load_image, state=state)
         connect(self._image_widget.dataset_dlg.evt_closed, self.on_remove_image, state=state)
 

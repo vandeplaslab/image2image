@@ -380,7 +380,7 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
         hp.make_menu_item(self, "Open 'Crop' App", menu=menu_apps, func=self.on_crop)
         hp.make_menu_item(
             self,
-            "Open 'Microscopy to OME-TIFF' App",
+            "Open 'Image to OME-TIFF' App",
             menu=menu_apps,
             func=self.on_convert,
             disabled=IS_MAC_ARM and IS_PYINSTALLER,

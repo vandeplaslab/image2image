@@ -28,10 +28,11 @@ class ExportImageDialog(QtDialog):
         """Make panel."""
         reader = self.model.get_reader_for_key(self.key)
         info = (
+            f"<b>RGB</b>: {reader.is_rgb}<br>"
             f"<b>Number of channels</b>: {reader.n_channels}<br>"
             f"<b>Image shape</b>: {reader.image_shape}<br>"
+            f"<b>Resolution</b>: {reader.resolution}<br>"
             f"<b>Data type</b>: {reader.dtype}<br>"
-            f"<b>RGB</b>: {reader.is_rgb}<br>"
         )
         self.info_label = hp.make_label(
             self,

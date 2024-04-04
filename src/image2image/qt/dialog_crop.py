@@ -58,6 +58,7 @@ class ImageCropWindow(Window):
 
     def setup_events(self, state: bool = True) -> None:
         """Setup events."""
+        connect(self._image_widget.dataset_dlg.evt_project, self._on_load_from_project, state=state)
         connect(self._image_widget.dataset_dlg.evt_loaded, self.on_load_image, state=state)
         connect(self._image_widget.dataset_dlg.evt_closed, self.on_close_image, state=state)
         connect(self._image_widget.evt_toggle_channel, self.on_toggle_channel, state=state)
@@ -132,17 +133,21 @@ class ImageCropWindow(Window):
             # clean-up affine matrices
             transform_data = _remove_missing_from_dict(transform_data, paths)
             resolution = _remove_missing_from_dict(resolution, paths)
+
             # add paths
             if paths:
                 self._image_widget.on_set_path(paths, transform_data, resolution)
+
             # add crop
-            with hp.qt_signals_blocked(self.left_edit, self.right_edit, self.top_edit, self.bottom_edit):
-                crop_ = crop[0]
-                self.left_edit.setText(str(crop_["left"]))
-                self.right_edit.setText(str(crop_["right"]))
-                self.top_edit.setText(str(crop_["top"]))
-                self.bottom_edit.setText(str(crop_["bottom"]))
-        self.on_update_rect_from_ui()
+            data = []
+            for crop_ in crop:
+                left, right, top, bottom = crop_["left"], crop_["right"], crop_["top"], crop_["bottom"]
+                rect = np.asarray([[top, left], [top, right], [bottom, right], [bottom, left]])
+                with self._editing_crop():
+                    data.append((rect, "rectangle"))
+                    self.crop_layer.data = [(rect, "rectangle")]
+            if data:
+                self.crop_layer.add(data)
 
     def on_save_to_project(self) -> None:
         """Save data to config file."""
@@ -161,8 +166,8 @@ class ImageCropWindow(Window):
             path = Path(path_)
             path = ensure_extension(path, "i2c")
             CONFIG.output_dir = str(path.parent)
-            left, right, top, bottom = self._get_crop_area()
-            config = get_project_data(self.data_model, left, right, top, bottom)
+            regions = self.get_crop_areas()
+            config = get_project_data(self.data_model, regions)
             write_project(path, config)
             hp.toast(
                 self,
@@ -183,36 +188,31 @@ class ImageCropWindow(Window):
         if top == bottom:
             hp.toast(self, "Invalid crop area", f"Top and bottom values are the same for area={index}.", icon="error")
             return False
-        if bottom - top < 128:
-            hp.toast(
-                self,
-                "Invalid crop area",
-                f"The specified top and bottom areas are too small for area={index}. "
-                f"They should be larger than 128 pixels.",
-                icon="error",
-            )
-            return False
-        if right - left < 128:
-            hp.toast(
-                self,
-                "Invalid crop area",
-                f"The specified left and right areas are too small for area={index}. "
-                f"They should be larger than 128 pixels.",
-                icon="error",
-            )
-            return False
+        # if bottom - top < 128:
+        #     hp.toast(
+        #         self,
+        #         "Invalid crop area",
+        #         f"The specified top and bottom areas are too small for area={index}. "
+        #         f"They should be larger than 128 pixels.",
+        #         icon="error",
+        #     )
+        #     return False
+        # if right - left < 128:
+        #     hp.toast(
+        #         self,
+        #         "Invalid crop area",
+        #         f"The specified left and right areas are too small for area={index}. "
+        #         f"They should be larger than 128 pixels.",
+        #         icon="error",
+        #     )
+        #     return False
         return True
 
     def on_preview(self):
         """Preview image cropping."""
-        regions = []
-        for index in range(len(self.crop_layer.data)):
-            if not self._validate(index):
-                return
-
-            # get crop area
-            left, right, top, bottom = self._get_crop_area_for_index(index)
-            regions.append((left, right, top, bottom))
+        regions = self.get_crop_areas()
+        if not regions:
+            return
 
         if regions:
             self.worker_preview = create_worker(
@@ -271,18 +271,15 @@ class ImageCropWindow(Window):
 
     def on_crop(self) -> None:
         """Save data."""
-        output_dir_ = hp.get_directory(self, "Select output directory", CONFIG.output_dir)
-        if not output_dir_:
+        regions = self.get_crop_areas()
+        if not regions:
+            hp.toast(self, "No regions", "No regions to crop.", icon="error")
             return
 
-        regions = []
-        for index in range(len(self.crop_layer.data)):
-            if not self._validate(index):
-                return
-
-            # get crop area
-            left, right, top, bottom = self._get_crop_area_for_index(index)
-            regions.append((left, right, top, bottom))
+        output_dir_ = hp.get_directory(self, "Select output directory", CONFIG.output_dir)
+        if not output_dir_:
+            hp.toast(self, "No output directory", "No output directory selected.", icon="error")
+            return
 
         CONFIG.output_dir = output_dir_
         if regions:
@@ -291,6 +288,8 @@ class ImageCropWindow(Window):
                 data_model=self.data_model,
                 output_dir=Path(output_dir_),
                 regions=regions,
+                tile_size=int(self.tile_size.currentText()),
+                as_uint8=self.as_uint8.isChecked(),
                 _start_thread=True,
                 _connect={
                     "aborted": partial(self._on_aborted, which="crop"),
@@ -313,6 +312,17 @@ class ImageCropWindow(Window):
     def _on_export_error(self, exc: Exception) -> None:
         hp.toast(self, "Export failed", f"Failed to export: {exc}", icon="error")
         log_exception_or_error(exc)
+
+    def get_crop_areas(self) -> list[tuple[int, int, int, int]]:
+        """Get all crop areas."""
+        regions = []
+        for index in range(len(self.crop_layer.data)):
+            if not self._validate(index):
+                return []
+            # get crop area
+            left, right, top, bottom = self._get_crop_area_for_index(index)
+            regions.append((left, right, top, bottom))
+        return regions
 
     def _get_crop_area(self) -> tuple[int, int, int, int]:
         left = self.left_edit.text()
@@ -386,7 +396,7 @@ class ImageCropWindow(Window):
         with self._editing_crop():
             self.crop_layer.data = [(rect, "rectangle")]
         self._move_layer(self.view, self.crop_layer)
-        logger.trace("Updated rectangle (from edit).")
+        logger.trace(f"Updated rectangle (from ui) - {left}-{right}:{bottom}-{top}.")
 
     def on_update_crop_from_canvas(self, _evt: ty.Any = None) -> None:
         """Update crop values."""
@@ -496,6 +506,20 @@ class ImageCropWindow(Window):
             cancel_func=partial(self.on_cancel, which="preview"),
         )
 
+        self.tile_size = hp.make_combobox(
+            self,
+            ["256", "512", "1024", "2048", "4096"],
+            tooltip="Specify size of the tile. Default is 512",
+            default="512",
+            value=f"{CONFIG.tile_size}",
+        )
+        self.as_uint8 = hp.make_checkbox(
+            self,
+            "Reduce data size (uint8 - dynamic range 0-255)",
+            tooltip="Convert to uint8 to reduce file size with minimal data loss.",
+            checked=True,
+            value=CONFIG.as_uint8,
+        )
         self.crop_btn = hp.make_active_progress_btn(
             self,
             "Export to OME-TIFF...",
@@ -525,6 +549,8 @@ class ImageCropWindow(Window):
         side_layout.addRow(hp.make_h_layout(self.init_btn, self.reset_btn))
         side_layout.addRow(hp.make_h_line_with_text("Export"))
         side_layout.addRow(self.preview_btn)
+        side_layout.addRow("Tile size", self.tile_size)
+        side_layout.addRow(self.as_uint8)
         side_layout.addRow(self.crop_btn)
         side_layout.addRow(self.export_project_btn)
         side_layout.addRow(hp.make_h_line_with_text("Layer controls"))
@@ -648,22 +674,26 @@ class ImageCropWindow(Window):
         CONFIG.first_time_crop = False
 
 
-def get_project_data(data_model: DataModel, left: int, right: int, top: int, bottom: int) -> dict:
+def get_project_data(data_model: DataModel, regions: list[tuple[int, int, int, int]]) -> dict:
     """Write project."""
-    schema_version = "1.0"
+    schema_version = "1.1"
     data_ = data_model.to_dict()
     data = {
         "schema_version": schema_version,
         "tool": "crop",
         "version": __version__,
-        "crop": [{"left": left, "right": right, "top": top, "bottom": bottom}],
+        "crop": [dict(left=left, right=right, top=top, bottom=bottom) for left, right, top, bottom in regions],
         "images": data_["images"],
     }
     return data
 
 
 def crop_regions(
-    data_model: DataModel, output_dir: Path, regions: list[tuple[int, int, int, int]]
+    data_model: DataModel,
+    output_dir: Path,
+    regions: list[tuple[int, int, int, int]],
+    tile_size: int = 512,
+    as_uint8: bool = True,
 ) -> ty.Generator[tuple[Path, int, int], None, None]:
     """Crop images."""
     from image2image_io.writers import write_ome_tiff_from_array
@@ -678,7 +708,7 @@ def crop_regions(
                 yield output_path, current, n
                 continue
             # try:
-            filename = write_ome_tiff_from_array(output_path, reader, cropped)
+            filename = write_ome_tiff_from_array(output_path, reader, cropped, tile_size=tile_size, as_uint8=as_uint8)
             yield Path(filename), current, n
             # except Exception:
             #     yield None, current, n

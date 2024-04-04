@@ -1,11 +1,10 @@
 """Launcher application for image2image."""
+
 from __future__ import annotations
 
 import qtextra.helpers as hp
 from image2image_io.config import CONFIG as READER_CONFIG
 from koyo.system import IS_MAC_ARM, IS_PYINSTALLER
-from loguru import logger
-from qtextra.config import THEMES
 from qtextra.widgets.qt_dialog import QtDialog
 from qtextra.widgets.qt_logger import QtLoggerDialog
 from qtpy.QtCore import Qt
@@ -36,11 +35,11 @@ class Launcher(QtDialog):
 
     def make_panel(self) -> QVBoxLayout:
         """Make panel."""
-        from image2image.qt.dialog_base import DialogBase
+        from image2image.qt.dialog_base import Window
 
         layout = QVBoxLayout()
         # register app
-        btn = hp.make_qta_btn(self, "register", tooltip="Open registration application.", func=DialogBase.on_register)
+        btn = hp.make_qta_btn(self, "register", tooltip="Open registration application.", func=Window.on_register)
         btn.set_xxlarge()
         layout.addLayout(
             hp.make_h_layout(
@@ -57,7 +56,7 @@ class Launcher(QtDialog):
             ),
         )
         # viewer app
-        btn = hp.make_qta_btn(self, "viewer", tooltip="Open viewer application.", func=DialogBase.on_viewer)
+        btn = hp.make_qta_btn(self, "viewer", tooltip="Open viewer application.", func=Window.on_viewer)
         btn.set_xxlarge()
         layout.addLayout(
             hp.make_h_layout(
@@ -68,7 +67,7 @@ class Launcher(QtDialog):
             ),
         )
         # crop app
-        btn = hp.make_qta_btn(self, "crop", tooltip="Open crop application.", func=DialogBase.on_crop)
+        btn = hp.make_qta_btn(self, "crop", tooltip="Open crop application.", func=Window.on_crop)
         btn.set_xxlarge()
         layout.addLayout(
             hp.make_h_layout(
@@ -79,7 +78,7 @@ class Launcher(QtDialog):
             ),
         )
         # convert app
-        btn = hp.make_qta_btn(self, "change", tooltip="Open convert application.", func=DialogBase.on_convert)
+        btn = hp.make_qta_btn(self, "change", tooltip="Open convert application.", func=Window.on_convert)
         btn.set_xxlarge()
         layout.addLayout(
             hp.make_h_layout(
@@ -90,7 +89,7 @@ class Launcher(QtDialog):
             ),
         )
         # export app
-        btn = hp.make_qta_btn(self, "export", tooltip="Open export application.", func=DialogBase.on_export)
+        btn = hp.make_qta_btn(self, "export", tooltip="Open export application.", func=Window.on_export)
         btn.set_xxlarge()
         layout.addLayout(
             hp.make_h_layout(
@@ -118,7 +117,6 @@ class Launcher(QtDialog):
             self.console = QtConsoleDialog(self)
             self.console.push_variables({"window": self, "CONFIG": CONFIG, "READER_CONFIG": READER_CONFIG})
         self.console.show()
-
 
 
 if __name__ == "__main__":  # pragma: no cover
