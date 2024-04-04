@@ -315,6 +315,9 @@ class ExtractChannelsDialog(QtDialog):
 
     def on_accept(self) -> None:
         """Accept."""
+        if not self.mzs:
+            hp.warn_pretty(self, "Please add at least one m/z value to extract.")
+            return
         n = len(self.mzs)
         if n > 0 and hp.confirm(self, f"Would you like to extract <b>{n}</b> ion {pluralize('image', n)}?"):
             logger.trace(f"Extracting {n} ion images...")
