@@ -1,4 +1,5 @@
 """Fiducials marker."""
+
 from __future__ import annotations
 
 import typing as ty
@@ -134,7 +135,7 @@ class FiducialsDialog(QtFramelessTool):
                 logger.debug("Fixed point was NaN - can't zoom-in on the point.")
 
             # sync views will take care of the rest
-            if CONFIG.sync_views and parent.transform is not None:
+            if parent.transform is None:
                 return
 
             # zoom-in on moving data

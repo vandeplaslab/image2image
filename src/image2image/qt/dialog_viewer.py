@@ -45,11 +45,11 @@ class ImageViewerWindow(Window):
     _console = None
 
     def __init__(self, parent: QWidget | None, run_check_version: bool = True):
-        super().__init__(parent, f"image2viewer: Viewer app (v{__version__})", run_check_version=run_check_version)
         READER_CONFIG.view_type = "overlay"
         READER_CONFIG.only_last_pyramid = False
         READER_CONFIG.init_pyramid = True
         READER_CONFIG.split_rgb = False
+        super().__init__(parent, f"image2viewer: Viewer app (v{__version__})", run_check_version=run_check_version)
         if CONFIG.first_time_viewer:
             hp.call_later(self, self.on_show_tutorial, 10_000)
 
@@ -318,6 +318,7 @@ class ImageViewerWindow(Window):
         self.view = self._make_image_view(
             self, add_toolbars=False, allow_extraction=False, disable_controls=True, disable_new_layers=True
         )
+        self.view.viewer.scale_bar.unit = "um"
         self._image_widget = LoadWithTransformWidget(
             self,
             self.view,

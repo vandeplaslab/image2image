@@ -17,7 +17,7 @@ def show_convert_tutorial(widget: "ImageConvertWindow") -> None:
     tut.set_steps(
         [
             TutorialStep(
-                title="Welcome to microscopy2tiff!",
+                title="Welcome to image2tiff!",
                 message="We would like to show you around before you get started!<br>This app allows you to convert"
                 " many microscopy images to OME-TIFF format. This can be particularly useful if you have non-tiled"
                 " TIFF images that are slow to load or multi-scene CZI image that are not supported in some"

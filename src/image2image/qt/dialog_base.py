@@ -586,7 +586,7 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
 
         from image2image.qt.dialog_convert import ImageConvertWindow
 
-        logger.debug("Opening microscopy2tiff application.")
+        logger.debug("Opening image2tiff application.")
         dlg = ImageConvertWindow(None, run_check_version=False)
         THEMES.set_theme_stylesheet(dlg)
         dlg.setMinimumSize(500, 500)

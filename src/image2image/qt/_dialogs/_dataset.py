@@ -369,7 +369,7 @@ class ExtractChannelsDialog(QtDialog):
         layout.addRow(
             hp.make_label(
                 self,
-                "<b>Tip.</b> Press <b>Delete</b> or <b>Backspace</b> to delete a peak."
+                "<b>Tip.</b> Press <b>Delete</b> or <b>Backspace</b> to delete a peak.<br>"
                 "<b>Tip.</b> It is a lot more efficient to extra many peaks at once than one at a time.",
                 alignment=Qt.AlignmentFlag.AlignHCenter,
                 object_name="tip_label",
@@ -421,9 +421,10 @@ class SelectDataDialog(QtFramelessTool):
         .add("type", "type", "str", 0)
         .add("rotation", "rotation", "str", 0)
         .add("flip", "flip", "button", 0)
-        .add("extract", "extract", "button", 0)
-        .add("", "remove", "button", 0)
         .add("swap", "swap", "button", 0)
+        .add("", "extract", "button", 0)
+        .add("", "save", "button", 0)
+        .add("", "remove", "button", 0)
     )
 
     def __init__(
@@ -500,11 +501,11 @@ class SelectDataDialog(QtFramelessTool):
                         self.table.setCellWidget(
                             index,
                             self.TABLE_CONFIG.extract,
-                            hp.make_btn(
+                            hp.make_qta_btn(
                                 self,
-                                "Extract...",
+                                "add",
                                 func=partial(self.on_extract_channels, key=reader.key),
-                                object_name="extract_btn",
+                                tooltip="Extract ion images...",
                             ),
                         )
                     else:
@@ -513,6 +514,27 @@ class SelectDataDialog(QtFramelessTool):
                         item.setTextAlignment(Qt.AlignCenter)  # type: ignore[attr-defined]
                         self.table.setItem(index, self.TABLE_CONFIG.extract, item)
 
+                        # item = QTableWidgetItem("N/A")
+                        # item.setFlags(item.flags() & ~Qt.ItemIsEditable)  # type: ignore[attr-defined]
+                        # item.setTextAlignment(Qt.AlignCenter)  # type: ignore[attr-defined]
+                        # self.table.setItem(index, self.TABLE_CONFIG.save, item)
+                    self.table.setCellWidget(
+                        index,
+                        self.TABLE_CONFIG.save,
+                        hp.make_qta_btn(
+                            self,
+                            "save",
+                            normal=True,
+                            func=partial(self.on_save, key=reader.key),
+                            tooltip="Save image as OME-TIFF...",
+                        ),
+                    )
+                    # add swap button
+                    self.table.setCellWidget(
+                        index,
+                        self.TABLE_CONFIG.swap,
+                        hp.make_qta_btn(self, "swap", normal=True, func=partial(self.on_swap, key=reader.key)),
+                    )
                     # remove button
                     self.table.setCellWidget(
                         index,
@@ -521,13 +543,8 @@ class SelectDataDialog(QtFramelessTool):
                             self,
                             "delete",
                             func=partial(self.on_remove_dataset, key=reader.key),
+                            tooltip="Remove image from project. You will <b>not</b> be asked to confirm removal..",
                         ),
-                    )
-                    # add swap button
-                    self.table.setCellWidget(
-                        index,
-                        self.TABLE_CONFIG.swap,
-                        hp.make_qta_btn(self, "swap", normal=True, func=partial(self.on_swap, key=reader.key)),
                     )
 
     @property
@@ -711,6 +728,13 @@ class SelectDataDialog(QtFramelessTool):
         self.evt_closed.emit(self.model)  # noqa
         self.on_populate_table()
 
+    def on_save(self, key: str) -> None:
+        """Save image as OME-TIFF."""
+        from image2image.qt._dialogs._save import ExportImageDialog
+
+        dlg = ExportImageDialog(self, self.model, key)
+        dlg.exec()
+
     def on_extract_channels(self, key: str) -> None:
         """Extract channels from the list."""
         if not self.model.get_extractable_paths():
@@ -796,6 +820,10 @@ class SelectDataDialog(QtFramelessTool):
             QHeaderView.ResizeToContents,  # type: ignore[attr-defined]
         )
         header.setSectionResizeMode(
+            self.TABLE_CONFIG.save,
+            QHeaderView.ResizeToContents,  # type: ignore[attr-defined]
+        )
+        header.setSectionResizeMode(
             self.TABLE_CONFIG.remove,
             QHeaderView.ResizeToContents,  # type: ignore[attr-defined]
         )
@@ -808,6 +836,18 @@ class SelectDataDialog(QtFramelessTool):
             "\npolygon - filled polygons (can be slow)"
             "\npath - only outlines of polygons (much faster)"
             "\npolygon or path - use polygons if number of shapes is not too high, otherwise use paths",
+            func=self.on_update_config,
+        )
+        self.split_czi_check = hp.make_checkbox(
+            self,
+            value=READER_CONFIG.split_czi,
+            tooltip="Split CZI scenes into separate datasets.",
+            func=self.on_update_config,
+        )
+        self.split_rgb_check = hp.make_checkbox(
+            self,
+            value=READER_CONFIG.split_rgb,
+            tooltip="Split RGB channels into separate layers when loading images into the view.",
             func=self.on_update_config,
         )
 
@@ -824,7 +864,19 @@ class SelectDataDialog(QtFramelessTool):
         layout.addRow(hp.make_h_line())
         layout.addRow(self.table)
         layout.addRow(hp.make_h_line())
-        layout.addRow(hp.make_h_layout(hp.make_label(self, "Shapes display"), self.shapes_combo, stretch_after=True))
+        layout.addRow(
+            hp.make_h_layout(
+                hp.make_label(self, "Shapes display"),
+                self.shapes_combo,
+                hp.make_v_line(),
+                hp.make_label(self, "Split CZI"),
+                self.split_czi_check,
+                hp.make_v_line(),
+                hp.make_label(self, "Split RGB"),
+                self.split_rgb_check,
+                stretch_after=True,
+            )
+        )
         layout.addRow(hp.make_h_line())
         layout.addRow(
             hp.make_label(
@@ -840,6 +892,8 @@ class SelectDataDialog(QtFramelessTool):
     def on_update_config(self, _=None) -> None:
         """Update configuration."""
         READER_CONFIG.shape_display = self.shapes_combo.currentText()
+        READER_CONFIG.split_rgb = self.split_rgb_check.isChecked()
+        READER_CONFIG.split_czi = self.split_czi_check.isChecked()
 
     # noinspection PyAttributeOutsideInit
     @contextmanager

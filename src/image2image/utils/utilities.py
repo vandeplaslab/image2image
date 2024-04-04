@@ -197,9 +197,14 @@ def get_used_colormaps(layer_list: list[Layer]) -> list[str]:
     return used
 
 
-def get_colormap(index: int, layer_list) -> VispyColormap | str:
+def get_colormap(index: int, layer_list, preferred: str | None = None) -> VispyColormap | str:
     """Get colormap that has not been used yet."""
     used = get_used_colormaps(layer_list)
+    if preferred is not None and isinstance(preferred, str) and preferred not in used:
+        if preferred.startswith("#"):
+            return vispy_colormap(preferred)
+        return preferred
+
     if index < len(PREFERRED_COLORMAPS):
         colormap = PREFERRED_COLORMAPS[index]
         if colormap not in used:

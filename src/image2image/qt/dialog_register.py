@@ -587,7 +587,7 @@ class ImageRegistrationWindow(Window):
             return
 
         # get filename which is based on the moving dataset
-        filename = self.moving_model.get_filename() + "_transform.i2r.json"
+        filename = self.moving_model.get_filename() + "_trans,,,,,,,,,,,form.i2r.json"
         path_ = hp.get_save_filename(
             self,
             "Save transformation",
@@ -757,12 +757,14 @@ class ImageRegistrationWindow(Window):
         # retrieve affine matrix which might be composite of initial + transform or just initial
         affine = self.transform.params  # if self.transform is not None else self.transform_model.moving_initial_affine
 
+        colormap = get_colormap(0, self.view_moving.layers, moving_image_layer.colormap)
+
         # add image and apply transformation
         if self.transformed_moving_image_layer:
             self.transformed_moving_image_layer.affine = affine
             if update_data:
                 self.transformed_moving_image_layer.data = moving_image_layer.data
-                self.transformed_moving_image_layer.colormap = moving_image_layer.colormap
+                self.transformed_moving_image_layer.colormap = colormap
                 self.transformed_moving_image_layer.reset_contrast_limits()
         else:
             self.view_fixed.viewer.add_image(
@@ -770,7 +772,7 @@ class ImageRegistrationWindow(Window):
                 name="Transformed",
                 blending="translucent",
                 affine=affine,
-                colormap=moving_image_layer.colormap,
+                colormap=colormap,
                 opacity=CONFIG.opacity_moving / 100,
             )
         self.transformed_moving_image_layer.visible = READER_CONFIG.show_transformed
@@ -919,6 +921,17 @@ class ImageRegistrationWindow(Window):
         """Toggle visibility of transformed image."""
         if self.transformed_moving_image_layer:
             self._moving_widget.toggle_transformed()
+            logger.trace(
+                f"Transformed image is {'visible' if self.transformed_moving_image_layer.visible else 'hidden'}."
+            )
+
+    @qdebounced(timeout=50)
+    def on_toggle_synchronization(self) -> None:
+        """Toggle synchronization of views."""
+        CONFIG.sync_views = not CONFIG.sync_views
+        with hp.qt_signals_blocked(self.synchronize_zoom):
+            self.synchronize_zoom.setChecked(CONFIG.sync_views)
+        logger.trace(f"Synchronization of views is {'enabled' if CONFIG.sync_views else 'disabled'}.")
 
     @qdebounced(timeout=50)
     def on_zoom_on_point(self, increment: int):
@@ -938,26 +951,30 @@ class ImageRegistrationWindow(Window):
         CONFIG.sync_views = self.synchronize_zoom.isChecked()
         self.on_sync_views_fixed()
 
-    @qdebounced(timeout=100, leading=True)
+    @qdebounced(timeout=100, leading=False)
     def on_sync_views_fixed(self, _event: Event | None = None) -> None:
         """Synchronize views."""
         if not self._zooming:
             self._on_sync_views("fixed")
 
-    @qdebounced(timeout=100, leading=True)
+    @qdebounced(timeout=100, leading=False)
     def on_sync_views_moving(self, _event: Event | None = None) -> None:
         """Synchronize views."""
         if not self._zooming:
             self._on_sync_views("moving")
 
-    @qdebounced(timeout=200, leading=True)
+    @qdebounced(timeout=200, leading=False)
     def _on_sync_views(self, from_which: str):
         self.__on_sync_views(from_which)
 
     def __on_sync_views(self, from_which: str) -> None:
-        if not CONFIG.sync_views or self._zooming:
+        if not CONFIG.sync_views:
+            return
+        if self._zooming:
+            logger.trace("Zooming in progress, skipping synchronization.")
             return
         if self.transform is None:
+            logger.trace("No transformation computed, skipping synchronization.")
             return
         to_which = "moving" if from_which == "fixed" else "fixed"
         with self.zooming():
@@ -1178,7 +1195,7 @@ class ImageRegistrationWindow(Window):
             "Synchronize zoom between views. It only starts taking effect once transformation model has been"
             " calculated.",
             value=CONFIG.sync_views,
-            func=self.on_update_settings,
+            func=self.on_toggle_synchronization,
         )
         self.fixed_point_size = hp.make_int_spin_box(
             self, value=CONFIG.size_fixed, tooltip="Size of the points shown in the fixed image."
@@ -1248,6 +1265,7 @@ class ImageRegistrationWindow(Window):
         self.view_fixed.viewer.text_overlay.position = "top_left"
         self.view_fixed.viewer.text_overlay.font_size = 10
         self.view_fixed.viewer.text_overlay.visible = True
+        self.view_fixed.viewer.scale_bar.unit = "um"
         self.view_fixed.widget.canvas.events.key_press.connect(self.keyPressEvent)
 
         toolbar = QtMiniToolbar(self, Qt.Vertical, add_spacer=True)  # type: ignore[attr-defined]
@@ -1313,6 +1331,7 @@ class ImageRegistrationWindow(Window):
         self.view_moving.viewer.text_overlay.position = "top_left"
         self.view_moving.viewer.text_overlay.font_size = 10
         self.view_moving.viewer.text_overlay.visible = True
+        self.view_moving.viewer.scale_bar.unit = "um"
         self.view_moving.widget.canvas.events.key_press.connect(self.keyPressEvent)
 
         toolbar = QtMiniToolbar(self, Qt.Vertical, add_spacer=True)  # type: ignore[attr-defined]
@@ -1410,6 +1429,9 @@ class ImageRegistrationWindow(Window):
             evt.ignore()
         elif key == Qt.Key.Key_T:
             self.on_toggle_transformed_image()  # type: ignore[call-arg]
+            evt.ignore()
+        elif key == Qt.Key.Key_T:
+            self.on_toggle_synchronization()  # type: ignore[call-arg]
             evt.ignore()
         elif key == Qt.Key.Key_V:
             self.on_toggle_transformed_visibility()  # type: ignore[call-arg]

@@ -1,4 +1,5 @@
 """Configuration."""
+
 import typing as ty
 
 from koyo.config import BaseConfig
@@ -133,7 +134,8 @@ class Config(BaseConfig):
         True, title="Confirm close", description="Confirm close convert app.", in_app=True
     )
     as_uint8: bool = Field(True, title="Convert to uint8", description="Convert to uint8.", in_app=True)
-    tile_size: str = Field("512", title="Tile size", description="Tile size.", in_app=True)
+    overwrite: bool = Field(False, title="Overwrite", description="Overwrite.", in_app=True)
+    tile_size: str = Field(512, title="Tile size", description="Tile size.", in_app=True)
 
     # telemetry
     telemetry_enabled: bool = Field(True, title="Enable telemetry", description="Enable telemetry.", in_app=True)

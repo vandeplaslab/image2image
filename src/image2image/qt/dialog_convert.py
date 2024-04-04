@@ -81,7 +81,7 @@ class ImageConvertWindow(Window):
     def __init__(self, parent: QWidget | None, run_check_version: bool = True):
         super().__init__(
             parent,
-            f"microscopy2tiff: Convert microscopy files to OME-TIFF (v{__version__})",
+            f"image2tiff: Convert microscopy files to OME-TIFF (v{__version__})",
             run_check_version=run_check_version,
         )
         if CONFIG.first_time_convert:
@@ -259,6 +259,7 @@ class ImageConvertWindow(Window):
 
         output_dir = self.output_dir
         CONFIG.as_uint8 = self.as_uint8.isChecked()
+        CONFIG.overwrite = self.overwrite.isChecked()
         if paths:
             self.worker = create_worker(
                 images_to_ome_tiff,
@@ -267,7 +268,7 @@ class ImageConvertWindow(Window):
                 as_uint8=CONFIG.as_uint8,
                 tile_size=int(self.tile_size.currentText()),
                 metadata=get_metadata(self.reader_metadata),
-                overwrite=self.overwrite.isChecked(),
+                overwrite=CONFIG.overwrite,
                 _start_thread=True,
                 _connect={
                     "aborted": self._on_export_aborted,
@@ -386,7 +387,7 @@ class ImageConvertWindow(Window):
             ["256", "512", "1024", "2048", "4096"],
             tooltip="Specify size of the tile. Default is 512",
             default="512",
-            value=CONFIG.tile_size,
+            value=f"{CONFIG.tile_size}",
         )
         self.as_uint8 = hp.make_checkbox(
             self,
@@ -400,7 +401,7 @@ class ImageConvertWindow(Window):
             "Overwrite existing files",
             tooltip="Overwrite existing files without having to delete them (e.g. if adding merged channels).",
             checked=True,
-            value=CONFIG.as_uint8,
+            value=CONFIG.overwrite,
         )
         self.export_btn = hp.make_active_progress_btn(
             self,

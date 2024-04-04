@@ -1,4 +1,5 @@
 """Shortcuts helper for image2image."""
+
 import qtextra.helpers as hp
 from qtextra.widgets.qt_dialog import QtFramelessTool
 from qtpy.QtWidgets import QWidget
@@ -44,6 +45,7 @@ class RegisterShortcutsDialog(ShortcutsDialog):
     <br><b>L</b> - Use currently shown area in the 'Fixed' image as the 'Area of interest'.
     <br><b>Z</b> - Zoom-in on the currently set 'Area of interest'.
     <br><b>T</b> - Toggle between each of the transformed 'moving' images.
+    <br><b>S</b> - Quickly enable/disable image synchronization.
     <br><b>V</b> - Toggle visibility of the  transformed 'moving' images.
     """
 
