@@ -421,6 +421,7 @@ class SelectDataDialog(QtFramelessTool):
         TableConfig()  # type: ignore
         .add("name", "key", "str", 0)
         .add("pixel size (um)", "resolution", "str", 0)
+        .add("image size (px)", "image_size", "str", 0)
         .add("type", "type", "str", 0)
         .add("rotation", "rotation", "str", 0)
         .add("flip", "flip", "button", 0)
@@ -484,6 +485,18 @@ class SelectDataDialog(QtFramelessTool):
                     name_item.setFlags(name_item.flags() & ~Qt.ItemIsEditable)  # type: ignore[attr-defined]
                     name_item.setTextAlignment(Qt.AlignCenter)  # type: ignore[attr-defined]
                     self.table.setItem(index, self.TABLE_CONFIG.key, name_item)
+
+                    # add type item
+                    if reader.reader_type == "image":
+                        size = reader.image_shape
+                        image_size = f"{size[0]} x {size[1]}"
+                    else:
+                        image_size = "N/A"
+
+                    type_item = QTableWidgetItem(image_size)
+                    type_item.setFlags(type_item.flags() & ~Qt.ItemIsEditable)  # type: ignore[attr-defined]
+                    type_item.setTextAlignment(Qt.AlignCenter)  # type: ignore[attr-defined]
+                    self.table.setItem(index, self.TABLE_CONFIG.image_size, type_item)
 
                     # add type item
                     type_item = QTableWidgetItem(reader.reader_type)
@@ -797,6 +810,10 @@ class SelectDataDialog(QtFramelessTool):
         header.setSectionResizeMode(self.TABLE_CONFIG.key, QHeaderView.Stretch)  # type: ignore[attr-defined]
         header.setSectionResizeMode(
             self.TABLE_CONFIG.resolution,
+            QHeaderView.ResizeToContents,  # type: ignore[attr-defined]
+        )
+        header.setSectionResizeMode(
+            self.TABLE_CONFIG.image_size,
             QHeaderView.ResizeToContents,  # type: ignore[attr-defined]
         )
         header.setSectionResizeMode(

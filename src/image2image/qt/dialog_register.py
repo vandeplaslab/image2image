@@ -587,7 +587,7 @@ class ImageRegistrationWindow(Window):
             return
 
         # get filename which is based on the moving dataset
-        filename = self.moving_model.get_filename() + "_trans,,,,,,,,,,,form.i2r.json"
+        filename = self.moving_model.get_filename() + "_transform.i2r.json"
         path_ = hp.get_save_filename(
             self,
             "Save transformation",
@@ -751,8 +751,15 @@ class ImageRegistrationWindow(Window):
         if name is None or name == "None":
             moving_image_layer = self.moving_image_layer[0]
         else:
-            index = [layer.name for layer in self.moving_image_layer].index(name)
-            moving_image_layer = self.moving_image_layer[index]
+            try:
+                index = [layer.name for layer in self.moving_image_layer].index(name)
+                moving_image_layer = self.moving_image_layer[index]
+            except ValueError:
+                logger.warning(f"Layer '{name}' not found in the moving image.")
+                try:
+                    moving_image_layer = self.moving_image_layer[0]
+                except IndexError:
+                    return
 
         # retrieve affine matrix which might be composite of initial + transform or just initial
         affine = self.transform.params  # if self.transform is not None else self.transform_model.moving_initial_affine

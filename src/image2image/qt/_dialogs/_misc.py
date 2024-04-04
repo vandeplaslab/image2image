@@ -31,7 +31,9 @@ class ImportSelectDialog(QtDialog):
         layout = hp.make_form_layout()
         hp.style_form_layout(layout)
         layout.addRow(
-            hp.make_label(self, "Please select what should be imported.", alignment=Qt.AlignmentFlag.AlignHCenter, bold=True)
+            hp.make_label(
+                self, "Please select what should be imported.", alignment=Qt.AlignmentFlag.AlignHCenter, bold=True
+            )
         )
         layout.addRow(self.all_check)
         layout.addRow(hp.make_h_line())

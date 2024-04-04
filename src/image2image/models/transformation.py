@@ -218,8 +218,8 @@ class Transformation(BaseModel):
                 translation = transform.translation
                 translation = (translation, translation) if isinstance(translation, float) else translation
                 if split_by_dim:
-                    info += f"{sep}translation(y): {translation[0]:.1f}"
-                    info += f"{sep}translation(x): {translation[1]:.1f}"
+                    info += f"{sep}translation(y): {translation[0]:.0f} px"
+                    info += f"{sep}translation(x): {translation[1]:.0f} px"
                 else:
                     info += f"{sep}translation: {translation[0]:.1f}, {translation[1]:.1f}"
             if hasattr(transform, "rotation"):
