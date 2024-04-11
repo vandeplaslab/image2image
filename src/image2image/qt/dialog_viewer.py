@@ -177,7 +177,7 @@ class ImageViewerWindow(Window):
 
     def on_show_save_figure(self) -> None:
         """Show scale bar controls for the viewer."""
-        from image2image.qt._dialogs._screenshot import QtScreenshotDialog
+        from qtextra._napari.common.widgets.screenshot_dialog import QtScreenshotDialog
 
         dlg = QtScreenshotDialog(self.view, self)
         dlg.show_above_widget(self.clipboard_btn)

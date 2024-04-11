@@ -534,17 +534,24 @@ class SelectDataDialog(QtFramelessTool):
                         # item.setFlags(item.flags() & ~Qt.ItemIsEditable)  # type: ignore[attr-defined]
                         # item.setTextAlignment(Qt.AlignCenter)  # type: ignore[attr-defined]
                         # self.table.setItem(index, self.TABLE_CONFIG.save, item)
-                    self.table.setCellWidget(
-                        index,
-                        self.TABLE_CONFIG.save,
-                        hp.make_qta_btn(
-                            self,
-                            "save",
-                            normal=True,
-                            func=partial(self.on_save, key=reader.key),
-                            tooltip="Save image as OME-TIFF...",
-                        ),
-                    )
+                    if reader.reader_type == "image":
+                        self.table.setCellWidget(
+                            index,
+                            self.TABLE_CONFIG.save,
+                            hp.make_qta_btn(
+                                self,
+                                "save",
+                                normal=True,
+                                func=partial(self.on_save, key=reader.key),
+                                tooltip="Save image as OME-TIFF...",
+                            ),
+                        )
+                    else:
+                        item = QTableWidgetItem("N/A")
+                        item.setFlags(item.flags() & ~Qt.ItemIsEditable)  # type: ignore[attr-defined]
+                        item.setTextAlignment(Qt.AlignCenter)  # type: ignore[attr-defined]
+                        self.table.setItem(index, self.TABLE_CONFIG.save, item)
+
                     # add swap button
                     self.table.setCellWidget(
                         index,

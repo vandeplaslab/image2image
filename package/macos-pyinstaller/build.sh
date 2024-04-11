@@ -92,8 +92,15 @@ python_ver=$(python -V) 2>&1
 echo "Python version "$python_ver
 echo "Python path: " $(which python)
 
-declare -a local_install=()
+declare -a always_install=()
 declare -a pip_install=()
+declare -a local_install=()
+
+always_install+=("pip")
+if $uv
+then
+  always_install+=("uv")
+fi
 
 if $update
 then
@@ -102,7 +109,7 @@ then
     local_install+=("image2image-io")
     local_install+=("koyo")
 
-    pip_install+=("napari==0.4.18")
+    pip_install+=("napari==0.4.19")
     pip_install+=("PyQt6==6.5.3")
     pip_install+=("pyinstaller")
 fi
@@ -128,6 +135,20 @@ if $update_just_app
 then
     local_install+=("image2image")
 fi
+
+# iterate over the list
+for pkg in "${always_install[@]}"
+do
+    echo "Installing package: " $pkg
+    if $uv
+    then
+      uv pip uninstall $pkg
+      uv pip install -U $pkg
+    else
+      pip install -U $pkg
+    fi
+    echo "Installed package: " $pkg
+done
 
 # iterate over the list
 for pkg in "${local_install[@]}"
