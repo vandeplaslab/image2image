@@ -69,6 +69,6 @@ QtPushButton#extract_btn {
     border: 2px solid {{ highlight }};
 }
 
-QtImagePushButton[wide_border"true"] {
+QtImagePushButton[wide_border=true] {
     background-color: {{ success }};
 }
