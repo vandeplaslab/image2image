@@ -54,7 +54,7 @@ def get_metadata(
             # cleanup by removing any duplicates and sorting indices
             for channel_name in channel_name_to_ids.keys():
                 if isinstance(channel_name_to_ids[channel_name], list):
-                    channel_name_to_ids[channel_name] = sorted(list(set(channel_name_to_ids[channel_name])))
+                    channel_name_to_ids[channel_name] = sorted(set(channel_name_to_ids[channel_name]))
             channel_names = list(channel_name_to_ids.keys())
             channel_ids = list(channel_name_to_ids.values())
             metadata_[scene_index] = {"channel_ids": channel_ids, "channel_names": channel_names}
@@ -94,6 +94,7 @@ class ImageConvertWindow(Window):
         READER_CONFIG.auto_pyramid = False
         READER_CONFIG.init_pyramid = False
         READER_CONFIG.split_czi = False
+        logger.trace("Setup config for image2tiff.")
 
     def setup_events(self, state: bool = True) -> None:
         """Setup events."""
@@ -233,7 +234,7 @@ class ImageConvertWindow(Window):
             for index, (scene_index, scene_metadata) in enumerate(reader_metadata_.items()):
                 channel_ids = scene_metadata["channel_ids"]
                 channel_names = scene_metadata["channel_names"]
-                if index == 0 and has_scenes:
+                if has_scenes and channel_ids:
                     metadata.append(f"scene {scene_index}")
                 for channel_index, channel_name in zip(channel_ids, channel_names):
                     metadata.append(f"- {channel_name}: {channel_index}")
@@ -532,6 +533,7 @@ class ImageConvertWindow(Window):
         evt.accept()
 
     def dropEvent(self, event: QDropEvent) -> None:
+        """Drop event."""
         self._setup_config()
         super().dropEvent(event)
 
