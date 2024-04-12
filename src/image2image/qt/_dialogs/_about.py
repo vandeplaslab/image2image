@@ -1,4 +1,5 @@
 """About dialog."""
+
 from qtextra import helpers as hp
 from qtextra.widgets.qt_dialog import QtFramelessPopup
 from qtpy.QtCore import Qt
@@ -51,10 +52,10 @@ class AboutDialog(QtFramelessPopup):
         # about label
         self.about_label = hp.make_label(self)
         self.about_label.setText(text)
-        self.about_label.setAlignment(Qt.AlignCenter)  # type: ignore[attr-defined]
+        self.about_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         # set layout
         vertical_layout = hp.make_v_layout()
-        vertical_layout.addWidget(self._image, alignment=Qt.AlignHCenter)  # type: ignore[attr-defined]
+        vertical_layout.addWidget(self._image, alignment=Qt.AlignmentFlag.AlignHCenter)
         vertical_layout.addWidget(self.about_label)
         return vertical_layout

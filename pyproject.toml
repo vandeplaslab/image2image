@@ -70,6 +70,7 @@ repository = "https://github.com/vandeplaslab/image2image"
  # same as console_scripts entry point
 [project.scripts]
 image2image = "image2image.cli:cli"
+i2i = "image2image.cli:cli"
 
 # Entry points
 # https://peps.python.org/pep-0621/#entry-points
