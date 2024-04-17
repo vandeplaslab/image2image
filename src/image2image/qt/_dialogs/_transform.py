@@ -4,6 +4,7 @@ from copy import deepcopy
 from pathlib import Path
 
 from koyo.timer import MeasureTimer
+from koyo.typing import PathLike
 from loguru import logger
 from qtextra import helpers as hp
 from qtextra.utils.table_config import TableConfig
@@ -138,6 +139,11 @@ class SelectTransformDialog(QtFramelessTool):
             base_dir=CONFIG.output_dir,
             file_filter=ALLOWED_EXPORT_REGISTER_FORMATS,
         )
+        self._on_add_transform(path)
+
+    def _on_add_transform(self, path: PathLike) -> None:
+        from image2image.config import CONFIG
+
         if path:
             # load transformation
             path_ = Path(path)
@@ -149,7 +155,9 @@ class SelectTransformDialog(QtFramelessTool):
                     transform_data = TransformData.from_i2r(path_, validate_paths=False)
                 logger.trace(f"Loaded transform data in {timer()}")
             except ValueError as e:
-                hp.warn_pretty(self, f"Failed to load transformation from {path_}\n{e}", "Failed to load transformation")
+                hp.warn_pretty(
+                    self, f"Failed to load transformation from {path_}\n{e}", "Failed to load transformation"
+                )
                 logger.exception(e)
                 return
             self.transform_model.add_transform(path_, transform_data)

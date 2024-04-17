@@ -36,7 +36,6 @@ logger = logger.bind(src="LoadDialog")
 class LoadWidget(QWidget):
     """Widget for loading data."""
 
-    evt_project = Signal(str)
     evt_toggle_channel = Signal(str, bool)
     evt_toggle_all_channels = Signal(bool, list)
     evt_swap = Signal(str, str)

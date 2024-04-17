@@ -41,7 +41,7 @@ class ImageViewerWindow(Window):
 
     image_layer: list[Image] | None = None
     shape_layer: list[Shapes] | None = None
-    points_layer: list[Shapes] | None = None
+    points_layer: list[Points] | None = None
     _console = None
 
     def __init__(self, parent: QWidget | None, run_check_version: bool = True):
@@ -58,6 +58,7 @@ class ImageViewerWindow(Window):
         # wrapper
         connect(self._image_widget.dataset_dlg.evt_loaded, self.on_load_image, state=state)
         connect(self._image_widget.dataset_dlg.evt_closing, self.on_closing_image, state=state)
+        connect(self._image_widget.dataset_dlg.evt_project, self._on_load_from_project, state=state)
         # connect(self._image_widget.dataset_dlg.evt_closed, self.on_close_image, state=state)
         connect(self._image_widget.dataset_dlg.evt_resolution, self.on_update_transform, state=state)
         connect(self._image_widget.dataset_dlg.evt_resolution, self.on_update_mask_reader, state=state)
@@ -195,6 +196,10 @@ class ImageViewerWindow(Window):
             from image2image.models.utilities import _remove_missing_from_dict
 
             path = Path(path_)
+            if any(v in path.name for v in [".i2r.json", ".i2r.toml"]):
+                self._image_widget.transform_dlg._on_add_transform(path)
+                return
+
             CONFIG.output_dir = str(path.parent)
 
             # load data from config file
@@ -323,7 +328,7 @@ class ImageViewerWindow(Window):
             self,
             self.view,
             allow_geojson=True,
-            project_extension=[".i2v.json", ".i2v.toml"],
+            project_extension=[".i2v.json", ".i2v.toml", ".i2r.json", ".i2r.toml"],
             allow_iterate=True,
         )
 
