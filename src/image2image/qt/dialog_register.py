@@ -1087,11 +1087,10 @@ class ImageRegistrationWindow(Window):
         side_layout.addRow(self.fiducials_btn)
         side_layout.addRow(hp.make_btn(side_widget, "Compute transformation", func=self.on_run))
         side_layout.addRow(self.export_project_btn)
+        side_layout.addRow(hp.make_h_line_with_text("About transformation"))
         side_layout.addRow(hp.make_label(self, "Estimated error"), self.transform_error)
-        side_layout.addRow(hp.make_label(self, "About transformation"), self.transform_info)
+        side_layout.addRow(self.transform_info)
         side_layout.addRow(hp.make_spacer_widget())
-        side_layout.addRow(hp.make_h_line_with_text("Settings"))
-        side_layout.addRow(self._make_settings_layout())
 
         layout = QHBoxLayout()
         layout.setSpacing(1)
@@ -1195,59 +1194,60 @@ class ImageRegistrationWindow(Window):
         layout.addRow(hp.make_h_layout(self.lock_btn, self.use_focus_btn, stretch_id=1))
         return layout
 
-    def _make_settings_layout(self) -> QFormLayout:
-        self.synchronize_zoom = hp.make_checkbox(
-            self,
-            "",
-            "Synchronize zoom between views. It only starts taking effect once transformation model has been"
-            " calculated.",
-            value=CONFIG.sync_views,
-            func=self.on_toggle_synchronization,
-        )
-        self.fixed_point_size = hp.make_int_spin_box(
-            self, value=CONFIG.size_fixed, tooltip="Size of the points shown in the fixed image."
-        )
-        self.fixed_point_size.valueChanged.connect(partial(self.on_update_layer, "fixed"))  # noqa
-
-        self.moving_point_size = hp.make_int_spin_box(
-            self, value=CONFIG.size_moving, tooltip="Size of the points shown in the moving image."
-        )
-        self.moving_point_size.valueChanged.connect(partial(self.on_update_layer, "moving"))  # noqa
-
-        self.fixed_opacity = hp.make_int_spin_box(
-            self, value=CONFIG.opacity_fixed, step_size=10, tooltip="Opacity of the fixed image"
-        )
-        self.fixed_opacity.valueChanged.connect(partial(self.on_update_layer, "fixed"))  # noqa
-
-        self.moving_opacity = hp.make_int_spin_box(
-            self,
-            value=CONFIG.opacity_moving,
-            step_size=10,
-            tooltip="Opacity of the moving image in the fixed view",
-        )
-        self.moving_opacity.valueChanged.connect(partial(self.on_update_layer, "moving"))  # noqa
-
-        self.text_size = hp.make_int_spin_box(
-            self, value=CONFIG.label_size, minimum=4, maximum=60, tooltip="Size of the text associated with each label."
-        )
-        self.text_size.valueChanged.connect(self.on_update_text)  # noqa
-
-        self.text_color = hp.make_swatch(
-            self, default=CONFIG.label_color, tooltip="Color of the text associated with each label."
-        )
-        self.text_color.setSizePolicy(QSizePolicy.MinimumExpanding, QSizePolicy.Minimum)  # type: ignore[attr-defined]
-        self.text_color.evt_color_changed.connect(self.on_update_text)  # noqa
-
-        layout = hp.make_form_layout()
-        hp.style_form_layout(layout)
-        layout.addRow(hp.make_label(self, "Synchronize views"), self.synchronize_zoom)
-        layout.addRow(hp.make_label(self, "Marker size (fixed)"), self.fixed_point_size)
-        layout.addRow(hp.make_label(self, "Marker size (moving)"), self.moving_point_size)
-        layout.addRow(hp.make_label(self, "Image opacity (fixed)"), self.fixed_opacity)
-        layout.addRow(hp.make_label(self, "Image opacity (moving)"), self.moving_opacity)
-        layout.addRow(hp.make_label(self, "Label size"), self.text_size)
-        layout.addRow(hp.make_label(self, "Label color"), self.text_color)
-        return layout
+    # def _make_settings_layout(self) -> QFormLayout:
+    #     self.synchronize_zoom = hp.make_checkbox(
+    #         self,
+    #         "",
+    #         "Synchronize zoom between views. It only starts taking effect once transformation model has been"
+    #         " calculated.",
+    #         value=CONFIG.sync_views,
+    #         func=self.on_toggle_synchronization,
+    #     )
+    #     self.fixed_point_size = hp.make_int_spin_box(
+    #         self, value=CONFIG.size_fixed, tooltip="Size of the points shown in the fixed image."
+    #     )
+    #     self.fixed_point_size.valueChanged.connect(partial(self.on_update_layer, "fixed"))  # noqa
+    #
+    #     self.moving_point_size = hp.make_int_spin_box(
+    #         self, value=CONFIG.size_moving, tooltip="Size of the points shown in the moving image."
+    #     )
+    #     self.moving_point_size.valueChanged.connect(partial(self.on_update_layer, "moving"))  # noqa
+    #
+    #     self.fixed_opacity = hp.make_int_spin_box(
+    #         self, value=CONFIG.opacity_fixed, step_size=10, tooltip="Opacity of the fixed image"
+    #     )
+    #     self.fixed_opacity.valueChanged.connect(partial(self.on_update_layer, "fixed"))  # noqa
+    #
+    #     self.moving_opacity = hp.make_int_spin_box(
+    #         self,
+    #         value=CONFIG.opacity_moving,
+    #         step_size=10,
+    #         tooltip="Opacity of the moving image in the fixed view",
+    #     )
+    #     self.moving_opacity.valueChanged.connect(partial(self.on_update_layer, "moving"))  # noqa
+    #
+    #     self.text_size = hp.make_int_spin_box(
+    #         self, value=CONFIG.label_size, minimum=4, maximum=60, tooltip="Size of the text associated with
+    #         each label."
+    #     )
+    #     self.text_size.valueChanged.connect(self.on_update_text)  # noqa
+    #
+    #     self.text_color = hp.make_swatch(
+    #         self, default=CONFIG.label_color, tooltip="Color of the text associated with each label."
+    #     )
+    #     self.text_color.setSizePolicy(QSizePolicy.Policy.MinimumExpanding, QSizePolicy.Policy.Minimum)
+    #     self.text_color.evt_color_changed.connect(self.on_update_text)  # noqa
+    #
+    #     layout = hp.make_form_layout()
+    #     hp.style_form_layout(layout)
+    #     layout.addRow(hp.make_label(self, "Synchronize views"), self.synchronize_zoom)
+    #     layout.addRow(hp.make_label(self, "Marker size (fixed)"), self.fixed_point_size)
+    #     layout.addRow(hp.make_label(self, "Marker size (moving)"), self.moving_point_size)
+    #     layout.addRow(hp.make_label(self, "Image opacity (fixed)"), self.fixed_opacity)
+    #     layout.addRow(hp.make_label(self, "Image opacity (moving)"), self.moving_opacity)
+    #     layout.addRow(hp.make_label(self, "Label size"), self.text_size)
+    #     layout.addRow(hp.make_label(self, "Label color"), self.text_color)
+    #     return layout
 
     def _make_image_layout(self) -> QVBoxLayout:
         info = hp.make_h_line_with_text(
@@ -1403,6 +1403,71 @@ class ImageRegistrationWindow(Window):
         super()._make_statusbar()
         self.shortcuts_btn.show()
 
+        self.synchronize_zoom = hp.make_checkbox(
+            self,
+            "Sync views",
+            "Synchronize zoom between views. It only starts taking effect once transformation model has been"
+            " calculated.",
+            value=CONFIG.sync_views,
+            func=self.on_toggle_synchronization,
+        )
+        self.synchronize_zoom.setSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum)
+        self.statusbar.insertPermanentWidget(0, self.synchronize_zoom)
+        self.statusbar.insertPermanentWidget(1, hp.make_v_line())
+
+        self.fixed_point_size = hp.make_int_spin_box(
+            self, value=CONFIG.size_fixed, tooltip="Size of the points shown in the fixed image."
+        )
+        self.fixed_point_size.setSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum)
+        self.fixed_point_size.valueChanged.connect(partial(self.on_update_layer, "fixed"))  # noqa
+        self.statusbar.insertPermanentWidget(2, hp.make_label(self, "Marker size (F)"))
+        self.statusbar.insertPermanentWidget(3, self.fixed_point_size)
+
+        self.moving_point_size = hp.make_int_spin_box(
+            self, value=CONFIG.size_moving, tooltip="Size of the points shown in the moving image."
+        )
+        self.moving_point_size.setSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum)
+        self.moving_point_size.valueChanged.connect(partial(self.on_update_layer, "moving"))  # noqa
+        self.statusbar.insertPermanentWidget(4, hp.make_label(self, "(M)"))
+        self.statusbar.insertPermanentWidget(5, self.moving_point_size)
+        self.statusbar.insertPermanentWidget(6, hp.make_v_line())
+
+        self.fixed_opacity = hp.make_int_spin_box(
+            self, value=CONFIG.opacity_fixed, step_size=10, tooltip="Opacity of the fixed image"
+        )
+        self.fixed_opacity.setSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum)
+        self.fixed_opacity.valueChanged.connect(partial(self.on_update_layer, "fixed"))  # noqa
+        self.statusbar.insertPermanentWidget(7, hp.make_label(self, "Image opacity (F)"))
+        self.statusbar.insertPermanentWidget(8, self.fixed_opacity)
+
+        self.moving_opacity = hp.make_int_spin_box(
+            self,
+            value=CONFIG.opacity_moving,
+            step_size=10,
+            tooltip="Opacity of the moving image in the fixed view",
+        )
+        self.moving_opacity.setSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum)
+        self.moving_opacity.valueChanged.connect(partial(self.on_update_layer, "moving"))  # noqa
+        self.statusbar.insertPermanentWidget(9, hp.make_label(self, "(M)"))
+        self.statusbar.insertPermanentWidget(10, self.moving_opacity)
+        self.statusbar.insertPermanentWidget(11, hp.make_v_line())
+
+        self.text_size = hp.make_int_spin_box(
+            self, value=CONFIG.label_size, minimum=4, maximum=60, tooltip="Size of the text associated with each label."
+        )
+        self.text_size.setSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum)
+        self.text_size.valueChanged.connect(self.on_update_text)  # noqa
+        self.statusbar.insertPermanentWidget(12, hp.make_label(self, "Label size"))
+        self.statusbar.insertPermanentWidget(13, self.text_size)
+
+        self.text_color = hp.make_swatch(
+            self, default=CONFIG.label_color, tooltip="Color of the text associated with each label."
+        )
+        self.text_color.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Minimum)  # type: ignore[attr-defined]
+        self.text_color.evt_color_changed.connect(self.on_update_text)  # noqa
+        self.statusbar.insertPermanentWidget(14, self.text_color)
+        self.statusbar.insertPermanentWidget(15, hp.make_v_line(), stretch=1)
+
     def keyPressEvent(self, evt: ty.Any) -> None:
         """Key press event."""
         if hasattr(evt, "native"):
@@ -1483,12 +1548,12 @@ class ImageRegistrationWindow(Window):
 
     def dropEvent(self, event):
         """Override Qt method."""
-        from qtextra.widgets.qt_pick_option import QtPickOption
+        from qtextra.widgets.qt_pick_option import QtScrollablePickOption
 
         if self.allow_drop:
             hp.update_property(self.centralWidget(), "drag", False)
 
-            dlg = QtPickOption(
+            dlg = QtScrollablePickOption(
                 self,
                 "Please select which view would you like to add the image(s) to?",
                 {"fixed": "Fixed image", "moving": "Moving image"},

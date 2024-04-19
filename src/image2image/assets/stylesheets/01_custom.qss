@@ -45,7 +45,6 @@ QPushButton#update_btn{
     font-weight: bold;
 }
 
-
 QWidget[drag=true] {
     border: 6px solid {{ success }};
     border-radius: 2px;
@@ -70,5 +69,9 @@ QtPushButton#extract_btn {
 }
 
 QtImagePushButton[wide_border=true] {
-    background-color: {{ success }};
+    background-color: {{ background }};
+}
+
+QtImagePushButton[wide_border=true]:hover {
+    background-color: {{ darken(background, 20) }};
 }
