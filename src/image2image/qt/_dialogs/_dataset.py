@@ -734,6 +734,40 @@ class SelectDataDialog(QtFramelessTool):
         self.evt_loaded.emit(model, channel_list)  # noqa
         self.on_populate_table()
 
+    def _on_loaded_dataset_with_preselection(self, model: DataModel, select: bool = True) -> None:
+        """Finished loading data."""
+        from qtextra.widgets.qt_pick_option import QtScrollablePickOption
+
+        channel_list = []
+        wrapper = model.wrapper
+
+        if not self.select_channels or not select:
+            if wrapper:
+                channel_list = wrapper.channel_names_for_names(model.just_added_keys)
+        else:
+            just_added = model.just_added_keys
+            options = {k: k for k in just_added}
+            dlg = QtScrollablePickOption(self, "Please select which image would you like to register?", options=options)
+            which = None
+            if dlg.exec_() == QDialog.DialogCode.Accepted:
+                which = dlg.option
+            print(which)
+
+        #     if wrapper:
+        #         channel_list_ = list(wrapper.channel_names_for_names(self.model.just_added_keys))
+        #         if channel_list_:
+        #             dlg = SelectChannelsToLoadDialog(self, model)
+        #             if dlg.exec_():  # type: ignore
+        #                 channel_list = dlg.channels
+        # logger.trace(f"Loaded {len(channel_list)} channels")
+        # if not channel_list:
+        #     model.remove_keys(model.just_added_keys)
+        #     model, channel_list = None, None
+        #     logger.warning("No channels selected - dataset not loaded")
+        # # load data into an image
+        # self.evt_loaded.emit(model, channel_list)  # noqa
+        # self.on_populate_table()
+
     def _on_failed_dataset(self, exception: Exception) -> None:
         """Failed to load dataset."""
         logger.error("Error occurred while loading dataset.")
