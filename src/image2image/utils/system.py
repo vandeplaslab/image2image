@@ -14,7 +14,7 @@ def get_system_info(as_html=False):
     import sys
 
     import image2image_io
-    import image2image_wsireg
+    import image2image_reg
     from napari.utils.info import _sys_name
     from qtextra.helpers import hyper
 
@@ -30,7 +30,7 @@ def get_system_info(as_html=False):
 
     text += f"<br><b>image2image</b>: {image2image.__version__}<br>"
     text += f"<b>image2image-io</b>: {image2image_io.__version__}<br>"
-    text += f"<b>image2image-reg</b>: {image2image_wsireg.__version__}<br><br>"
+    text += f"<b>image2image-reg</b>: {image2image_reg.__version__}<br><br>"
 
     try:
         from qtpy import API_NAME, PYQT_VERSION, PYSIDE_VERSION, QtCore

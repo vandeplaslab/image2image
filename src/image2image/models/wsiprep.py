@@ -16,7 +16,7 @@ from image2image.utils.transform import combined_transform
 
 if ty.TYPE_CHECKING:
     from image2image_io.readers import BaseReader
-    from image2image_wsireg.workflows import IWsiReg
+    from image2image_reg.workflows import IWsiReg
 
 
 SCHEMA_VERSION: str = "1.0"
@@ -213,9 +213,9 @@ class RegistrationGroup(BaseModel):
     ) -> Path:
         """Generate iwsireg configuration file."""
         from image2image_io.readers import get_simple_reader
-        from image2image_wsireg.enums import CoordinateFlip
-        from image2image_wsireg.models import Preprocessing
-        from image2image_wsireg.workflows import IWsiReg
+        from image2image_reg.enums import CoordinateFlip
+        from image2image_reg.models import Preprocessing
+        from image2image_reg.workflows import IWsiReg
 
         if export_mode == "all":
             export_mode = "Export with mask + affine initialization"
@@ -725,9 +725,9 @@ class Registration(BaseModel):
     ) -> Path:
         """Generate iwsireg configuration file."""
         from image2image_io.readers import get_simple_reader
-        from image2image_wsireg.enums import CoordinateFlip
-        from image2image_wsireg.models import Preprocessing
-        from image2image_wsireg.workflows import IWsiReg
+        from image2image_reg.enums import CoordinateFlip
+        from image2image_reg.models import Preprocessing
+        from image2image_reg.workflows import IWsiReg
 
         if export_mode == "all":
             export_mode = "Export with mask + affine initialization"
