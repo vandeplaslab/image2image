@@ -46,7 +46,7 @@ if ($update) {
     $local_install.Add("image2image-io")
     $local_install.Add("image2image")
 
-    $pip_install.Add("napari==0.4.18")
+    $pip_install.Add("napari==0.4.19")
     $pip_install.Add("pyside2")
     $pip_install.Add("pyinstaller")
 }
