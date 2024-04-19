@@ -16,13 +16,14 @@ help=false
 uv=false
 package=false
 
-while getopts uadjrnrvhp opt; do
+while getopts uadjirnrvhp opt; do
   case $opt in
     u) update=true;;
     a) update_app=true;;
     d) update_deps=true;;
     r) update_just_reader=true;;
     j) update_just_app=true;;
+    i) update_pip=true;;
     n) no_docs=true;;
     h) help=true;;
     v) uv=true;;
@@ -31,18 +32,6 @@ while getopts uadjrnrvhp opt; do
        exit 1;;
   esac
 done
-
-echo "Building macOS pyinstaller package..."
-echo "update: $update"
-echo "update_app: $update_app"
-echo "update_deps: $update_deps"
-echo "update_just_reader: $update_just_reader"
-echo "update_just_app: $update_just_app"
-echo "no_docs: $no_docs"
-echo "uv: $uv"
-echo "package: $package"
-echo "help: $help"
-
 
 shift "$(( OPTIND - 1 ))"
 
@@ -104,25 +93,34 @@ fi
 
 if $update
 then
-    local_install+=("qtextra")
-    local_install+=("image2image")
-    local_install+=("image2image-io")
-    local_install+=("koyo")
-
-    pip_install+=("napari==0.4.19")
-    pip_install+=("PyQt6==6.5.3")
-    pip_install+=("pyinstaller")
-fi
-
-if $update_deps
-then
-  local_install+=("qtextra")
-  local_install+=("koyo")
+    update_app=true
+    update_deps=true
+    update_pip=true
 fi
 
 if $update_app
 then
-    local_install+=("image2image-io")
+  update_just_reader=true
+  update_just_app=true
+fi
+
+# inform user what's happening
+echo "Building macOS pyinstaller package..."
+echo "update: $update"
+echo "update_app: $update_app"
+echo "update_deps: $update_deps"
+echo "update_just_reader: $update_just_reader"
+echo "update_just_app: $update_just_app"
+echo "update_pip: $update_pip"
+echo "no_docs: $no_docs"
+echo "uv: $uv"
+echo "package: $package"
+echo "help: $help"
+
+
+# actually install the packages
+if $update_just_app
+then
     local_install+=("image2image")
 fi
 
@@ -131,9 +129,18 @@ then
     local_install+=("image2image-io")
 fi
 
-if $update_just_app
+if $update_deps
 then
-    local_install+=("image2image")
+  local_install+=("qtextra")
+  local_install+=("koyo")
+fi
+
+if $update_pip
+then
+    pip_install+=("napari==0.4.19")
+    pip_install+=("pydantic<2")
+    pip_install+=("PyQt6==6.5.3")
+    pip_install+=("pyinstaller")
 fi
 
 # iterate over the list

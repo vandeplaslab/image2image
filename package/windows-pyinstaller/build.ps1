@@ -3,6 +3,7 @@ param (
     [switch]$update = $false,
     [switch]$update_app = $false,
     [switch]$update_deps = $false,
+    [switch]$update_pip = $false,
     [switch]$zip = $false,
     [switch]$run = $false,
     [switch]$help = $false
@@ -41,12 +42,15 @@ echo "Github directory: " $github_dir
 
 # update all dependencies and app
 if ($update) {
-    $local_install.Add("qtextra")
-    $local_install.Add("koyo")
-    $local_install.Add("image2image-io")
-    $local_install.Add("image2image")
+    $update_deps = $true
+    $update_app = $true
+    $update_pip = $true
+}
 
+# update all dependencies and app
+if ($update_pip) {
     $pip_install.Add("napari==0.4.19")
+    $pip_install.Add("pydantic<2")
     $pip_install.Add("pyside2")
     $pip_install.Add("pyinstaller")
 }
