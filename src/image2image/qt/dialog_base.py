@@ -174,6 +174,9 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
         if channel_list is None:
             channel_list = wrapper.channel_names()
         image_layer, shape_layer, points_layer = [], [], []
+
+        zoom = view_wrapper.viewer.camera.zoom
+        center = view_wrapper.viewer.camera.center
         for index, (name, array, reader) in enumerate(wrapper.channel_image_for_channel_names_iter(channel_list)):
             channel_name = name.split(" | ")[0]
             if name not in channel_list:
@@ -223,6 +226,10 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
                     if contrast_limits_range:
                         image_layer[-1].contrast_limits_range = contrast_limits_range
                 logger.trace(f"Added '{name}' to {view_kind} in {timer()}.")
+        if zoom:
+            view_wrapper.viewer.camera.zoom = zoom
+        if center:
+            view_wrapper.viewer.camera.center = center
         return image_layer, shape_layer, points_layer
 
     @staticmethod
