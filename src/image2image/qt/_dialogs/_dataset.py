@@ -656,10 +656,10 @@ class SelectDataDialog(QtFramelessTool):
         # clear filenames by removing those that might not be permitted
         filenames_ = []
         for filename in filenames:
-            if filename.endswith(allowed_extensions):
-                filenames_.append(filename)
-            elif self.project_extension and any(filename.endswith(ext) for ext in self.project_extension):
+            if self.project_extension and any(filename.endswith(ext) for ext in self.project_extension):
                 self.evt_project.emit(filename)
+            elif filename.endswith(allowed_extensions):
+                filenames_.append(filename)
             else:
                 logger.warning(
                     f"File '{filename}' is not in a supported format. Permitted: {', '.join(allowed_extensions)}"
