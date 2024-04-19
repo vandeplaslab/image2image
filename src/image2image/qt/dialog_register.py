@@ -124,6 +124,13 @@ class ImageRegistrationWindow(Window):
         )
         if CONFIG.first_time_register:
             hp.call_later(self, self.on_show_tutorial, 10_000)
+        self._setup_config()
+
+    @staticmethod
+    def _setup_config() -> None:
+        READER_CONFIG.split_roi = True
+        READER_CONFIG.split_rgb = False
+        logger.trace("Setup config for image2register.")
 
     @contextmanager
     def zooming(self) -> ty.Generator[None, None, None]:
@@ -304,8 +311,10 @@ class ImageRegistrationWindow(Window):
     def _on_load_fixed(self, model: DataModel, channel_list: list[str] | None = None) -> None:
         with MeasureTimer() as timer:
             logger.info(f"Loading fixed data with {model.n_paths} paths...")
+            need_reset = len(self.view_fixed.layers) == 0
             self._plot_fixed_layers(channel_list)
-            # self.view_fixed.viewer.reset_view()
+            if need_reset:
+                self.view_fixed.viewer.reset_view()
         logger.info(f"Loaded fixed data in {timer()}")
 
     def _plot_fixed_layers(self, channel_list: list[str] | None = None) -> None:
@@ -356,9 +365,11 @@ class ImageRegistrationWindow(Window):
     def _on_load_moving(self, model: DataModel, channel_list: list[str] | None = None) -> None:
         with MeasureTimer() as timer:
             logger.info(f"Loading moving data with {model.n_paths} paths...")
+            need_reset = len(self.view_moving.layers) == 0
             self._plot_moving_layers(channel_list)
             self.on_apply(update_data=True)
-            # self.view_moving.viewer.reset_view()
+            if need_reset:
+                self.view_moving.viewer.reset_view()
         logger.info(f"Loaded moving data in {timer()}")
 
     def _plot_moving_layers(self, channel_list: list[str] | None = None) -> None:
@@ -1550,23 +1561,23 @@ class ImageRegistrationWindow(Window):
         """Override Qt method."""
         from qtextra.widgets.qt_pick_option import QtScrollablePickOption
 
-        if self.allow_drop:
-            hp.update_property(self.centralWidget(), "drag", False)
+        self._setup_config()
+        hp.update_property(self.centralWidget(), "drag", False)
 
-            dlg = QtScrollablePickOption(
-                self,
-                "Please select which view would you like to add the image(s) to?",
-                {"fixed": "Fixed image", "moving": "Moving image"},
-            )
-            which = None
-            if dlg.exec_() == QDialog.DialogCode.Accepted:  # type: ignore[attr-defined]
-                which = dlg.option
-            if which == "fixed":
-                self.evt_fixed_dropped.emit(event)
-            elif which == "moving":
-                self.evt_moving_dropped.emit(event)
-            else:
-                event.ignore()
+        dlg = QtScrollablePickOption(
+            self,
+            "Please select which view would you like to add the image(s) to?",
+            {"fixed": "Fixed image", "moving": "Moving image"},
+        )
+        which = None
+        if dlg.exec_() == QDialog.DialogCode.Accepted:  # type: ignore[attr-defined]
+            which = dlg.option
+        if which == "fixed":
+            self.evt_fixed_dropped.emit(event)
+        elif which == "moving":
+            self.evt_moving_dropped.emit(event)
+        else:
+            event.ignore()
 
     def on_show_tutorial(self) -> None:
         """Quick tutorial."""

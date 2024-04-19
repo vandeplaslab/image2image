@@ -87,8 +87,10 @@ class ImageCropWindow(Window):
     def _on_load_image(self, model: DataModel, channel_list: list[str] | None = None) -> None:
         with MeasureTimer() as timer:
             logger.info(f"Loading fixed data with {model.n_paths} paths...")
+            need_reset = len(self.view.layers) == 0
             self.plot_image_layers(channel_list)
-            # self.view.viewer.reset_view()
+            if need_reset:
+                self.view.viewer.reset_view()
         logger.info(f"Loaded data in {timer()}")
 
     def plot_image_layers(self, channel_list: list[str] | None = None) -> None:

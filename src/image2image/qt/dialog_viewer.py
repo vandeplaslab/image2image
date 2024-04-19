@@ -52,6 +52,13 @@ class ImageViewerWindow(Window):
         super().__init__(parent, f"image2viewer: Viewer app (v{__version__})", run_check_version=run_check_version)
         if CONFIG.first_time_viewer:
             hp.call_later(self, self.on_show_tutorial, 10_000)
+        self._setup_config()
+
+    @staticmethod
+    def _setup_config() -> None:
+        READER_CONFIG.split_roi = True
+        READER_CONFIG.split_rgb = False
+        logger.trace("Setup config for image2viewer.")
 
     def setup_events(self, state: bool = True) -> None:
         """Setup events."""
@@ -124,8 +131,10 @@ class ImageViewerWindow(Window):
     def _on_load_image(self, model: DataModel, channel_list: list[str] | None = None) -> None:
         with MeasureTimer() as timer:
             logger.info(f"Loading fixed data with {model.n_paths} paths...")
+            need_reset = len(self.view.layers) == 0
             self.plot_image_layers(channel_list)
-            # self.view.viewer.reset_view()
+            if need_reset:
+                self.view.viewer.reset_view()
         logger.info(f"Loaded data in {timer()}")
 
     def plot_image_layers(self, channel_list: list[str] | None = None) -> None:

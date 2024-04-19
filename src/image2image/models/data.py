@@ -100,11 +100,11 @@ class DataModel(BaseModel):
         # synchronize paths
         if wrapper:
             all_paths = [reader.path for reader in wrapper.reader_iter()]
-            paths = []
-            for path in self.paths:
-                if path in all_paths:
-                    paths.append(path)
-            self.paths = paths
+            # paths = []
+            # for path in self.paths:
+            #     if path in all_paths:
+            #         paths.append(path)
+            self.paths = all_paths
 
     def remove_paths(self, path_or_paths: ty.Union[PathLike, ty.Sequence[PathLike]]) -> None:
         """Remove paths."""
@@ -250,12 +250,14 @@ class DataModel(BaseModel):
                     paths.append(path)
         return paths
 
-    def path_resolution_shape_iter(self) -> ty.Generator[ty.Tuple[Path, float, ty.Tuple[int, int]], None, None]:
+    def path_resolution_shape_iter(
+        self
+    ) -> ty.Generator[tuple[Path, float, tuple[int, int], dict[str, ty.Any]], None, None]:
         """Iterator of path and pixel size."""
         wrapper = self.wrapper
         if wrapper:
             for reader in wrapper.reader_iter():
-                yield reader.path, reader.resolution, reader.image_shape
+                yield reader.path, reader.resolution, reader.image_shape, reader.reader_kws
 
     def export_iter(self) -> ty.Generator[dict[str, ty.Union[Path, float, str, tuple[int, int], dict]], None, None]:
         """Export iterator."""

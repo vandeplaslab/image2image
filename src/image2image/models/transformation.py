@@ -25,7 +25,7 @@ I2R_METADATA = ty.Tuple[
     float,
 ]
 
-SCHEMA_VERSION: str = "1.3"
+SCHEMA_VERSION: str = "1.4"
 
 
 class Transformation(BaseModel):
@@ -255,30 +255,32 @@ class Transformation(BaseModel):
             "schema_version": SCHEMA_VERSION,
             "tool": "register",
             "time_created": self.time_created.strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
-            "fixed_points_yx_px": fixed_pts.tolist(),
-            "fixed_points_yx_um": (fixed_pts * fixed_mdl.resolution).tolist(),
-            "moving_points_yx_px": moving_pts.tolist(),
-            "moving_points_yx_um": (moving_pts * moving_mdl.resolution).tolist(),
             "transformation_type": self.transformation_type,
             "fixed_paths": [
                 {
                     "path": str(path),
                     "pixel_size_um": resolution,
                     "image_shape": tuple(map(int, image_shape)),
+                    "reader_kws": reader_kws,
                 }
-                for (path, resolution, image_shape) in fixed_mdl.path_resolution_shape_iter()
+                for (path, resolution, image_shape, reader_kws) in fixed_mdl.path_resolution_shape_iter()
             ],
             "moving_paths": [
                 {
                     "path": str(path),
                     "pixel_size_um": resolution,
                     "image_shape": tuple(map(int, image_shape)),
+                    "reader_kws": reader_kws,
                 }
-                for (path, resolution, image_shape) in moving_mdl.path_resolution_shape_iter()
+                for (path, resolution, image_shape, reader_kws) in moving_mdl.path_resolution_shape_iter()
             ],
             "initial_matrix_yx_um": self.moving_initial_affine.tolist()
             if self.moving_initial_affine is not None
             else [],
+            "fixed_points_yx_px": fixed_pts.tolist(),
+            "fixed_points_yx_um": (fixed_pts * fixed_mdl.resolution).tolist(),
+            "moving_points_yx_px": moving_pts.tolist(),
+            "moving_points_yx_um": (moving_pts * moving_mdl.resolution).tolist(),
             "matrix_yx_px": self.compute(yx=True, px=True).params.tolist(),
             "matrix_yx_um": self.compute(yx=True, px=False).params.tolist(),
             "matrix_xy_px": self.compute(yx=False, px=True).params.tolist(),
@@ -384,9 +386,9 @@ def _read_image2register_config(config: ty.Dict, validate_paths: bool = True) ->
 
 def _read_image2register_latest_config(config: ty.Dict, validate_paths: bool = True) -> I2R_METADATA:
     # read important fields
-    fixed_paths, fixed_missing_paths, moving_paths, moving_missing_paths = [], [], [], []
-    paths = [temp["path"] for temp in config["fixed_paths"]]
+    fixed_paths, fixed_missing_paths, fixed_paths_kws = [], [], {}
     if validate_paths:
+        paths = [temp["path"] for temp in config["fixed_paths"]]
         fixed_paths, fixed_missing_paths = _get_paths(paths)
     fixed_res = [temp["pixel_size_um"] for temp in config["fixed_paths"]]
     if fixed_res:
@@ -394,8 +396,9 @@ def _read_image2register_latest_config(config: ty.Dict, validate_paths: bool = T
     else:
         fixed_resolution = 0.0
 
-    paths = [temp["path"] for temp in config["moving_paths"]]
+    moving_paths, moving_missing_paths, fixed_paths_kws = [], [], {}
     if validate_paths:
+        paths = [temp["path"] for temp in config["moving_paths"]]
         moving_paths, moving_missing_paths = _get_paths(paths)
     moving_res = [temp["pixel_size_um"] for temp in config["moving_paths"]]
     if moving_res:

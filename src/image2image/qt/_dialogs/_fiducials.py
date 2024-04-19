@@ -143,7 +143,7 @@ class FiducialsDialog(QtFramelessTool):
                 view = parent.view_moving
                 with view.viewer.camera.events.blocker():
                     view.viewer.camera.center = (0.0, y_moving, x_moving)
-                    view.viewer.camera.zoom = CONFIG.zoom_factor * parent.transform_model.fixed_to_moving_ratio
+                    view.viewer.camera.zoom = CONFIG.zoom_factor * parent.transform_model.moving_to_fixed_ratio
                 logger.debug(
                     f"Applied focus center=({y_moving:.1f}, {x_moving:.1f}) zoom={view.viewer.camera.zoom:.3f}"
                     " on moving data"
