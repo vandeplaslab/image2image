@@ -256,6 +256,7 @@ class MovingWidget(LoadWidget):
         connect(self.dataset_dlg.evt_closed, self._on_clear_choice)
 
         if parent is not None and hasattr(parent, "evt_moving_dropped"):
+            self.dataset_dlg._on_loaded_dataset = self.dataset_dlg._on_loaded_dataset_with_preselection
             connect(parent.evt_moving_dropped, self.dataset_dlg.on_drop)
 
     def _on_update_choice(self, _model: object, _channel_list: list[str]) -> None:

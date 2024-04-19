@@ -305,7 +305,7 @@ class ImageRegistrationWindow(Window):
         with MeasureTimer() as timer:
             logger.info(f"Loading fixed data with {model.n_paths} paths...")
             self._plot_fixed_layers(channel_list)
-            self.view_fixed.viewer.reset_view()
+            # self.view_fixed.viewer.reset_view()
         logger.info(f"Loaded fixed data in {timer()}")
 
     def _plot_fixed_layers(self, channel_list: list[str] | None = None) -> None:
@@ -358,7 +358,7 @@ class ImageRegistrationWindow(Window):
             logger.info(f"Loading moving data with {model.n_paths} paths...")
             self._plot_moving_layers(channel_list)
             self.on_apply(update_data=True)
-            self.view_moving.viewer.reset_view()
+            # self.view_moving.viewer.reset_view()
         logger.info(f"Loaded moving data in {timer()}")
 
     def _plot_moving_layers(self, channel_list: list[str] | None = None) -> None:
