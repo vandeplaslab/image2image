@@ -19,7 +19,8 @@ VIEWER_TEXT = "<b>Viewer App</b><br>Overlay your microscopy and imaging mass spe
 CROP_TEXT = "<b>Crop App</b><br>Crop your microscopy data to reduce it's size (handy for Image Fusion)."
 CONVERT_TEXT = "<b>CZI to OME-TIFF App</b><br>Convert your multi-scene CZI image to OME-TIFF."
 FUSION_APP = "<b>Fusion Preparation App</b><br>Export your data for Image Fusion in MATLAB compatible format."
-if IS_PYINSTALLER and IS_MAC_ARM:
+CONVERT_AVAILABLE = IS_PYINSTALLER and IS_MAC_ARM
+if not CONVERT_AVAILABLE:
     CONVERT_TEXT += "<br><br><i>Not available on Apple Silicon - a bug I can't find...</i>"
 
 
@@ -78,7 +79,13 @@ class Launcher(QtDialog):
             ),
         )
         # convert app
-        btn = hp.make_qta_btn(self, "change", tooltip="Open convert application.", func=Window.on_convert)
+        btn = hp.make_qta_btn(
+            self,
+            "change",
+            tooltip="Open convert application.",
+            func=Window.on_convert,
+            properties={"disabled": not CONVERT_AVAILABLE},
+        )
         btn.set_xxlarge()
         layout.addLayout(
             hp.make_h_layout(
@@ -122,8 +129,4 @@ class Launcher(QtDialog):
 if __name__ == "__main__":  # pragma: no cover
     from image2image.main import run
 
-    run(
-        # dev=True,
-        tool="launcher",
-        level=0,
-    )
+    run(tool="launcher", level=0)
