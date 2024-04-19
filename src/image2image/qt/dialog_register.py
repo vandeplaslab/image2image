@@ -1427,7 +1427,9 @@ class ImageRegistrationWindow(Window):
         self.statusbar.insertPermanentWidget(1, hp.make_v_line())
 
         self.fixed_point_size = hp.make_int_spin_box(
-            self, value=CONFIG.size_fixed, tooltip="Size of the points shown in the fixed image."
+            self,
+            value=CONFIG.size_fixed,
+            tooltip="Size of the points shown in the fixed image.",
         )
         self.fixed_point_size.setSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum)
         self.fixed_point_size.valueChanged.connect(partial(self.on_update_layer, "fixed"))  # noqa
@@ -1435,7 +1437,9 @@ class ImageRegistrationWindow(Window):
         self.statusbar.insertPermanentWidget(3, self.fixed_point_size)
 
         self.moving_point_size = hp.make_int_spin_box(
-            self, value=CONFIG.size_moving, tooltip="Size of the points shown in the moving image."
+            self,
+            value=CONFIG.size_moving,
+            tooltip="Size of the points shown in the moving image.",
         )
         self.moving_point_size.setSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum)
         self.moving_point_size.valueChanged.connect(partial(self.on_update_layer, "moving"))  # noqa
@@ -1444,7 +1448,10 @@ class ImageRegistrationWindow(Window):
         self.statusbar.insertPermanentWidget(6, hp.make_v_line())
 
         self.fixed_opacity = hp.make_int_spin_box(
-            self, value=CONFIG.opacity_fixed, step_size=10, tooltip="Opacity of the fixed image"
+            self,
+            value=CONFIG.opacity_fixed,
+            step_size=10,
+            tooltip="Opacity of the fixed image",
         )
         self.fixed_opacity.setSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum)
         self.fixed_opacity.valueChanged.connect(partial(self.on_update_layer, "fixed"))  # noqa
@@ -1464,7 +1471,11 @@ class ImageRegistrationWindow(Window):
         self.statusbar.insertPermanentWidget(11, hp.make_v_line())
 
         self.text_size = hp.make_int_spin_box(
-            self, value=CONFIG.label_size, minimum=4, maximum=60, tooltip="Size of the text associated with each label."
+            self,
+            value=CONFIG.label_size,
+            minimum=4,
+            maximum=60,
+            tooltip="Size of the text associated with each label.",
         )
         self.text_size.setSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum)
         self.text_size.valueChanged.connect(self.on_update_text)  # noqa
@@ -1474,7 +1485,7 @@ class ImageRegistrationWindow(Window):
         self.text_color = hp.make_swatch(
             self, default=CONFIG.label_color, tooltip="Color of the text associated with each label."
         )
-        self.text_color.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Minimum)  # type: ignore[attr-defined]
+        self.text_color.setSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum)  # type: ignore[attr-defined]
         self.text_color.evt_color_changed.connect(self.on_update_text)  # noqa
         self.statusbar.insertPermanentWidget(14, self.text_color)
         self.statusbar.insertPermanentWidget(15, hp.make_v_line(), stretch=1)

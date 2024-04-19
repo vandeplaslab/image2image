@@ -78,3 +78,35 @@ QtImagePushButton[wide_border=true]:hover {
 QtImagePushButton[disabled=true] {
     background-color: {{ warning }};
 }
+
+QStatusBar {
+    background-color: {{ foreground }};
+    max-height: 28px;
+}
+
+QStatusBar QSpinBox {
+    background-color: {{ background }};
+    color: {{ text }};
+}
+
+QStatusBar QSpinBox::up-button, QStatusBar QSpinBox::down-button {
+    border: 1px solid {{ background }};
+    background-color: {{ foreground }};
+}
+
+QStatusBar QSpinBox::up-button:hover, QStatusBar QSpinBox::down-button:hover {
+    background-color: {{ darken(foreground, 10) }};
+}
+
+QStatusBar QCheckBox::indicator {
+    background-color: {{ background }};
+    color: {{ text }};
+}
+
+QStatusBar QCheckBox::indicator:hover {
+    background-color: {{ darken(foreground, 10) }};
+}
+
+QStatusBar QtColorSwatch:hover {
+    border: 2px solid {{ foreground }};
+}

@@ -54,15 +54,15 @@ def get_system_info(as_html=False):
         text += f"<b>Qt</b>: Import failed ({e})<br>"
 
     modules = (
+        ("qtpy", "QtPy"),
+        ("qtawesome", "QtAwesome"),
+        ("qtextra", "qtextra"),
+        ("napari", "Napari"),
+        ("superqt", "superqt"),
         ("numpy", "NumPy"),
         ("scipy", "SciPy"),
         ("dask", "Dask"),
         ("vispy", "VisPy"),
-        ("napari", "Napari"),
-        ("superqt", "superqt"),
-        ("qtpy", "QtPy"),
-        ("qtawesome", "QtAwesome"),
-        ("qtextra", "qtextra"),
         ("imzy", "imzy"),
     )
     loaded = {}
