@@ -5,6 +5,7 @@ from __future__ import annotations
 import qtextra.helpers as hp
 from image2image_io.config import CONFIG as READER_CONFIG
 from koyo.system import IS_MAC_ARM, IS_PYINSTALLER
+from qtextra.config import THEMES
 from qtextra.widgets.qt_dialog import QtDialog
 from qtextra.widgets.qt_logger import QtLoggerDialog
 from qtpy.QtCore import Qt
@@ -19,9 +20,9 @@ VIEWER_TEXT = "<b>Viewer App</b><br>Overlay your microscopy and imaging mass spe
 CROP_TEXT = "<b>Crop App</b><br>Crop your microscopy data to reduce it's size (handy for Image Fusion)."
 CONVERT_TEXT = "<b>CZI to OME-TIFF App</b><br>Convert your multi-scene CZI image to OME-TIFF."
 FUSION_APP = "<b>Fusion Preparation App</b><br>Export your data for Image Fusion in MATLAB compatible format."
-CONVERT_AVAILABLE = IS_PYINSTALLER and IS_MAC_ARM
-if not CONVERT_AVAILABLE:
-    CONVERT_TEXT += "<br><br><i>Not available on Apple Silicon - a bug I can't find...</i>"
+CONVERT_UNAVAILABLE = IS_PYINSTALLER and IS_MAC_ARM
+if CONVERT_UNAVAILABLE:
+    CONVERT_TEXT += "<br><br><i>Not available on Apple Silicon due to a bug I can't find...</i>"
 
 
 class Launcher(QtDialog):
@@ -84,7 +85,7 @@ class Launcher(QtDialog):
             "change",
             tooltip="Open convert application.",
             func=Window.on_convert,
-            properties={"disabled": not CONVERT_AVAILABLE},
+            color=THEMES.get_hex_color("warning") if CONVERT_UNAVAILABLE else None,
         )
         btn.set_xxlarge()
         layout.addLayout(

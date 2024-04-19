@@ -1,4 +1,5 @@
 """Event loop."""
+
 from __future__ import annotations
 
 import os
@@ -152,6 +153,7 @@ def get_app(
             # Setup search paths for currently installed themes.
             for name in THEMES.themes:
                 QDir.addSearchPath(f"theme_{name}", str(_theme_path(name)))
+            THEMES.update_palette()
 
             try:
                 # this will register all of our resources (icons) with Qt, so that they

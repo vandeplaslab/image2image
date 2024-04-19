@@ -935,7 +935,7 @@ class ImageRegistrationWindow(Window):
             self.transformed_moving_image_layer.visible = READER_CONFIG.show_transformed
 
     @qdebounced(timeout=50)
-    def on_toggle_transformed_image(self) -> None:
+    def on_toggle_transformed_image(self, _=None) -> None:
         """Toggle visibility of transformed image."""
         if self.transformed_moving_image_layer:
             self._moving_widget.toggle_transformed()
@@ -944,7 +944,7 @@ class ImageRegistrationWindow(Window):
             )
 
     @qdebounced(timeout=50)
-    def on_toggle_synchronization(self) -> None:
+    def on_toggle_synchronization(self, _=None) -> None:
         """Toggle synchronization of views."""
         CONFIG.sync_views = not CONFIG.sync_views
         with hp.qt_signals_blocked(self.synchronize_zoom):
@@ -1535,6 +1535,9 @@ class ImageRegistrationWindow(Window):
             evt.ignore()
         elif key == Qt.Key.Key_D:
             self.on_zoom_on_point(1)
+            evt.ignore()
+        elif key == Qt.Key.Key_S:
+            self.on_toggle_synchronization()
             evt.ignore()
         else:
             super().keyPressEvent(evt)
