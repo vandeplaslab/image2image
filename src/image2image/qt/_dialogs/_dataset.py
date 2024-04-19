@@ -877,6 +877,12 @@ class SelectDataDialog(QtFramelessTool):
             tooltip="Split RGB channels into separate layers when loading images into the view.",
             func=self.on_update_config,
         )
+        self.split_roi_check = hp.make_checkbox(
+            self,
+            value=READER_CONFIG.split_roi,
+            tooltip="When loading Bruker .d image(s), slit them by the region of interest.",
+            func=self.on_update_config,
+        )
 
         layout = hp.make_form_layout()
         hp.style_form_layout(layout)
@@ -901,6 +907,8 @@ class SelectDataDialog(QtFramelessTool):
                 hp.make_v_line(),
                 hp.make_label(self, "Split RGB"),
                 self.split_rgb_check,
+                hp.make_label(self, "Split Bruker .d (recommended)"),
+                self.split_roi_check,
                 stretch_after=True,
             )
         )
@@ -921,6 +929,7 @@ class SelectDataDialog(QtFramelessTool):
         READER_CONFIG.shape_display = self.shapes_combo.currentText()
         READER_CONFIG.split_rgb = self.split_rgb_check.isChecked()
         READER_CONFIG.split_czi = self.split_czi_check.isChecked()
+        READER_CONFIG.split_roi = self.split_roi_check.isChecked()
 
     # noinspection PyAttributeOutsideInit
     @contextmanager
