@@ -1,4 +1,5 @@
 """Transformation model."""
+
 import typing as ty
 from contextlib import suppress
 from datetime import datetime

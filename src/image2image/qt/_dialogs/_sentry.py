@@ -1,4 +1,5 @@
 """Sentry widget."""
+
 import os
 import sys
 

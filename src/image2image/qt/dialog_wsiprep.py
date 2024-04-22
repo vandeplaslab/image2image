@@ -382,7 +382,7 @@ class ImageWsiPrepWindow(Window):
                 model = self.registration.images[key]
                 if not self.check_if_can_update(model, silent=True):
                     continue
-                elif model.lock:
+                if model.lock:
                     hp.toast(
                         self,
                         "Image is locked",
@@ -404,7 +404,7 @@ class ImageWsiPrepWindow(Window):
                 model = self.registration.images[key]
                 if not self.check_if_can_update(model, silent=True):
                     continue
-                elif model.lock:
+                if model.lock:
                     hp.toast(
                         self,
                         "Image is locked",
@@ -433,7 +433,7 @@ class ImageWsiPrepWindow(Window):
                 model = self.registration.images[key]
                 if not self.check_if_can_update(model, silent=True):
                     continue
-                elif model.lock:
+                if model.lock:
                     hp.toast(
                         self,
                         "Image is locked",
@@ -606,9 +606,7 @@ class ImageWsiPrepWindow(Window):
                 for row in range(self.table.n_rows):
                     key = self.table.get_value(self.TABLE_CONFIG.key, row)
                     model = self.registration.images[key]
-                    if group_id is None:
-                        model.is_reference = row == index
-                    elif group_id == model.group_id:
+                    if group_id is None or group_id == model.group_id:
                         model.is_reference = row == index
 
                     if row == index:

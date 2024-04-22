@@ -1,4 +1,5 @@
 """Scalebar overrides."""
+
 import typing as ty
 
 import qtextra.helpers as hp

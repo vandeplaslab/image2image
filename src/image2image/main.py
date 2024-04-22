@@ -1,4 +1,5 @@
 """Main window."""
+
 import os
 import sys
 import typing as ty

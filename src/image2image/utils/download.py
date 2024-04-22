@@ -1,4 +1,5 @@
 """Automatically download and unpack new version from Dropbox."""
+
 from __future__ import annotations
 
 import getpass

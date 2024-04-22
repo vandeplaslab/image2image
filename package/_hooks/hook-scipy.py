@@ -1,4 +1,5 @@
 """Scipy hook."""
+
 hiddenimports = [
     "scipy",
     "scipy.sparse.csgraph._validation",

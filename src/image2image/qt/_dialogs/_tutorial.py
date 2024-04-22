@@ -1,4 +1,5 @@
 """Tutorial dialog."""
+
 import typing as ty
 
 if ty.TYPE_CHECKING:

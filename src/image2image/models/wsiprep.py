@@ -1,4 +1,5 @@
 """Three-D model."""
+
 import typing as ty
 from copy import deepcopy
 from pathlib import Path

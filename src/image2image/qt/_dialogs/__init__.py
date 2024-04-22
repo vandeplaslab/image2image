@@ -1,4 +1,5 @@
 """Various dialogs."""
+
 from image2image.qt._dialogs._about import AboutDialog, open_about
 from image2image.qt._dialogs._channels import OverlayChannelsDialog
 from image2image.qt._dialogs._dataset import (
@@ -16,6 +17,7 @@ from image2image.qt._dialogs._transform import SelectTransformDialog
 __all__ = [
     "AboutDialog",
     "open_about",
+    "open_sysinfo",
     "CloseDatasetDialog",
     "ExtractChannelsDialog",
     "SelectChannelsToLoadDialog",

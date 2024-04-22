@@ -1,4 +1,5 @@
 """Base model."""
+
 import typing as ty
 from pathlib import Path
 

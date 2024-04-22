@@ -91,19 +91,38 @@ include = '\.pyi?$'
 [tool.ruff]
 line-length = 120
 target-version = "py38"
+
+[tool.ruff.lint]
 # https://beta.ruff.rs/docs/rules/
-extend-select = [
-    "E",    # style errors
-    "W",    # style warnings
-    "F",    # flakes
-    "D",    # pydocstyle
-    "I",    # isort
-    "U",    # pyupgrade
-    # "S",    # bandit
-    "C",    # flake8-comprehensions
-    "B",    # flake8-bugbear
-    "A001", # flake8-builtins
-    "RUF",  # ruff-specific rules
+select = [
+    "E", "F", "W", #flake8
+    "UP", # pyupgrade
+    "I", # isort
+    "YTT", #flake8-2020
+    "TCH", # flake8-type-checing
+    "BLE", # flake8-blind-exception
+    "B", # flake8-bugbear
+    "A", # flake8-builtins
+    "C4", # flake8-comprehensions
+    "ISC", # flake8-implicit-str-concat
+    "G", # flake8-logging-format
+    "PIE", # flake8-pie
+    "COM", # flake8-commas
+    "SIM", # flake8-simplify
+    "INP", # flake8-no-pep420
+    "PYI", # flake8-pyi
+    "Q", # flake8-quotes
+    "RSE", # flake8-raise
+    "RET", # flake8-return
+    "TID",  # flake8-tidy-imports # replace absolutify import
+    "TRY", # tryceratops
+    "ICN", # flake8-import-conventions
+    "RUF", # ruff specyfic rules
+    "ASYNC", # flake8-async
+    "EXE", # flake8-executable
+    "FA", # flake8-future-annotations
+    "LOG", # flake8-logging
+    "SLOT", # flake8-slots
 ]
 # I do this to get numpy-style docstrings AND retain
 # D417 (Missing argument descriptions in the docstring)
@@ -121,10 +140,23 @@ extend-ignore = [
     "D416", # Section name should end with a colon
     "RUF100", # Do not remove NOQA lines
     "C901", # Function is too complex
-    "D301" # Use r""" if any backslashes in a docstring
+    "D301", # Use r""" if any backslashes in a docstring
+    "E501", "TCH001", "TCH002", "TCH003",
+    "A003", # flake8-builtins - we have class attributes violating these rule
+    "COM812", # flake8-commas - we don't like adding comma on single line of arguments
+    "COM819", # conflicts with ruff-format
+    "SIM117", # flake8-simplify - we some of merged with statements are not looking great with black, reanble after drop python 3.9
+    "RET504", # not fixed yet https://github.com/charliermarsh/ruff/issues/2950
+    "TRY003", # require implement multiple exception class
+    "RUF005", # problem with numpy compatybility, see https://github.com/charliermarsh/ruff/issues/2142#issuecomment-1451038741
+    "B028", # need to be fixed
+    "PYI015", # it produces bad looking files (@jni opinion)
+    "W191", "Q000", "Q001", "Q002", "Q003", "ISC001", # https://docs.astral.sh/ruff/formatter/#conflicting-lint-rules
+    "FA100", "FA102",  # missing __future__
+    "G004", # flake8-logging-format
 ]
 
-[tool.ruff.per-file-ignores]
+[tool.ruff.lint.per-file-ignores]
 "src/image2image/readers/czi.py" = ["B018", "B007", "D417"]
 "src/image2image/_sentry.py" = ["E401"]
 "tests/*.py" = ["D", "S"]

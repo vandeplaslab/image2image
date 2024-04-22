@@ -1,4 +1,5 @@
 """CLI."""
+
 import typing as ty
 
 import click

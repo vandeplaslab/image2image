@@ -251,7 +251,7 @@ class DataModel(BaseModel):
         return paths
 
     def path_resolution_shape_iter(
-        self
+        self,
     ) -> ty.Generator[tuple[Path, float, tuple[int, int], dict[str, ty.Any]], None, None]:
         """Iterator of path and pixel size."""
         wrapper = self.wrapper

@@ -1,4 +1,5 @@
 """Check for latest version on GitHub."""
+
 from __future__ import annotations
 
 from pathlib import Path

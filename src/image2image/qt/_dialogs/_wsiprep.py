@@ -1,4 +1,5 @@
 """Dialogs for the wsiprep module."""
+
 from __future__ import annotations
 
 import typing as ty

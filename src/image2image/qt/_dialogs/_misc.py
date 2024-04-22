@@ -1,4 +1,5 @@
 """Other dialogs."""
+
 from __future__ import annotations
 
 from qtextra import helpers as hp

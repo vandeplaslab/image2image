@@ -1,4 +1,5 @@
 """Focus model."""
+
 import typing as ty
 
 from image2image.models.base import BaseModel

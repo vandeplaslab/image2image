@@ -16,7 +16,7 @@ help=false
 uv=false
 package=false
 
-while getopts uadjirnrvhp opt; do
+while getopts uadjirnrvph opt; do
   case $opt in
     u) update=true;;
     a) update_app=true;;
@@ -25,9 +25,9 @@ while getopts uadjirnrvhp opt; do
     j) update_just_app=true;;
     i) update_pip=true;;
     n) no_docs=true;;
-    h) help=true;;
     v) uv=true;;
     p) package=true;;
+    h) help=true;;
     *) echo "Invalid option: -$OPTARG" >&2
        exit 1;;
   esac
@@ -37,11 +37,13 @@ shift "$(( OPTIND - 1 ))"
 
 if $help
 then
-  echo "Usage: ./build.sh [-update] [-update_app] [-no_docs] [-uv] [-run] [-help]"
+  echo "Usage: ./build.sh [-update] [-update_app] [-update_deps] [-update_just_reader] [-update_just_app] [-update_pip] [-no_docs] [-uv] [-package] [-help]"
   echo "  -u / update: update the i2i package before building"
-  echo "  -a / update_app: update the i2i package to a specific commit before building"
+  echo "  -a / update_app: update the i2i and i2i-io packages before building"
+  echo "  -d / update_deps: update dependencies before building"
   echo "  -r / update_just_reader: update the i2i-io package to a specific commit before building"
   echo "  -j / update_just_app: update the i2i package to a specific commit before building"
+  echo "  -i / update_pip: update the pip packages before building"
   echo "  -n / no_docs: do not build the documentation"
   echo "  -v / uv: use uv for updates"
   echo "  -p / package: package the application"
@@ -164,6 +166,7 @@ do
     cd $(realpath $github_dir/$pkg) || exit 1
     if $uv
     then
+      uv pip uninstall $pkg
       uv pip install -U "$pkg @ ." --force-reinstall
     else
       pip install -U .

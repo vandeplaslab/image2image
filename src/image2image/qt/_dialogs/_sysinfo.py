@@ -1,4 +1,5 @@
 """Open system info."""
+
 from qtpy.QtWidgets import QWidget
 
 
