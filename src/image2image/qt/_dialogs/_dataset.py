@@ -736,7 +736,6 @@ class SelectDataDialog(QtFramelessTool):
 
     def _on_loaded_dataset_with_preselection(self, model: DataModel, select: bool = True) -> None:
         """Finished loading data."""
-        from qtextra.widgets.qt_pick_option import QtScrollablePickOption
 
         channel_list = []
         remove_keys = []
@@ -748,10 +747,17 @@ class SelectDataDialog(QtFramelessTool):
         else:
             just_added = model.just_added_keys
             options = {k: k for k in reversed(just_added)}
-            dlg = QtScrollablePickOption(self, "Please select which image would you like to register?", options=options)
-            which = None
-            if dlg.exec_() == QDialog.DialogCode.Accepted:
-                which = dlg.option
+            if len(options) == 1:
+                which = list(options.keys())[0]
+            else:
+                from qtextra.widgets.qt_pick_option import QtScrollablePickOption
+
+                dlg = QtScrollablePickOption(
+                    self, "Please select which image would you like to register?", options=options
+                )
+                which = None
+                if dlg.exec_() == QDialog.DialogCode.Accepted:
+                    which = dlg.option
             remove_keys = [k for k in just_added if k != which]
             just_added = [which] if which else None
             if wrapper and just_added:

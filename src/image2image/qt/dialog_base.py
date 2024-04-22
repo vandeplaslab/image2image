@@ -65,14 +65,14 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
         # synchronize themes
         THEMES.evt_theme_changed.connect(self.on_changed_theme)
 
-        # most apps will benefit from this
-        READER_CONFIG.init_pyramid = True
-        READER_CONFIG.auto_pyramid = True
-        READER_CONFIG.split_czi = True
-
         # add logger
         self.logger = QtLoggerDialog(self, USER_LOG_DIR)
         self.temporary_layers = {}
+        self._setup_config()
+
+    @staticmethod
+    def _setup_config() -> None:
+        raise NotImplementedError("Must implement method")
 
     def on_toggle_theme(self) -> None:
         """Toggle theme."""
@@ -175,6 +175,7 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
             channel_list = wrapper.channel_names()
         image_layer, shape_layer, points_layer = [], [], []
 
+        need_reset = len(view_wrapper.layers) == 0
         zoom = view_wrapper.viewer.camera.zoom
         center = view_wrapper.viewer.camera.center
         for index, (name, array, reader) in enumerate(wrapper.channel_image_for_channel_names_iter(channel_list)):
@@ -226,10 +227,13 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
                     if contrast_limits_range:
                         image_layer[-1].contrast_limits_range = contrast_limits_range
                 logger.trace(f"Added '{name}' to {view_kind} in {timer()}.")
-        if zoom:
-            view_wrapper.viewer.camera.zoom = zoom
-        if center:
-            view_wrapper.viewer.camera.center = center
+        if need_reset:
+            view_wrapper.viewer.reset_view()
+        else:
+            if zoom:
+                view_wrapper.viewer.camera.zoom = zoom
+            if center:
+                view_wrapper.viewer.camera.center = center
         return image_layer, shape_layer, points_layer
 
     @staticmethod
@@ -248,11 +252,11 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
         key: str,
         channel_index: int,
         scale: bool = False,
-    ):
+    ) -> None:
         wrapper = model.wrapper
         if not wrapper:
             logger.error("Failed to get wrapper.")
-            return None, None, None
+            return
         reader = wrapper.data[key]
 
         # get current transform and scale
@@ -278,13 +282,12 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
         else:
             array = reader.get_channel_pyramid(channel_index)
             contrast_limits, contrast_limits_range = get_contrast_limits(array)
-            if layer:
+            if layer and len(array) == 1:
                 layer_name = layer.metadata.get("name", " | ")
                 if layer_name.split(" | ")[1] == full_channel_name.split(" | ")[1]:
-                    if layer and len(array) == 1:
-                        layer.data = array[0]
-                        layer.contrast_limits = contrast_limits
-                        updated = True
+                    layer.data = array[0]
+                    layer.contrast_limits = contrast_limits
+                    updated = True
             if not updated:
                 view_wrapper.remove_layer(name)
                 layer = view_wrapper.viewer.add_image(
@@ -310,7 +313,7 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
             for name in channel_names:
                 view_wrapper.remove_layer(name, silent=True)
                 logger.trace(f"Removed '{name}' from {view_kind}.")
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             log_exception_or_error(e)
 
     @staticmethod
@@ -323,7 +326,7 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
                 if name not in channel_names:
                     view_wrapper.remove_layer(name, silent=True)
                     logger.trace(f"Removed '{name}' from {view_kind}.")
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             log_exception_or_error(e)
 
     @staticmethod

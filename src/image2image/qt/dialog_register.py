@@ -128,8 +128,11 @@ class ImageRegistrationWindow(Window):
 
     @staticmethod
     def _setup_config() -> None:
+        READER_CONFIG.auto_pyramid = True
+        READER_CONFIG.init_pyramid = True
         READER_CONFIG.split_roi = True
         READER_CONFIG.split_rgb = False
+        READER_CONFIG.only_last_pyramid = False
         logger.trace("Setup config for image2register.")
 
     @contextmanager

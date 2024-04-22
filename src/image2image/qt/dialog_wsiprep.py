@@ -112,6 +112,8 @@ class ImageWsiPrepWindow(Window):
     def _setup_config() -> None:
         READER_CONFIG.only_last_pyramid = True
         READER_CONFIG.init_pyramid = False
+        READER_CONFIG.split_czi = False
+        logger.trace("Setup config for image2wsiprep.")
 
     def setup_events(self, state: bool = True) -> None:
         """Setup events."""

@@ -46,7 +46,7 @@ QPushButton#update_btn{
 }
 
 QWidget[drag=true] {
-    border: 6px solid {{ success }};
+    border: 4px solid {{ success }};
     border-radius: 2px;
 }
 
