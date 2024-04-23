@@ -45,19 +45,18 @@ class ImageViewerWindow(Window):
     _console = None
 
     def __init__(self, parent: QWidget | None, run_check_version: bool = True):
-        READER_CONFIG.view_type = "overlay"
-        READER_CONFIG.only_last_pyramid = False
-        READER_CONFIG.init_pyramid = True
-        READER_CONFIG.split_rgb = False
-        super().__init__(parent, f"image2viewer: Viewer app (v{__version__})", run_check_version=run_check_version)
+        super().__init__(parent, f"image2image: Viewer app (v{__version__})", run_check_version=run_check_version)
         if CONFIG.first_time_viewer:
             hp.call_later(self, self.on_show_tutorial, 10_000)
         self._setup_config()
 
     @staticmethod
     def _setup_config() -> None:
+        READER_CONFIG.view_type = "overlay"
         READER_CONFIG.split_roi = True
         READER_CONFIG.split_rgb = False
+        READER_CONFIG.only_last_pyramid = False
+        READER_CONFIG.init_pyramid = True
         logger.trace("Setup config for image2viewer.")
 
     def setup_events(self, state: bool = True) -> None:

@@ -112,7 +112,7 @@ class ImageRegistrationWindow(Window):
     def __init__(self, parent: QWidget | None, run_check_version: bool = True):
         super().__init__(
             parent,
-            f"image2register: Simple image registration tool (v{__version__})",
+            f"image2image: Registration app (v{__version__})",
             delay_events=True,
             run_check_version=run_check_version,
         )
@@ -128,8 +128,11 @@ class ImageRegistrationWindow(Window):
 
     @staticmethod
     def _setup_config() -> None:
+        READER_CONFIG.auto_pyramid = True
+        READER_CONFIG.init_pyramid = True
         READER_CONFIG.split_roi = True
         READER_CONFIG.split_rgb = False
+        READER_CONFIG.only_last_pyramid = False
         logger.trace("Setup config for image2register.")
 
     @contextmanager

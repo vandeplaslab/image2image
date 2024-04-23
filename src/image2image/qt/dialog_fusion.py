@@ -13,6 +13,7 @@ from qtextra.utils.table_config import TableConfig
 from qtextra.utils.utilities import connect
 from qtextra.widgets.qt_close_window import QtConfirmCloseDialog
 from qtpy.QtCore import Qt
+from qtpy.QtGui import QDropEvent
 from qtpy.QtWidgets import QDialog, QHeaderView, QMenuBar, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget
 from superqt import ensure_main_thread
 from superqt.utils import GeneratorWorker, create_worker
@@ -45,15 +46,21 @@ class ImageFusionWindow(Window):
     def __init__(self, parent: QWidget | None, run_check_version: bool = True):
         super().__init__(
             parent,
-            f"image2export: Export images in MATLAB fusion format (v{__version__})",
+            f"image2image: Export images for MATLAB fusion (v{__version__})",
             run_check_version=run_check_version,
         )
-        READER_CONFIG.auto_pyramid = False
-        READER_CONFIG.init_pyramid = False
-        READER_CONFIG.split_czi = False
         if CONFIG.first_time_fusion:
             hp.call_later(self, self.on_show_tutorial, 10_000)
         self.reader_metadata: dict[Path, dict[int, dict[str, list[bool | int | str]]]] = {}
+
+    @staticmethod
+    def _setup_config() -> None:
+        READER_CONFIG.auto_pyramid = False
+        READER_CONFIG.init_pyramid = False
+        READER_CONFIG.split_czi = False
+        READER_CONFIG.split_roi = True
+        READER_CONFIG.split_rgb = False
+        logger.trace("Setup reader config for image2fusion.")
 
     def setup_events(self, state: bool = True) -> None:
         """Setup events."""
@@ -392,6 +399,11 @@ class ImageFusionWindow(Window):
 
         show_fusion_tutorial(self)
         CONFIG.first_time_fusion = False
+
+    def dropEvent(self, event: QDropEvent) -> None:
+        """Drop event."""
+        self._setup_config()
+        super().dropEvent(event)
 
 
 if __name__ == "__main__":  # pragma: no cover

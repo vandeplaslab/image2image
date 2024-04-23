@@ -52,7 +52,7 @@ def get_metadata(
                     channel_name_to_ids[scene_metadata["channel_names"][index]] = channel_id
 
             # cleanup by removing any duplicates and sorting indices
-            for channel_name in channel_name_to_ids.keys():
+            for channel_name in channel_name_to_ids:
                 if isinstance(channel_name_to_ids[channel_name], list):
                     channel_name_to_ids[channel_name] = sorted(set(channel_name_to_ids[channel_name]))
             channel_names = list(channel_name_to_ids.keys())
@@ -81,7 +81,7 @@ class ImageConvertWindow(Window):
     def __init__(self, parent: QWidget | None, run_check_version: bool = True):
         super().__init__(
             parent,
-            f"image2tiff: Convert microscopy files to OME-TIFF (v{__version__})",
+            f"image2image: Convert image to OME-TIFF (v{__version__})",
             run_check_version=run_check_version,
         )
         if CONFIG.first_time_convert:
@@ -94,7 +94,9 @@ class ImageConvertWindow(Window):
         READER_CONFIG.auto_pyramid = False
         READER_CONFIG.init_pyramid = False
         READER_CONFIG.split_czi = False
-        logger.trace("Setup config for image2tiff.")
+        READER_CONFIG.split_rgb = True
+        READER_CONFIG.only_last_pyramid = False
+        logger.trace("Setup reader config for image2tiff.")
 
     def setup_events(self, state: bool = True) -> None:
         """Setup events."""

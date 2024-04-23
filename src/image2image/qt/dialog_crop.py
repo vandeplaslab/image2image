@@ -46,15 +46,24 @@ class ImageCropWindow(Window):
     _editing = False
 
     def __init__(self, parent: QWidget | None = None, run_check_version: bool = True):
-        READER_CONFIG.view_type = "overlay"  # type: ignore[assignment]
-        READER_CONFIG.split_rgb = False
         super().__init__(
             parent,
-            f"image2crop: Crop and export microscopy data app (v{__version__})",
+            f"image2image: Crop images app (v{__version__})",
             run_check_version=run_check_version,
         )
         if CONFIG.first_time_crop:
             hp.call_later(self, self.on_show_tutorial, 10_000)
+
+    @staticmethod
+    def _setup_config() -> None:
+        READER_CONFIG.view_type = "overlay"  # type: ignore[assignment]
+        READER_CONFIG.init_pyramid = True
+        READER_CONFIG.auto_pyramid = True
+        READER_CONFIG.split_czi = True
+        READER_CONFIG.split_roi = True
+        READER_CONFIG.split_rgb = False
+        READER_CONFIG.only_last_pyramid = False
+        logger.trace("Setup reader config for image2crop.")
 
     def setup_events(self, state: bool = True) -> None:
         """Setup events."""

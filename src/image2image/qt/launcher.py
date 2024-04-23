@@ -11,6 +11,7 @@ from qtextra.widgets.qt_logger import QtLoggerDialog
 from qtpy.QtCore import Qt
 from qtpy.QtWidgets import QVBoxLayout
 
+from image2image import __version__
 from image2image.config import CONFIG
 from image2image.utils._appdirs import USER_LOG_DIR
 
@@ -29,7 +30,7 @@ class Launcher(QtDialog):
     """General launcher application."""
 
     def __init__(self, parent=None):
-        super().__init__(parent, title="image2image Launcher")
+        super().__init__(parent, title=f"image2image Launcher (v{__version__})")
         self.console = None
         self.logger = QtLoggerDialog(self, USER_LOG_DIR)
         self.setMaximumWidth(600)
