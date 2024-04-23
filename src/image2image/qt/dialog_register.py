@@ -12,6 +12,7 @@ import numpy as np
 import qtextra.helpers as hp
 from image2image_io.config import CONFIG as READER_CONFIG
 from image2image_io.enums import ViewType
+
 from koyo.timer import MeasureTimer
 from loguru import logger
 from napari.layers import Image
@@ -614,7 +615,7 @@ class ImageRegistrationWindow(Window):
             path = ensure_extension(path, "i2r")
             CONFIG.output_dir = str(path.parent)
             transform.to_file(path)
-            hp.toast(
+            hp.long_toast(
                 self,
                 "Exported transformation",
                 f"Saved project to<br><b>{hp.hyper(path)}</b>",
@@ -633,6 +634,7 @@ class ImageRegistrationWindow(Window):
         if path_:
             from image2image.models.transformation import load_transform_from_file
             from image2image.qt._dialogs import ImportSelectDialog, LocateFilesDialog
+            from image2image.models.utilities import _remove_missing_from_dict
 
             # load transformation
             path = Path(path_)
@@ -657,11 +659,13 @@ class ImageRegistrationWindow(Window):
                         fixed_paths,
                         fixed_paths_missing,
                         fixed_points,
+                        _fixed_resolution,
+                        fixed_reader_kws,
                         moving_paths,
                         moving_paths_missing,
                         moving_points,
-                        _fixed_resolution,
                         _moving_resolution,
+                        moving_reader_kws,
                     ) = load_transform_from_file(path, **config)
                 except (ValueError, KeyError) as e:
                     hp.warn_pretty(self, f"Failed to load config from {path}\n{e}", "Failed to load config")
@@ -681,18 +685,20 @@ class ImageRegistrationWindow(Window):
                                 fixed_paths_missing,
                                 fixed_paths,  # type: ignore[arg-type]
                             )
+                            fixed_reader_kws = _remove_missing_from_dict(fixed_reader_kws, fixed_paths)
                         if moving_paths_missing:
                             moving_paths = locate_dlg.fix_missing_paths(  # type: ignore[assignment]
                                 moving_paths_missing,
                                 moving_paths,  # type: ignore[arg-type]
                             )
+                            moving_reader_kws = _remove_missing_from_dict(moving_reader_kws, moving_paths)
                 # reset initial transform
                 self.transform_model.clear(clear_data=False, clear_model=False, clear_initial=True)
                 # set new paths
                 if fixed_paths:
-                    self._fixed_widget.on_set_path(fixed_paths)
+                    self._fixed_widget.on_set_path(fixed_paths, reader_kws=fixed_reader_kws)
                 if moving_paths:
-                    self._moving_widget.on_set_path(moving_paths)
+                    self._moving_widget.on_set_path(moving_paths, reader_kws=moving_reader_kws)
                 # update points
                 if moving_points is not None:
                     self._update_layer_points(self.moving_points_layer, moving_points, block=False)

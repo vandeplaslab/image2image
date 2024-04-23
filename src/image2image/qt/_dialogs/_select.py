@@ -155,11 +155,12 @@ class LoadWidget(QWidget):
         paths: PathLike | ty.Sequence[PathLike],
         transform_data: dict[str, TransformData] | None = None,
         resolution: dict[str, float] | None = None,
+        reader_kws: dict[str, dict] | None = None,
     ) -> None:
         """Set the path and immediately load it."""
         if isinstance(paths, (str, Path)):
             paths = [paths]
-        self.dataset_dlg._on_load_dataset(paths, transform_data, resolution)
+        self.dataset_dlg._on_load_dataset(paths, transform_data, resolution, reader_kws)
 
     def on_select_dataset(self, _evt: ty.Any = None) -> None:
         """Load data."""

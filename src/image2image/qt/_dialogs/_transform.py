@@ -37,8 +37,7 @@ class SelectTransformDialog(QtFramelessTool):
     TABLE_CONFIG = (
         TableConfig()  # type: ignore[no-untyped-call]
         .add("", "check", "bool", 25, no_sort=True, sizing="fixed")
-        .add("dataset", "dataset", "str", 250)
-        .add("key", "key", "str", 0, no_sort=True, hidden=True)
+        .add("key", "key", "str", 250)
         .add("transform", "transform", "str", 250)
     )
 
@@ -125,7 +124,7 @@ class SelectTransformDialog(QtFramelessTool):
         wrapper = self.model.wrapper
         if wrapper:
             for reader in wrapper.reader_iter():
-                data.append([False, reader.name, reader.key, reader.transform_name])
+                data.append([False, reader.key, reader.transform_name])
         self.table.reset_data()
         self.table.add_data(data)
 

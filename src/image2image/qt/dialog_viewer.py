@@ -212,7 +212,7 @@ class ImageViewerWindow(Window):
 
             # load data from config file
             try:
-                paths, paths_missing, transform_data, resolution = load_viewer_setup_from_file(path)
+                paths, paths_missing, transform_data, resolution, reader_kws = load_viewer_setup_from_file(path)
             except ValueError as e:
                 hp.warn_pretty(self, f"Failed to load config from {path}\n{e}", "Failed to load config")
                 logger.exception(e)
@@ -229,9 +229,10 @@ class ImageViewerWindow(Window):
             # clean-up affine matrices
             transform_data = _remove_missing_from_dict(transform_data, paths)
             resolution = _remove_missing_from_dict(resolution, paths)
+            reader_kws = _remove_missing_from_dict(reader_kws, paths)
             # add paths
             if paths:
-                self._image_widget.on_set_path(paths, transform_data, resolution)
+                self._image_widget.on_set_path(paths, transform_data, resolution, reader_kws)
 
             # add affine matrices to the transform model
             for name, matrix in transform_data.items():
@@ -264,7 +265,7 @@ class ImageViewerWindow(Window):
             path = ensure_extension(path, "i2v")
             CONFIG.output_dir = str(path.parent)
             model.to_file(path)
-            hp.toast(
+            hp.long_toast(
                 self,
                 "Exported i2v project",
                 f"Saved project to<br><b>{hp.hyper(path)}</b>",

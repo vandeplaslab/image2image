@@ -17,27 +17,25 @@ from image2image.models.transform import TransformData
 from image2image.models.utilities import _get_paths, _read_config_from_file
 from image2image.utils.utilities import log_exception_or_error
 
-I2V_METADATA = ty.Tuple[ty.List[Path], ty.List[Path], ty.Dict[str, TransformData], ty.Dict[str, float]]
-I2C_METADATA = ty.Tuple[
-    ty.List[Path], ty.List[Path], ty.Dict[str, TransformData], ty.Dict[str, float], list[dict[str, int]]
-]
+I2V_METADATA = tuple[list[Path], list[Path], dict[str, TransformData], dict[str, float], dict[str, dict]]
+I2C_METADATA = tuple[list[Path], list[Path], dict[str, TransformData], dict[str, float], list[dict[str, int]]]
 
-SCHEMA_VERSION: str = "1.1"
+SCHEMA_VERSION: str = "1.2"
 
 
 class DataModel(BaseModel):
     """Base model."""
 
-    keys: ty.List[str] = Field(default_factory=list)
-    just_added_keys: ty.List[str] = Field(default_factory=list)
-    paths: ty.List[Path] = Field(default_factory=list)
+    keys: list[str] = Field(default_factory=list)
+    just_added_keys: list[str] = Field(default_factory=list)
+    paths: list[Path] = Field(default_factory=list)
     resolution: float = 1.0
     wrapper: ty.Optional[ImageWrapper] = None
     is_fixed: bool = False
 
     # noinspection PyMethodFirstArgAssignment,PyMethodParameters
     @validator("paths", pre=True, allow_reuse=True)
-    def _validate_path(value: ty.Union[PathLike, ty.List[PathLike]]) -> ty.List[Path]:  # type: ignore[misc]
+    def _validate_path(value: ty.Union[PathLike, list[PathLike]]) -> list[Path]:  # type: ignore[misc]
         """Validate path."""
         if isinstance(value, (str, Path)):
             value = [Path(value)]
@@ -50,7 +48,11 @@ class DataModel(BaseModel):
         if self.n_paths == 0:
             return "no_files"
         elif self.n_paths == 1:
-            return self.paths[0].parent.stem
+            wrapper = self.wrapper
+            key = wrapper.get_key_for_path(self.paths[0])[0]
+            # remove suffix
+            key = key.split(".")[0]
+            return key
         return self.paths[-1].parent.stem + "_multiple_files"
 
     def add_paths(self, path_or_paths: ty.Union[PathLike, ty.Sequence[PathLike]]) -> None:
@@ -139,21 +141,23 @@ class DataModel(BaseModel):
     def load(
         self,
         paths: ty.Union[PathLike, ty.Sequence[PathLike]],
-        transform_data: ty.Optional[ty.Dict[str, TransformData]] = None,
-        resolution: ty.Optional[ty.Dict[str, float]] = None,
+        transform_data: ty.Optional[dict[str, TransformData]] = None,
+        resolution: ty.Optional[dict[str, float]] = None,
+        reader_kws: ty.Optional[dict[str, dict]] = None,
     ) -> "DataModel":
         """Load data into memory."""
         logger.trace(f"Loading data for '{self.paths}'")
         with MeasureTimer() as timer:
-            self.get_wrapper(transform_data, resolution, paths)
+            self.get_wrapper(transform_data, resolution, paths, reader_kws=reader_kws)
         logger.info(f"Loaded data in {timer()}")
         return self
 
     def get_wrapper(
         self,
-        transform_data: ty.Optional[ty.Dict[str, TransformData]] = None,
-        resolution: ty.Optional[ty.Dict[str, float]] = None,
+        transform_data: ty.Optional[dict[str, TransformData]] = None,
+        resolution: ty.Optional[dict[str, float]] = None,
         paths: ty.Union[PathLike, ty.Sequence[PathLike]] = None,
+        reader_kws: ty.Optional[dict[str, dict]] = None,
     ) -> ty.Optional["ImageWrapper"]:
         """Read data from file."""
         from image2image_io.readers import read_data
@@ -188,6 +192,8 @@ class DataModel(BaseModel):
                     resolution_ = resolution.get(get_alternative_path(path).name, None)
                 if resolution and not resolution_:
                     logger.trace(f"Failed to retrieve resolution for '{path}'")
+                reader_kws_ = reader_kws.get(path.name, None) if reader_kws else None
+
                 # read data
                 try:
                     self.wrapper, just_added_keys_, path_map = read_data(
@@ -196,6 +202,7 @@ class DataModel(BaseModel):
                         self.is_fixed,
                         transform_data=transform_data_,
                         resolution=resolution_,
+                        reader_kws=reader_kws_,
                     )
                     self.add_paths(path)
                     just_added_keys.extend(just_added_keys_)
@@ -240,7 +247,7 @@ class DataModel(BaseModel):
             return wrapper.data[key]
         return None
 
-    def get_extractable_paths(self) -> ty.List[Path]:
+    def get_extractable_paths(self) -> list[Path]:
         """Get a list of paths which are extractable."""
         paths = []
         wrapper = self.wrapper
@@ -272,14 +279,14 @@ class DataModel(BaseModel):
                     "reader_kws": reader.reader_kws,
                 }
 
-    def dataset_names(self, reader_type: tuple[str, ...] = ("all",)) -> ty.List[str]:
+    def dataset_names(self, reader_type: tuple[str, ...] = ("all",)) -> list[str]:
         """Return list of datasets."""
         wrapper = self.wrapper
         if wrapper:
             return wrapper.dataset_names(reader_type)
         return []
 
-    def channel_names(self) -> ty.List[str]:
+    def channel_names(self) -> list[str]:
         """Return list of channel names."""
         wrapper = self.wrapper
         if wrapper:
@@ -310,7 +317,7 @@ class DataModel(BaseModel):
             return wrapper.min_resolution
         return 1.0
 
-    def to_dict(self) -> ty.Dict:
+    def to_dict(self) -> dict:
         """Return dictionary of values to export."""
         wrapper = self.wrapper
         if not wrapper:
@@ -321,6 +328,7 @@ class DataModel(BaseModel):
                 {
                     "path": str(path),
                     "pixel_size_um": reader.resolution,
+                    "reader_kws": reader.reader_kws,
                     **reader.transform_data.to_dict(),
                 }
                 for path, reader in wrapper.path_reader_iter()
@@ -333,7 +341,7 @@ class DataModel(BaseModel):
 
     def crop(
         self, left: int, right: int, top: int, bottom: int
-    ) -> ty.Generator[ty.Tuple[Path, "BaseReader", np.ndarray], None, None]:
+    ) -> ty.Generator[tuple[Path, "BaseReader", np.ndarray], None, None]:
         """Crop image(s) to the specified region."""
         wrapper = self.wrapper
         if wrapper:
@@ -353,7 +361,7 @@ def load_viewer_setup_from_file(path: PathLike) -> I2V_METADATA:
     return _read_image2viewer_latest_config(data)
 
 
-def _read_image2viewer_latest_config(config: ty.Dict) -> I2V_METADATA:
+def _read_image2viewer_latest_config(config: dict) -> I2V_METADATA:
     """Read config file."""
     paths = [temp["path"] for temp in config["images"]]
     transform_data = {
@@ -367,27 +375,29 @@ def _read_image2viewer_latest_config(config: ty.Dict) -> I2V_METADATA:
         for temp in config["images"]
     }
     resolution = {Path(temp["path"]).name: temp["pixel_size_um"] for temp in config["images"]}
+    reader_kws = {Path(temp["path"]).name: temp.get("reader_kws", None) for temp in config["images"]}
     paths, paths_missing = _get_paths(paths)
     if not paths:
         paths = []
     if not paths_missing:
         paths_missing = []
-    return paths, paths_missing, transform_data, resolution
+    return paths, paths_missing, transform_data, resolution, reader_kws
 
 
-def _read_image2viewer_v1_0_config(config: ty.Dict) -> I2V_METADATA:
+def _read_image2viewer_v1_0_config(config: dict) -> I2V_METADATA:
     # read important fields
     paths = [temp["path"] for temp in config["images"]]
     transform_data = {
         Path(temp["path"]).name: TransformData(affine=np.asarray(temp["matrix_yx_px"])) for temp in config["images"]
     }
     resolution = {Path(temp["path"]).name: temp["pixel_size_um"] for temp in config["images"]}
+    reader_kws = {Path(temp["path"]).name: temp.get("reader_kws", None) for temp in config["images"]}
     paths, paths_missing = _get_paths(paths)
     if not paths:
         paths = []
     if not paths_missing:
         paths_missing = []
-    return paths, paths_missing, transform_data, resolution
+    return paths, paths_missing, transform_data, resolution, reader_kws
 
 
 def load_crop_setup_from_file(path: PathLike) -> I2C_METADATA:
@@ -399,7 +409,7 @@ def load_crop_setup_from_file(path: PathLike) -> I2C_METADATA:
     return _read_image2crop_latest_config(data)
 
 
-def _read_image2crop_latest_config(config: ty.Dict) -> I2C_METADATA:
+def _read_image2crop_latest_config(config: dict) -> I2C_METADATA:
     """Read config file."""
     paths = [temp["path"] for temp in config["images"]]
     transform_data = {

@@ -14,16 +14,18 @@ from image2image.models.base import BaseModel
 from image2image.models.data import DataModel
 from image2image.models.utilities import _get_paths, _read_config_from_file
 
-I2R_METADATA = ty.Tuple[
+I2R_METADATA = tuple[
     str,
-    ty.Optional[ty.List[Path]],
-    ty.Optional[ty.List[Path]],
-    ty.Optional[np.ndarray],
-    ty.Optional[ty.List[Path]],
-    ty.Optional[ty.List[Path]],
+    ty.Optional[list[Path]],
+    ty.Optional[list[Path]],
     ty.Optional[np.ndarray],
     float,
+    dict[str, dict],
+    ty.Optional[list[Path]],
+    ty.Optional[list[Path]],
+    ty.Optional[np.ndarray],
     float,
+    dict[str, dict],
 ]
 
 SCHEMA_VERSION: str = "1.4"
@@ -236,7 +238,7 @@ class Transformation(BaseModel):
                 info += f"{sep}no. moving: {len(self.moving_points)}"
         return info
 
-    def to_dict(self) -> ty.Dict:
+    def to_dict(self) -> dict:
         """Convert to dict."""
         fixed_mdl = self.fixed_model
         if not fixed_mdl:
@@ -334,11 +336,13 @@ def load_transform_from_file(
             fixed_paths,
             fixed_missing_paths,
             _fixed_points,
+            fixed_resolution,
+            fixed_reader_kws,
             moving_paths,
             moving_missing_paths,
             _moving_points,
-            fixed_resolution,
             moving_resolution,
+            moving_reader_kws,
         ) = _read_image2register_config(data, validate_paths)
     # imsmicrolink config
     elif "Project name" in data:
@@ -347,11 +351,13 @@ def load_transform_from_file(
             fixed_paths,
             fixed_missing_paths,
             _fixed_points,
+            fixed_resolution,
+            fixed_reader_kws,
             moving_paths,
             moving_missing_paths,
             _moving_points,
-            fixed_resolution,
             moving_resolution,
+            moving_reader_kws,
         ) = _read_imsmicrolink_config(data, validate_paths)
     else:
         raise ValueError(f"Unknown file format: {path.suffix}.")
@@ -366,15 +372,17 @@ def load_transform_from_file(
         fixed_paths,
         fixed_missing_paths,
         _fixed_points,
+        fixed_resolution,
+        fixed_reader_kws,
         moving_paths,
         moving_missing_paths,
         _moving_points,
-        fixed_resolution,
         moving_resolution,
+        moving_reader_kws,
     )
 
 
-def _read_image2register_config(config: ty.Dict, validate_paths: bool = True) -> I2R_METADATA:
+def _read_image2register_config(config: dict, validate_paths: bool = True) -> I2R_METADATA:
     """Read image2image configuration file."""
     schema_version = config["schema_version"]
     if schema_version == "1.0":
@@ -385,11 +393,12 @@ def _read_image2register_config(config: ty.Dict, validate_paths: bool = True) ->
     return _read_image2register_latest_config(config, validate_paths)
 
 
-def _read_image2register_latest_config(config: ty.Dict, validate_paths: bool = True) -> I2R_METADATA:
+def _read_image2register_latest_config(config: dict, validate_paths: bool = True) -> I2R_METADATA:
     # read important fields
-    fixed_paths, fixed_missing_paths, fixed_paths_kws = [], [], {}
+    fixed_paths, fixed_missing_paths, fixed_reader_kws = [], [], {}
     if validate_paths:
         paths = [temp["path"] for temp in config["fixed_paths"]]
+        fixed_reader_kws = {Path(temp["path"]).name: temp.get("reader_kws", None) for temp in config["fixed_paths"]}
         fixed_paths, fixed_missing_paths = _get_paths(paths)
     fixed_res = [temp["pixel_size_um"] for temp in config["fixed_paths"]]
     if fixed_res:
@@ -397,9 +406,10 @@ def _read_image2register_latest_config(config: ty.Dict, validate_paths: bool = T
     else:
         fixed_resolution = 0.0
 
-    moving_paths, moving_missing_paths, fixed_paths_kws = [], [], {}
+    moving_paths, moving_missing_paths, moving_reader_kws = [], [], {}
     if validate_paths:
         paths = [temp["path"] for temp in config["moving_paths"]]
+        moving_reader_kws = {Path(temp["path"]).name: temp.get("reader_kws", None) for temp in config["moving_paths"]}
         moving_paths, moving_missing_paths = _get_paths(paths)
     moving_res = [temp["pixel_size_um"] for temp in config["moving_paths"]]
     if moving_res:
@@ -415,15 +425,17 @@ def _read_image2register_latest_config(config: ty.Dict, validate_paths: bool = T
         fixed_paths,
         fixed_missing_paths,
         fixed_points,
+        fixed_resolution,
+        fixed_reader_kws,
         moving_paths,
         moving_missing_paths,
         moving_points,
-        fixed_resolution,
         moving_resolution,
+        moving_reader_kws,
     )
 
 
-def _read_image2register_v1_1_config(config: ty.Dict, validate_paths: bool = True) -> I2R_METADATA:
+def _read_image2register_v1_1_config(config: dict, validate_paths: bool = True) -> I2R_METADATA:
     # read important fields
     fixed_paths, fixed_missing_paths, moving_paths, moving_missing_paths = [], [], [], []
     if validate_paths:
@@ -437,15 +449,17 @@ def _read_image2register_v1_1_config(config: ty.Dict, validate_paths: bool = Tru
         fixed_paths,
         fixed_missing_paths,
         fixed_points,
+        1.0,
+        {},
         moving_paths,
         moving_missing_paths,
         moving_points,
         1.0,
-        1.0,
+        {},
     )
 
 
-def _read_image2register_v1_0_config(config: ty.Dict, validate_paths: bool = True) -> I2R_METADATA:
+def _read_image2register_v1_0_config(config: dict, validate_paths: bool = True) -> I2R_METADATA:
     # read important fields
     fixed_paths, fixed_missing_paths, moving_paths, moving_missing_paths = [], [], [], []
     if validate_paths:
@@ -459,15 +473,17 @@ def _read_image2register_v1_0_config(config: ty.Dict, validate_paths: bool = Tru
         fixed_paths,
         fixed_missing_paths,
         fixed_points,
+        1.0,
+        {},
         moving_paths,
         moving_missing_paths,
         moving_points,
         1.0,
-        1.0,
+        {},
     )
 
 
-def _read_imsmicrolink_config(config: ty.Dict, validate_paths: bool = True) -> I2R_METADATA:
+def _read_imsmicrolink_config(config: dict, validate_paths: bool = True) -> I2R_METADATA:
     """Read imsmicrolink configuration file."""
     fixed_paths, fixed_missing_paths, moving_paths, moving_missing_paths = [], [], [], []
     if validate_paths:
@@ -486,9 +502,11 @@ def _read_imsmicrolink_config(config: ty.Dict, validate_paths: bool = True) -> I
         fixed_paths,
         fixed_missing_paths,
         fixed_points,
+        1.0,
+        {},
         moving_paths,
         moving_missing_paths,
         moving_points,
         1.0,
-        1.0,
+        {},
     )

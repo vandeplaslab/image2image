@@ -693,6 +693,7 @@ class SelectDataDialog(QtFramelessTool):
         path_or_paths: PathLike | ty.Sequence[PathLike],
         transform_data: dict[str, TransformData] | None = None,
         resolution: dict[str, float] | None = None,
+        reader_kws: dict[str, dict] | None = None,
     ) -> None:
         """Load data."""
         self.evt_loading.emit()  # noqa
@@ -704,6 +705,7 @@ class SelectDataDialog(QtFramelessTool):
             paths=path_or_paths,
             transform_data=transform_data,
             resolution=resolution,
+            reader_kws=reader_kws,
             _start_thread=True,
             _connect={
                 "returned": self._on_loaded_dataset,
@@ -736,6 +738,7 @@ class SelectDataDialog(QtFramelessTool):
 
     def _on_loaded_dataset_with_preselection(self, model: DataModel, select: bool = True) -> None:
         """Finished loading data."""
+        from natsort import natsorted
 
         channel_list = []
         remove_keys = []
@@ -746,7 +749,7 @@ class SelectDataDialog(QtFramelessTool):
                 channel_list = wrapper.channel_names_for_names(model.just_added_keys)
         else:
             just_added = model.just_added_keys
-            options = {k: k for k in reversed(just_added)}
+            options = {k: k for k in natsorted(just_added)}
             if len(options) == 1:
                 which = list(options.keys())[0]
             else:
