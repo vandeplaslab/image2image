@@ -1,7 +1,7 @@
 """Rename package to represent the macOS platform + version."""
 
-from pathlib import Path
 import inspect
+from pathlib import Path
 
 from image2image import __version__
 
