@@ -45,7 +45,7 @@ class ImageViewerWindow(Window):
     _console = None
 
     def __init__(self, parent: QWidget | None, run_check_version: bool = True):
-        super().__init__(parent, f"image2viewer: Viewer app (v{__version__})", run_check_version=run_check_version)
+        super().__init__(parent, f"image2image: Viewer app (v{__version__})", run_check_version=run_check_version)
         if CONFIG.first_time_viewer:
             hp.call_later(self, self.on_show_tutorial, 10_000)
         self._setup_config()

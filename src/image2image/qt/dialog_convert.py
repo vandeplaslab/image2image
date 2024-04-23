@@ -81,7 +81,7 @@ class ImageConvertWindow(Window):
     def __init__(self, parent: QWidget | None, run_check_version: bool = True):
         super().__init__(
             parent,
-            f"image2tiff: Convert microscopy files to OME-TIFF (v{__version__})",
+            f"image2image: Convert image to OME-TIFF (v{__version__})",
             run_check_version=run_check_version,
         )
         if CONFIG.first_time_convert:

@@ -46,7 +46,7 @@ class ImageFusionWindow(Window):
     def __init__(self, parent: QWidget | None, run_check_version: bool = True):
         super().__init__(
             parent,
-            f"image2fusion: Export images in MATLAB fusion format (v{__version__})",
+            f"image2image: Export images for MATLAB fusion (v{__version__})",
             run_check_version=run_check_version,
         )
         if CONFIG.first_time_fusion:

@@ -68,19 +68,6 @@ QtPushButton#extract_btn {
     border: 2px solid {{ highlight }};
 }
 
-QtImagePushButton[wide_border=true] {
-    background-color: {{ background }};
-}
-QtImagePushButton[wide_border=true]:checked {
-    background-color: {{ primary }};
-}
-QtImagePushButton[wide_border=true]:hover {
-    background-color: {{ lighten(primary, 20) }};
-}
-QtImagePushButton[wide_border=true]:checked:hover {
-    background-color: {{ lighten(primary, 30) }};
-}
-
 QtImagePushButton[disabled=true] {
     background-color: {{ warning }};
 }
@@ -109,10 +96,15 @@ QStatusBar QCheckBox::indicator {
     color: {{ text }};
 }
 
-QStatusBar QCheckBox::indicator:hover {
-    background-color: {{ darken(foreground, 10) }};
-}
-
-QStatusBar QtColorSwatch:hover {
-    border: 2px solid {{ foreground }};
-}
+/*QtImagePushButton[wide_border=true] {*/
+/*    background-color: {{ background }};*/
+/*}*/
+/*QtImagePushButton[wide_border=true]:checked {*/
+/*    background-color: {{ primary }};*/
+/*}*/
+/*QtImagePushButton[wide_border=true]:hover {*/
+/*    background-color: {{ lighten(primary, 20) }};*/
+/*}*/
+/*QtImagePushButton[wide_border=true]:checked:hover {*/
+/*    background-color: {{ lighten(primary, 30) }};*/
+/*}*/

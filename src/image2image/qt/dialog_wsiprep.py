@@ -102,7 +102,7 @@ class ImageWsiPrepWindow(Window):
     def __init__(self, parent: QWidget | None = None, run_check_version: bool = True):
         super().__init__(
             parent,
-            f"image2wsiprep: Prepare your microscopy data for co-registration (v{__version__})",
+            f"image2image: Prepare your microscopy data for co-registration (v{__version__})",
             run_check_version=run_check_version,
         )
         self.registration = Registration()

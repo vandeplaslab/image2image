@@ -48,7 +48,7 @@ class ImageCropWindow(Window):
     def __init__(self, parent: QWidget | None = None, run_check_version: bool = True):
         super().__init__(
             parent,
-            f"image2crop: Crop and export microscopy data app (v{__version__})",
+            f"image2image: Crop images app (v{__version__})",
             run_check_version=run_check_version,
         )
         if CONFIG.first_time_crop:
