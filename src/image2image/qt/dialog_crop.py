@@ -468,10 +468,15 @@ class ImageCropWindow(Window):
 
     def _setup_ui(self):
         """Create panel."""
+        settings_widget = QWidget(self)
+        settings_widget.setMinimumWidth(400)
+        settings_widget.setMaximumWidth(400)
+
         self.view = self._make_image_view(
             self, add_toolbars=False, allow_extraction=False, disable_controls=True, disable_new_layers=True
         )
         self.view.viewer.scale_bar.unit = "um"
+
         self._image_widget = LoadWidget(
             self,
             self.view,
@@ -550,7 +555,7 @@ class ImageCropWindow(Window):
             func=self.on_save_to_project,
         )
 
-        side_layout = hp.make_form_layout()
+        side_layout = hp.make_form_layout(settings_widget)
         hp.style_form_layout(side_layout)
         side_layout.addRow(self.import_project_btn)
         side_layout.addRow(hp.make_h_line_with_text("or"))
@@ -575,8 +580,11 @@ class ImageCropWindow(Window):
         layout = QHBoxLayout()
         layout.addWidget(self.view.widget, stretch=True)
         layout.addWidget(hp.make_v_line())
-        layout.addLayout(side_layout)
+        layout.addWidget(settings_widget)
+
         main_layout = QVBoxLayout(widget)
+        main_layout.setSpacing(0)
+        main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.addLayout(layout, stretch=True)
 
         # extra settings
@@ -613,6 +621,23 @@ class ImageCropWindow(Window):
         self.menubar.addAction(self._make_config_menu().menuAction())
         self.menubar.addAction(self._make_help_menu().menuAction())
         self.setMenuBar(self.menubar)
+
+    def _make_statusbar(self) -> None:
+        """Make statusbar."""
+        super()._make_statusbar()
+        self.scalebar_btn = hp.make_qta_btn(
+            self,
+            "ruler",
+            tooltip="Show scalebar.",
+            func=self.on_activate_scalebar,
+            func_menu=self.on_show_scalebar,
+            small=True,
+        )
+        self.statusbar.insertPermanentWidget(1, self.scalebar_btn)
+
+    def on_activate_scalebar(self) -> None:
+        """Activate scalebar."""
+        self.view.viewer.scale_bar.visible = not self.view.viewer.scale_bar.visible
 
     def on_show_scalebar(self) -> None:
         """Show scale bar controls for the viewer."""

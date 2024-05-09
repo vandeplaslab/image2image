@@ -167,7 +167,7 @@ do
     if $uv
     then
       uv pip uninstall $pkg
-      uv pip install -U "$pkg @ ." --force-reinstall
+      uv pip install -U "$pkg @ ." --refresh
     else
       pip install -U .
     fi

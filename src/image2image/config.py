@@ -137,6 +137,12 @@ class Config(BaseConfig):
     overwrite: bool = Field(False, title="Overwrite", description="Overwrite.", in_app=True)
     tile_size: str = Field(512, title="Tile size", description="Tile size.", in_app=True)
 
+    # Merge-app parameters
+    first_time_merge: bool = Field(
+        True, title="First time", description="First time running the merge app.", in_app=True
+    )
+    confirm_close_merge: bool = Field(True, title="Confirm close", description="Confirm close merge app.", in_app=True)
+
     # telemetry
     telemetry_enabled: bool = Field(True, title="Enable telemetry", description="Enable telemetry.", in_app=True)
     telemetry_with_locals: bool = Field(

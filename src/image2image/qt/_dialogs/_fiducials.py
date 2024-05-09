@@ -205,6 +205,7 @@ class FiducialsDialog(QtFramelessTool):
 
         layout = hp.make_form_layout(self)
         hp.style_form_layout(layout)
+        layout.setContentsMargins(6, 6, 6, 6)
         layout.addRow(header_layout)
         layout.addRow(self.table)
         layout.addRow("Zoom factor", self.zoom_factor)

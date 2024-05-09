@@ -599,7 +599,7 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
         logger.debug("Opening image2tiff application.")
         dlg = ImageConvertWindow(None, run_check_version=False)
         THEMES.set_theme_stylesheet(dlg)
-        dlg.setMinimumSize(500, 500)
+        dlg.setMinimumSize(600, 700)
         dlg.show()
 
     @staticmethod
@@ -610,7 +610,18 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
         logger.debug("Opening export application.")
         dlg = ImageFusionWindow(None, run_check_version=False)
         THEMES.set_theme_stylesheet(dlg)
-        dlg.setMinimumSize(500, 500)
+        dlg.setMinimumSize(600, 700)
+        dlg.show()
+
+    @staticmethod
+    def on_merge():
+        """Open registration application."""
+        from image2image.qt.dialog_merge import ImageMergeWindow
+
+        logger.debug("Opening merge2tiff application.")
+        dlg = ImageMergeWindow(None, run_check_version=False)
+        THEMES.set_theme_stylesheet(dlg)
+        dlg.setMinimumSize(600, 700)
         dlg.show()
 
     @staticmethod

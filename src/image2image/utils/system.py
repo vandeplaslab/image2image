@@ -36,6 +36,8 @@ def get_system_info(as_html=False):
     text += f"<b>image2image-io</b>: {image2image_io.__version__}<br>"
     if image2image_reg:
         text += f"<b>image2image-reg</b>: {image2image_reg.__version__}<br><br>"
+    else:
+        text += "<b>image2image-reg</b>: not installed<br><br>"
 
     try:
         from qtpy import API_NAME, PYQT_VERSION, PYSIDE_VERSION, QtCore
@@ -112,4 +114,5 @@ def get_system_info(as_html=False):
     return text
 
 
-citation_text = "image2image contributors (2022). Van de Plas lab, Delft University of Technology."
+citation_text = "image2image contributors (2023). Van de Plas lab, Delft University of Technology."
+title_text = "<b>image2image - registration, visualisation and editing of multiple image types</b>"

@@ -14,7 +14,6 @@ from loguru import logger
 from napari.layers import Image, Points, Shapes
 from qtextra.utils.utilities import connect
 from qtextra.widgets.qt_close_window import QtConfirmCloseDialog
-from qtextra.widgets.qt_image_button import QtThemeButton
 from qtpy.QtWidgets import QDialog, QHBoxLayout, QMenuBar, QStatusBar, QVBoxLayout, QWidget
 from superqt import ensure_main_thread
 
@@ -333,6 +332,11 @@ class ImageViewerWindow(Window):
             self, add_toolbars=False, allow_extraction=False, disable_controls=True, disable_new_layers=True
         )
         self.view.viewer.scale_bar.unit = "um"
+
+        side_widget = QWidget()
+        side_widget.setMinimumWidth(400)
+        side_widget.setMaximumWidth(400)
+
         self._image_widget = LoadWithTransformWidget(
             self,
             self.view,
@@ -342,29 +346,29 @@ class ImageViewerWindow(Window):
         )
 
         self.import_project_btn = hp.make_btn(
-            self, "Import project...", tooltip="Load previous project", func=self.on_load_from_project
+            side_widget, "Import project...", tooltip="Load previous project", func=self.on_load_from_project
         )
         self.create_mask_btn = hp.make_btn(
-            self,
+            side_widget,
             "Create mask",
             tooltip="Create mask using shapes. The mask can be subsequently exported as a HDF5 file.",
             func=self.on_create_mask,
         )
         self.export_mask_btn = hp.make_btn(
-            self,
+            side_widget,
             "Export GeoJSON/shape masks...",
             tooltip="Export masks/regions in a AutoIMS compatible format",
             func=self.on_save_masks,
         )
         self.export_project_btn = hp.make_btn(
-            self,
+            side_widget,
             "Export project...",
             tooltip="Export configuration to a project file. Information such as image path and transformation"
             " information are saved.",
             func=self.on_save_to_project,
         )
 
-        side_layout = hp.make_form_layout()
+        side_layout = hp.make_form_layout(side_widget)
         hp.style_form_layout(side_layout)
         side_layout.addRow(self.import_project_btn)
         side_layout.addRow(hp.make_h_line_with_text("or"))
@@ -383,13 +387,14 @@ class ImageViewerWindow(Window):
         layout = QHBoxLayout()
         layout.addWidget(self.view.widget, stretch=True)
         layout.addWidget(hp.make_v_line())
-        layout.addLayout(side_layout)
+        layout.addWidget(side_widget)
 
         widget = QWidget()
         self.setCentralWidget(widget)
+
         main_layout = QVBoxLayout(widget)
-        main_layout.setSpacing(3)
-        main_layout.setContentsMargins(7, 7, 7, 7)
+        main_layout.setSpacing(0)
+        main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.addLayout(layout, stretch=True)
 
         # extra settings
@@ -429,6 +434,8 @@ class ImageViewerWindow(Window):
 
     def _make_statusbar(self) -> None:
         """Make statusbar."""
+        from qtextra.widgets.qt_image_button import QtThemeButton
+
         from image2image.qt._dialogs._sentry import send_feedback
 
         self.statusbar = QStatusBar()

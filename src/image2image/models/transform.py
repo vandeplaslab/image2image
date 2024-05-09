@@ -20,11 +20,13 @@ class TransformData(_TransformData):
             _fixed_paths,
             _fixed_paths_missing,
             fixed_points,
+            fixed_resolution,
+            _fixed_reader_kws,
             _moving_paths,
             _moving_paths_missing,
             moving_points,
-            fixed_resolution,
             _moving_resolution,
+            _moving_reader_kws,
         ) = load_transform_from_file(path, validate_paths=validate_paths)
         return TransformData(
             fixed_points=fixed_points,

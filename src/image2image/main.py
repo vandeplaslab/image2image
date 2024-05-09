@@ -20,7 +20,7 @@ def run(
     level: int = 10,
     no_color: bool = False,
     dev: bool = False,
-    tool: ty.Literal["launcher", "register", "viewer", "crop", "fusion", "convert", "wsiprep"] = "launcher",
+    tool: ty.Literal["launcher", "register", "viewer", "crop", "fusion", "convert", "merge", "wsiprep"] = "launcher",
 ) -> None:
     """Execute command."""
     import warnings
@@ -91,7 +91,6 @@ def run(
         from image2image.qt.launcher import Launcher
 
         dlg = Launcher(None)  # type: ignore[no-untyped-call]
-        dlg.setMinimumSize(400, 450)
     elif tool == "register":
         from image2image.qt.dialog_register import ImageRegistrationWindow
 
@@ -116,6 +115,11 @@ def run(
         from image2image.qt.dialog_convert import ImageConvertWindow
 
         dlg = ImageConvertWindow(None)  # type: ignore[assignment]
+        dlg.setMinimumSize(600, 400)
+    elif tool == "merge":
+        from image2image.qt.dialog_merge import ImageMergeWindow
+
+        dlg = ImageMergeWindow(None)  # type: ignore[assignment]
         dlg.setMinimumSize(600, 400)
     elif tool == "wsiprep":
         from image2image.qt.dialog_wsiprep import ImageWsiPrepWindow

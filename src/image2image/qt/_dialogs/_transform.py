@@ -175,8 +175,7 @@ class SelectTransformDialog(QtFramelessTool):
     # noinspection PyAttributeOutsideInit
     def make_panel(self) -> QFormLayout:
         """Make panel."""
-        _, header_layout = self._make_hide_handle()
-        self._title_label.setText("Transformation Selection")
+        _, header_layout = self._make_hide_handle(title="Transformation Selection")
 
         self.transform_choice = hp.make_combobox(self, ["Identity matrix"], func=self.on_show_transform)
         self.add_btn = hp.make_qta_btn(
@@ -209,6 +208,7 @@ class SelectTransformDialog(QtFramelessTool):
 
         layout = hp.make_form_layout(self)
         hp.style_form_layout(layout)
+        layout.setContentsMargins(6, 6, 6, 6)
         layout.addRow(header_layout)
         layout.addRow(
             hp.make_label(

@@ -427,6 +427,7 @@ class MasksDialog(QtFramelessTool):
 
         layout = hp.make_form_layout(self)
         hp.style_form_layout(layout)
+        layout.setContentsMargins(6, 6, 6, 6)
         layout.addRow(header_layout)
         layout.addRow(hp.make_h_line_with_text("Masks to export."))
         layout.addRow(self.table_geo)

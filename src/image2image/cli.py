@@ -7,13 +7,12 @@ from koyo.system import IS_MAC, IS_MAC_ARM, IS_PYINSTALLER
 
 from image2image import __version__
 
+AVAILABLE_TOOLS = ["launcher", "register", "viewer", "crop", "wsiprep", "fusion", "convert", "merge"]
 if IS_MAC_ARM and IS_PYINSTALLER:
-    AVAILABLE_TOOLS = ty.Literal["launcher", "register", "viewer", "crop", "fusion"]  # type: ignore
-else:
-    AVAILABLE_TOOLS = ty.Literal["launcher", "register", "viewer", "crop", "fusion", "convert"]  # type: ignore
+    AVAILABLE_TOOLS.pop(AVAILABLE_TOOLS.index("convert"))
 
 
-def dev_options(func):
+def dev_options(func: ty.Callable) -> ty.Callable:
     """Setup dev options."""
     # if os.environ.get("IONGLOW_DEV_MODE", "0") == "1":
     func = click.option(
@@ -49,7 +48,7 @@ def dev_options(func):
 @click.option(
     "-t",
     "--tool",
-    type=click.Choice(["launcher", "register", "viewer", "fusion", "crop", "convert", "wsiprep"]),
+    type=click.Choice(AVAILABLE_TOOLS),
     default="launcher",
     show_default=True,
 )
@@ -59,12 +58,12 @@ def dev_options(func):
 @click.pass_context
 def cli(
     ctx: click.Context,
-    tool: AVAILABLE_TOOLS,
+    tool: str,
     verbosity: float,
     no_color: bool,
     dev: bool = False,
     extras: ty.Any = None,
-):
+) -> None:
     """Launch image2image app.
 
     \b
@@ -72,9 +71,10 @@ def cli(
     launcher - opens dialog where you can launch any of the tools.
     register - opens dialog where you can co-register images.
     viewer - opens dialog where you can view images.
-    export - opens dialog where you can export images.
-    sync - opens dialog where you can sync images (not yet implemented)
-    crop - opens dialog where you can crop images (not yet implemented)
+    convert - opens dialog where you can convert images
+    merge - opens dialog where you can merge images
+    crop - opens dialog where you can crop images
+    fusion - opens dialog where you can fuse images
     """
     import os
 
