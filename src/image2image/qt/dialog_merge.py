@@ -399,9 +399,9 @@ class ImageMergeWindow(Window):
         side_layout.addWidget(
             hp.make_label(
                 self,
-                "<b>Tip.</b> Double-click on the <b>scenes & channels</b> field to select/deselect"
-                " scenes/channels or rename channel names.<br>"
-                "<b>Tip.</b>Double Double-click on the <b>name</b> field to rename the image.",
+                "<b>Tip.</b> Double-click on the <b>name</b> field to rename the image.<br>"
+                "<b>Tip.</b> Double-click on the <b>scenes & channels</b> field to select/deselect scenes/channels"
+                " or rename channel names.",
                 alignment=Qt.AlignmentFlag.AlignHCenter,
                 object_name="tip_label",
                 enable_url=True,

@@ -66,7 +66,9 @@ class Launcher(QtDialog):
             "Image to OME-TIFF App",
             CONVERT_TEXT,
             "change",
-            Window.on_convert if not CONVERT_UNAVAILABLE else lambda: hp.warn_pretty("Not available on Apple Silicon."),
+            Window.on_convert
+            if not CONVERT_UNAVAILABLE
+            else lambda: hp.warn_pretty(self, "Not available on Apple Silicon."),
             icon_kws=dict(color=THEMES.get_hex_color("warning") if CONVERT_UNAVAILABLE else None),
         )
         tile_layout.addWidget(convert, 1, 1)
