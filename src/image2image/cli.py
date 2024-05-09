@@ -8,9 +8,9 @@ from koyo.system import IS_MAC, IS_MAC_ARM, IS_PYINSTALLER
 from image2image import __version__
 
 if IS_MAC_ARM and IS_PYINSTALLER:
-    AVAILABLE_TOOLS = ty.Literal["launcher", "register", "viewer", "crop", "fusion"]  # type: ignore
+    AVAILABLE_TOOLS = ty.Literal["launcher", "register", "viewer", "crop", "fusion", "merge"]  # type: ignore
 else:
-    AVAILABLE_TOOLS = ty.Literal["launcher", "register", "viewer", "crop", "fusion", "convert"]  # type: ignore
+    AVAILABLE_TOOLS = ty.Literal["launcher", "register", "viewer", "crop", "fusion", "convert", "merge"]  # type: ignore
 
 
 def dev_options(func):
@@ -72,9 +72,10 @@ def cli(
     launcher - opens dialog where you can launch any of the tools.
     register - opens dialog where you can co-register images.
     viewer - opens dialog where you can view images.
-    export - opens dialog where you can export images.
-    sync - opens dialog where you can sync images (not yet implemented)
-    crop - opens dialog where you can crop images (not yet implemented)
+    convert - opens dialog where you can convert images
+    merge - opens dialog where you can merge images
+    crop - opens dialog where you can crop images
+    fusion - opens dialog where you can fuse images
     """
     import os
 

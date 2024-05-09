@@ -46,7 +46,10 @@ class ChannelRenameDialog(MixinDialog):
         .add("channel name", "channel_name", "str", 200)
     )
 
-    def __init__(self, parent: QWidget, reader_metadata: dict[int, dict[str, dict | list[int]]]):
+    def __init__(
+        self, parent: QWidget, reader_metadata: dict[int, dict[str, dict | list[int]]], allow_merge: bool = True
+    ):
+        self.allow_merge = allow_merge
         super().__init__(parent)
         self.setMinimumWidth(400)
         self.setMinimumHeight(400)
@@ -131,7 +134,8 @@ class ChannelRenameDialog(MixinDialog):
         self.table.evt_double_clicked.connect(self.on_edit)
         self.table.evt_checked.connect(self.on_edit_state)
 
-        self.merge_btn = hp.make_btn(self, "Merge...", func=self.on_merge)
+        if self.allow_merge:
+            self.merge_btn = hp.make_btn(self, "Merge...", func=self.on_merge)
 
         self.search_for = hp.make_line_edit(self, placeholder="Search for...")
         self.replace_with = hp.make_line_edit(self, placeholder="Replace with...")
@@ -155,8 +159,9 @@ class ChannelRenameDialog(MixinDialog):
         if STATE.allow_filters:
             layout.addRow(hp.make_h_layout(self.filter_by_name, spacing=1))
         layout.addRow(self.table)
-        layout.addRow(hp.make_h_line_with_text("Merge channels"))
-        layout.addRow(self.merge_btn)
+        if self.allow_merge:
+            layout.addRow(hp.make_h_line_with_text("Merge channels"))
+            layout.addRow(self.merge_btn)
         layout.addRow(hp.make_h_line_with_text("Rename channels"))
         layout.addRow(self.search_for)
         layout.addRow(self.replace_with)

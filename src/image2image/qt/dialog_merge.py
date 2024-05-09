@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 import typing as ty
+from contextlib import suppress
 from pathlib import Path
 
 import qtextra.helpers as hp
 from image2image_io.config import CONFIG as READER_CONFIG
-from image2image_io.readers import CziSceneImageReader, get_simple_reader
 from loguru import logger
 from qtextra.utils.table_config import TableConfig
 from qtextra.utils.utilities import connect
@@ -20,7 +20,7 @@ from superqt.utils import GeneratorWorker, create_worker
 
 from image2image import __version__
 from image2image.config import CONFIG
-from image2image.enums import ALLOWED_IMAGE_FORMATS_MICROSCOPY_ONLY
+from image2image.enums import ALLOWED_IMAGE_FORMATS_TIFF_ONLY
 from image2image.qt._dialogs._select import LoadWidget
 from image2image.qt.dialog_base import Window
 from image2image.utils.utilities import log_exception_or_error
@@ -40,14 +40,6 @@ def get_metadata(
             channel_name_to_ids = {}
             # iterate over channels and merge if necessary
             for index, channel_id in enumerate(scene_metadata["channel_ids"]):
-                if channel_id in scene_metadata["channel_id_to_merge"]:
-                    merge_channel_name = scene_metadata["channel_id_to_merge"][channel_id]
-                    channel_name = scene_metadata["channel_names"][index]
-                    if merge_channel_name not in channel_name_to_ids:
-                        channel_name_to_ids[merge_channel_name] = []
-                    channel_name_to_ids[merge_channel_name].append(channel_id)
-                    if not scene_metadata["merge_and_keep"] and scene_metadata["keep"][index]:
-                        scene_metadata[channel_name] = channel_id
                 if scene_metadata["keep"][index]:
                     channel_name_to_ids[scene_metadata["channel_names"][index]] = channel_id
 
@@ -62,7 +54,7 @@ def get_metadata(
     return metadata
 
 
-class ImageConvertWindow(Window):
+class ImageMergeWindow(Window):
     """Image viewer dialog."""
 
     _console = None
@@ -72,19 +64,20 @@ class ImageConvertWindow(Window):
 
     TABLE_CONFIG = (
         TableConfig()  # type: ignore[no-untyped-call]
+        .add("key", "key", "str", 0)
         .add("name", "name", "str", 0)
         .add("pixel size (um)", "resolution", "str", 0)
+        .add("image size (px)", "image_size", "str", 0)
         .add("scenes & channels", "metadata", "str", 0)
-        .add("progress", "progress", "str", 0)
     )
 
     def __init__(self, parent: QWidget | None, run_check_version: bool = True):
         super().__init__(
             parent,
-            f"image2image: Convert image to OME-TIFF (v{__version__})",
+            f"image2image: Merge images (v{__version__})",
             run_check_version=run_check_version,
         )
-        if CONFIG.first_time_convert:
+        if CONFIG.first_time_merge:
             hp.call_later(self, self.on_show_tutorial, 10_000)
         self.reader_metadata: dict[Path, dict[int, dict[str, list[bool | int | str]]]] = {}
         self._setup_config()
@@ -96,7 +89,7 @@ class ImageConvertWindow(Window):
         READER_CONFIG.split_czi = False
         READER_CONFIG.split_rgb = True
         READER_CONFIG.only_last_pyramid = False
-        logger.trace("Setup reader config for image2tiff.")
+        logger.trace("Setup reader config for image2merge.")
 
     def setup_events(self, state: bool = True) -> None:
         """Setup events."""
@@ -134,7 +127,7 @@ class ImageConvertWindow(Window):
         """Remove items that are not present in the model."""
         to_remove = []
         for index in range(self.table.rowCount()):
-            key = self.table.item(index, self.TABLE_CONFIG.name).text()
+            key = self.table.item(index, self.TABLE_CONFIG.key).text()
             if not self.data_model.has_key(key):
                 to_remove.append(index)
         for index in reversed(to_remove):
@@ -146,7 +139,7 @@ class ImageConvertWindow(Window):
         wrapper = self.data_model.wrapper
         if wrapper:
             for reader in wrapper.reader_iter():
-                index = hp.find_in_table(self.table, self.TABLE_CONFIG.name, reader.key)
+                index = hp.find_in_table(self.table, self.TABLE_CONFIG.key, reader.key)
                 if index is not None:
                     continue
 
@@ -154,171 +147,123 @@ class ImageConvertWindow(Window):
                 index = self.table.rowCount()
 
                 self.table.insertRow(index)
+
                 # add name item
                 table_item = QTableWidgetItem(reader.key)
-                table_item.setFlags(table_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+                table_item.setFlags(table_item.flags() & ~Qt.ItemIsEditable)  # type: ignore[attr-defined]
+                table_item.setTextAlignment(Qt.AlignCenter)  # type: ignore[attr-defined]
+                self.table.setItem(index, self.TABLE_CONFIG.key, table_item)
+
+                # add name item
+                table_item = QTableWidgetItem(reader.clean_name)
+                table_item.setFlags(table_item.flags() & ~Qt.ItemIsEditable)  # type: ignore[attr-defined]
                 table_item.setTextAlignment(Qt.AlignCenter)  # type: ignore[attr-defined]
                 self.table.setItem(index, self.TABLE_CONFIG.name, table_item)
 
+                # add resolution item
                 table_item = QTableWidgetItem(f"{reader.resolution:.2f}")
                 table_item.setFlags(table_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
                 self.table.setItem(index, self.TABLE_CONFIG.resolution, table_item)
+
+                # add type item
+                if reader.reader_type == "image":
+                    size = reader.image_shape
+                    image_size = f"{size[0]} x {size[1]}"
+                else:
+                    image_size = "N/A"
+                type_item = QTableWidgetItem(image_size)
+                type_item.setFlags(type_item.flags() & ~Qt.ItemIsEditable)  # type: ignore[attr-defined]
+                type_item.setTextAlignment(Qt.AlignCenter)  # type: ignore[attr-defined]
+                self.table.setItem(index, self.TABLE_CONFIG.image_size, type_item)
 
                 table_item = QTableWidgetItem("")
                 table_item.setFlags(table_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
                 self.table.setItem(index, self.TABLE_CONFIG.metadata, table_item)
 
-                table_item = QTableWidgetItem("Ready!")
-                table_item.setFlags(table_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
-                self.table.setItem(index, self.TABLE_CONFIG.progress, table_item)
                 reader_metadata = self.reader_metadata.get(reader.path, {})
                 if reader_metadata:
                     self.reader_metadata[reader.path] = reader_metadata
                 else:
                     self.reader_metadata[reader.path] = {}
                     for scene_index in range(reader.n_scenes):
-                        reader_ = (
-                            CziSceneImageReader(reader.path, scene_index=scene_index)
-                            if reader.path.suffix == ".czi"
-                            else get_simple_reader(reader.path, auto_pyramid=False, init_pyramid=False)
-                        )
                         self.reader_metadata[reader.path][scene_index] = {
-                            "keep": [True] * reader_.n_channels,
-                            "channel_ids": reader_.channel_ids,
-                            "channel_names": reader_.channel_names,
-                            "channel_id_to_merge": {},  # dict of int: str
-                            "merge_and_keep": False,  # bool
+                            "keep": [True] * reader.n_channels,
+                            "channel_ids": reader.channel_ids,
+                            "channel_names": reader.channel_names,
                         }
         self.on_update_reader_metadata()
 
-    def on_select(self, evt) -> None:
-        """Select channels."""
-        from image2image.qt._dialogs._rename import ChannelRenameDialog
-
-        row = evt.row()
-        column = evt.column()
-        name = self.table.item(row, self.TABLE_CONFIG.name).text()
-        reader = self.data_model.get_reader_for_key(name)
-        if column == self.TABLE_CONFIG.metadata:
-            reader_metadata = self.reader_metadata[reader.path]
-            dlg = ChannelRenameDialog(self, reader_metadata)
-            result = dlg.exec_()
-            if result == QDialog.DialogCode.Accepted:
-                self.reader_metadata[reader.path] = dlg.reader_metadata
-                self.on_update_reader_metadata()
-                logger.trace(f"Updated metadata for {name}")
-        # elif column == self.TABLE_CONFIG.resolution:
-        #     new_resolution = hp.get_double(
-        #         self,
-        #         value=reader.resolution,
-        #         label="Specify resolution (um) - don't do this unless you know what you are doing!",
-        #         title="Specify image resolution",
-        #         n_decimals=3,
-        #         minimum=0.001,
-        #         maximum=10000,
-        #     )
-        #     if not new_resolution or new_resolution == reader.resolution:
-        #         return
-        #     if hp.confirm(self, "Changing resolution may cause issues with the image data. Proceed with caution!"):
-        #         reader.resolution = new_resolution
-        #         self.table.item(row, self.TABLE_CONFIG.resolution).setText(f"{new_resolution:.2f}")
-
-    def on_update_reader_metadata(self):
-        """Update reader metadata."""
-        reader_metadata = get_metadata(self.reader_metadata)
-        for path, reader_metadata_ in reader_metadata.items():
-            key = path.name
-            row = hp.find_in_table(self.table, self.TABLE_CONFIG.name, key)
-            if row is None:
-                continue
-            metadata = []
-            has_scenes = len(reader_metadata_) > 1
-            for index, (scene_index, scene_metadata) in enumerate(reader_metadata_.items()):
-                channel_ids = scene_metadata["channel_ids"]
-                channel_names = scene_metadata["channel_names"]
-                if has_scenes and channel_ids:
-                    metadata.append(f"scene {scene_index}")
-                for channel_index, channel_name in zip(channel_ids, channel_names):
-                    metadata.append(f"- {channel_name}: {channel_index}")
-            self.table.item(row, self.TABLE_CONFIG.metadata).setText("\n".join(metadata))
-
-    def on_convert(self):
+    def on_export(self) -> None:
         """Process data."""
-        from image2image_io.writers import images_to_ome_tiff
+        from image2image_io.writers import merge_images
 
         if self.output_dir is None:
             hp.warn_pretty(self, "No output directory was selected. Please select directory where to save data.")
             return
 
-        paths = []
+        paths, image_shapes, pixel_sizes = [], [], []
         for row in range(self.table.rowCount()):
-            key = self.table.item(row, self.TABLE_CONFIG.name).text()
+            key = self.table.item(row, self.TABLE_CONFIG.key).text()
             reader = self.data_model.get_reader_for_key(key)
             if reader is None:
                 logger.warning(f"Could not find path for {key}")
                 continue
             if reader:
                 paths.append(reader.path)
+                image_shapes.append(reader.image_shape)
+                pixel_sizes.append(reader.resolution)
+
+        name = self.name_edit.text().strip()
+
+        if not name:
+            hp.warn_pretty(self, "No name was provided. Please provide a name for the merged image.")
+            return
+        if not paths:
+            hp.warn_pretty(self, "No images to merge. Please load images to merge.")
+            return
+        if len(paths) < 2:
+            hp.warn_pretty(self, "At least two images are required to merge.")
+            return
+        if len(set(image_shapes)) > 1:
+            hp.warn_pretty(self, "Images must have the same shape to merge.")
+            return
+        if len(set(pixel_sizes)) > 1:
+            hp.warn_pretty(self, "Images must have the same pixel size to merge.")
+            return
+
+        # get metadata and add extra information such as the new tag/name
+        metadata = get_metadata(self.reader_metadata)
+        for path in metadata:
+            reader = self.data_model.get_reader(path)
+            row = hp.find_in_table(self.table, self.TABLE_CONFIG.key, reader.key)
+            name_for_path = self.table.item(row, self.TABLE_CONFIG.name).text()
+            metadata[path]["name"] = name_for_path
 
         output_dir = self.output_dir
-        CONFIG.as_uint8 = self.as_uint8.isChecked()
-        CONFIG.overwrite = self.overwrite.isChecked()
         if paths:
             self.worker = create_worker(
-                images_to_ome_tiff,
+                merge_images,
+                name=name,
                 paths=paths,
                 output_dir=output_dir,
                 as_uint8=CONFIG.as_uint8,
                 tile_size=int(self.tile_size.currentText()),
-                metadata=get_metadata(self.reader_metadata),
+                metadata=metadata,
                 overwrite=CONFIG.overwrite,
                 _start_thread=True,
                 _connect={
-                    "aborted": self._on_export_aborted,
-                    "yielded": self._on_export_yield,
                     "finished": self._on_export_finished,
                     "errored": self._on_export_error,
                 },
-                _worker_class=GeneratorWorker,
             )
             hp.disable_widgets(self.export_btn.active_btn, disabled=True)
             self.export_btn.active = True
 
-    def on_cancel(self):
+    def on_cancel(self) -> None:
         """Cancel processing."""
         if self.worker:
             self.worker.quit()
             logger.trace("Requested aborting of the export process.")
-
-    @ensure_main_thread()
-    def _on_export_aborted(self) -> None:
-        """Update CSV."""
-        self.worker = None
-        self.on_toggle_export_btn(force=True)
-        for row in range(self.table.rowCount()):
-            value = self.table.item(row, self.TABLE_CONFIG.progress).text()
-            if value not in ["Exported!", "Ready!"]:
-                item = self.table.item(row, self.TABLE_CONFIG.progress)
-                item.setText("Aborted!")
-                logger.trace("Aborted export process.")
-
-    @ensure_main_thread()
-    def _on_export_yield(self, args: tuple[str, int, int, int, int]) -> None:
-        """Update CSV."""
-        self.__on_export_yield(args)
-
-    def __on_export_yield(self, args: tuple[str, int, int, int, int]) -> None:
-        # with suppress(ValueError):
-        key, current_scene, total_scene, current, total_in_files = args
-        self.export_btn.setRange(0, total_in_files)
-        self.export_btn.setValue(current)
-        row = hp.find_in_table(self.table, self.TABLE_CONFIG.name, key)
-        if row is not None:
-            item = self.table.item(row, self.TABLE_CONFIG.progress)
-            item.setText(f"{current_scene}/{total_scene} scenes exported...")
-            if current_scene == total_scene:
-                item.setText("Exported!")
-                self.on_toggle_export_btn()
 
     @ensure_main_thread()
     def _on_export_error(self, exc: Exception) -> None:
@@ -333,13 +278,9 @@ class ImageConvertWindow(Window):
         self.on_toggle_export_btn(force=True)
         self.worker = None
 
-    def on_toggle_export_btn(self, force: bool = False, disabled: bool = False) -> None:
+    def on_toggle_export_btn(self, force: bool = False) -> None:
         """Toggle export button."""
-        if not force:
-            for row in range(self.table.rowCount()):
-                text = self.table.item(row, self.TABLE_CONFIG.progress).text()
-                if text not in ["Exported!", "Ready"]:
-                    disabled = True
+        disabled = False
         hp.disable_widgets(self.export_btn.active_btn, disabled=disabled)
         self.export_btn.active = disabled
 
@@ -349,21 +290,52 @@ class ImageConvertWindow(Window):
         if directory:
             self._output_dir = directory
             CONFIG.output_dir = directory
-            self.output_dir_label.setText(f"Output directory: {hp.hyper(self.output_dir)}")
+            self.output_dir_label.setText(f"<b>Output directory</b>: {hp.hyper(self.output_dir)}")
             logger.debug(f"Output directory set to {self._output_dir}")
+
+    def on_select(self, evt) -> None:
+        """Select channels."""
+        from image2image.qt._dialogs._rename import ChannelRenameDialog
+
+        row = evt.row()
+        column = evt.column()
+        name = self.table.item(row, self.TABLE_CONFIG.key).text()
+        reader = self.data_model.get_reader_for_key(name)
+        if column == self.TABLE_CONFIG.metadata:
+            reader_metadata = self.reader_metadata[reader.path]
+            dlg = ChannelRenameDialog(self, reader_metadata, allow_merge=False)
+            if dlg.exec_() == QDialog.DialogCode.Accepted:
+                self.reader_metadata[reader.path] = dlg.reader_metadata
+                self.on_update_reader_metadata()
+        elif column == self.TABLE_CONFIG.name:
+            name = self.table.item(row, self.TABLE_CONFIG.name).text()
+            new_name = hp.get_text(self, "Rename image", "Enter new name for the image.", name)
+            if new_name and new_name != name:
+                self.table.item(row, self.TABLE_CONFIG.name).setText(new_name)
+
+    def on_update_reader_metadata(self):
+        """Update reader metadata."""
+        for path, reader_metadata in self.reader_metadata.items():
+            key = path.name
+            row = hp.find_in_table(self.table, self.TABLE_CONFIG.key, key)
+            if row is None:
+                continue
+            metadata = []
+            for scene_index, scene_metadata in reader_metadata.items():
+                channel_ids = [x for x, keep in zip(scene_metadata["channel_ids"], scene_metadata["keep"]) if keep]
+                metadata.append(f"{scene_index}: {channel_ids}")
+            self.table.item(row, self.TABLE_CONFIG.metadata).setText("\n".join(metadata))
 
     def _setup_ui(self):
         """Create panel."""
-        self.output_dir_label = hp.make_label(self, f"Output directory: {hp.hyper(self.output_dir)}", enable_url=True)
-
         self._image_widget = LoadWidget(
-            self, None, select_channels=False, available_formats=ALLOWED_IMAGE_FORMATS_MICROSCOPY_ONLY
+            self, None, select_channels=False, available_formats=ALLOWED_IMAGE_FORMATS_TIFF_ONLY
         )
         self._image_widget.info_text.setVisible(False)
 
         columns = self.TABLE_CONFIG.to_columns()
         self.table = QTableWidget(self)
-        self.table.setColumnCount(len(columns))  # name, scenes, progress, key
+        self.table.setColumnCount(len(columns))  # name, progress, key
         self.table.setHorizontalHeaderLabels(columns)
         self.table.setCornerButtonEnabled(False)
         self.table.setTextElideMode(Qt.TextElideMode.ElideLeft)
@@ -371,20 +343,16 @@ class ImageConvertWindow(Window):
         self.table.doubleClicked.connect(self.on_select)
 
         horizontal_header = self.table.horizontalHeader()
-        horizontal_header.setSectionResizeMode(self.TABLE_CONFIG.name, QHeaderView.ResizeMode.Stretch)
+        horizontal_header.setSectionResizeMode(self.TABLE_CONFIG.key, QHeaderView.ResizeMode.Stretch)
         horizontal_header.setSectionResizeMode(self.TABLE_CONFIG.resolution, QHeaderView.ResizeMode.ResizeToContents)
+        horizontal_header.setSectionResizeMode(self.TABLE_CONFIG.image_size, QHeaderView.ResizeMode.ResizeToContents)
         horizontal_header.setSectionResizeMode(self.TABLE_CONFIG.metadata, QHeaderView.ResizeMode.ResizeToContents)
-        horizontal_header.setSectionResizeMode(self.TABLE_CONFIG.progress, QHeaderView.ResizeMode.ResizeToContents)
         vertical_header = self.table.verticalHeader()
         vertical_header.setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
 
-        self.directory_btn = hp.make_btn(
-            self,
-            "Set output directory...",
-            tooltip="Specify output directory for images...",
-            func=self.on_set_output_dir,
+        self.name_edit = hp.make_line_edit(
+            self, "", placeholder="Name to be used for merged images.", tooltip="Name of the merged image."
         )
-
         self.tile_size = hp.make_combobox(
             self,
             ["256", "512", "1024", "2048", "4096"],
@@ -406,11 +374,21 @@ class ImageConvertWindow(Window):
             checked=True,
             value=CONFIG.overwrite,
         )
+
+        self.directory_btn = hp.make_btn(
+            self,
+            "Set output directory...",
+            tooltip="Specify output directory for images...",
+            func=self.on_set_output_dir,
+        )
+        self.output_dir_label = hp.make_label(
+            self, f"<b>Output directory</b>: {hp.hyper(self.output_dir)}", enable_url=True
+        )
         self.export_btn = hp.make_active_progress_btn(
             self,
-            "Convert to OME-TIFF",
-            tooltip="Convert to OME-TIFF...",
-            func=self.on_convert,
+            "Merge to OME-TIFF",
+            tooltip="Merge to OME-TIFF...",
+            func=self.on_export,
             cancel_func=self.on_cancel,
         )
 
@@ -422,7 +400,8 @@ class ImageConvertWindow(Window):
             hp.make_label(
                 self,
                 "<b>Tip.</b> Double-click on the <b>scenes & channels</b> field to select/deselect"
-                " scenes/channels, rename channel names or merge multiple channels together.",
+                " scenes/channels or rename channel names.<br>"
+                "<b>Tip.</b>Double Double-click on the <b>name</b> field to rename the image.",
                 alignment=Qt.AlignmentFlag.AlignHCenter,
                 object_name="tip_label",
                 enable_url=True,
@@ -430,6 +409,7 @@ class ImageConvertWindow(Window):
             )
         )
         side_layout.addWidget(hp.make_h_line(self))
+        side_layout.addWidget(self.name_edit)
         side_layout.addWidget(self.directory_btn)
         side_layout.addWidget(self.output_dir_label)
         side_layout.addLayout(
@@ -461,7 +441,7 @@ class ImageConvertWindow(Window):
         menu_file = hp.make_menu(self, "File")
         hp.make_menu_item(
             self,
-            "Add image (.czi, .ome.tiff, .tiff, .scn, and others)...",
+            "Add image (.tiff, .scn, .svs, .tif, .ndpi, .qptiff, .qptiff.raw, .qptiff.intermediate)...",
             "Ctrl+I",
             menu=menu_file,
             func=self._image_widget.on_select_dataset,
@@ -490,27 +470,15 @@ class ImageConvertWindow(Window):
 
     def _get_console_variables(self) -> dict:
         variables = super()._get_console_variables()
-        variables.update(
-            {
-                "data_model": self.data_model,
-                "wrapper": self.data_model.wrapper,
-            }
-        )
+        variables.update({"data_model": self.data_model, "wrapper": self.data_model.wrapper})
         return variables
-
-    def on_show_tutorial(self) -> None:
-        """Quick tutorial."""
-        from image2image.qt._dialogs._tutorial import show_convert_tutorial
-
-        show_convert_tutorial(self)
-        CONFIG.first_time_convert = False
 
     def close(self, force=False):
         """Override to handle closing app or just the window."""
         if (
             not force
-            or not CONFIG.confirm_close_convert
-            or QtConfirmCloseDialog(self, "confirm_close_convert", config=CONFIG).exec_()  # type: ignore[attr-defined]
+            or not CONFIG.confirm_close_merge
+            or QtConfirmCloseDialog(self, "confirm_close_merge", config=CONFIG).exec_()  # type: ignore[attr-defined]
             == QDialog.DialogCode.Accepted
         ):
             return super().close()
@@ -520,10 +488,9 @@ class ImageConvertWindow(Window):
         """Close."""
         if (
             evt.spontaneous()
-            and CONFIG.confirm_close_convert
+            and CONFIG.confirm_close_merge
             and self.data_model.is_valid()
-            and QtConfirmCloseDialog(self, "confirm_close_convert", config=CONFIG).exec_()  # type: ignore[attr-defined]
-            != QDialog.DialogCode.Accepted
+            and QtConfirmCloseDialog(self, "confirm_close_merge", config=CONFIG).exec_() != QDialog.DialogCode.Accepted
         ):
             evt.ignore()
             return
@@ -532,6 +499,13 @@ class ImageConvertWindow(Window):
             self._console.close()
         CONFIG.save()
         evt.accept()
+
+    def on_show_tutorial(self) -> None:
+        """Quick tutorial."""
+        from image2image.qt._dialogs._tutorial import show_merge_tutorial
+
+        show_merge_tutorial(self)
+        CONFIG.first_time_merge = False
 
     def dropEvent(self, event: QDropEvent) -> None:
         """Drop event."""
@@ -542,4 +516,4 @@ class ImageConvertWindow(Window):
 if __name__ == "__main__":  # pragma: no cover
     from image2image.main import run
 
-    run(dev=True, tool="convert", level=0)
+    run(dev=True, tool="merge", level=0)

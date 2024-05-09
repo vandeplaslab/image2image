@@ -6,8 +6,77 @@ if ty.TYPE_CHECKING:
     from image2image.qt.dialog_convert import ImageConvertWindow
     from image2image.qt.dialog_crop import ImageCropWindow
     from image2image.qt.dialog_fusion import ImageFusionWindow
+    from image2image.qt.dialog_merge import ImageMergeWindow
     from image2image.qt.dialog_register import ImageRegistrationWindow
     from image2image.qt.dialog_viewer import ImageViewerWindow
+
+
+def show_merge_tutorial(widget: "ImageMergeWindow") -> None:
+    """Show tutorial."""
+    from qtextra.widgets.qt_tutorial import Position, QtTutorial, TutorialStep
+
+    tut = QtTutorial(widget)
+    tut.set_steps(
+        [
+            TutorialStep(
+                title="Welcome to merge2tiff!",
+                message="We would like to show you around before you get started!<br>This app allows you to merge"
+                " multiple OME-TIFFs into a single OME-TIFF file. The images should be <b>registered</b>, have the "
+                "<b>same</b> image shape and pixel spacing."
+                "<br><br>Note. Some of the metadata might be lost during the process and we don't support"
+                " 3D or 4D+ images at the moment and are unlikely to do so in the future.",
+                widget=widget._image_widget,
+                position=Position.BOTTOM,
+            ),
+            TutorialStep(
+                title="List of images",
+                message="Here is a list of images that will be merged to OME-TIFF format. You can edit image name,"
+                " channel names and select what should be retained (or removed).",
+                widget=widget.table,
+                position=Position.BOTTOM,
+            ),
+            TutorialStep(
+                title="Output directory",
+                message="Location where the image will be saved to.",
+                widget=widget.directory_btn,
+                position=Position.TOP,
+            ),
+            TutorialStep(
+                title="Image name",
+                message="Name of the saved image. You don't have to put the .ome.tiff as it will be automatically added"
+                " when saving.",
+                widget=widget.name_edit,
+                position=Position.TOP,
+            ),
+            TutorialStep(
+                title="Modify output settings",
+                message="You can control certain parameters of the OME-TIFF such as the tile size or if the image"
+                " data type should be changed to uint8 which greatly reduces file size.",
+                widget=widget.as_uint8,
+                position=Position.TOP,
+            ),
+            TutorialStep(
+                title="Merge to OME-TIFF",
+                message="Click here to start the merging process.",
+                widget=widget.export_btn,
+                position=Position.TOP,
+            ),
+            TutorialStep(
+                title="Tutorial",
+                message="If you wish to see this tutorial again at a future date, you can click here to show it.",
+                widget=widget.tutorial_btn,
+                position=Position.TOP_RIGHT,
+            ),
+            TutorialStep(
+                title="Feedback",
+                message="If you have some feedback, don't hesitate to send! You can do it directly in the app!",
+                widget=widget.feedback_btn,
+                position=Position.TOP_RIGHT,
+            ),
+        ]
+    )
+    tut.setFocus()
+    tut.show()
 
 
 def show_convert_tutorial(widget: "ImageConvertWindow") -> None:
@@ -37,7 +106,7 @@ def show_convert_tutorial(widget: "ImageConvertWindow") -> None:
             ),
             TutorialStep(
                 title="Output directory",
-                message="You can close the currently selected project by clicking here.",
+                message="Location where the image will be saved to.",
                 widget=widget.directory_btn,
                 position=Position.TOP,
             ),
@@ -45,6 +114,13 @@ def show_convert_tutorial(widget: "ImageConvertWindow") -> None:
                 title="Convert to OME-TIFF",
                 message="Click here to start the conversion process.",
                 widget=widget.export_btn,
+                position=Position.TOP,
+            ),
+            TutorialStep(
+                title="Modify output settings",
+                message="You can control certain parameters of the OME-TIFF such as the tile size or if the image"
+                " data type should be changed to uint8 which greatly reduces file size.",
+                widget=widget.as_uint8,
                 position=Position.TOP,
             ),
             TutorialStep(
@@ -97,7 +173,7 @@ def show_fusion_tutorial(widget: "ImageFusionWindow") -> None:
             ),
             TutorialStep(
                 title="Output directory",
-                message="You can close the currently selected project by clicking here.",
+                message="Location where the image will be saved to.",
                 widget=widget.directory_btn,
                 position=Position.TOP,
             ),

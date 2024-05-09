@@ -2,28 +2,37 @@
 
 from __future__ import annotations
 
+import typing as ty
+
 import qtextra.helpers as hp
 from image2image_io.config import CONFIG as READER_CONFIG
 from koyo.system import IS_MAC_ARM, IS_PYINSTALLER
 from qtextra.config import THEMES
 from qtextra.widgets.qt_dialog import QtDialog
 from qtextra.widgets.qt_logger import QtLoggerDialog
+from qtextra.widgets.qt_tile import QtTileWidget, Tile
 from qtpy.QtCore import Qt
-from qtpy.QtWidgets import QVBoxLayout
+from qtpy.QtWidgets import QGridLayout, QVBoxLayout, QWidget
 
 from image2image import __version__
 from image2image.config import CONFIG
 from image2image.utils._appdirs import USER_LOG_DIR
 
 # to add apps: volume viewer, sync viewer,
-REGISTER_TEXT = "<b>Registration App</b><br>Co-register your microscopy and imaging mass spectrometry data."
-VIEWER_TEXT = "<b>Viewer App</b><br>Overlay your microscopy and imaging mass spectrometry data."
-CROP_TEXT = "<b>Crop App</b><br>Crop your microscopy data to reduce it's size (handy for Image Fusion)."
-CONVERT_TEXT = "<b>CZI to OME-TIFF App</b><br>Convert your multi-scene CZI image to OME-TIFF."
-FUSION_APP = "<b>Fusion Preparation App</b><br>Export your data for Image Fusion in MATLAB compatible format."
+REGISTER_TEXT = "Co-register your microscopy and imaging mass spectrometry data."
+VIEWER_TEXT = "Overlay your microscopy and imaging mass spectrometry data."
+CROP_TEXT = "Crop your microscopy data to reduce it's size (handy for Image Fusion)."
+CONVERT_TEXT = "Convert your multi-scene CZI image to OME-TIFF."
+MERGE_TEXT = "Convert your multi-scene CZI image to OME-TIFF."
+FUSION_APP = "Export your data for Image Fusion in MATLAB compatible format."
 CONVERT_UNAVAILABLE = IS_PYINSTALLER and IS_MAC_ARM
 if CONVERT_UNAVAILABLE:
     CONVERT_TEXT += "<br><br><i>Not available on Apple Silicon due to a bug I can't find...</i>"
+
+
+def _make_tile(parent: QWidget, title: str, description: str, icon: str, func: ty.Callable, **icon_kws) -> QtTileWidget:
+    """Make tile."""
+    return QtTileWidget(parent, Tile(title=title, description=description, icon=icon, func=func, icon_kws=icon_kws))
 
 
 class Launcher(QtDialog):
@@ -33,86 +42,48 @@ class Launcher(QtDialog):
         super().__init__(parent, title=f"image2image Launcher (v{__version__})")
         self.console = None
         self.logger = QtLoggerDialog(self, USER_LOG_DIR)
-        self.setMaximumWidth(600)
-        self.setMaximumHeight(800)
 
     def make_panel(self) -> QVBoxLayout:
         """Make panel."""
         from image2image.qt.dialog_base import Window
 
-        layout = QVBoxLayout()
+        tile_layout = QGridLayout()
+        tile_layout.setSpacing(2)
+        tile_layout.setColumnStretch(0, 1)
+        tile_layout.setColumnStretch(4, 1)
         # register app
-        btn = hp.make_qta_btn(self, "register", tooltip="Open registration application.", func=Window.on_register)
-        btn.set_xxlarge()
-        layout.addLayout(
-            hp.make_h_layout(
-                btn,
-                hp.make_label(
-                    self,
-                    REGISTER_TEXT,
-                    alignment=Qt.AlignHCenter,  # type: ignore[attr-defined]
-                    wrap=True,
-                    enable_url=True,
-                ),
-                stretch_id=1,
-                alignment=Qt.AlignCenter,  # type: ignore[attr-defined]
-            ),
-        )
+        register = _make_tile(self, "Registration App", REGISTER_TEXT, "register", Window.on_register)
+        tile_layout.addWidget(register, 0, 1)
         # viewer app
-        btn = hp.make_qta_btn(self, "viewer", tooltip="Open viewer application.", func=Window.on_viewer)
-        btn.set_xxlarge()
-        layout.addLayout(
-            hp.make_h_layout(
-                btn,
-                hp.make_label(self, VIEWER_TEXT, alignment=Qt.AlignHCenter, wrap=True),  # type: ignore[attr-defined]
-                stretch_id=0,
-                alignment=Qt.AlignCenter,  # type: ignore[attr-defined]
-            ),
-        )
+        viewer = _make_tile(self, "Viewer App", VIEWER_TEXT, "viewer", Window.on_viewer)
+        tile_layout.addWidget(viewer, 0, 2)
         # crop app
-        btn = hp.make_qta_btn(self, "crop", tooltip="Open crop application.", func=Window.on_crop)
-        btn.set_xxlarge()
-        layout.addLayout(
-            hp.make_h_layout(
-                btn,
-                hp.make_label(self, CROP_TEXT, alignment=Qt.AlignHCenter, wrap=True),  # type: ignore[attr-defined]
-                stretch_id=0,
-                alignment=Qt.AlignCenter,  # type: ignore[attr-defined]
-            ),
-        )
+        crop = _make_tile(self, "Crop App", CROP_TEXT, "crop", Window.on_crop, icon_kws={"color": "#ff0000"})
+        tile_layout.addWidget(crop, 0, 3)
         # convert app
-        btn = hp.make_qta_btn(
+        convert = _make_tile(
             self,
+            "Image to OME-TIFF App",
+            CONVERT_TEXT,
             "change",
-            tooltip="Open convert application.",
-            func=Window.on_convert,
-            color=THEMES.get_hex_color("warning") if CONVERT_UNAVAILABLE else None,
+            Window.on_convert if not CONVERT_UNAVAILABLE else lambda: hp.warn_pretty("Not available on Apple Silicon."),
+            icon_kws=dict(color=THEMES.get_hex_color("warning") if CONVERT_UNAVAILABLE else None),
         )
-        btn.set_xxlarge()
-        layout.addLayout(
-            hp.make_h_layout(
-                btn,
-                hp.make_label(self, CONVERT_TEXT, alignment=Qt.AlignHCenter, wrap=True),  # type: ignore[attr-defined]
-                stretch_id=0,
-                alignment=Qt.AlignCenter,  # type: ignore[attr-defined]
-            ),
-        )
+        tile_layout.addWidget(convert, 1, 1)
+        # merge app
+        merge = _make_tile(self, "Merge OME-TIFFs App", MERGE_TEXT, "merge", Window.on_merge)
+        tile_layout.addWidget(merge, 1, 2)
         # export app
-        btn = hp.make_qta_btn(self, "export", tooltip="Open export application.", func=Window.on_export)
-        btn.set_xxlarge()
-        layout.addLayout(
-            hp.make_h_layout(
-                btn,
-                hp.make_label(self, FUSION_APP, alignment=Qt.AlignHCenter, wrap=True),  # type: ignore[attr-defined]
-                stretch_id=0,
-                alignment=Qt.AlignCenter,  # type: ignore[attr-defined]
-            ),
-        )
-        layout.addWidget(hp.make_h_line())
-        layout.addWidget(hp.make_btn(self, "Show logger...", func=self.on_show_logger))
-        layout.addWidget(hp.make_btn(self, "Show IPython console...", func=self.on_show_console))
-        layout.addStretch(1)
-        return layout
+        export = _make_tile(self, "Fusion Preparation App", FUSION_APP, "fusion", Window.on_export)
+        tile_layout.addWidget(export, 1, 3)
+
+        main_layout = QVBoxLayout()
+        main_layout.addLayout(tile_layout, stretch=1)
+        main_layout.addWidget(hp.make_h_line())
+        main_layout.addWidget(hp.make_btn(self, "Show logger...", func=self.on_show_logger))
+        main_layout.addWidget(hp.make_btn(self, "Show IPython console...", func=self.on_show_console))
+        main_layout.addStretch(1)
+        return main_layout
 
     def on_show_logger(self) -> None:
         """View console."""
