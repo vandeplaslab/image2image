@@ -42,7 +42,7 @@ class Launcher(QtDialog):
         super().__init__(parent, title=f"image2image Launcher (v{__version__})")
         self.console = None
         self.logger = QtLoggerDialog(self, USER_LOG_DIR)
-        self.setFixedSize(self.size())
+        self.setFixedSize(self.sizeHint())
 
     def make_panel(self) -> QVBoxLayout:
         """Make panel."""
