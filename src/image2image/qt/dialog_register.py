@@ -12,7 +12,6 @@ import numpy as np
 import qtextra.helpers as hp
 from image2image_io.config import CONFIG as READER_CONFIG
 from image2image_io.enums import ViewType
-
 from koyo.timer import MeasureTimer
 from loguru import logger
 from napari.layers import Image
@@ -633,8 +632,8 @@ class ImageRegistrationWindow(Window):
     def _on_load_from_project(self, path_: str) -> None:
         if path_:
             from image2image.models.transformation import load_transform_from_file
-            from image2image.qt._dialogs import ImportSelectDialog, LocateFilesDialog
             from image2image.models.utilities import _remove_missing_from_dict
+            from image2image.qt._dialogs import ImportSelectDialog, LocateFilesDialog
 
             # load transformation
             path = Path(path_)
@@ -1037,11 +1036,11 @@ class ImageRegistrationWindow(Window):
     def _setup_ui(self) -> None:
         """Create panel."""
         view_layout = self._make_image_layout()
-        # side_widget, scroll_widget = hp.make_scroll_area(self, horizontal=Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+
         side_widget = QWidget()
-        scroll_widget = side_widget
-        side_widget.setMinimumWidth(375)
-        side_widget.setMaximumWidth(375)
+        side_widget.setMinimumWidth(400)
+        side_widget.setMaximumWidth(400)
+
         self.import_project_btn = hp.make_btn(
             side_widget,
             "Import project",
@@ -1116,7 +1115,7 @@ class ImageRegistrationWindow(Window):
         layout.setSpacing(1)
         layout.addLayout(view_layout, stretch=True)
         layout.addWidget(hp.make_v_line())
-        layout.addWidget(scroll_widget)
+        layout.addWidget(side_widget)
 
         widget = QWidget()  # noqa
         self.setCentralWidget(widget)
