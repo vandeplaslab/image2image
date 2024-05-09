@@ -258,7 +258,7 @@ class IterateWidget(QWidget):
 
     evt_update = Signal(tuple)
     evt_add = Signal(tuple)
-    evt_close = Signal()
+    evt_close = Signal(tuple)
 
     current_index: int = 0
 
