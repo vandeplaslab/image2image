@@ -311,8 +311,8 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
         """Close model."""
         try:
             for name in channel_names:
-                view_wrapper.remove_layer(name, silent=True)
-                logger.trace(f"Removed '{name}' from {view_kind}.")
+                if view_wrapper.remove_layer(name, silent=True):
+                    logger.trace(f"Removed '{name}' from {view_kind}.")
         except Exception as e:  # noqa: BLE001
             log_exception_or_error(e)
 
@@ -324,8 +324,8 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
             layer_names = [layer.name for layer in view_wrapper.layers if isinstance(layer, (Image, Shapes, Points))]
             for name in layer_names:
                 if name not in channel_names:
-                    view_wrapper.remove_layer(name, silent=True)
-                    logger.trace(f"Removed '{name}' from {view_kind}.")
+                    if view_wrapper.remove_layer(name, silent=True):
+                        logger.trace(f"Removed '{name}' from {view_kind}.")
         except Exception as e:  # noqa: BLE001
             log_exception_or_error(e)
 
