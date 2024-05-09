@@ -8,9 +8,9 @@ from koyo.system import IS_MAC, IS_MAC_ARM, IS_PYINSTALLER
 from image2image import __version__
 
 if IS_MAC_ARM and IS_PYINSTALLER:
-    AVAILABLE_TOOLS = ty.Literal["launcher", "register", "viewer", "crop", "fusion", "merge"]  # type: ignore
+    AVAILABLE_TOOLS = ty.Literal["launcher", "register", "viewer", "crop", "fusion", "merge", "wsiprep"]
 else:
-    AVAILABLE_TOOLS = ty.Literal["launcher", "register", "viewer", "crop", "fusion", "convert", "merge"]  # type: ignore
+    AVAILABLE_TOOLS = ty.Literal["launcher", "register", "viewer", "crop", "fusion", "convert", "merge", "wsiprep"]
 
 
 def dev_options(func):
@@ -49,7 +49,7 @@ def dev_options(func):
 @click.option(
     "-t",
     "--tool",
-    type=click.Choice(["launcher", "register", "viewer", "fusion", "crop", "convert", "wsiprep"]),
+    type=click.Choice(ty.get_args(AVAILABLE_TOOLS)),
     default="launcher",
     show_default=True,
 )
