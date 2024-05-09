@@ -852,8 +852,7 @@ class SelectDataDialog(QtFramelessTool):
     # noinspection PyAttributeOutsideInit
     def make_panel(self) -> QFormLayout:
         """Make panel."""
-        _, header_layout = self._make_hide_handle()
-        self._title_label.setText("Images")
+        _, header_layout = self._make_hide_handle(title="Images")
         column_names = self.TABLE_CONFIG.to_columns()
         self.table = QTableWidget(self)
         self.table.setColumnCount(len(column_names))  # name, resolution, layer type, extract, key
@@ -933,6 +932,7 @@ class SelectDataDialog(QtFramelessTool):
 
         layout = hp.make_form_layout()
         hp.style_form_layout(layout)
+        layout.setContentsMargins(6, 6, 6, 6)
         layout.addRow(header_layout)
         layout.addRow(
             hp.make_h_layout(

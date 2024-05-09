@@ -614,6 +614,23 @@ class ImageCropWindow(Window):
         self.menubar.addAction(self._make_help_menu().menuAction())
         self.setMenuBar(self.menubar)
 
+    def _make_statusbar(self) -> None:
+        """Make statusbar."""
+        super()._make_statusbar()
+        self.scalebar_btn = hp.make_qta_btn(
+            self,
+            "ruler",
+            tooltip="Show scalebar.",
+            func=self.on_activate_scalebar,
+            func_menu=self.on_show_scalebar,
+            small=True,
+        )
+        self.statusbar.insertPermanentWidget(1, self.scalebar_btn)
+
+    def on_activate_scalebar(self) -> None:
+        """Activate scalebar."""
+        self.view.viewer.scale_bar.visible = not self.view.viewer.scale_bar.visible
+
     def on_show_scalebar(self) -> None:
         """Show scale bar controls for the viewer."""
         from image2image.qt._dialogs._scalebar import QtScaleBarControls

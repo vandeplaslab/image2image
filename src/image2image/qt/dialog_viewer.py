@@ -14,7 +14,6 @@ from loguru import logger
 from napari.layers import Image, Points, Shapes
 from qtextra.utils.utilities import connect
 from qtextra.widgets.qt_close_window import QtConfirmCloseDialog
-from qtextra.widgets.qt_image_button import QtThemeButton
 from qtpy.QtWidgets import QDialog, QHBoxLayout, QMenuBar, QStatusBar, QVBoxLayout, QWidget
 from superqt import ensure_main_thread
 
@@ -430,6 +429,7 @@ class ImageViewerWindow(Window):
     def _make_statusbar(self) -> None:
         """Make statusbar."""
         from image2image.qt._dialogs._sentry import send_feedback
+        from qtextra.widgets.qt_image_button import QtThemeButton
 
         self.statusbar = QStatusBar()
         self.statusbar.setSizeGripEnabled(False)
