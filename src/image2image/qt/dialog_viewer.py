@@ -656,7 +656,7 @@ def get_resolution_options(wrapper) -> dict[str, str]:
         datasets = ", ".join(names)
         if len(datasets) > 120:
             datasets = f"{datasets[:120]}..."
-        options[resolution] = f"{resolution:.1f}µm\nLike: {datasets}"
+        options[resolution] = f"{resolution:.3f}µm\nLike: {datasets}"
     return options
 
 
