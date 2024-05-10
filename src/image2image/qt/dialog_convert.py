@@ -354,19 +354,15 @@ class ImageConvertWindow(Window):
 
     def _setup_ui(self):
         """Create panel."""
-        settings_widget = QWidget(self)
-
-        self.output_dir_label = hp.make_label(
-            settings_widget, f"Output directory: {hp.hyper(self.output_dir)}", enable_url=True
-        )
+        self.output_dir_label = hp.make_label(self, f"Output directory: {hp.hyper(self.output_dir)}", enable_url=True)
 
         self._image_widget = LoadWidget(
-            settings_widget, None, select_channels=False, available_formats=ALLOWED_IMAGE_FORMATS_MICROSCOPY_ONLY
+            self, None, select_channels=False, available_formats=ALLOWED_IMAGE_FORMATS_MICROSCOPY_ONLY
         )
         self._image_widget.info_text.setVisible(False)
 
         columns = self.TABLE_CONFIG.to_columns()
-        self.table = QTableWidget(settings_widget)
+        self.table = QTableWidget(self)
         self.table.setColumnCount(len(columns))  # name, scenes, progress, key
         self.table.setHorizontalHeaderLabels(columns)
         self.table.setCornerButtonEnabled(False)
@@ -383,42 +379,54 @@ class ImageConvertWindow(Window):
         vertical_header.setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
 
         self.directory_btn = hp.make_btn(
-            settings_widget,
+            self,
             "Set output directory...",
             tooltip="Specify output directory for images...",
             func=self.on_set_output_dir,
         )
 
         self.tile_size = hp.make_combobox(
-            settings_widget,
+            self,
             ["256", "512", "1024", "2048", "4096"],
             tooltip="Specify size of the tile. Default is 512",
             default="512",
             value=f"{CONFIG.tile_size}",
         )
         self.as_uint8 = hp.make_checkbox(
-            settings_widget,
+            self,
             "Reduce data size (uint8 - dynamic range 0-255)",
             tooltip="Convert to uint8 to reduce file size with minimal data loss.",
             checked=True,
             value=CONFIG.as_uint8,
         )
         self.overwrite = hp.make_checkbox(
-            settings_widget,
+            self,
             "Overwrite existing files",
             tooltip="Overwrite existing files without having to delete them (e.g. if adding merged channels).",
             checked=True,
             value=CONFIG.overwrite,
         )
         self.export_btn = hp.make_active_progress_btn(
-            settings_widget,
+            self,
             "Convert to OME-TIFF",
             tooltip="Convert to OME-TIFF...",
             func=self.on_convert,
             cancel_func=self.on_cancel,
         )
 
-        side_layout = hp.make_v_layout(settings_widget)
+        side_layout = hp.make_v_layout()
+        side_layout.addWidget(
+            hp.make_label(
+                self,
+                "This app will <b>convert</b> many image types to <b>pyramidal OME-TIFF</b>.<br>"
+                "You can edit select which channels should be retained, edit their names, and merge channels together.",
+                alignment=Qt.AlignmentFlag.AlignHCenter,
+                object_name="large_text",
+                enable_url=True,
+                wrap=True,
+            )
+        )
+        side_layout.addWidget(hp.make_h_line())
         side_layout.addWidget(self._image_widget)
         side_layout.addWidget(hp.make_h_line())
         side_layout.addWidget(self.table, stretch=True)
@@ -452,7 +460,7 @@ class ImageConvertWindow(Window):
         widget = QWidget()
         self.setCentralWidget(widget)
         main_layout = QVBoxLayout(widget)
-        main_layout.addWidget(settings_widget)
+        main_layout.addLayout(side_layout)
 
         # extra settings
         self._make_menu()

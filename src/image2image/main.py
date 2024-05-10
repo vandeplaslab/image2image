@@ -75,7 +75,7 @@ def run(
     CONFIG.load()
     # setup theme
     for theme in THEMES.themes:
-        THEMES[theme].font_size = "9pt"
+        THEMES[theme].font_size = "10pt"
     THEMES.theme = CONFIG.theme
 
     # make app

@@ -275,9 +275,41 @@ class ImageViewerWindow(Window):
     def on_create_mask(self) -> None:
         """Add shapes mask to the viewer."""
         from image2image_io.readers import ShapesReader
+        from qtextra.widgets.qt_pick_option import QtScrollablePickOption
 
         wrapper = self.data_model.get_wrapper()
-        scale = (1, 1)
+        options = get_resolution_options(wrapper)
+        if not options:
+            hp.toast(
+                self,
+                "No images loaded",
+                "No images loaded. Please load an image first.",
+                icon="warning",
+                position="top_left",
+            )
+            return
+
+        dlg = QtScrollablePickOption(
+            self,
+            "Please select the resolution (pixel size) at which the mask should be created at. This is <b>important</b>"
+            " as this will determine the transformation matrix used to export the mask. If you are viewing multiple "
+            " images, you should use the resolution of the image you are currently viewing.",
+            options,
+        )
+        which = None
+        if dlg.exec_() == QDialog.DialogCode.Accepted:  # type: ignore[attr-defined]
+            which = dlg.option
+        if not which:
+            hp.toast(
+                self,
+                "No resolution selected",
+                "No resolution selected. Please try again.",
+                icon="warning",
+                position="top_left",
+            )
+            return
+
+        scale = (which, which)
         affine = np.eye(3)
         if wrapper:
             if MASK_FILENAME not in wrapper.data:
@@ -600,6 +632,22 @@ class ImageViewerWindow(Window):
 
         show_viewer_tutorial(self)
         CONFIG.first_time_viewer = False
+
+
+def get_resolution_options(wrapper) -> dict[str, str]:
+    """Get resolution options."""
+    resolutions = {}
+    for reader in wrapper.reader_iter():
+        if reader.reader_type != "image":
+            continue
+        if reader.resolution not in resolutions:
+            resolutions[reader.resolution] = []
+        resolutions[reader.resolution].append(reader.name)
+    options = {}
+    for resolution, names in resolutions.items():
+        datasets = ", ".join(names)
+        options[resolution] = f"{resolution:.1f}µm\nLike: {datasets}"
+    return options
 
 
 if __name__ == "__main__":  # pragma: no cover

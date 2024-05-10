@@ -310,6 +310,18 @@ class ImageFusionWindow(Window):
         )
 
         side_layout = hp.make_v_layout()
+        side_layout.addWidget(
+            hp.make_label(
+                self,
+                "This app will <b>convert</b> many image types to <b>comma-delimited</b> file compatible with"
+                " image fusion.",
+                alignment=Qt.AlignmentFlag.AlignHCenter,
+                object_name="large_text",
+                enable_url=True,
+                wrap=True,
+            )
+        )
+        side_layout.addWidget(hp.make_h_line())
         side_layout.addWidget(self._image_widget)
         side_layout.addWidget(hp.make_h_line())
         side_layout.addWidget(self.table, stretch=True)

@@ -393,6 +393,18 @@ class ImageMergeWindow(Window):
         )
 
         side_layout = hp.make_v_layout()
+        side_layout.addWidget(
+            hp.make_label(
+                self,
+                "This app will <b>merge</b> multiple images into a single <b>pyramidal OME-TIFF</b>.<br>"
+                " Please ensure that the image shape and resolution (pixel size) match across the images.",
+                alignment=Qt.AlignmentFlag.AlignHCenter,
+                object_name="large_text",
+                enable_url=True,
+                wrap=True,
+            )
+        )
+        side_layout.addWidget(hp.make_h_line())
         side_layout.addWidget(self._image_widget)
         side_layout.addWidget(hp.make_h_line())
         side_layout.addWidget(self.table, stretch=True)

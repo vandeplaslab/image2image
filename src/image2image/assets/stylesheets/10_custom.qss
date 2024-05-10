@@ -1,8 +1,4 @@
 
-QLabel#tip_label {
-    color: {{ lighten(text, 30) }};
-}
-
 /* ----------------- QtFramelessPopup ----------------- */
 QtFramelessPopup {
     border: 2px solid {{ highlight }};

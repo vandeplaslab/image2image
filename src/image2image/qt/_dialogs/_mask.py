@@ -429,16 +429,28 @@ class MasksDialog(QtFramelessTool):
         hp.style_form_layout(layout)
         layout.setContentsMargins(6, 6, 6, 6)
         layout.addRow(header_layout)
+        layout.addRow(
+            hp.make_label(
+                self,
+                "Please select mask(s) and image(s) to export masks for. This will export the mask as a binary image"
+                " for each of the <b>target</b> images. The mask will be transformed to the shape of the <b>target</b>"
+                " image.<br><b>Note</b> Please ensure that the resolution (pixel size) is correct for the mask.",
+                alignment=Qt.AlignmentFlag.AlignHCenter,
+                object_name="tip_label",
+                enable_url=True,
+                wrap=True,
+            )
+        )
         layout.addRow(hp.make_h_line_with_text("Masks to export."))
         layout.addRow(self.table_geo)
         layout.addRow(
             hp.make_label(
                 self,
-                "<b>Tip.</b> You can double-click on the 'display name' column value to change how the mask will be"
-                " named.",
+                "<b>Tip.</b> You can double-click on <b>display name</b> field to change how the mask will be named.",
                 alignment=Qt.AlignmentFlag.AlignHCenter,
                 object_name="tip_label",
                 enable_url=True,
+                wrap=True,
             )
         )
         layout.addRow(hp.make_h_line_with_text("Images to export masks for."))
