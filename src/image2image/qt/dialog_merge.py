@@ -233,6 +233,7 @@ class ImageMergeWindow(Window):
 
         # get metadata and add extra information such as the new tag/name
         metadata = get_metadata(self.reader_metadata)
+        breakpoint()
         for path in metadata:
             reader = self.data_model.get_reader(path)
             row = hp.find_in_table(self.table, self.TABLE_CONFIG.key, reader.key)

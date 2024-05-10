@@ -236,7 +236,7 @@ class DataModel(BaseModel):
         wrapper = self.wrapper
         if wrapper:
             for reader in wrapper.data.values():
-                if reader.path == path:
+                if Path(reader.path) == path:
                     return reader
         return None
 
