@@ -1,5 +1,6 @@
 """Print versions."""
 import importlib
+
 for module in [
     "image2image",
     "image2image_io",
@@ -12,4 +13,3 @@ for module in [
     mod = importlib.import_module(module)
     version = mod.__version__
     print(f"{module}: {version}")
-
