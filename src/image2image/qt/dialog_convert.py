@@ -263,13 +263,14 @@ class ImageConvertWindow(Window):
         output_dir = self.output_dir
         CONFIG.as_uint8 = self.as_uint8.isChecked()
         CONFIG.overwrite = self.overwrite.isChecked()
+        CONFIG.tile_size = int(self.tile_size.currentText())
         if paths:
             self.worker = create_worker(
                 images_to_ome_tiff,
                 paths=paths,
                 output_dir=output_dir,
                 as_uint8=CONFIG.as_uint8,
-                tile_size=int(self.tile_size.currentText()),
+                tile_size=CONFIG.tile_size,
                 metadata=get_metadata(self.reader_metadata),
                 overwrite=CONFIG.overwrite,
                 _start_thread=True,

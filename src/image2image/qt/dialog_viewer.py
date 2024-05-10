@@ -333,6 +333,14 @@ class ImageViewerWindow(Window):
                 affine=affine,
             )
             connect(layer.events.set_data, self.on_update_mask_reader, state=True)
+        hp.toast(
+            self,
+            "Change resolution",
+            "You can always change the pixel size by going to <b>More options...</b>.",
+            icon="info",
+            position="top_left",
+            duration=10_000,
+        )
 
     def on_update_mask_reader(self, _event=None) -> None:
         """Update reader based on layer data."""
@@ -646,6 +654,8 @@ def get_resolution_options(wrapper) -> dict[str, str]:
     options = {}
     for resolution, names in resolutions.items():
         datasets = ", ".join(names)
+        if len(datasets) > 120:
+            datasets = f"{datasets[:120]}..."
         options[resolution] = f"{resolution:.1f}µm\nLike: {datasets}"
     return options
 

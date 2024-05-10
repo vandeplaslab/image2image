@@ -233,7 +233,6 @@ class ImageMergeWindow(Window):
 
         # get metadata and add extra information such as the new tag/name
         metadata = get_metadata(self.reader_metadata)
-        breakpoint()
         for path in metadata:
             reader = self.data_model.get_reader(path)
             row = hp.find_in_table(self.table, self.TABLE_CONFIG.key, reader.key)
@@ -241,6 +240,10 @@ class ImageMergeWindow(Window):
             metadata[path]["name"] = name_for_path
 
         output_dir = self.output_dir
+        CONFIG.as_uint8 = self.as_uint8.isChecked()
+        CONFIG.overwrite = self.overwrite.isChecked()
+        CONFIG.tile_size = int(self.tile_size.currentText())
+
         if paths:
             self.worker = create_worker(
                 merge_images,
@@ -248,7 +251,7 @@ class ImageMergeWindow(Window):
                 paths=paths,
                 output_dir=output_dir,
                 as_uint8=CONFIG.as_uint8,
-                tile_size=int(self.tile_size.currentText()),
+                tile_size=CONFIG.tile_size,
                 metadata=metadata,
                 overwrite=CONFIG.overwrite,
                 _start_thread=True,
