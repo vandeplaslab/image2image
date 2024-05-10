@@ -242,7 +242,7 @@ class ImageConvertWindow(Window):
                     metadata.append(f"- {channel_name}: {channel_index}")
             self.table.item(row, self.TABLE_CONFIG.metadata).setText("\n".join(metadata))
 
-    def on_convert(self):
+    def on_open_convert(self):
         """Process data."""
         from image2image_io.writers import images_to_ome_tiff
 
@@ -411,7 +411,7 @@ class ImageConvertWindow(Window):
             self,
             "Convert to OME-TIFF",
             tooltip="Convert to OME-TIFF...",
-            func=self.on_convert,
+            func=self.on_open_convert,
             cancel_func=self.on_cancel,
         )
 

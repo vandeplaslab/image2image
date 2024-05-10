@@ -53,13 +53,13 @@ class Launcher(QtDialog):
         tile_layout.setColumnStretch(0, 1)
         tile_layout.setColumnStretch(4, 1)
         # register app
-        register = _make_tile(self, "Registration App", REGISTER_TEXT, "register", Window.on_register)
+        register = _make_tile(self, "Registration App", REGISTER_TEXT, "register", Window.on_open_register)
         tile_layout.addWidget(register, 0, 1)
         # viewer app
-        viewer = _make_tile(self, "Viewer App", VIEWER_TEXT, "viewer", Window.on_viewer)
+        viewer = _make_tile(self, "Viewer App", VIEWER_TEXT, "viewer", Window.on_open_viewer)
         tile_layout.addWidget(viewer, 0, 2)
         # crop app
-        crop = _make_tile(self, "Crop App", CROP_TEXT, "crop", Window.on_crop, icon_kws={"color": "#ff0000"})
+        crop = _make_tile(self, "Crop App", CROP_TEXT, "crop", Window.on_open_crop, icon_kws={"color": "#ff0000"})
         tile_layout.addWidget(crop, 0, 3)
         # convert app
         convert = _make_tile(
@@ -67,17 +67,17 @@ class Launcher(QtDialog):
             "Image to OME-TIFF App",
             CONVERT_TEXT,
             "change",
-            Window.on_convert
+            Window.on_open_convert
             if not CONVERT_UNAVAILABLE
             else lambda: hp.warn_pretty(self, "Not available on Apple Silicon."),
-            icon_kws=dict(color=THEMES.get_hex_color("warning") if CONVERT_UNAVAILABLE else None),
+            icon_kws=dict(color=THEMES.get_hex_color("warning")) if CONVERT_UNAVAILABLE else None,
         )
         tile_layout.addWidget(convert, 1, 1)
         # merge app
-        merge = _make_tile(self, "Merge OME-TIFFs App", MERGE_TEXT, "merge", Window.on_merge)
+        merge = _make_tile(self, "Merge OME-TIFFs App", MERGE_TEXT, "merge", Window.on_open_merge)
         tile_layout.addWidget(merge, 1, 2)
         # export app
-        export = _make_tile(self, "Fusion Preparation App", FUSION_APP, "fusion", Window.on_export)
+        export = _make_tile(self, "Fusion Preparation App", FUSION_APP, "fusion", Window.on_open_fusion)
         tile_layout.addWidget(export, 1, 3)
 
         main_layout = QVBoxLayout()

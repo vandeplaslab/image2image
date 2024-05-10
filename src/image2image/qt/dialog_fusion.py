@@ -145,7 +145,7 @@ class ImageFusionWindow(Window):
                         }
         self.on_update_reader_metadata()
 
-    def on_export(self):
+    def on_open_fusion(self):
         """Process data."""
         from image2image_io.writers import images_to_fusion
 
@@ -306,7 +306,7 @@ class ImageFusionWindow(Window):
             self, f"<b>Output directory</b>: {hp.hyper(self.output_dir)}", enable_url=True
         )
         self.export_btn = hp.make_active_progress_btn(
-            self, "Export to CSV", tooltip="Export to csv file...", func=self.on_export, cancel_func=self.on_cancel
+            self, "Export to CSV", tooltip="Export to csv file...", func=self.on_open_fusion, cancel_func=self.on_cancel
         )
 
         side_layout = hp.make_v_layout()

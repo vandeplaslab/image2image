@@ -193,7 +193,7 @@ class ImageMergeWindow(Window):
                         }
         self.on_update_reader_metadata()
 
-    def on_export(self) -> None:
+    def on_open_fusion(self) -> None:
         """Process data."""
         from image2image_io.writers import merge_images
 
@@ -392,7 +392,7 @@ class ImageMergeWindow(Window):
             self,
             "Merge to OME-TIFF",
             tooltip="Merge to OME-TIFF...",
-            func=self.on_export,
+            func=self.on_open_fusion,
             cancel_func=self.on_cancel,
         )
 

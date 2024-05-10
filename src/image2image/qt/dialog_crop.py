@@ -280,7 +280,7 @@ class ImageCropWindow(Window):
             self.worker_crop.quit()
             logger.trace("Requested aborting of the crop process.")
 
-    def on_crop(self) -> None:
+    def on_open_crop(self) -> None:
         """Save data."""
         regions = self.get_crop_areas()
         if not regions:
@@ -540,7 +540,7 @@ class ImageCropWindow(Window):
             self,
             "Export to OME-TIFF...",
             tooltip="Export cropped image to OME-TIFF file.",
-            func=self.on_crop,
+            func=self.on_open_crop,
             cancel_func=partial(self.on_cancel, which="crop"),
         )
 

@@ -385,17 +385,18 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
         from koyo.system import IS_MAC_ARM, IS_PYINSTALLER
 
         menu_apps = hp.make_menu(self, "Apps")
-        hp.make_menu_item(self, "Open 'Register' App", menu=menu_apps, func=self.on_register)
-        hp.make_menu_item(self, "Open 'Viewer' App", menu=menu_apps, func=self.on_viewer)
-        hp.make_menu_item(self, "Open 'Crop' App", menu=menu_apps, func=self.on_crop)
+        hp.make_menu_item(self, "Open 'Register' App", menu=menu_apps, func=self.on_open_register)
+        hp.make_menu_item(self, "Open 'Viewer' App", menu=menu_apps, func=self.on_open_viewer)
+        hp.make_menu_item(self, "Open 'Crop' App", menu=menu_apps, func=self.on_open_crop)
         hp.make_menu_item(
             self,
-            "Open 'Image to OME-TIFF' App",
+            "Open 'Convert' App",
             menu=menu_apps,
-            func=self.on_convert,
+            func=self.on_open_convert,
             disabled=IS_MAC_ARM and IS_PYINSTALLER,
         )
-        hp.make_menu_item(self, "Open 'Fusion' App", menu=menu_apps, func=self.on_export)
+        hp.make_menu_item(self, "Open 'Merge' App", menu=menu_apps, func=self.on_open_merge)
+        hp.make_menu_item(self, "Open 'Fusion' App", menu=menu_apps, func=self.on_open_fusion)
         return menu_apps
 
     def _make_help_menu(self) -> QMenu:
@@ -582,7 +583,7 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
             self.statusbar.showMessage("")
 
     @staticmethod
-    def on_convert():
+    def on_open_convert():
         """Open registration application."""
         from koyo.system import IS_MAC_ARM, IS_PYINSTALLER
 
@@ -603,7 +604,7 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
         dlg.show()
 
     @staticmethod
-    def on_export():
+    def on_open_fusion():
         """Open registration application."""
         from image2image.qt.dialog_fusion import ImageFusionWindow
 
@@ -614,7 +615,7 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
         dlg.show()
 
     @staticmethod
-    def on_merge():
+    def on_open_merge():
         """Open registration application."""
         from image2image.qt.dialog_merge import ImageMergeWindow
 
@@ -625,7 +626,7 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
         dlg.show()
 
     @staticmethod
-    def on_register():
+    def on_open_register():
         """Open registration application."""
         from image2image.qt.dialog_register import ImageRegistrationWindow
 
@@ -636,7 +637,7 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
         dlg.show()
 
     @staticmethod
-    def on_viewer():
+    def on_open_viewer():
         """Open registration application."""
         from image2image.qt.dialog_viewer import ImageViewerWindow
 
@@ -647,7 +648,7 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
         dlg.show()
 
     @staticmethod
-    def on_crop():
+    def on_open_crop():
         """Open registration application."""
         from image2image.qt.dialog_crop import ImageCropWindow
 
