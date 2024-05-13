@@ -138,7 +138,8 @@ class Transformation(BaseModel):
         moving_points = self.moving_points
         moving_points = self.apply_moving_initial_transform(moving_points)  # type: ignore[arg-type]
         transformed_points = self.transform(moving_points)
-        return float(np.sqrt(np.sum((self.fixed_points - transformed_points) ** 2)))
+        transformed_points = transformed_points * self.fixed_model.resolution  # type: ignore[union-attr]
+        return float(np.sqrt(np.sum((self.fixed_points * self.fixed_model.resolution - transformed_points) ** 2)))
 
     @property
     def matrix(self) -> np.ndarray:
