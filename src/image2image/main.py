@@ -20,7 +20,9 @@ def run(
     level: int = 10,
     no_color: bool = False,
     dev: bool = False,
-    tool: ty.Literal["launcher", "register", "viewer", "crop", "fusion", "convert", "merge", "wsiprep"] = "launcher",
+    tool: ty.Literal[
+        "launcher", "register", "viewer", "crop", "fusion", "convert", "merge", "wsiprep", "wsireg"
+    ] = "launcher",
 ) -> None:
     """Execute command."""
     import warnings
@@ -64,6 +66,7 @@ def run(
     [logger.enable(module) for module in ["image2image", "image2image_io", "koyo", "qtextra"]]
     logger.info(f"Enabled logger - logging to '{log_path}' at level={level}")
 
+    run_check_version = not dev
     if dev:
         install_debugger_hook()
         logger.debug(f"Installed debugger hook: {sys.excepthook.__name__}")
@@ -94,37 +97,42 @@ def run(
     elif tool == "register":
         from image2image.qt.dialog_register import ImageRegistrationWindow
 
-        dlg = ImageRegistrationWindow(None)  # type: ignore[assignment]
+        dlg = ImageRegistrationWindow(None, run_check_version=run_check_version)  # type: ignore[assignment]
         dlg.setMinimumSize(1200, 800)
     elif tool == "viewer":
         from image2image.qt.dialog_viewer import ImageViewerWindow
 
-        dlg = ImageViewerWindow(None)  # type: ignore[assignment]
+        dlg = ImageViewerWindow(None, run_check_version=run_check_version)  # type: ignore[assignment]
         dlg.setMinimumSize(1200, 800)
     elif tool == "crop":
         from image2image.qt.dialog_crop import ImageCropWindow
 
-        dlg = ImageCropWindow(None)  # type: ignore[assignment]
+        dlg = ImageCropWindow(None, run_check_version=run_check_version)  # type: ignore[assignment]
         dlg.setMinimumSize(1200, 800)
     elif tool == "fusion":
         from image2image.qt.dialog_fusion import ImageFusionWindow
 
-        dlg = ImageFusionWindow(None)  # type: ignore[assignment]
+        dlg = ImageFusionWindow(None, run_check_version=run_check_version)  # type: ignore[assignment]
         dlg.setMinimumSize(600, 400)
     elif tool == "convert":
         from image2image.qt.dialog_convert import ImageConvertWindow
 
-        dlg = ImageConvertWindow(None)  # type: ignore[assignment]
+        dlg = ImageConvertWindow(None, run_check_version=run_check_version)  # type: ignore[assignment]
         dlg.setMinimumSize(600, 400)
     elif tool == "merge":
         from image2image.qt.dialog_merge import ImageMergeWindow
 
-        dlg = ImageMergeWindow(None)  # type: ignore[assignment]
+        dlg = ImageMergeWindow(None, run_check_version=run_check_version)  # type: ignore[assignment]
         dlg.setMinimumSize(600, 400)
     elif tool == "wsiprep":
         from image2image.qt.dialog_wsiprep import ImageWsiPrepWindow
 
-        dlg = ImageWsiPrepWindow(None)  # type: ignore[assignment]
+        dlg = ImageWsiPrepWindow(None, run_check_version=run_check_version)  # type: ignore[assignment]
+        dlg.setMinimumSize(1200, 800)
+    elif tool == "wsireg":
+        from image2image.qt.dialog_wsireg import ImageWsiRegWindow
+
+        dlg = ImageWsiRegWindow(None, run_check_version=run_check_version)  # type: ignore[assignment]
         dlg.setMinimumSize(1200, 800)
     else:
         raise ValueError("Launcher is not implemented yet.")

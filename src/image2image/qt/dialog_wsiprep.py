@@ -39,7 +39,7 @@ from tqdm import tqdm
 
 from image2image import __version__
 from image2image.config import CONFIG
-from image2image.enums import ALLOWED_IMAGE_FORMATS_TIFF_ONLY, ALLOWED_WSIPREP_FORMATS
+from image2image.enums import ALLOWED_IMAGE_FORMATS_TIFF_ONLY, ALLOWED_PROJECT_WSIPREP_FORMATS
 from image2image.models.wsiprep import (
     Registration,
     RegistrationGroup,
@@ -54,7 +54,7 @@ from image2image.utils.utilities import ensure_extension, get_contrast_limits, w
 
 if ty.TYPE_CHECKING:
     from image2image.models.data import DataModel
-    from image2image.qt._dialogs._wsiprep import GroupByDialog, MaskDialog
+    from image2image.qt._wsiprep._wsiprep import GroupByDialog, MaskDialog
 
 
 class ImageWsiPrepWindow(Window):
@@ -680,7 +680,7 @@ class ImageWsiPrepWindow(Window):
     def on_open_group_by_popup(self) -> None:
         """Open group-by dialog."""
         if self.group_by_dlg is None:
-            from image2image.qt._dialogs._wsiprep import GroupByDialog
+            from image2image.qt._wsiprep._wsiprep import GroupByDialog
 
             self.group_by_dlg = GroupByDialog(self)
         self.group_by_dlg.show()
@@ -688,14 +688,14 @@ class ImageWsiPrepWindow(Window):
     def on_open_mask_popup(self) -> None:
         """Open group-by dialog."""
         if self.mask_dlg is None:
-            from image2image.qt._dialogs._wsiprep import MaskDialog
+            from image2image.qt._wsiprep._wsiprep import MaskDialog
 
             self.mask_dlg = MaskDialog(self)
         self.mask_dlg.show()
 
     def on_open_iwsireg_popup(self) -> None:
         """Open group-by dialog."""
-        from image2image.qt._dialogs._wsiprep import ConfigDialog
+        from image2image.qt._wsiprep._wsiprep import ConfigDialog
 
         dlg = ConfigDialog(self)
         dlg.show()
@@ -1055,6 +1055,27 @@ class ImageWsiPrepWindow(Window):
         self.statusbar = QStatusBar()  # noqa
         self.statusbar.setSizeGripEnabled(False)
 
+        self.statusbar.addPermanentWidget(hp.make_v_line())
+        self.statusbar.addPermanentWidget(hp.make_label(self, "BF"))
+        self.bf_colormap = hp.make_btn(
+            self,
+            "",
+            tooltip="Brightfield colormap",
+            object_name="colorbar",
+            # func=self.on_make_colormap,
+        )
+        self.statusbar.addPermanentWidget(self.bf_colormap)
+        self.statusbar.addPermanentWidget(hp.make_label(self, "DF"))
+        self.df_colormap = hp.make_btn(
+            self,
+            "",
+            tooltip="Darkfield colormap",
+            object_name="colorbar",
+            # func=self.on_make_colormap,
+        )
+        self.statusbar.addPermanentWidget(self.df_colormap)
+        self.statusbar.addPermanentWidget(hp.make_v_line())
+
         self.common_contrast_limit = hp.make_checkbox(
             self,
             "Common intensity",
@@ -1215,7 +1236,7 @@ class ImageWsiPrepWindow(Window):
             self,
             "Save transformation",
             base_dir=CONFIG.output_dir,
-            file_filter=ALLOWED_WSIPREP_FORMATS,
+            file_filter=ALLOWED_PROJECT_WSIPREP_FORMATS,
             base_filename=filename,
         )
         if path_:
@@ -1235,7 +1256,7 @@ class ImageWsiPrepWindow(Window):
     def on_load_from_project(self) -> None:
         """Load previous data."""
         path_ = hp.get_filename(
-            self, "Load i2c project", base_dir=CONFIG.output_dir, file_filter=ALLOWED_WSIPREP_FORMATS
+            self, "Load i2c project", base_dir=CONFIG.output_dir, file_filter=ALLOWED_PROJECT_WSIPREP_FORMATS
         )
         self._on_load_from_project(path_)
 

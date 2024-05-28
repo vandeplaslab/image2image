@@ -25,7 +25,7 @@ from superqt.utils import GeneratorWorker, create_worker
 
 from image2image import __version__
 from image2image.config import CONFIG
-from image2image.enums import ALLOWED_CROP_FORMATS
+from image2image.enums import ALLOWED_PROJECT_CROP_FORMATS
 from image2image.qt._dialogs._select import LoadWidget
 from image2image.qt.dialog_base import Window
 from image2image.utils.utilities import ensure_extension, init_shapes_layer, log_exception_or_error, write_project
@@ -114,7 +114,7 @@ class ImageCropWindow(Window):
 
     def on_load_from_project(self) -> None:
         """Load previous data."""
-        path_ = hp.get_filename(self, "Load i2c project", base_dir=CONFIG.output_dir, file_filter=ALLOWED_CROP_FORMATS)
+        path_ = hp.get_filename(self, "Load i2c project", base_dir=CONFIG.output_dir, file_filter=ALLOWED_PROJECT_CROP_FORMATS)
         self._on_load_from_project(path_)
 
     def _on_load_from_project(self, path_: str) -> None:
@@ -170,7 +170,7 @@ class ImageCropWindow(Window):
             self,
             "Save transformation",
             base_dir=CONFIG.output_dir,
-            file_filter=ALLOWED_CROP_FORMATS,
+            file_filter=ALLOWED_PROJECT_CROP_FORMATS,
             base_filename=filename,
         )
         if path_:

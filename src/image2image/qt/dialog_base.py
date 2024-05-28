@@ -55,7 +55,7 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
         # check for updates every now and in then every 4 hours
         if run_check_version:
             hp.call_later(self, self.on_check_new_version, 5 * 1000)
-        self.version_timer = hp.make_periodic_timer(self, self.on_check_new_version, 4 * 3600 * 1000)
+            self.version_timer = hp.make_periodic_timer(self, self.on_check_new_version, 4 * 3600 * 1000)
 
         if not delay_events:
             self.setup_events()

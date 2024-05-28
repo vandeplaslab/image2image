@@ -131,13 +131,13 @@ class SelectTransformDialog(QtFramelessTool):
     def on_add_transform(self):
         """Load transformation matrix."""
         from image2image.config import CONFIG
-        from image2image.enums import ALLOWED_EXPORT_REGISTER_FORMATS
+        from image2image.enums import ALLOWED_PROJECT_EXPORT_REGISTER_FORMATS
 
         path = hp.get_filename(
             self,
             "Load transformation",
             base_dir=CONFIG.output_dir,
-            file_filter=ALLOWED_EXPORT_REGISTER_FORMATS,
+            file_filter=ALLOWED_PROJECT_EXPORT_REGISTER_FORMATS,
         )
         self._on_add_transform(path)
 

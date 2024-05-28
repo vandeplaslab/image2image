@@ -5,28 +5,34 @@ from enum import auto
 from image2image_io.enums import ViewType
 from napari.utils.misc import StringEnum
 
-ALLOWED_IMPORT_REGISTER_FORMATS = (
+ALLOWED_PROJECT_IMPORT_REGISTER_FORMATS = (
     "Any transformation (*.i2r.json *.i2r.toml *.toml);; "
     "Transformation (*.i2r.json);; "
     "Transformation (*.i2r.toml);;"
     "imsmicrolink transformation (*.toml);;"
 )
-ALLOWED_EXPORT_REGISTER_FORMATS = (
+ALLOWED_PROJECT_EXPORT_REGISTER_FORMATS = (
     "Any transformation (*.json *.toml);; "
     "Transformation (*.i2r.json);; "
     "Transformation (*.i2r.toml);;"
     "MATLAB fusion format (*.xml);;"
 )
-ALLOWED_VIEWER_FORMATS = (
+ALLOWED_PROJECT_VIEWER_FORMATS = (
     "Any projects (*.i2v.json *.i2v.toml);; " "JSON Project (*.i2v.json);; " "TOML Project (*.i2v.toml);;"
 )
-ALLOWED_CROP_FORMATS = (
+ALLOWED_PROJECT_CROP_FORMATS = (
     "Any projects (*.i2c.json *.i2c.toml);; " "JSON Project (*.i2c.json);; " "TOML Project (*.i2c.toml);;"
 )
-ALLOWED_WSIPREP_FORMATS = (
+ALLOWED_PROJECT_WSIPREP_FORMATS = (
     "Any projects (*.i2wsiprep.json *.i2wsiprep.toml);; "
     "JSON Project (*.i2wsiprep.json);; "
     "TOML Project (*.i2wsiprep.toml);;"
+)
+ALLOWED_PROJECT_WSIREG_FORMATS = (
+    "Any projects (*.i2wsireg.json *.i2wsireg.toml *.config.json);; "
+    "JSON Project (*.i2wsireg.json);; "
+    "TOML Project (*.i2wsireg.toml);;"
+    "I2Reg Project (*.config.json);;"
 )
 ALLOWED_IMAGE_FORMATS = (
     "Any imaging (*.d *.tsf *.tdf *.imzML  *.ibd *.data *.metadata.h5 peaks_*.h5 *.npy *.czi *.ome.tiff *.tiff *.scn"
@@ -67,6 +73,15 @@ ALLOWED_IMAGE_FORMATS_MICROSCOPY_ONLY = (
 ALLOWED_IMAGE_FORMATS_CZI_ONLY = "Any Zeiss CZI (*.czi);;"
 ALLOWED_IMAGE_FORMATS_TIFF_ONLY = (
     "Any OME-TIFF (*.ome.tiff *.tiff *.scn *.tif *.svs *.ndpi *.qptiff *.qptiff.raw *.qptiff.intermediate);; "
+)
+ALLOWED_WSIREG_FORMATS = (
+    "Any imaging (*.czi *.ome.tiff *.tiff *.scn"
+    "*.tif *.qptiff *.qptiff.raw *.qptiff.intermediate *.svs *.ndpi "
+    "*.geojson *.json *.csv *.txt *.parquet);; "
+    "CZI (*.czi);; "
+    "TIFF (*.ome.tiff *.tiff *.scn *.tif *.svs *.ndpi *.qptiff *.qptiff.raw *.qptiff.intermediate);; "
+    "GeoJSON (*.geojson *.json);;"
+    "Points (*.csv *.parquet);;"
 )
 
 
