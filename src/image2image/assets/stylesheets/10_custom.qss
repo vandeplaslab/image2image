@@ -40,7 +40,7 @@ QLabel#reg_warning {
 QLabel#reg_success {
     color: {{ success }};
 }
-QLabel#shortcuts {
+QLabel#shortcuts, QLabel#errors {
     font-size: {{ increase(font_size, 3) }};
 }
 

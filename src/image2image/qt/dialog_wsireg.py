@@ -88,24 +88,23 @@ class ImageWsiRegWindow(Window):
         connect(self.view.widget.canvas.events.key_press, self.keyPressEvent, state=state)
         connect(self.view.viewer.events.status, self._status_changed, state=state)
         connect(self.modality_list.evt_preview, self.on_preview, state=state)
-        connect(self.modality_list.evt_name, self.on_update_modality, state=state)
+        connect(self.modality_list.evt_name, self.on_update_modality_name, state=state)
         connect(self.modality_list.evt_resolution, self.on_update_modality, state=state)
         connect(self.modality_list.evt_show, self.on_show_modality, state=state)
         connect(self.modality_list.evt_preprocessing, self.on_update_modality, state=state)
         connect(self.modality_list.evt_preprocessing_preview, self.on_preview_live, state=state)
 
-    #     # connect(self._image_widget.dataset_dlg.evt_project, self._on_load_from_project, state=state)
-    #     # connect(self._image_widget.dataset_dlg.evt_closed, self.on_remove_image, state=state)
-    #     # connect(self.table.evt_value_checked, self.on_table_updated, state=state)
-    #     # connect(self.table.doubleClicked, self.on_table_double_clicked, state=state)
-    #     # connect(self.table.selectionModel().selectionChanged, qdebounced(self.on_highlight, 50), state=state)
+    def on_update_modality_name(self, old_name: str, modality: Modality) -> None:
+        """Update modality."""
+        self.registration_model.modalities[old_name].name = modality.name
+        self.registration_model.modalities[modality.name] = self.registration_model.modalities.pop(old_name)
 
     def on_update_modality(self, modality: Modality) -> None:
         """Preview image."""
-        self.registration_model.modalities[modality.name].name = modality.name
         self.registration_model.modalities[modality.name].pixel_size = modality.pixel_size
         self.registration_model.modalities[modality.name].preprocessing = modality.preprocessing
         logger.trace(f"Updated modality: {modality.name}")
+        self.registration_map.populate_images()
 
     def on_preview(self, modality: Modality) -> None:
         """Preview image."""
@@ -250,8 +249,19 @@ class ImageWsiRegWindow(Window):
             self.output_dir_label.setText(f"<b>Output directory</b>: {hp.hyper(self.output_dir)}")
             logger.debug(f"Output directory set to {self._output_dir}")
 
-    def on_save_to_i2reg(self):
+    def on_save_to_i2reg(self) -> None:
         """Save project to i2reg."""
+        is_valid, errors = self.registration_model.validate()
+        if not is_valid:
+            from image2image.qt._dialogs._errors import ErrorsDialog
+
+            dlg = ErrorsDialog(self, errors)
+            dlg.show()
+            return
+        self.registration_model.merge_images = self.write_merged_check.isChecked()
+        self.registration_model.name = self.name_label.text()
+        self.registration_model.output_dir = self.output_dir
+        self.registration_model.save()
 
     def _setup_ui(self):
         """Create panel."""
@@ -283,6 +293,38 @@ class ImageWsiRegWindow(Window):
             side_widget, "folder", tooltip="Change output directory", func=self.on_set_output_dir
         )
 
+        self.write_non_transformed_check = hp.make_checkbox(
+            self,
+            "",
+            tooltip="Write original, not-transformed images (those without any transformations such as target).",
+            checked=True,
+        )
+        self.write_transformed_check = hp.make_checkbox(
+            self,
+            "",
+            tooltip="Write original, transformed images.",
+            checked=True,
+        )
+        self.write_merged_check = hp.make_checkbox(
+            self,
+            "",
+            tooltip="Merge non- and transformed images into a single image.",
+            checked=False,
+        )
+        self.as_uint8 = hp.make_checkbox(
+            self,
+            "",
+            tooltip="Convert to uint8 to reduce file size with minimal data loss.",
+            checked=True,
+            value=CONFIG.as_uint8,
+        )
+
+        hidden_settings = hp.make_advanced_collapsible(side_widget, "Advanced options", allow_checkbox=False)
+        hidden_settings.addRow(hp.make_label(self, "Write non-transformed images"), self.write_non_transformed_check)
+        hidden_settings.addRow(hp.make_label(self, "Write transformed images"), self.write_transformed_check)
+        hidden_settings.addRow(hp.make_label(self, "Merge transformed images"), self.write_merged_check)
+        hidden_settings.addRow(hp.make_label(self, "Reduce data size"), self.as_uint8)
+
         side_layout = hp.make_form_layout(side_widget)
         hp.style_form_layout(side_layout)
         side_layout.addRow(
@@ -296,12 +338,13 @@ class ImageWsiRegWindow(Window):
         side_layout.addRow(hp.make_btn(self, "Mask...", tooltip="Set mask", func=self.on_open_mask_dialog))
         side_layout.addRow(hp.make_h_line_with_text("Registration paths"))
         side_layout.addRow(self.registration_map)
-        side_layout.addRow(hp.make_h_line_with_text("I2Reg Project"))
+        side_layout.addRow(hp.make_h_line_with_text("I2Reg project"))
         side_layout.addRow(hp.make_label(side_widget, "Name"), self.name_label)
         side_layout.addRow(
             hp.make_label(side_widget, "Output directory"),
             hp.make_h_layout(self.output_dir_label, self.output_dir_btn, stretch_id=(0,), spacing=1, margin=1),
         )
+        side_layout.addRow(hidden_settings)
         side_layout.addRow(
             hp.make_btn(side_widget, "Save...", tooltip="Export I2Reg project", func=self.on_save_to_i2reg)
         )

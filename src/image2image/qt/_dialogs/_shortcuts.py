@@ -19,10 +19,12 @@ class ShortcutsDialog(QtFramelessTool):
     # noinspection PyAttributeOutsideInit
     def make_panel(self):
         """Make panel."""
-        return hp.make_v_layout(
+        layout = hp.make_v_layout(
             self._make_hide_handle(self.TITLE)[1],
             hp.make_scrollable_label(self, self.SHORTCUTS, object_name="shortcuts", wrap=True),
         )
+        layout.setContentsMargins(6, 6, 6, 6)
+        return layout
 
 
 class RegisterShortcutsDialog(ShortcutsDialog):

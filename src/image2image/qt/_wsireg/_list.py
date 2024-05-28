@@ -26,7 +26,7 @@ class QtModalityItem(QtListItem):
     """
 
     evt_show = Signal(Modality, bool)
-    evt_name = Signal(Modality)
+    evt_name = Signal(str, Modality)
     evt_resolution = Signal(Modality)
     evt_preview = Signal(Modality)
     evt_preprocessing = Signal(Modality)
@@ -126,8 +126,9 @@ class QtModalityItem(QtListItem):
         """Update name."""
         name = self.name_label.text()
         if name:
+            old_name = self.item_model.name
             self.item_model.name = name
-            self.evt_name.emit(self.item_model)
+            self.evt_name.emit(old_name, self.item_model)
         else:
             hp.set_object_name(self.name_label, "error")
 

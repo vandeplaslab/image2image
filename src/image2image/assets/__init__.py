@@ -24,11 +24,12 @@ update_styles({x.stem: str(x) for x in STYLES_PATH.iterdir() if x.suffix == ".qs
 
 update_icon_mapping(
     {
-        # "mask": "mdi6.domino-mask",
+        # wsireg
         "mask": "mdi6.drama-masks",
         "process": "msc.wand",
-        "ipython": "mdi.console",
-        "ruler": "fa5s.ruler-horizontal",
+        "attachment": "ri.attachment-2",
+        "shapes": "fa5s.shapes",
+        # other
         "add": "ri.add-circle-fill",
         "remove": "ri.indeterminate-circle-line",
         "remove_single": "mdi.close-circle",
@@ -41,9 +42,6 @@ update_icon_mapping(
         "swap": "mdi6.swap-vertical-bold",
         "keep_image": "mdi6.check-circle-outline",
         "remove_image": "mdi6.close-circle-outline",
-        "json": "mdi6.code-json",
-        "binary": "msc.file-binary",
-        "hdf5": "fa5s.file",
         # app icons
         "viewer": "fa5.images",
         "register": "fa5s.layer-group",
