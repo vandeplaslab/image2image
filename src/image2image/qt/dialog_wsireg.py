@@ -303,6 +303,23 @@ class ImageWsiRegWindow(Window):
             hp.toast(self, "Saved", f"Saved project to {hp.hyper(path)}.", icon="success", position="top_left")
             logger.info(f"Saved project to {path}")
 
+    def on_load_from_project(self, _evt=None):
+        """Load a previous project."""
+        path_ = hp.get_filename(
+            self, "Load I2Reg project", base_dir=CONFIG.output_dir, file_filter=ALLOWED_WSIREG_FORMATS
+        )
+        self._on_load_from_project(path_)
+
+    def _on_load_from_project(self, path_: str) -> None:
+        if path_:
+            project = IWsiReg.from_path(path_)
+            if project:
+                self._registration_model = project
+                self._image_widget.on_close_dataset()
+                paths = [modality.path for modality in project.modalities.values()]
+                if paths:
+                    self._image_widget.on_set_path(paths)
+
     def _setup_ui(self):
         """Create panel."""
         self.view = self._make_image_view(
