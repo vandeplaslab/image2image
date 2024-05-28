@@ -1,4 +1,14 @@
 
+QWidget#error {
+    border: 2px solid {{ lighten(error, 30) }};
+    border-radius: 2px;
+}
+
+QWidget#warning {
+    border: 2px solid {{ lighten(warning, 30) }};
+    border-radius: 2px;
+}
+
 /* ----------------- QtFramelessPopup ----------------- */
 QtFramelessPopup {
     border: 2px solid {{ highlight }};
@@ -30,7 +40,7 @@ QLabel#reg_warning {
 QLabel#reg_success {
     color: {{ success }};
 }
-QLabel#shortcuts {
+QLabel#shortcuts, QLabel#errors {
     font-size: {{ increase(font_size, 3) }};
 }
 
@@ -104,3 +114,8 @@ QStatusBar QCheckBox::indicator {
 /*QtImagePushButton[wide_border=true]:checked:hover {*/
 /*    background-color: {{ lighten(primary, 30) }};*/
 /*}*/
+
+
+QtModalityItem {
+    border: 2px solid {{ highlight }};
+}

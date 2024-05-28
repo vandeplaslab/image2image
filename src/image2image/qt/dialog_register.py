@@ -29,7 +29,7 @@ from superqt.utils import ensure_main_thread, qdebounced
 
 from image2image import __version__
 from image2image.config import CONFIG
-from image2image.enums import ALLOWED_EXPORT_REGISTER_FORMATS, ALLOWED_IMPORT_REGISTER_FORMATS
+from image2image.enums import ALLOWED_PROJECT_EXPORT_REGISTER_FORMATS, ALLOWED_PROJECT_IMPORT_REGISTER_FORMATS
 from image2image.models.data import DataModel
 from image2image.models.transformation import Transformation
 from image2image.qt._dialogs._select import FixedWidget, MovingWidget
@@ -606,7 +606,7 @@ class ImageRegistrationWindow(Window):
             self,
             "Save transformation",
             base_dir=CONFIG.output_dir,
-            file_filter=ALLOWED_EXPORT_REGISTER_FORMATS,
+            file_filter=ALLOWED_PROJECT_EXPORT_REGISTER_FORMATS,
             base_filename=filename,
         )
         if path_:
@@ -625,7 +625,7 @@ class ImageRegistrationWindow(Window):
     def on_load_from_project(self, _evt: ty.Any = None) -> None:
         """Import transformation."""
         path_ = hp.get_filename(
-            self, "Load transformation", base_dir=CONFIG.output_dir, file_filter=ALLOWED_IMPORT_REGISTER_FORMATS
+            self, "Load transformation", base_dir=CONFIG.output_dir, file_filter=ALLOWED_PROJECT_IMPORT_REGISTER_FORMATS
         )
         self._on_load_from_project(path_)
 

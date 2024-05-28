@@ -120,10 +120,18 @@ class Config(BaseConfig):
     common_intensity: bool = Field(True, title="Common intensity for all images")
 
     first_time_wsiprep: bool = Field(
-        True, title="First time", description="First time running the viewer app.", in_app=True
+        True, title="First time", description="First time running the WsiPrep app.", in_app=True
     )
     confirm_close_wsiprep: bool = Field(
-        True, title="Confirm close", description="Confirm close viewer app.", in_app=True
+        True, title="Confirm close", description="Confirm close WsiPrep app.", in_app=True
+    )
+
+    # WsiReg-app parameters
+    first_time_wsireg: bool = Field(
+        True, title="First time", description="First time running the WsiReg app.", in_app=True
+    )
+    confirm_close_wsireg: bool = Field(
+        True, title="Confirm close", description="Confirm close WsiReg app.", in_app=True
     )
 
     # Viewer-app parameters

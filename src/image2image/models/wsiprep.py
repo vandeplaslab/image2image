@@ -322,7 +322,7 @@ class RegistrationGroup(BaseModel):
                 direct=direct,
             )
         # validate the registration
-        if not obj.validate(allow_not_registered=True):
+        if not obj.validate(allow_not_registered=True)[0]:
             raise ValueError("Invalid registration")
         # save the registration
         obj.save()
@@ -812,7 +812,7 @@ class Registration(BaseModel):
                 )
 
         # validate the registration
-        if not obj.validate(allow_not_registered=True):
+        if not obj.validate(allow_not_registered=True)[0]:
             raise ValueError("Invalid registration")
         # save the registration
         obj.save()

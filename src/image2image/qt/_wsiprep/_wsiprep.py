@@ -220,6 +220,7 @@ class GroupByDialog(WsiPrepMixin):
         )
 
         layout = hp.make_form_layout()
+        layout.setContentsMargins(6, 6, 6, 6)
         layout.addRow(self._make_hide_handle("Group by...")[1])
         layout.addRow(
             hp.make_label(
@@ -459,6 +460,7 @@ class MaskDialog(WsiPrepMixin):
         self.vertical_label = hp.make_label(self, alignment=Qt.AlignmentFlag.AlignCenter, object_name="crop_label")
 
         layout = hp.make_form_layout()
+        layout.setContentsMargins(6, 6, 6, 6)
         layout.addRow(self._make_hide_handle("Mask...")[1])
         layout.addRow(
             hp.make_label(
@@ -744,6 +746,7 @@ class ConfigDialog(WsiPrepMixin):
         self.label.setMinimumHeight(300)
 
         layout = hp.make_form_layout()
+        layout.setContentsMargins(6, 6, 6, 6)
         layout.addRow(self._make_hide_handle("Generate iwsireg config...")[1])
         layout.addRow(
             hp.make_label(

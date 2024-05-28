@@ -19,7 +19,7 @@ from superqt import ensure_main_thread
 
 from image2image import __version__
 from image2image.config import CONFIG
-from image2image.enums import ALLOWED_VIEWER_FORMATS
+from image2image.enums import ALLOWED_PROJECT_VIEWER_FORMATS
 from image2image.qt._dialogs._select import LoadWithTransformWidget
 from image2image.qt.dialog_base import Window
 from image2image.utils.utilities import ensure_extension
@@ -141,7 +141,7 @@ class ImageViewerWindow(Window):
             self.data_model, self.view, channel_list, "view", True
         )
 
-    def on_closing_image(self, model: DataModel, channel_names: list[str]) -> None:
+    def on_closing_image(self, model: DataModel, channel_names: list[str], keys: list[str]) -> None:
         """Close fixed image."""
         self._closing_model(model, channel_names, self.view, "view")
 
@@ -193,7 +193,7 @@ class ImageViewerWindow(Window):
     def on_load_from_project(self, _evt=None):
         """Load a previous project."""
         path_ = hp.get_filename(
-            self, "Load i2v project", base_dir=CONFIG.output_dir, file_filter=ALLOWED_VIEWER_FORMATS
+            self, "Load i2v project", base_dir=CONFIG.output_dir, file_filter=ALLOWED_PROJECT_VIEWER_FORMATS
         )
         self._on_load_from_project(path_)
 
@@ -256,7 +256,7 @@ class ImageViewerWindow(Window):
             self,
             "Save i2v project",
             base_dir=CONFIG.output_dir,
-            file_filter=ALLOWED_VIEWER_FORMATS,
+            file_filter=ALLOWED_PROJECT_VIEWER_FORMATS,
             base_filename=filename,
         )
         if path_:

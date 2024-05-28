@@ -32,6 +32,7 @@ def combined_transform(
     rotation_angle: float | int = 0,
     translation: tuple[float, float] = (0, 0),
     flip_lr: bool = False,
+    flip_ud: bool = False,
 ) -> np.ndarray:
     """Combined transform.
 
@@ -48,12 +49,14 @@ def combined_transform(
     flip = np.eye(3)
     if flip_lr:
         flip = centered_horizontal_flip(image_size, image_spacing)
+    elif flip_ud:
+        flip = centered_vertical_flip(image_size, image_spacing)
     return tran @ rot @ flip  # type: ignore[no-any-return]
 
 
 def scale_transform(image_spacing: tuple[float, float]) -> np.ndarray:
     """Scale transform."""
-    image_spacing = np.asarray(image_spacing)
+    image_spacing = np.asarray(image_spacing)  # type: ignore[assignment]
     transform = np.eye(3)
     transform[0, 0] = image_spacing[0]
     transform[1, 1] = image_spacing[1]
