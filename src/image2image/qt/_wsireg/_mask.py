@@ -11,11 +11,11 @@ import qtextra.helpers as hp
 from loguru import logger
 from napari.layers import Image, Shapes
 from napari.layers.shapes._shapes_constants import Box
-from qtpy.QtWidgets import QLayout
 from qtextra._napari.common.layer_controls.qt_shapes_controls import QtShapesControls
 from qtextra.utils.utilities import connect
 from qtextra.widgets.qt_dialog import QtFramelessTool
 from qtpy.QtCore import Qt, Signal
+from qtpy.QtWidgets import QLayout
 
 from image2image.utils.utilities import init_shapes_layer
 
@@ -183,13 +183,14 @@ class MaskDialog(QtFramelessTool):
             bbox = modality.mask_bbox
             if bbox is None:
                 return []
-            left, top, width, height = bbox
+            left, top, width, height = bbox.x, bbox.y, bbox.width, bbox.height
             right = left + width
             bottom = top + height
             data = np.asarray([[top, left], [top, right], [bottom, right], [bottom, left]])
             data = data * reader.resolution
             return [(data, "rectangle")]
-        yx = modality.mask_polygon * reader.resolution
+        yx = modality.mask_polygon.xy[:, ::-1]
+        yx = yx * reader.resolution
         return [(yx, "polygon")]
 
     def _transform_to_preprocessing(self, modality: Modality) -> tuple:
@@ -209,8 +210,12 @@ class MaskDialog(QtFramelessTool):
         name = self.slide_choice.currentText()
         modality = self._parent.registration_model.modalities[name]
         data = self._transform_from_preprocessing(modality)
-        if data:
-            self.mask_layer.data = data
+        self.mask_layer.data = data or []
+
+        # hide all other image layers
+        if self.only_current.isChecked():
+            for layer in self.view.get_layers_of_type(Image):
+                layer.visible = layer.name == modality.name
 
     def on_associate_mask_with_modality(self) -> None:
         """Associate mask with modality at the specified location."""
@@ -241,6 +246,9 @@ class MaskDialog(QtFramelessTool):
         """Make panel."""
         self.layer_controls = QtShapesControls(self.mask_layer)
         self.slide_choice = hp.make_combobox(self, tooltip="Select modality", func=self.on_select_modality)
+        self.only_current = hp.make_checkbox(
+            self, tooltip="Only show currently selected modality.", func=self.on_select_modality
+        )
         self.initialize_btn = hp.make_btn(self, "Initialize mask", func=self.on_initialize_mask)
         self.add_btn = hp.make_btn(self, "Associate mask", func=self.on_associate_mask_with_modality)
         self.remove_btn = hp.make_btn(self, "Dissociate mask", func=self.on_dissociate_mask_from_modality)
@@ -266,6 +274,7 @@ class MaskDialog(QtFramelessTool):
         layout.addRow(self.layer_controls)
         layout.addRow(hp.make_h_line())
         layout.addRow(hp.make_label(self, "Modality:"), self.slide_choice)
+        layout.addRow(hp.make_label(self, "Show current"), self.only_current)
         layout.addRow(hp.make_label(self, "Horizontal"), self.horizontal_label)
         layout.addRow(hp.make_label(self, "Vertical"), self.vertical_label)
         layout.addRow(hp.make_h_layout(self.initialize_btn, self.add_btn, self.remove_btn))

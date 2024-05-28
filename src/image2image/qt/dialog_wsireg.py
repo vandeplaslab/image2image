@@ -10,6 +10,7 @@ import qtextra.helpers as hp
 from image2image_io.config import CONFIG as READER_CONFIG
 from image2image_reg.models import Modality
 from image2image_reg.workflows.iwsireg import IWsiReg
+from koyo.timer import MeasureTimer
 from loguru import logger
 from qtextra.utils.utilities import connect
 from qtextra.widgets.qt_close_window import QtConfirmCloseDialog
@@ -24,7 +25,6 @@ from image2image.qt._dialogs._select import LoadWidget
 from image2image.qt._wsireg._list import QtModalityList
 from image2image.qt._wsireg._paths import RegistrationMap
 from image2image.qt.dialog_base import Window
-from image2image.utils.utilities import ensure_extension
 
 if ty.TYPE_CHECKING:
     from image2image_reg.models import Preprocessing
@@ -87,12 +87,12 @@ class ImageWsiRegWindow(Window):
         connect(self._image_widget.dataset_dlg.evt_closing, self.on_remove_image, state=state)
         # connect(self.view.widget.canvas.events.key_press, self.keyPressEvent, state=state)
         connect(self.view.viewer.events.status, self._status_changed, state=state)
-        connect(self.modality_list.evt_preview, self.on_preview, state=state)
+        connect(self.modality_list.evt_preview_preprocessing, self.on_preview, state=state)
         connect(self.modality_list.evt_name, self.on_update_modality_name, state=state)
         connect(self.modality_list.evt_resolution, self.on_update_modality, state=state)
         connect(self.modality_list.evt_show, self.on_show_modality, state=state)
-        connect(self.modality_list.evt_preprocessing, self.on_update_modality, state=state)
-        connect(self.modality_list.evt_preprocessing_preview, self.on_preview_live, state=state)
+        connect(self.modality_list.evt_set_preprocessing, self.on_update_modality, state=state)
+        connect(self.modality_list.evt_preview_transform_preprocessing, self.on_preview_live, state=state)
 
     def on_update_modality_name(self, old_name: str, modality: Modality) -> None:
         """Update modality."""
@@ -110,9 +110,32 @@ class ImageWsiRegWindow(Window):
         self.registration_model.modalities[modality.name].preprocessing = modality.preprocessing
         logger.trace(f"Updated modality: {modality.name}")
 
-    def on_preview(self, modality: Modality) -> None:
+    def on_preview(self, modality: Modality, preprocessing: Preprocessing | None = None) -> None:
         """Preview image."""
-        print("preview")
+        from image2image_reg.utils.preprocessing import preprocess_preview
+
+        if preprocessing is None:
+            preprocessing = modality.preprocessing
+
+        wrapper = self.data_model.get_wrapper()
+        if wrapper:
+            layer = self.view.get_layer(modality.name)
+            if layer:
+                layer.visible = False
+            with MeasureTimer() as timer:
+                reader = wrapper.get_reader_for_path(modality.path)
+                image = reader.pyramid[-1]  # get smallest pyramid
+                image = preprocess_preview(image, reader.is_rgb, reader.resolution, preprocessing)
+                self.view.add_image(
+                    image,
+                    name=f"{modality.name} (preview)",
+                    scale=reader.scale_for_pyramid(-1),
+                    blending="additive",
+                    metadata={
+                        "key": reader.key,
+                    },
+                )
+            logger.trace(f"Processed image for preview in {timer()}")
 
     def on_preview_live(self, modality: Modality, preprocessing: Preprocessing):
         """Preview image."""
@@ -154,7 +177,6 @@ class ImageWsiRegWindow(Window):
         if wrapper:
             reader = wrapper.get_reader_for_path(modality.path)
             image = reader.get_channel(0, -1)
-            scale = reader.scale_for_pyramid(-1)
             if not state:
                 layer = self.view.get_layer(modality.name)
                 if layer:
@@ -163,7 +185,7 @@ class ImageWsiRegWindow(Window):
                 self.view.add_image(
                     image,
                     name=modality.name,
-                    scale=scale,
+                    scale=reader.scale_for_pyramid(-1),
                     blending="additive",
                     # contrast_limits=contrast_limits,
                     # affine=model.affine(image.shape),  # type: ignore[arg-type]
@@ -211,7 +233,7 @@ class ImageWsiRegWindow(Window):
                     modality = self.registration_model.remove_modality(path=reader.path)
                     if modality:
                         self.view.remove_layer(modality.name)
-
+                        self.view.remove_layer(f"{modality.name} (preview)")
         # Populate table
         self.modality_list.depopulate()
         self.registration_map.depopulate()

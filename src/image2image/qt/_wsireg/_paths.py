@@ -53,6 +53,8 @@ class RegistrationPaths(QWidget):
         self._path = hp.make_label(self, "<please select transformations>", wrap=True)
 
         layout = hp.make_form_layout(self)
+        layout.setContentsMargins(2, 2, 2, 2)
+        layout.setSpacing(2)
         layout.addRow(
             hp.make_h_layout(
                 self._choice,
@@ -124,6 +126,7 @@ class RegistrationMap(QWidget):
         self._registration_path = RegistrationPaths(self)
         self._registration_path.registration_paths = CONFIG.transformations
         self._warning_label = hp.make_label(self, "", color="warning", wrap=True)
+        self._warning_label.setVisible(False)
         self.add_btn = hp.make_btn(self, "Add path", func=self.on_add_path)
         self.remove_btn = hp.make_btn(self, "Remove path", func=self.on_remove_path)
 

@@ -28,9 +28,9 @@ class QtModalityItem(QtListItem):
     evt_show = Signal(Modality, bool)
     evt_name = Signal(str, Modality)
     evt_resolution = Signal(Modality)
-    evt_preview = Signal(Modality)
-    evt_preprocessing = Signal(Modality)
-    evt_preprocessing_preview = Signal(Modality, Preprocessing)
+    evt_set_preprocessing = Signal(Modality)
+    evt_preview_preprocessing = Signal(Modality, Preprocessing)
+    evt_preview_transform_preprocessing = Signal(Modality, Preprocessing)
 
     _mode: bool = False
     item_model: Modality
@@ -46,14 +46,9 @@ class QtModalityItem(QtListItem):
             tooltip="Name of the modality.",
             func=self.on_update_name,
         )
-        self.resolution_label = hp.make_double_spin_box(
+        self.resolution_label = hp.make_line_edit(
             self,
-            value=0.0,
             tooltip="Resolution of the modality.",
-            minimum=0.0001,
-            maximum=10000,
-            n_decimals=3,
-            single_step=1,
             func=self.on_update_resolution,
         )
         self.preprocessing_btn = hp.make_qta_btn(
@@ -113,7 +108,7 @@ class QtModalityItem(QtListItem):
     def _set_from_model(self, _: ty.Any = None) -> None:
         """Update UI elements."""
         self.name_label.setText(self.item_model.name)
-        self.resolution_label.setValue(self.item_model.pixel_size)
+        self.resolution_label.setText(f"{self.item_model.pixel_size:.3f}")
         self.preprocessing_label.setText(self.item_model.preprocessing.as_str())
         self.mask_icon.setVisible(self.item_model.is_masked())  # TODO: change to pre-processing
         self.crop_icon.setVisible(self.item_model.preprocessing.is_cropped())
@@ -134,7 +129,7 @@ class QtModalityItem(QtListItem):
 
     def on_update_resolution(self) -> None:
         """Update resolution."""
-        self.item_model.pixel_size = self.resolution_label.value()
+        self.item_model.pixel_size = float(self.resolution_label.text())
         self.evt_resolution.emit(self.item_model)
 
     def on_open_preprocessing(self) -> None:
@@ -143,9 +138,9 @@ class QtModalityItem(QtListItem):
 
         dlg = PreprocessingDialog(self.item_model, parent=self)
         dlg.evt_update.connect(self.on_update_preprocessing)
-        dlg.evt_preview.connect(self.evt_preview.emit)
-        dlg.evt_preprocessing.connect(self.on_set_preprocessing)
-        dlg.evt_preprocessing_preview.connect(self.evt_preprocessing_preview.emit)
+        dlg.evt_preview_preprocessing.connect(self.evt_preview_preprocessing.emit)
+        dlg.evt_set_preprocessing.connect(self.on_set_preprocessing)
+        dlg.evt_preview_transform_preprocessing.connect(self.evt_preview_transform_preprocessing.emit)
         dlg.show()
 
     def on_update_preprocessing(self, preprocessing: Preprocessing) -> None:
@@ -156,7 +151,7 @@ class QtModalityItem(QtListItem):
         """Set pre-processing."""
         self.item_model.preprocessing = preprocessing
         self._set_from_model()
-        self.evt_preprocessing.emit(self.item_model)
+        self.evt_set_preprocessing.emit(self.item_model)
         logger.debug(f"Pre-processing set for {self.item_model.name}.")
 
     def toggle_name(self, state: bool) -> None:
@@ -178,9 +173,9 @@ class QtModalityList(QtListWidget):
     evt_show = Signal(Modality, bool)
     evt_name = Signal(str, Modality)
     evt_resolution = Signal(Modality)
-    evt_preview = Signal(Modality)
-    evt_preprocessing = Signal(Modality)
-    evt_preprocessing_preview = Signal(Modality, Preprocessing)
+    evt_set_preprocessing = Signal(Modality)
+    evt_preview_preprocessing = Signal(Modality, Preprocessing)
+    evt_preview_transform_preprocessing = Signal(Modality, Preprocessing)
     evt_remove = Signal(Modality)
 
     def __init__(self, parent: QWidget):
@@ -198,9 +193,9 @@ class QtModalityList(QtListWidget):
         widget.evt_show.connect(self.evt_show.emit)
         widget.evt_name.connect(self.evt_name.emit)
         widget.evt_resolution.connect(self.evt_resolution.emit)
-        widget.evt_preview.connect(self.evt_preview.emit)
-        widget.evt_preprocessing.connect(self.evt_preprocessing.emit)
-        widget.evt_preprocessing_preview.connect(self.evt_preprocessing_preview.emit)
+        widget.evt_preview_preprocessing.connect(self.evt_preview_preprocessing.emit)
+        widget.evt_set_preprocessing.connect(self.evt_set_preprocessing.emit)
+        widget.evt_preview_transform_preprocessing.connect(self.evt_preview_transform_preprocessing.emit)
         widget.on_show_image()
         return widget
 

@@ -21,9 +21,9 @@ class PreprocessingDialog(QtFramelessTool):
     """Pre-processing."""
 
     evt_update = Signal(object)  # used to update the model
-    evt_preview = Signal(object, object)  # used to preview the entire preprocessing pipeline
-    evt_preprocessing_preview = Signal(object, object)  # used to preview the preprocessing (spatial)
-    evt_preprocessing = Signal(object)  # used to set the preprocessing
+    evt_preview_preprocessing = Signal(object, object)  # used to preview the entire preprocessing pipeline
+    evt_preview_transform_preprocessing = Signal(object, object)  # used to preview the preprocessing (spatial)
+    evt_set_preprocessing = Signal(object)  # used to set the preprocessing
 
     TABLE_CONFIG = (
         TableConfig()  # type: ignore[no-untyped-call]
@@ -41,6 +41,12 @@ class PreprocessingDialog(QtFramelessTool):
         self.preprocessing = deepcopy(modality.preprocessing)
         self.original_hash = hash_parameters(**self.preprocessing.to_dict())
         self.set_from_model()
+
+    def on_preview_preprocessing(self) -> None:
+        """Preview preprocessing."""
+        if not self.preview_check.isChecked():
+            return
+        self.evt_preview_preprocessing.emit(self.modality, self.preprocessing)
 
     def set_from_model(self):
         """Set from model."""
@@ -89,31 +95,8 @@ class PreprocessingDialog(QtFramelessTool):
         self.preprocessing.rotate_counter_clockwise = self.rotate_spin.value()
         self.preprocessing.downsample = self.downsample_spin.value()
         self.evt_update.emit(self.preprocessing)
-        self.evt_preprocessing_preview.emit(self.modality, self.preprocessing)
-
-    def on_preview_preprocessing(self) -> None:
-        """Preview preprocessing."""
-        if not self.preview_check.isChecked():
-            return
-        self.evt_preview.emit(self.modality, self.preprocessing)
-
-    def accept(self) -> None:
-        """Set model."""
-        self.evt_update.emit(self.preprocessing)
-        self.evt_preprocessing.emit(self.preprocessing)
-        super().accept()
-
-    def close(self) -> bool:
-        """Hide dialog rather than delete it."""
-        new_hash = hash_parameters(**self.preprocessing.to_dict())
-        if new_hash != self.original_hash and not hp.confirm(
-            self,
-            "You've made changes to the pre-processing settings. Closing will discard them. "
-            "<br><b>Are you sure you wish to continue?</b>",
-        ):
-            return
-        self.evt_update.emit(self.modality.preprocessing)
-        super().close()
+        self.evt_preview_transform_preprocessing.emit(self.modality, self.preprocessing)
+        self.on_preview_preprocessing()
 
     def on_set_defaults(self, _=None) -> None:
         """Set defaults."""
@@ -136,7 +119,26 @@ class PreprocessingDialog(QtFramelessTool):
         self.preprocessing = new_preprocessing
         self.set_from_model()
         self.evt_update.emit(self.preprocessing)
-        self.evt_preprocessing_preview.emit(self.modality, self.preprocessing)
+        self.evt_preview_transform_preprocessing.emit(self.modality, self.preprocessing)
+        self.on_preview_preprocessing()
+
+    def accept(self) -> None:
+        """Set model."""
+        self.evt_update.emit(self.preprocessing)
+        self.evt_set_preprocessing.emit(self.preprocessing)
+        super().accept()
+
+    def close(self) -> bool:
+        """Hide dialog rather than delete it."""
+        new_hash = hash_parameters(**self.preprocessing.to_dict())
+        if new_hash != self.original_hash and not hp.confirm(
+            self,
+            "You've made changes to the pre-processing settings. Closing will discard them. "
+            "<br><b>Are you sure you wish to continue?</b>",
+        ):
+            return
+        self.evt_update.emit(self.modality.preprocessing)
+        super().close()
 
     # noinspection PyAttributeOutsideInit
     def make_panel(self) -> QFormLayout:
@@ -199,7 +201,7 @@ class PreprocessingDialog(QtFramelessTool):
             value=0,
             minimum=-360,
             maximum=360,
-            step_size=45,
+            step_size=15,
             suffix="°",
             tooltip="Rotate (counter-clockwise)",
             func=self.on_update_model,
