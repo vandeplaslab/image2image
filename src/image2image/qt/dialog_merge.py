@@ -211,7 +211,7 @@ class ImageMergeWindow(Window):
             if reader:
                 paths.append(reader.path)
                 image_shapes.append(reader.image_shape)
-                pixel_sizes.append(reader.resolution)
+                pixel_sizes.append(f"{reader.resolution:.3f}")
 
         name = self.name_edit.text().strip()
 

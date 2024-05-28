@@ -94,7 +94,6 @@ class FiducialsDialog(QtFramelessTool):
                     with parent.fixed_points_layer.events.data.blocker(self.on_load):
                         parent.moving_points_layer.data = moving_points
                 logger.debug(f"Deleted index '{index}' from fiducial table")
-                self.table.remove_row(index)
             self.evt_update.emit()
 
     def on_double_click(self, index: QModelIndex) -> None:
