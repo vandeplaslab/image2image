@@ -12,6 +12,8 @@ from image2image_reg.models import Modality
 from image2image_reg.workflows.iwsireg import IWsiReg
 from koyo.timer import MeasureTimer
 from loguru import logger
+
+from koyo.typing import PathLike
 from qtextra.utils.utilities import connect
 from qtextra.widgets.qt_close_window import QtConfirmCloseDialog
 from qtpy.QtWidgets import QDialog, QHBoxLayout, QStatusBar, QVBoxLayout, QWidget
@@ -19,7 +21,7 @@ from superqt import ensure_main_thread
 
 from image2image import __version__
 from image2image.config import CONFIG
-from image2image.enums import ALLOWED_WSIREG_FORMATS
+from image2image.enums import ALLOWED_WSIREG_FORMATS, ALLOWED_PROJECT_WSIREG_FORMATS
 from image2image.models.data import DataModel
 from image2image.qt._dialogs._select import LoadWidget
 from image2image.qt._wsireg._list import QtModalityList
@@ -268,6 +270,10 @@ class ImageWsiRegWindow(Window):
         #     self._mask_dlg.evt_mask.connect(self.modality_list.toggle_mask)
         # self._mask_dlg.show()
 
+    def on_set_output_dir(self) -> None:
+        """Set output directory."""
+        self.output_dir = hp.get_directory(self, "Select output directory", CONFIG.output_dir)
+
     @property
     def output_dir(self) -> Path:
         """Output directory."""
@@ -277,9 +283,8 @@ class ImageWsiRegWindow(Window):
             return Path(CONFIG.output_dir)
         return Path(self._output_dir)
 
-    def on_set_output_dir(self):
-        """Set output directory."""
-        directory = hp.get_directory(self, "Select output directory", CONFIG.output_dir)
+    @output_dir.setter
+    def output_dir(self, directory: PathLike) -> None:
         if directory:
             self._output_dir = directory
             CONFIG.output_dir = directory
@@ -306,15 +311,18 @@ class ImageWsiRegWindow(Window):
     def on_load_from_project(self, _evt=None):
         """Load a previous project."""
         path_ = hp.get_filename(
-            self, "Load I2Reg project", base_dir=CONFIG.output_dir, file_filter=ALLOWED_WSIREG_FORMATS
+            self, "Load I2Reg project", base_dir=CONFIG.output_dir, file_filter=ALLOWED_PROJECT_WSIREG_FORMATS
         )
         self._on_load_from_project(path_)
 
-    def _on_load_from_project(self, path_: str) -> None:
+    def _on_load_from_project(self, path_: PathLike) -> None:
         if path_:
-            project = IWsiReg.from_path(path_)
+            path_ = Path(path_)
+            project = IWsiReg.from_path(path_.parent)
             if project:
                 self._registration_model = project
+                self.output_dir = project.output_dir
+                self.name_label.setText(project.name)
                 self._image_widget.on_close_dataset()
                 paths = [modality.path for modality in project.modalities.values()]
                 if paths:
