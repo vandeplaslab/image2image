@@ -594,66 +594,53 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
                 "App not available on this platform.",
             )
             return
-
-        from image2image.qt.dialog_convert import ImageConvertWindow
-
-        logger.debug("Opening image2tiff application.")
-        dlg = ImageConvertWindow(None, run_check_version=False)
-        THEMES.set_theme_stylesheet(dlg)
-        dlg.setMinimumSize(600, 700)
-        dlg.show()
+        create_new_window("convert")
 
     @staticmethod
     def on_open_fusion():
         """Open registration application."""
-        from image2image.qt.dialog_fusion import ImageFusionWindow
-
-        logger.debug("Opening export application.")
-        dlg = ImageFusionWindow(None, run_check_version=False)
-        THEMES.set_theme_stylesheet(dlg)
-        dlg.setMinimumSize(600, 700)
-        dlg.show()
+        create_new_window("fusion")
 
     @staticmethod
     def on_open_merge():
         """Open registration application."""
-        from image2image.qt.dialog_merge import ImageMergeWindow
-
-        logger.debug("Opening merge2tiff application.")
-        dlg = ImageMergeWindow(None, run_check_version=False)
-        THEMES.set_theme_stylesheet(dlg)
-        dlg.setMinimumSize(600, 700)
-        dlg.show()
+        create_new_window("merge")
 
     @staticmethod
     def on_open_register():
         """Open registration application."""
-        from image2image.qt.dialog_register import ImageRegistrationWindow
-
-        logger.debug("Opening registration application.")
-        dlg = ImageRegistrationWindow(None, run_check_version=False)
-        THEMES.set_theme_stylesheet(dlg)
-        dlg.setMinimumSize(1200, 700)
-        dlg.show()
+        create_new_window("register")
 
     @staticmethod
     def on_open_viewer():
         """Open registration application."""
-        from image2image.qt.dialog_viewer import ImageViewerWindow
-
-        logger.debug("Opening viewer application.")
-        dlg = ImageViewerWindow(None, run_check_version=False)
-        THEMES.set_theme_stylesheet(dlg)
-        dlg.setMinimumSize(1200, 700)
-        dlg.show()
+        create_new_window("viewer")
 
     @staticmethod
     def on_open_crop():
         """Open registration application."""
-        from image2image.qt.dialog_crop import ImageCropWindow
+        create_new_window("crop")
 
-        logger.debug("Opening crop application.")
-        dlg = ImageCropWindow(None, run_check_version=False)
-        THEMES.set_theme_stylesheet(dlg)
-        dlg.setMinimumSize(1200, 700)
-        dlg.show()
+
+def create_new_window(plugin: str) -> None:
+    """Create new window."""
+    import sys
+    from qtpy.QtCore import QProcess
+    from koyo.system import IS_WIN
+
+    process = QProcess()
+    args = sys.argv
+    program = args.pop(0)
+    process.setProgram(program)
+    # create arguments
+    for k in ["convert", "register", "viewer", "crop", "merge", "fusion", "wsiprep"]:
+        if k in args:
+            index = args.index(k)
+            args[index] = plugin
+            break
+    logger.trace(f"Executing {sys.executable} {' '.join(args)}...")
+    if IS_WIN and hasattr(process, "setNativeArguments"):
+        process.setNativeArguments(" ".join(args))
+    else:
+        process.setArguments(args)
+    process.startDetached()
