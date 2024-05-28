@@ -48,7 +48,7 @@ class PreprocessingDialog(QtFramelessTool):
             return
         self.evt_preview_preprocessing.emit(self.modality, self.preprocessing)
 
-    def set_from_model(self):
+    def set_from_model(self) -> None:
         """Set from model."""
         with self.setting_config():
             self.type_choice.setCurrentIndex({"BF": 0, "FL": 1}[self.preprocessing.image_type])
@@ -62,6 +62,7 @@ class PreprocessingDialog(QtFramelessTool):
             self.rotate_spin.setValue(self.preprocessing.rotate_counter_clockwise)
             self.downsample_spin.setValue(self.preprocessing.downsample)
             self.set_selected_channels()
+        self.on_preview_preprocessing()
 
     def set_selected_channels(self) -> None:
         """Set selected channels."""
@@ -210,7 +211,7 @@ class PreprocessingDialog(QtFramelessTool):
             self, default=1, minimum=1, maximum=10, tooltip="Downsample", func=self.on_update_model
         )
 
-        self.preview_check = hp.make_checkbox(self, "", func=self.on_preview_preprocessing)
+        self.preview_check = hp.make_checkbox(self, "", func=self.on_preview_preprocessing, value=True)
 
         layout = hp.make_form_layout()
         layout.setContentsMargins(6, 6, 6, 6)
