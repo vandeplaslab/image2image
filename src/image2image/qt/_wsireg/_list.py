@@ -176,7 +176,7 @@ class QtModalityList(QtListWidget):
     """List of notifications."""
 
     evt_show = Signal(Modality, bool)
-    evt_name = Signal(Modality)
+    evt_name = Signal(str, Modality)
     evt_resolution = Signal(Modality)
     evt_preview = Signal(Modality)
     evt_preprocessing = Signal(Modality)

@@ -20,7 +20,6 @@ class ErrorsDialog(QtFramelessTool):
         sh = self.errors.sizeHint()
         width = min(sh.width() + 250, 600)
         height = min(sh.height() + 100, 400)
-        print(width, height)
         self.setMinimumWidth(width)
         self.setMinimumHeight(height)
 

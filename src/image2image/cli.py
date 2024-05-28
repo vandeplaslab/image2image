@@ -7,7 +7,7 @@ from koyo.system import IS_MAC, IS_MAC_ARM, IS_PYINSTALLER
 
 from image2image import __version__
 
-AVAILABLE_TOOLS = ["launcher", "register", "viewer", "crop", "wsiprep", "fusion", "convert", "merge"]
+AVAILABLE_TOOLS = ["launcher", "register", "viewer", "crop", "wsiprep", "wsireg", "fusion", "convert", "merge"]
 if IS_MAC_ARM and IS_PYINSTALLER:
     AVAILABLE_TOOLS.pop(AVAILABLE_TOOLS.index("convert"))
 

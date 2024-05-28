@@ -114,7 +114,9 @@ class ImageCropWindow(Window):
 
     def on_load_from_project(self) -> None:
         """Load previous data."""
-        path_ = hp.get_filename(self, "Load i2c project", base_dir=CONFIG.output_dir, file_filter=ALLOWED_PROJECT_CROP_FORMATS)
+        path_ = hp.get_filename(
+            self, "Load i2c project", base_dir=CONFIG.output_dir, file_filter=ALLOWED_PROJECT_CROP_FORMATS
+        )
         self._on_load_from_project(path_)
 
     def _on_load_from_project(self, path_: str) -> None:

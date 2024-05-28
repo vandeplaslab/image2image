@@ -64,9 +64,9 @@ class ImageWsiRegWindow(Window):
     def registration_model(self) -> IWsiReg | None:
         """Registration model."""
         if self._registration_model is None:
-            self._registration_model = IWsiReg(
-                name=self.name_label.text() or "project", output_dir=CONFIG.output_dir, init=False
-            )
+            name = self.name_label.text() or "project"
+            name = IWsiReg.format_project_name(name)
+            self._registration_model = IWsiReg(name=name, output_dir=CONFIG.output_dir, init=False)
         return self._registration_model
 
     @property
@@ -85,7 +85,7 @@ class ImageWsiRegWindow(Window):
         """Setup events."""
         connect(self._image_widget.dataset_dlg.evt_loaded, self.on_load_image, state=state)
         connect(self._image_widget.dataset_dlg.evt_closing, self.on_remove_image, state=state)
-        connect(self.view.widget.canvas.events.key_press, self.keyPressEvent, state=state)
+        # connect(self.view.widget.canvas.events.key_press, self.keyPressEvent, state=state)
         connect(self.view.viewer.events.status, self._status_changed, state=state)
         connect(self.modality_list.evt_preview, self.on_preview, state=state)
         connect(self.modality_list.evt_name, self.on_update_modality_name, state=state)
@@ -98,13 +98,17 @@ class ImageWsiRegWindow(Window):
         """Update modality."""
         self.registration_model.modalities[old_name].name = modality.name
         self.registration_model.modalities[modality.name] = self.registration_model.modalities.pop(old_name)
+        layer = self.view.get_layer(old_name)
+        if layer:
+            layer.name = modality.name
+        self.registration_map.populate_images()
+        logger.trace(f"Updated modality name: {old_name} -> {modality.name}")
 
     def on_update_modality(self, modality: Modality) -> None:
         """Preview image."""
         self.registration_model.modalities[modality.name].pixel_size = modality.pixel_size
         self.registration_model.modalities[modality.name].preprocessing = modality.preprocessing
         logger.trace(f"Updated modality: {modality.name}")
-        self.registration_map.populate_images()
 
     def on_preview(self, modality: Modality) -> None:
         """Preview image."""
@@ -246,12 +250,12 @@ class ImageWsiRegWindow(Window):
         if directory:
             self._output_dir = directory
             CONFIG.output_dir = directory
-            self.output_dir_label.setText(f"<b>Output directory</b>: {hp.hyper(self.output_dir)}")
+            self.output_dir_label.setText(hp.hyper(self.output_dir))
             logger.debug(f"Output directory set to {self._output_dir}")
 
     def on_save_to_i2reg(self) -> None:
         """Save project to i2reg."""
-        is_valid, errors = self.registration_model.validate()
+        is_valid, errors = self.registration_model.validate(require_paths=True)
         if not is_valid:
             from image2image.qt._dialogs._errors import ErrorsDialog
 
@@ -261,7 +265,10 @@ class ImageWsiRegWindow(Window):
         self.registration_model.merge_images = self.write_merged_check.isChecked()
         self.registration_model.name = self.name_label.text()
         self.registration_model.output_dir = self.output_dir
-        self.registration_model.save()
+        path = self.registration_model.save()
+        if path:
+            hp.toast(self, "Saved", f"Saved project to {hp.hyper(path)}.", icon="success", position="top_left")
+            logger.info(f"Saved project to {path}")
 
     def _setup_ui(self):
         """Create panel."""
@@ -284,7 +291,9 @@ class ImageWsiRegWindow(Window):
 
         self.modality_list = QtModalityList(self)
         self.registration_map = RegistrationMap(self)
-        self.name_label = hp.make_label(side_widget, "Name", tooltip="Name of the project")
+        self.name_label = hp.make_line_edit(
+            side_widget, "Name", tooltip="Name of the project", placeholder="e.g. project.wsireg"
+        )
         self.output_dir_label = hp.make_label(
             side_widget, "Output directory", tooltip="Output directory", enable_url=True
         )
