@@ -27,6 +27,7 @@ update_icon_mapping(
         # wsireg
         "mask": "mdi6.drama-masks",
         "process": "msc.wand",
+        "preview": "mdi6.image-edit",
         "attachment": "ri.attachment-2",
         "shapes": "fa5s.shapes",
         # other

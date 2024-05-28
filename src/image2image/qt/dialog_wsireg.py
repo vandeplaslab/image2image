@@ -124,8 +124,7 @@ class ImageWsiRegWindow(Window):
                 layer.visible = False
             with MeasureTimer() as timer:
                 reader = wrapper.get_reader_for_path(modality.path)
-                image = reader.pyramid[-1]  # get smallest pyramid
-                image = preprocess_preview(image, reader.is_rgb, reader.resolution, preprocessing)
+                image = preprocess_preview(reader.pyramid[-1], reader.is_rgb, reader.resolution, preprocessing)
                 self.view.add_image(
                     image,
                     name=f"{modality.name} (preview)",
@@ -171,14 +170,26 @@ class ImageWsiRegWindow(Window):
         else:
             logger.warning(f"Failed to load data - model={model}")
 
-    def on_show_modality(self, modality: Modality, state: bool = True) -> None:
+    def on_show_modalities(self) -> None:
+        """Show modality images."""
+        for _, modality, widget in self.modality_list.item_model_widget_iter():
+            self.on_show_modality(modality, state=widget.visible_btn.visible, overwrite=True)
+
+    def on_show_modality(self, modality: Modality, state: bool = True, overwrite: bool = False) -> None:
         """Preview image."""
+        from image2image_reg.utils.preprocessing import preprocess_preview
+
         wrapper = self.data_model.get_wrapper()
         if wrapper:
             reader = wrapper.get_reader_for_path(modality.path)
-            image = reader.get_channel(0, -1)
+            if self.use_preview_check.isChecked():
+                image = preprocess_preview(reader.pyramid[-1], reader.is_rgb, reader.resolution, modality.preprocessing)
+            else:
+                image = reader.get_channel(0, -1)
+            layer = self.view.get_layer(modality.name)
+            if overwrite and layer:
+                self.view.remove_layer(modality.name)
             if not state:
-                layer = self.view.get_layer(modality.name)
                 if layer:
                     layer.visible = state
             else:
@@ -323,6 +334,13 @@ class ImageWsiRegWindow(Window):
         self.output_dir_btn = hp.make_qta_btn(
             side_widget, "folder", tooltip="Change output directory", func=self.on_set_output_dir
         )
+        self.use_preview_check = hp.make_checkbox(
+            self,
+            "",
+            tooltip="Use preview image for viewing instead of the first channel only.",
+            checked=False,
+            func=self.on_show_modalities,
+        )
 
         self.write_non_transformed_check = hp.make_checkbox(
             self,
@@ -367,6 +385,7 @@ class ImageWsiRegWindow(Window):
         side_layout.addRow(self._image_widget)
         side_layout.addRow(self.modality_list)
         side_layout.addRow(hp.make_btn(self, "Mask...", tooltip="Set mask", func=self.on_open_mask_dialog))
+        side_layout.addRow(hp.make_label(self, "Use preview image"), self.use_preview_check)
         side_layout.addRow(hp.make_h_line_with_text("Registration paths"))
         side_layout.addRow(self.registration_map)
         side_layout.addRow(hp.make_h_line_with_text("I2Reg project"))

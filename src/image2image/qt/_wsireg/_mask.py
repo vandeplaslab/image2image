@@ -215,7 +215,7 @@ class MaskDialog(QtFramelessTool):
         # hide all other image layers
         if self.only_current.isChecked():
             for layer in self.view.get_layers_of_type(Image):
-                layer.visible = layer.name == modality.name
+                layer.visible = layer.name in (modality.name, f"{modality.name} (preview)")
 
     def on_associate_mask_with_modality(self) -> None:
         """Associate mask with modality at the specified location."""

@@ -58,6 +58,13 @@ class QtModalityItem(QtListItem):
             func=self.on_open_preprocessing,
             normal=True,
         )
+        self.preview_btn = hp.make_qta_btn(
+            self,
+            "preview",
+            tooltip="Click here to set immediately preview image parameters.",
+            func=self.on_preview,
+            normal=True,
+        )
         self.preprocessing_label = hp.make_scrollable_label(
             self, "<no pre-processing>", alignment=Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop
         )
@@ -85,7 +92,7 @@ class QtModalityItem(QtListItem):
         lay = QHBoxLayout()
         lay.setContentsMargins(0, 0, 0, 0)
         lay.setSpacing(0)
-        lay.addWidget(self.preprocessing_btn, alignment=Qt.AlignmentFlag.AlignTop)
+        lay.addLayout(hp.make_v_layout(self.preprocessing_btn, self.preview_btn, stretch_after=True))
         lay.addWidget(self.preprocessing_label, alignment=Qt.AlignmentFlag.AlignTop, stretch=True)
 
         layout = hp.make_form_layout()
@@ -142,6 +149,10 @@ class QtModalityItem(QtListItem):
         dlg.evt_set_preprocessing.connect(self.on_set_preprocessing)
         dlg.evt_preview_transform_preprocessing.connect(self.evt_preview_transform_preprocessing.emit)
         dlg.show()
+
+    def on_preview(self) -> None:
+        """Preview image"""
+        self.evt_preview_preprocessing.emit(self.item_model, self.item_model.preprocessing)
 
     def on_update_preprocessing(self, preprocessing: Preprocessing) -> None:
         """Update pre-processing."""
