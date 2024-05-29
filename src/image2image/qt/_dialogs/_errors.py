@@ -17,11 +17,11 @@ class ErrorsDialog(QtFramelessTool):
         if isinstance(errors, list):
             errors = "\n".join(errors)
         self.errors.setText(errors)
-        sh = self.errors.sizeHint()
-        width = min(sh.width() + 250, 600)
-        height = min(sh.height() + 100, 400)
-        self.setMinimumWidth(width)
-        self.setMinimumHeight(height)
+        # sh = self.errors.sizeHint()
+        # width = min(sh.width() + 250, 600)
+        # height = min(sh.height() + 100, 400)
+        self.setMinimumWidth(600)
+        self.setMinimumHeight(400)
 
     # noinspection PyAttributeOutsideInit
     def make_panel(self):

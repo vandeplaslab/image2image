@@ -202,7 +202,7 @@ class PreprocessingDialog(QtFramelessTool):
             value=0,
             minimum=-360,
             maximum=360,
-            step_size=15,
+            step_size=5,
             suffix="°",
             tooltip="Rotate (counter-clockwise)",
             func=self.on_update_model,
@@ -216,6 +216,15 @@ class PreprocessingDialog(QtFramelessTool):
         layout = hp.make_form_layout()
         layout.setContentsMargins(6, 6, 6, 6)
         layout.addRow(self._make_close_handle("Pre-processing")[1])
+        layout.addRow(
+            hp.make_label(
+                self,
+                "Pre-processing will be applied to the image before registration. You want images that look most"
+                " alike to each other as it will improve registration.<br><b>Note</b> If you are using spatial"
+                " transformations, make sure images are not cropped.",
+                wrap=True,
+            )
+        )
         layout.addRow("Defaults", self.defaults_choice_lay)
         layout.addRow(hp.make_h_line_with_text("Intensity", self))
         layout.addRow("Image type", self.type_choice)
@@ -230,7 +239,11 @@ class PreprocessingDialog(QtFramelessTool):
             "Translate (x)",
             hp.make_h_layout(
                 self.translate_x,
-                hp.make_warning_label(self, "Setting this value is not fully supported yet.", small=True),
+                hp.make_warning_label(
+                    self,
+                    "Setting this value is not fully supported yet. Positive values might result in cropped images.",
+                    small=True,
+                ),
                 stretch_id=(0,),
                 margin=0,
                 spacing=0,
@@ -240,7 +253,11 @@ class PreprocessingDialog(QtFramelessTool):
             "Translate (y)",
             hp.make_h_layout(
                 self.translate_y,
-                hp.make_warning_label(self, "Setting this value is not fully supported yet.", small=True),
+                hp.make_warning_label(
+                    self,
+                    "Setting this value is not fully supported yet. Positive values might result in cropped images.",
+                    small=True,
+                ),
                 stretch_id=(0,),
                 margin=0,
                 spacing=0,

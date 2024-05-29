@@ -12,6 +12,7 @@ from image2image_reg.models import Modality
 from image2image_reg.workflows.iwsireg import IWsiReg
 from koyo.timer import MeasureTimer
 from loguru import logger
+from napari.layers import Image
 from qtextra.utils.utilities import connect
 from qtextra.widgets.qt_close_window import QtConfirmCloseDialog
 from qtpy.QtWidgets import QDialog, QHBoxLayout, QStatusBar, QVBoxLayout, QWidget
@@ -87,12 +88,15 @@ class ImageWsiRegWindow(Window):
         connect(self._image_widget.dataset_dlg.evt_closing, self.on_remove_image, state=state)
         # connect(self.view.widget.canvas.events.key_press, self.keyPressEvent, state=state)
         connect(self.view.viewer.events.status, self._status_changed, state=state)
+
+        connect(self.modality_list.evt_hide_others, self.on_hide_modalities, state=state)
         connect(self.modality_list.evt_preview_preprocessing, self.on_preview, state=state)
         connect(self.modality_list.evt_name, self.on_update_modality_name, state=state)
         connect(self.modality_list.evt_resolution, self.on_update_modality, state=state)
         connect(self.modality_list.evt_show, self.on_show_modality, state=state)
         connect(self.modality_list.evt_set_preprocessing, self.on_update_modality, state=state)
         connect(self.modality_list.evt_preview_transform_preprocessing, self.on_preview_live, state=state)
+        connect(self.modality_list.evt_preprocessing_close, self.on_preview_close, state=state)
 
     def on_update_modality_name(self, old_name: str, modality: Modality) -> None:
         """Update modality."""
@@ -124,11 +128,12 @@ class ImageWsiRegWindow(Window):
                 layer.visible = False
             with MeasureTimer() as timer:
                 reader = wrapper.get_reader_for_path(modality.path)
-                image = preprocess_preview(reader.pyramid[-1], reader.is_rgb, reader.resolution, preprocessing)
+                scale = reader.scale_for_pyramid(-1)
+                image = preprocess_preview(reader.pyramid[-1], reader.is_rgb, scale[0], preprocessing)
                 self.view.add_image(
                     image,
                     name=f"{modality.name} (preview)",
-                    scale=reader.scale_for_pyramid(-1),
+                    scale=scale,
                     blending="additive",
                     metadata={
                         "key": reader.key,
@@ -159,6 +164,10 @@ class ImageWsiRegWindow(Window):
             if layer:
                 layer.affine = matrix
 
+    def on_preview_close(self, modality: Modality) -> None:
+        """Preview window was closed."""
+        self.view.remove_layer(f"{modality.name} (preview)")
+
     @ensure_main_thread
     def on_load_image(self, model: DataModel, _channel_list: list[str]) -> None:
         """Load fixed image."""
@@ -172,8 +181,15 @@ class ImageWsiRegWindow(Window):
 
     def on_show_modalities(self) -> None:
         """Show modality images."""
+        self.modality_list.toggle_preview(self.use_preview_check.isChecked())
         for _, modality, widget in self.modality_list.item_model_widget_iter():
             self.on_show_modality(modality, state=widget.visible_btn.visible, overwrite=True)
+
+    def on_hide_modalities(self, modality: Modality) -> None:
+        """Hide other modalities."""
+        for layer in self.view.get_layers_of_type(Image):
+            layer.visible = layer.name in (modality.name, f"{modality.name} (preview)")
+        self.modality_list.toggle_visible([layer.name for layer in self.view.get_layers_of_type(Image)])
 
     def on_show_modality(self, modality: Modality, state: bool = True, overwrite: bool = False) -> None:
         """Preview image."""
@@ -295,9 +311,18 @@ class ImageWsiRegWindow(Window):
             dlg = ErrorsDialog(self, errors)
             dlg.show()
             return
+        name = self.name_label.text()
+        if not name:
+            hp.toast(self, "Error", "Please provide a name for the project.", icon="error", position="top_left")
+            return
+        output_dir = self.output_dir
+        if output_dir is None:
+            hp.toast(self, "Error", "Please provide an output directory.", icon="error", position="top_left")
+            return
+
         self.registration_model.merge_images = self.write_merged_check.isChecked()
-        self.registration_model.name = self.name_label.text()
-        self.registration_model.output_dir = self.output_dir
+        self.registration_model.name = name
+        self.registration_model.output_dir = output_dir
         path = self.registration_model.save()
         if path:
             hp.toast(self, "Saved", f"Saved project to {hp.hyper(path)}.", icon="success", position="top_left")
@@ -319,6 +344,17 @@ class ImageWsiRegWindow(Window):
                 paths = [modality.path for modality in project.modalities.values()]
                 if paths:
                     self._image_widget.on_set_path(paths)
+
+    def on_run(self) -> None:
+        """Execute registration."""
+
+    def on_queue(self) -> None:
+        """Queue registration."""
+
+    def on_validate(self, _: ty.Any = None) -> None:
+        """Validate project."""
+        name = self.name_label.text()
+        hp.set_object_name(self.name_label, "error" if not name else "")
 
     def _setup_ui(self):
         """Create panel."""
@@ -342,14 +378,14 @@ class ImageWsiRegWindow(Window):
         self.modality_list = QtModalityList(self)
         self.registration_map = RegistrationMap(self)
         self.name_label = hp.make_line_edit(
-            side_widget, "Name", tooltip="Name of the project", placeholder="e.g. project.wsireg"
+            side_widget, "Name", tooltip="Name of the project", placeholder="e.g. project.wsireg", func=self.on_validate
         )
         self.output_dir_label = hp.make_label(
             side_widget, "Output directory", tooltip="Output directory", enable_url=True
         )
         self.output_dir_label.setText(hp.hyper(self.output_dir))
         self.output_dir_btn = hp.make_qta_btn(
-            side_widget, "folder", tooltip="Change output directory", func=self.on_set_output_dir
+            side_widget, "folder", tooltip="Change output directory", func=self.on_set_output_dir, normal=True
         )
         self.use_preview_check = hp.make_checkbox(
             self,
@@ -411,9 +447,15 @@ class ImageWsiRegWindow(Window):
             hp.make_label(side_widget, "Output directory"),
             hp.make_h_layout(self.output_dir_label, self.output_dir_btn, stretch_id=(0,), spacing=1, margin=1),
         )
-        side_layout.addRow(hidden_settings)
         side_layout.addRow(
             hp.make_btn(side_widget, "Save...", tooltip="Export I2Reg project", func=self.on_save_to_i2reg)
+        )
+        side_layout.addRow(hidden_settings)
+        side_layout.addRow(
+            hp.make_h_layout(
+                hp.make_btn(side_widget, "Run", tooltip="Immediately execute registration", func=self.on_run),
+                hp.make_btn(side_widget, "Queue", tooltip="Add registration to queue", func=self.on_queue),
+            )
         )
 
         layout = QHBoxLayout()
