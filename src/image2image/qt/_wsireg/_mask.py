@@ -214,8 +214,7 @@ class MaskDialog(QtFramelessTool):
 
         # hide all other image layers
         if self.only_current.isChecked():
-            for layer in self.view.get_layers_of_type(Image):
-                layer.visible = layer.name in (modality.name, f"{modality.name} (preview)")
+            self._parent.on_hide_modalities(modality)
 
     def on_associate_mask_with_modality(self) -> None:
         """Associate mask with modality at the specified location."""
@@ -264,7 +263,9 @@ class MaskDialog(QtFramelessTool):
             hp.make_label(
                 self,
                 "This dialog allows for you to draw a mask for some (or all) of the images. Masks can be helpful"
-                " in registration problems by focusing on a specific region of interest.",
+                " in registration problems by focusing on a specific region of interest.<br>"
+                "<b>Please remember that masks should be created on the original image (not translated or rotated)."
+                "Transformations will be applied during the registration process!</b>",
                 wrap=True,
                 enable_url=True,
                 alignment=Qt.AlignmentFlag.AlignCenter,

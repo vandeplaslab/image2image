@@ -9,11 +9,14 @@ from image2image_reg.models import Modality, Preprocessing
 from loguru import logger
 from qtextra.widgets.qt_image_button import QtVisibleButton
 from qtextra.widgets.qt_list_widget import QtListItem, QtListWidget
-from qtpy.QtCore import Qt, Signal, Slot  # type: ignore[attr-defined]
+from qtpy.QtCore import QRegularExpression, Qt, Signal, Slot  # type: ignore[attr-defined]
+from qtpy.QtGui import QRegularExpressionValidator
 from qtpy.QtWidgets import QHBoxLayout, QListWidgetItem, QSizePolicy, QWidget
 
 if ty.TYPE_CHECKING:
     from image2image_reg.workflows.iwsireg import IWsiReg
+
+    from image2image.qt._wsireg._preprocessing import PreprocessingDialog
 
 
 logger = logger.bind(src="QtModalityList")
@@ -29,9 +32,12 @@ class QtModalityItem(QtListItem):
     evt_name = Signal(str, Modality)
     evt_resolution = Signal(Modality)
     evt_set_preprocessing = Signal(Modality)
+    evt_hide_others = Signal(Modality)
     evt_preview_preprocessing = Signal(Modality, Preprocessing)
     evt_preview_transform_preprocessing = Signal(Modality, Preprocessing)
+    evt_preprocessing_close = Signal(Modality)
 
+    _preprocessing_dlg: PreprocessingDialog | None = None
     _mode: bool = False
     item_model: Modality
 
@@ -50,6 +56,7 @@ class QtModalityItem(QtListItem):
             self,
             tooltip="Resolution of the modality.",
             func=self.on_update_resolution,
+            validator=QRegularExpressionValidator(QRegularExpression(r"^\d*\.\d+$")),
         )
         self.preprocessing_btn = hp.make_qta_btn(
             self,
@@ -143,12 +150,22 @@ class QtModalityItem(QtListItem):
         """Open pre-processing dialog."""
         from ._preprocessing import PreprocessingDialog
 
-        dlg = PreprocessingDialog(self.item_model, parent=self)
-        dlg.evt_update.connect(self.on_update_preprocessing)
-        dlg.evt_preview_preprocessing.connect(self.evt_preview_preprocessing.emit)
-        dlg.evt_set_preprocessing.connect(self.on_set_preprocessing)
-        dlg.evt_preview_transform_preprocessing.connect(self.evt_preview_transform_preprocessing.emit)
-        dlg.show()
+        if self._preprocessing_dlg is None:
+            self._preprocessing_dlg = PreprocessingDialog(self.item_model, parent=self)
+            self._preprocessing_dlg.evt_update.connect(self.on_update_preprocessing)
+            self._preprocessing_dlg.evt_preview_preprocessing.connect(self.evt_preview_preprocessing.emit)
+            self._preprocessing_dlg.evt_set_preprocessing.connect(self.on_set_preprocessing)
+            self._preprocessing_dlg.evt_preview_transform_preprocessing.connect(
+                self.evt_preview_transform_preprocessing.emit
+            )
+            self._preprocessing_dlg.evt_close.connect(self._close_preprocessing)
+
+        self._preprocessing_dlg.show_below_mouse()
+        self.evt_hide_others.emit(self.item_model)
+
+    def _close_preprocessing(self) -> None:
+        self._preprocessing_dlg = None
+        self.evt_preprocessing_close.emit(self.item_model)
 
     def on_preview(self) -> None:
         """Preview image"""
@@ -165,9 +182,9 @@ class QtModalityItem(QtListItem):
         self.evt_set_preprocessing.emit(self.item_model)
         logger.debug(f"Pre-processing set for {self.item_model.name}.")
 
-    def toggle_name(self, state: bool) -> None:
+    def toggle_name(self, disabled: bool) -> None:
         """Toggle name."""
-        self.name_label.setReadOnly(state)
+        self.name_label.setReadOnly(disabled)
 
     def toggle_mask(self) -> None:
         """Toggle name."""
@@ -177,6 +194,15 @@ class QtModalityItem(QtListItem):
         """Toggle name."""
         self.crop_icon.setVisible(self.item_model.preprocessing.is_cropped())
 
+    def toggle_preview(self, disabled: bool) -> None:
+        """Toggle name."""
+        hp.disable_widgets(self.preview_btn, disabled=disabled)
+
+    def toggle_visible(self, disabled: bool) -> None:
+        """Toggle visibility icon."""
+        with hp.qt_signals_blocked(self.visible_btn):
+            self.visible_btn.visible = not disabled
+
 
 class QtModalityList(QtListWidget):
     """List of notifications."""
@@ -184,9 +210,11 @@ class QtModalityList(QtListWidget):
     evt_show = Signal(Modality, bool)
     evt_name = Signal(str, Modality)
     evt_resolution = Signal(Modality)
+    evt_hide_others = Signal(Modality)
     evt_set_preprocessing = Signal(Modality)
     evt_preview_preprocessing = Signal(Modality, Preprocessing)
     evt_preview_transform_preprocessing = Signal(Modality, Preprocessing)
+    evt_preprocessing_close = Signal(Modality)
     evt_remove = Signal(Modality)
 
     def __init__(self, parent: QWidget):
@@ -204,9 +232,11 @@ class QtModalityList(QtListWidget):
         widget.evt_show.connect(self.evt_show.emit)
         widget.evt_name.connect(self.evt_name.emit)
         widget.evt_resolution.connect(self.evt_resolution.emit)
+        widget.evt_hide_others.connect(self.evt_hide_others.emit)
         widget.evt_preview_preprocessing.connect(self.evt_preview_preprocessing.emit)
         widget.evt_set_preprocessing.connect(self.evt_set_preprocessing.emit)
         widget.evt_preview_transform_preprocessing.connect(self.evt_preview_transform_preprocessing.emit)
+        widget.evt_preprocessing_close.connect(self.evt_preprocessing_close.emit)
         widget.on_show_image()
         return widget
 
@@ -240,10 +270,10 @@ class QtModalityList(QtListWidget):
             if item.item_model not in registration_model.modalities.values():
                 self.remove_item(item, force=True)
 
-    def toggle_name(self, state: bool) -> None:
+    def toggle_name(self, disabled: bool) -> None:
         """Toggle name."""
         for _, _, widget in self.item_model_widget_iter():
-            widget.toggle_name(state)
+            widget.toggle_name(disabled)
 
     def toggle_mask(self, modality: Modality | None = None) -> None:
         """Toggle mask icon."""
@@ -254,3 +284,13 @@ class QtModalityList(QtListWidget):
         """Toggle mask icon."""
         for _, _, widget in self.item_model_widget_iter():
             widget.toggle_crop()
+
+    def toggle_preview(self, disabled: bool) -> None:
+        """Toggle toggle button."""
+        for _, _, widget in self.item_model_widget_iter():
+            widget.toggle_preview(disabled)
+
+    def toggle_visible(self, names: list[str]) -> None:
+        """Toggle visibility icon of items."""
+        for _, model, widget in self.item_model_widget_iter():
+            widget.toggle_visible(model.name not in names)

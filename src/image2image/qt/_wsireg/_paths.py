@@ -114,31 +114,44 @@ class RegistrationMap(QWidget):
             self, options=[], tooltip="Select already defined paths...", func=self.on_path_choice
         )
         self._source_choice = hp.make_combobox(
-            self, options=[], tooltip="Select source image...", func=self.on_image_choice
+            self,
+            options=[],
+            tooltip="Select source image. This image will be moving. If a through image is also selected, then the"
+            "\nthrough the source image will be registered to the through image and registration of"
+            "\nthrough > target will be stacked with the source > through.",
+            func=self.on_image_choice,
         )
         self._target_choice = hp.make_combobox(
-            self, options=[], tooltip="Select target image...", func=self.on_image_choice
+            self, options=[], tooltip="Select target image. This image will be fixed.", func=self.on_image_choice
         )
         self._through_choice = hp.make_combobox(
-            self, options=[], tooltip="Select through image...", func=self.on_image_choice
+            self,
+            options=[],
+            tooltip="Select through image. The source image will be registered to the through image and the"
+            "\nthrough image is assumed to be registered to the target image. This gives an indirect registration.",
+            func=self.on_image_choice,
         )
 
         self._registration_path = RegistrationPaths(self)
         self._registration_path.registration_paths = CONFIG.transformations
         self._warning_label = hp.make_label(self, "", color="warning", wrap=True)
         self._warning_label.setVisible(False)
-        self.add_btn = hp.make_btn(self, "Add path", func=self.on_add_path)
-        self.remove_btn = hp.make_btn(self, "Remove path", func=self.on_remove_path)
 
         layout = hp.make_form_layout(self)
         layout.setContentsMargins(2, 2, 2, 2)
         layout.addRow(self._registration_path)
-        layout.addRow(hp.make_label(self, "Source image"), self._source_choice)
-        layout.addRow(hp.make_label(self, "Target image"), self._target_choice)
-        layout.addRow(hp.make_label(self, "Through image (optional)"), self._through_choice)
+        layout.addRow(hp.make_label(self, "Source"), self._source_choice)
+        layout.addRow(hp.make_label(self, "Target"), self._target_choice)
+        layout.addRow(hp.make_label(self, "Through (optional)"), self._through_choice)
         layout.addRow(
             hp.make_h_layout(
-                self.add_btn, self.remove_btn, spacing=2, margin=0, stretch_before=True, stretch_after=True
+                hp.make_btn(self, "Add path", func=self.on_add_path),
+                hp.make_btn(self, "Remove path", func=self.on_remove_path),
+                hp.make_btn(self, "Reset", func=self.on_reset_paths),
+                spacing=2,
+                margin=0,
+                stretch_before=True,
+                stretch_after=True,
             )
         )
         layout.addRow(hp.make_label(self, "Registration paths"), self._choice)
@@ -146,12 +159,18 @@ class RegistrationMap(QWidget):
 
     def on_path_choice(self, _=None) -> None:
         """Handle path selection."""
+        registration_model: IWsiReg = self._parent.registration_model
         path = self._choice.currentText()
         if path:
             parts = path.split(" » ")
-            self._source_choice.setCurrentText(parts[0])
-            self._target_choice.setCurrentText(parts[-1])
-            self._through_choice.setCurrentText(parts[1] if len(parts) == 3 else "")
+            source, target, through = parts[0], parts[-1], parts[1] if len(parts) == 3 else None
+            self._source_choice.setCurrentText(source)
+            self._target_choice.setCurrentText(target)
+            self._through_choice.setCurrentText(through or "")
+            index = registration_model.find_index_of_registration_path(source, target, through)
+            if index is not None:
+                node = registration_model.registration_nodes[index]
+                self._registration_path.registration_paths = node["params"]
 
     def _get_registration_path_data(self):
         """Check registration path."""
@@ -207,6 +226,13 @@ class RegistrationMap(QWidget):
         self.populate_paths()
         self._parent.modality_list.toggle_name(registration_model.n_registrations > 0)
 
+    def on_reset_paths(self) -> None:
+        """Reset all registration paths."""
+        if not hp.confirm(self, "Are you sure you want to reset all registration paths?", "Please confirm."):
+            return
+        registration_model: IWsiReg = self._parent.registration_model
+        registration_model.reset_registration_paths()
+
     def populate(self) -> None:
         """Populate options."""
         self.populate_images()
@@ -239,4 +265,5 @@ class RegistrationMap(QWidget):
                 paths.append(f"{source} » {targets[0]}")
             else:
                 paths.append(f"{source} » {targets[0]} » {targets[1]}")
+        paths = set(paths)
         hp.combobox_setter(self._choice, items=paths, set_item=self._choice.currentText())
