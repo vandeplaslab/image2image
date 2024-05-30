@@ -205,6 +205,9 @@ class RegistrationMap(QWidget):
         if not registrations:
             self._warning_label.setText("Please select registration path.")
             return
+        if not valid:
+            hp.warn(self, "Please select source and target images.")
+            return
         self._warning_label.setText("")
         registration_model: IWsiReg = self._parent.registration_model
         if not registration_model.has_registration_path(source, target, through):
@@ -232,6 +235,7 @@ class RegistrationMap(QWidget):
             return
         registration_model: IWsiReg = self._parent.registration_model
         registration_model.reset_registration_paths()
+        self.populate_paths()
 
     def populate(self) -> None:
         """Populate options."""

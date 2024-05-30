@@ -677,7 +677,12 @@ class SelectDataDialog(QtFramelessTool):
                 if dlg.exec_():  # type: ignore[attr-defined]
                     keys = dlg.keys
             else:
-                keys = self.model.keys
+                wrapper = self.model.wrapper
+                if wrapper:
+                    keys = [reader.key for reader in wrapper.reader_iter()]
+                else:
+                    keys = self.model.keys
+            logger.trace(f"Closing {keys} keys...")
             if keys:
                 self.evt_closing.emit(self.model, self.model.get_channel_names_for_keys(keys), keys)  # noqa
                 self.model.remove_keys(keys)

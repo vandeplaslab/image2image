@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import numpy as np
 import typing as ty
 from functools import partial
 from pathlib import Path
@@ -88,6 +89,7 @@ class ImageWsiRegWindow(Window):
         """Setup events."""
         connect(self._image_widget.dataset_dlg.evt_loaded, self.on_load_image, state=state)
         connect(self._image_widget.dataset_dlg.evt_closing, self.on_remove_image, state=state)
+        connect(self._image_widget.dataset_dlg.evt_project, self._on_load_from_project, state=state)
         # connect(self.view.widget.canvas.events.key_press, self.keyPressEvent, state=state)
         connect(self.view.viewer.events.status, self._status_changed, state=state)
 
@@ -99,6 +101,7 @@ class ImageWsiRegWindow(Window):
         connect(self.modality_list.evt_set_preprocessing, self.on_update_modality, state=state)
         connect(self.modality_list.evt_preview_transform_preprocessing, self.on_preview_live, state=state)
         connect(self.modality_list.evt_preprocessing_close, self.on_preview_close, state=state)
+        connect(self.modality_list.evt_color, self.on_update_colormap, state=state)
 
     def on_update_modality_name(self, old_name: str, modality: Modality) -> None:
         """Update modality."""
@@ -126,24 +129,28 @@ class ImageWsiRegWindow(Window):
         wrapper = self.data_model.get_wrapper()
         if wrapper:
             layer = self.view.get_layer(modality.name)
-            if layer:
-                layer.visible = False
+            if layer and layer.rgb:
+                self.view.remove_layer(modality.name)
+
+            widget = self.modality_list.get_widget_for_item_model(modality)
+            colormap = "gray" if widget is None else widget.colormap
             with MeasureTimer() as timer:
                 reader = wrapper.get_reader_for_path(modality.path)
                 scale = reader.scale_for_pyramid(-1)
                 image = preprocess_preview(reader.pyramid[-1], reader.is_rgb, scale[0], preprocessing)
                 self.view.add_image(
                     image,
-                    name=f"{modality.name} (preview)",
+                    name=modality.name,
                     scale=scale,
                     blending="additive",
+                    colormap=colormap,
                     metadata={
                         "key": reader.key,
                     },
                 )
             logger.trace(f"Processed image for preview in {timer()}")
 
-    def on_preview_live(self, modality: Modality, preprocessing: Preprocessing):
+    def on_preview_live(self, modality: Modality, preprocessing: Preprocessing) -> None:
         """Preview image."""
         from image2image.utils.transform import combined_transform
 
@@ -168,7 +175,16 @@ class ImageWsiRegWindow(Window):
 
     def on_preview_close(self, modality: Modality) -> None:
         """Preview window was closed."""
-        self.view.remove_layer(f"{modality.name} (preview)")
+        # self.view.remove_layer(f"{modality.name} (preview)")
+        # layer = self.view.get_layer(modality.name)
+        # if layer:
+        #     layer.visible = True
+
+    def on_update_colormap(self, modality: Modality, color: np.ndarray):
+        """Update colormap."""
+        layer = self.view.get_layer(modality.name)
+        if layer:
+            layer.colormap = color
 
     @ensure_main_thread
     def on_load_image(self, model: DataModel, _channel_list: list[str]) -> None:
@@ -189,6 +205,8 @@ class ImageWsiRegWindow(Window):
 
     def on_hide_modalities(self, modality: Modality) -> None:
         """Hide other modalities."""
+        if not self.hide_others_check.isChecked():
+            return
         for layer in self.view.get_layers_of_type(Image):
             layer.visible = layer.name in (modality.name, f"{modality.name} (preview)")
         self.modality_list.toggle_visible([layer.name for layer in self.view.get_layers_of_type(Image)])
@@ -205,6 +223,8 @@ class ImageWsiRegWindow(Window):
             else:
                 image = reader.get_channel(0, -1)
             layer = self.view.get_layer(modality.name)
+            widget = self.modality_list.get_widget_for_item_model(modality)
+            colormap = "gray" if widget is None else widget.color
             if overwrite and layer:
                 self.view.remove_layer(modality.name)
             if not state:
@@ -216,6 +236,7 @@ class ImageWsiRegWindow(Window):
                     name=modality.name,
                     scale=reader.scale_for_pyramid(-1),
                     blending="additive",
+                    colormap=colormap,
                     # contrast_limits=contrast_limits,
                     # affine=model.affine(image.shape),  # type: ignore[arg-type]
                     metadata={
@@ -247,6 +268,7 @@ class ImageWsiRegWindow(Window):
         # Populate table
         self.modality_list.populate()
         self.registration_map.populate()
+        self.modality_list.toggle_preview(self.use_preview_check.isChecked())
 
     def on_remove_image(self, model: DataModel, channel_names: list[str], keys: list[str]) -> None:
         """Remove image."""
@@ -304,18 +326,12 @@ class ImageWsiRegWindow(Window):
         if directory:
             self._output_dir = directory
             CONFIG.output_dir = directory
-            self.output_dir_label.setText(hp.hyper(self.output_dir))
+            formatted_output_dir = f".{self.output_dir.parent}/{self.output_dir.name}"
+            self.output_dir_label.setText(hp.hyper(self.output_dir, value=formatted_output_dir))
             logger.debug(f"Output directory set to {self._output_dir}")
 
     def on_save_to_i2reg(self) -> None:
         """Save project to i2reg."""
-        is_valid, errors = self.registration_model.validate(require_paths=True)
-        if not is_valid:
-            from image2image.qt._dialogs._errors import ErrorsDialog
-
-            dlg = ErrorsDialog(self, errors)
-            dlg.show()
-            return
         name = self.name_label.text()
         if not name:
             hp.toast(self, "Error", "Please provide a name for the project.", icon="error", position="top_left")
@@ -324,10 +340,22 @@ class ImageWsiRegWindow(Window):
         if output_dir is None:
             hp.toast(self, "Error", "Please provide an output directory.", icon="error", position="top_left")
             return
+        is_valid, errors = self.registration_model.validate(require_paths=True)
+        if not is_valid:
+            from image2image.qt._dialogs._errors import ErrorsDialog
+
+            dlg = ErrorsDialog(self, errors)
+            dlg.show()
+            return
 
         self.registration_model.merge_images = self.write_merged_check.isChecked()
         self.registration_model.name = name
         self.registration_model.output_dir = output_dir
+        if self.registration_model.project_dir.exists() and not hp.confirm(
+            self, f"Project <b>{self.registration_model.name}</b> already exists.<br><b>Overwrite?</b>"
+        ):
+            return
+
         path = self.registration_model.save()
         if path:
             hp.toast(self, "Saved", f"Saved project to {hp.hyper(path)}.", icon="success", position="top_left")
@@ -343,7 +371,7 @@ class ImageWsiRegWindow(Window):
     def _on_load_from_project(self, path_: PathLike) -> None:
         if path_:
             path_ = Path(path_)
-            project = IWsiReg.from_path(path_.parent)
+            project = IWsiReg.from_path(path_.parent if path_.is_file() else path_)
             if project:
                 self._registration_model = project
                 self.output_dir = project.output_dir
@@ -359,10 +387,23 @@ class ImageWsiRegWindow(Window):
     def on_queue(self) -> None:
         """Queue registration."""
 
+    def on_close(self) -> None:
+        """Close project."""
+        if self.registration_model and hp.confirm(
+            self, "Are you sure you want to close the project?", "Close project?"
+        ):
+            self.name_label.setText("")
+            self._image_widget.on_close_dataset(force=True)
+            self.registration_model.reset_registration_paths()
+            self.view.clear()
+            self.modality_list.populate()
+            self.registration_map.populate()
+            logger.trace("Closed project.")
+
     def on_validate(self, _: ty.Any = None) -> None:
         """Validate project."""
         name = self.name_label.text()
-        hp.set_object_name(self.name_label, "error" if not name else "")
+        hp.set_object_name(self.name_label, object_name="error" if not name else "")
 
     def _setup_ui(self):
         """Create panel."""
@@ -375,7 +416,7 @@ class ImageWsiRegWindow(Window):
             self.view,
             select_channels=False,
             available_formats=ALLOWED_WSIREG_FORMATS,
-            project_extension=[".i2wsireg.json", ".i2wsireg.toml", ".config.json"],
+            project_extension=[".i2wsireg.json", ".i2wsireg.toml", ".config.json", ".wsireg", ".i2reg"],
             allow_geojson=True,
         )
 
@@ -397,8 +438,15 @@ class ImageWsiRegWindow(Window):
         )
         self.use_preview_check = hp.make_checkbox(
             self,
-            "",
+            "Use preview image",
             tooltip="Use preview image for viewing instead of the first channel only.",
+            checked=False,
+            func=self.on_show_modalities,
+        )
+        self.hide_others_check = hp.make_checkbox(
+            self,
+            "Hide others when previewing",
+            tooltip="When previewing, hide other images to reduce clutter.",
             checked=False,
             func=self.on_show_modalities,
         )
@@ -446,7 +494,7 @@ class ImageWsiRegWindow(Window):
         side_layout.addRow(self._image_widget)
         side_layout.addRow(self.modality_list)
         side_layout.addRow(hp.make_btn(self, "Mask...", tooltip="Set mask", func=self.on_open_mask_dialog))
-        side_layout.addRow(hp.make_label(self, "Use preview image"), self.use_preview_check)
+        side_layout.addRow(hp.make_h_layout(self.use_preview_check, self.hide_others_check, margin=2, spacing=2))
         side_layout.addRow(hp.make_h_line_with_text("Registration paths"))
         side_layout.addRow(self.registration_map)
         side_layout.addRow(hp.make_h_line_with_text("I2Reg project"))
@@ -456,7 +504,10 @@ class ImageWsiRegWindow(Window):
             hp.make_h_layout(self.output_dir_label, self.output_dir_btn, stretch_id=(0,), spacing=1, margin=1),
         )
         side_layout.addRow(
-            hp.make_btn(side_widget, "Save...", tooltip="Export I2Reg project", func=self.on_save_to_i2reg)
+            hp.make_h_layout(
+                hp.make_btn(side_widget, "Save...", tooltip="Export I2Reg project", func=self.on_save_to_i2reg),
+                hp.make_btn(side_widget, "Close", tooltip="Close I2Reg project", func=self.on_close),
+            )
         )
         side_layout.addRow(hidden_settings)
         side_layout.addRow(

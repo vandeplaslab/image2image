@@ -11,6 +11,7 @@ import qtextra.helpers as hp
 from loguru import logger
 from napari.layers import Image, Shapes
 from napari.layers.shapes._shapes_constants import Box
+
 from qtextra._napari.common.layer_controls.qt_shapes_controls import QtShapesControls
 from qtextra.utils.utilities import connect
 from qtextra.widgets.qt_dialog import QtFramelessTool
@@ -20,9 +21,10 @@ from qtpy.QtWidgets import QLayout
 from image2image.utils.utilities import init_shapes_layer
 
 if ty.TYPE_CHECKING:
-    from image2image_reg.models import Modality
+    from image2image_reg.models import Modality, Preprocessing
     from qtextra._napari.image.wrapper import NapariImageView
 
+    from image2image_io.readers import BaseReader
     from image2image.qt.dialog_wsireg import ImageWsiRegWindow
 
 
@@ -175,7 +177,7 @@ class MaskDialog(QtFramelessTool):
         self.on_hide_mask()
         super().hide()
 
-    def _transform_from_preprocessing(self, modality: Modality) -> tuple[list] | None:
+    def _transform_from_preprocessing(self, modality: Modality) -> list | None:
         """Transform data from stored data (which is stored in the micron units."""
         wrapper = self._parent.data_model.get_wrapper()
         reader = wrapper.get_reader_for_path(modality.path)
@@ -185,7 +187,7 @@ class MaskDialog(QtFramelessTool):
                 return []
             left, top, width, height = bbox.x, bbox.y, bbox.width, bbox.height
             right = left + width
-            bottom = top + height
+            bottom = top - height
             data = np.asarray([[top, left], [top, right], [bottom, right], [bottom, left]])
             data = data * reader.resolution
             return [(data, "rectangle")]
@@ -197,12 +199,14 @@ class MaskDialog(QtFramelessTool):
         """Transform data from napari layer to preprocessing data."""
         wrapper = self._parent.data_model.get_wrapper()
         reader = wrapper.get_reader_for_path(modality.path)
+        _, inv_affine = get_affine(reader, modality.preprocessing)
         left, right, top, bottom, shape_type, yx = self._get_crop_area_for_index(0)
         if shape_type == "polygon":
             # convert to pixel coordinates and round
+            yx = np.dot(inv_affine[:2, :2], yx.T).T + inv_affine[:2, 2]
             yx = yx * reader.inv_resolution
             return np.round(yx).astype(np.int32)[:, ::-1], None
-        bbox = np.asarray([left, right, (right - left), (bottom - top)])
+        bbox = np.asarray([left, bottom, (right - left), (bottom - top)])
         return None, tuple(np.round(bbox * reader.inv_resolution).astype(int))
 
     def on_select_modality(self, _=None) -> None:
@@ -227,6 +231,7 @@ class MaskDialog(QtFramelessTool):
         elif bbox is not None:
             modality.mask_bbox = bbox
             modality.mask_polygon = None
+        modality.transform_mask = get_transform_mask(modality)
         kind = "polygon" if yx is not None else "bbox"
         logger.trace(f"Added mask for modality {name} to {kind}")
         self.evt_mask.emit(modality)
@@ -265,7 +270,7 @@ class MaskDialog(QtFramelessTool):
                 "This dialog allows for you to draw a mask for some (or all) of the images. Masks can be helpful"
                 " in registration problems by focusing on a specific region of interest.<br>"
                 "<b>Please remember that masks should be created on the original image (not translated or rotated)."
-                "Transformations will be applied during the registration process!</b>",
+                "<br>Transformations will be applied during the registration process!</b>",
                 wrap=True,
                 enable_url=True,
                 alignment=Qt.AlignmentFlag.AlignCenter,
@@ -281,3 +286,29 @@ class MaskDialog(QtFramelessTool):
         layout.addRow(hp.make_h_layout(self.initialize_btn, self.add_btn, self.remove_btn))
         layout.addRow(hp.make_label(self, "Auto-update"), self.auto_update)
         return layout
+
+
+def get_transform_mask(modality: Modality) -> bool:
+    """Transform mask for modality."""
+    pre = modality.preprocessing
+    return pre.translate_x == 0 and pre.translate_y == 0 and pre.rotate_counter_clockwise == 0
+
+
+def get_affine(reader: BaseReader, preprocessing: Preprocessing) -> tuple[np.ndarray, np.ndarray]:
+    """Get affine matrix for preprocessing."""
+    from image2image.utils.transform import combined_transform
+
+    if preprocessing is None:
+        return np.eye(3), np.eye(3)
+
+    shape = reader.image_shape
+    scale = reader.scale_for_pyramid(-1)
+    affine = combined_transform(
+        shape,
+        scale,
+        preprocessing.rotate_counter_clockwise,
+        (preprocessing.translate_y, preprocessing.translate_x),
+        flip_lr=preprocessing.flip == "h",
+        flip_ud=preprocessing.flip == "v",
+    )
+    return affine, np.linalg.inv(affine)

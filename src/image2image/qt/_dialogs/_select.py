@@ -166,9 +166,9 @@ class LoadWidget(QWidget):
         """Load data."""
         self.dataset_dlg.on_select_dataset()
 
-    def on_close_dataset(self, _evt: ty.Any = None) -> None:
+    def on_close_dataset(self, _evt: ty.Any = None, force: bool = False) -> None:
         """Load data."""
-        self.dataset_dlg.on_close_dataset()
+        self.dataset_dlg.on_close_dataset(force=force)
 
     def on_clear_data(self, _evt: ty.Any = None) -> None:
         """Clear data."""

@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+from contextlib import suppress
+
+import numpy as np
 import typing as ty
 
 import qtextra.helpers as hp
 from image2image_reg.models import Modality, Preprocessing
 from loguru import logger
-from qtextra.widgets.qt_image_button import QtVisibleButton
+from qtextra.widgets.qt_image_button import QtVisibleButton, QtLockButton
 from qtextra.widgets.qt_list_widget import QtListItem, QtListWidget
 from qtpy.QtCore import QRegularExpression, Qt, Signal, Slot  # type: ignore[attr-defined]
 from qtpy.QtGui import QRegularExpressionValidator
@@ -36,12 +39,13 @@ class QtModalityItem(QtListItem):
     evt_preview_preprocessing = Signal(Modality, Preprocessing)
     evt_preview_transform_preprocessing = Signal(Modality, Preprocessing)
     evt_preprocessing_close = Signal(Modality)
+    evt_color = Signal(Modality, object)
 
     _preprocessing_dlg: PreprocessingDialog | None = None
     _mode: bool = False
     item_model: Modality
 
-    def __init__(self, item: QListWidgetItem, parent: QWidget | None = None):
+    def __init__(self, item: QListWidgetItem, parent: QWidget | None = None, color="#808080"):
         super().__init__(parent)
         self.setMouseTracking(True)
         self.item = item
@@ -50,12 +54,12 @@ class QtModalityItem(QtListItem):
             self,
             self.item_model.name,
             tooltip="Name of the modality.",
-            func=self.on_update_name,
+            func=self._on_update_name,
         )
         self.resolution_label = hp.make_line_edit(
             self,
             tooltip="Resolution of the modality.",
-            func=self.on_update_resolution,
+            func=self._on_update_resolution,
             validator=QRegularExpressionValidator(QRegularExpression(r"^\d*\.\d+$")),
         )
         self.preprocessing_btn = hp.make_qta_btn(
@@ -72,6 +76,9 @@ class QtModalityItem(QtListItem):
             func=self.on_preview,
             normal=True,
         )
+        self.color_btn = hp.make_swatch(self, color, tooltip="Click here to change color.")
+        self.color_btn.evt_color_changed.connect(self._on_change_color)
+
         self.preprocessing_label = hp.make_scrollable_label(
             self, "<no pre-processing>", alignment=Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop
         )
@@ -90,16 +97,22 @@ class QtModalityItem(QtListItem):
             tooltip="When cropping is applied to the image, this icon will be visible.",
         )
 
+        self.lock_btn = QtLockButton(self)
+        self.lock_btn.setToolTip("Prevent spatial transformation to the layer.")
+        self.lock_btn.set_normal()
+        self.lock_btn.auto_connect()
+        self.lock_btn.evt_toggled.connect(self._on_lock_preprocessing)
+
         self.visible_btn = QtVisibleButton(self)
         self.visible_btn.setToolTip("Show/hide image from the canvas.")
         self.visible_btn.set_normal()
         self.visible_btn.auto_connect()
-        self.visible_btn.evt_toggled.connect(self.on_show_image)
+        self.visible_btn.evt_toggled.connect(self._on_show_image)
 
         lay = QHBoxLayout()
         lay.setContentsMargins(0, 0, 0, 0)
         lay.setSpacing(0)
-        lay.addLayout(hp.make_v_layout(self.preprocessing_btn, self.preview_btn, stretch_after=True))
+        lay.addLayout(hp.make_v_layout(self.preprocessing_btn, self.preview_btn, self.color_btn, stretch_after=True))
         lay.addWidget(self.preprocessing_label, alignment=Qt.AlignmentFlag.AlignTop, stretch=True)
 
         layout = hp.make_form_layout()
@@ -113,7 +126,7 @@ class QtModalityItem(QtListItem):
         main_layout.setSpacing(1)
         main_layout.addLayout(layout, stretch=True)
         main_layout.addLayout(
-            hp.make_v_layout(self.visible_btn, self.mask_icon, self.crop_icon, stretch_after=True),
+            hp.make_v_layout(self.lock_btn, self.visible_btn, self.mask_icon, self.crop_icon, stretch_after=True),
         )
 
         self.mode = False
@@ -127,11 +140,42 @@ class QtModalityItem(QtListItem):
         self.mask_icon.setVisible(self.item_model.is_masked())  # TODO: change to pre-processing
         self.crop_icon.setVisible(self.item_model.preprocessing.is_cropped())
 
-    def on_show_image(self, _state: bool = False) -> None:
+    @property
+    def color(self) -> np.ndarray:
+        """Get color."""
+        return self.color_btn.color
+
+    @property
+    def colormap(self) -> object:
+        """Get colormap."""
+        from qtextra.utils.colormap import napari_colormap
+
+        color = self.color_btn.hex_color.lower()
+        colors = {
+            "#ff0000ff": "red",
+            "#00ff00ff": "green",
+            "#0000ffff": "blue",
+            "#ffff00ff": "yellow",
+            "#ff00ffff": "magenta",
+            "#00ffffff": "cyan",
+            "#808080ff": "gray",
+        }
+        return colors.get(color, napari_colormap(color, name=color))
+
+    def _on_lock_preprocessing(self, _state: bool = False) -> None:
+        """Show image."""
+        with suppress(RuntimeError):
+            self._preprocessing_dlg.lock(self.lock_btn.locked)
+
+    def _on_show_image(self, _state: bool = False) -> None:
         """Show image."""
         self.evt_show.emit(self.item_model, self.visible_btn.visible)
 
-    def on_update_name(self) -> None:
+    def _on_change_color(self, _: ty.Any = None) -> None:
+        """Change color."""
+        self.evt_color.emit(self.item_model, self.colormap)
+
+    def _on_update_name(self) -> None:
         """Update name."""
         name = self.name_label.text()
         if name:
@@ -141,7 +185,7 @@ class QtModalityItem(QtListItem):
         else:
             hp.set_object_name(self.name_label, "error")
 
-    def on_update_resolution(self) -> None:
+    def _on_update_resolution(self) -> None:
         """Update resolution."""
         self.item_model.pixel_size = float(self.resolution_label.text())
         self.evt_resolution.emit(self.item_model)
@@ -150,26 +194,32 @@ class QtModalityItem(QtListItem):
         """Open pre-processing dialog."""
         from ._preprocessing import PreprocessingDialog
 
+        try:
+            self._preprocessing_dlg.show()
+        except (RuntimeError, AttributeError):
+            self._preprocessing_dlg = None
+
         if self._preprocessing_dlg is None:
-            self._preprocessing_dlg = PreprocessingDialog(self.item_model, parent=self)
+            self._preprocessing_dlg = PreprocessingDialog(self.item_model, parent=self, locked=self.lock_btn.locked)
             self._preprocessing_dlg.evt_update.connect(self.on_update_preprocessing)
             self._preprocessing_dlg.evt_preview_preprocessing.connect(self.evt_preview_preprocessing.emit)
             self._preprocessing_dlg.evt_set_preprocessing.connect(self.on_set_preprocessing)
             self._preprocessing_dlg.evt_preview_transform_preprocessing.connect(
                 self.evt_preview_transform_preprocessing.emit
             )
-            self._preprocessing_dlg.evt_close.connect(self._close_preprocessing)
-
-        self._preprocessing_dlg.show_below_mouse()
+            self._preprocessing_dlg.evt_close.connect(self._on_close_preprocessing)
+            self._preprocessing_dlg.show_below_mouse()
         self.evt_hide_others.emit(self.item_model)
 
-    def _close_preprocessing(self) -> None:
+    def _on_close_preprocessing(self) -> None:
         self._preprocessing_dlg = None
         self.evt_preprocessing_close.emit(self.item_model)
+        logger.trace(f"Pre-processing dialog closed for {self.item_model.name}.")
 
     def on_preview(self) -> None:
         """Preview image"""
         self.evt_preview_preprocessing.emit(self.item_model, self.item_model.preprocessing)
+        logger.trace(f"Pre-processing previewed for {self.item_model.name}.")
 
     def on_update_preprocessing(self, preprocessing: Preprocessing) -> None:
         """Update pre-processing."""
@@ -216,6 +266,7 @@ class QtModalityList(QtListWidget):
     evt_preview_transform_preprocessing = Signal(Modality, Preprocessing)
     evt_preprocessing_close = Signal(Modality)
     evt_remove = Signal(Modality)
+    evt_color = Signal(Modality, object)
 
     def __init__(self, parent: QWidget):
         super().__init__(parent)
@@ -227,7 +278,9 @@ class QtModalityList(QtListWidget):
         self._parent = parent
 
     def _make_widget(self, item: QListWidgetItem) -> QtModalityItem:
-        widget = QtModalityItem(item, parent=self)
+        color = get_next_color(self.count())
+
+        widget = QtModalityItem(item, parent=self, color=color)
         widget.evt_remove.connect(self.remove_item)
         widget.evt_show.connect(self.evt_show.emit)
         widget.evt_name.connect(self.evt_name.emit)
@@ -237,7 +290,8 @@ class QtModalityList(QtListWidget):
         widget.evt_set_preprocessing.connect(self.evt_set_preprocessing.emit)
         widget.evt_preview_transform_preprocessing.connect(self.evt_preview_transform_preprocessing.emit)
         widget.evt_preprocessing_close.connect(self.evt_preprocessing_close.emit)
-        widget.on_show_image()
+        widget.evt_color.connect(self.evt_color.emit)
+        hp.call_later(self, widget._on_show_image, 50)
         return widget
 
     @Slot(QListWidgetItem)  # type: ignore[misc]
@@ -294,3 +348,11 @@ class QtModalityList(QtListWidget):
         """Toggle visibility icon of items."""
         for _, model, widget in self.item_model_widget_iter():
             widget.toggle_visible(model.name not in names)
+
+
+def get_next_color(n: int) -> str:
+    """Get next color based on the number of items."""
+    colors = ["#FF0000", "#00FF00", "#0000FF", "#FFFF00", "#FF00FF", "#00FFFF"]
+    if n < len(colors):
+        return colors[n]
+    return "#808080"

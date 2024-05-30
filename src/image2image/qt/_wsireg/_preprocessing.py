@@ -32,7 +32,7 @@ class PreprocessingDialog(QtFramelessTool):
         .add("name", "channel_name", "str", 250)
     )
 
-    def __init__(self, modality: Modality, parent: QWidget | None = None):
+    def __init__(self, modality: Modality, parent: QWidget | None = None, locked: bool = False):
         super().__init__(parent)
         self.setMinimumWidth(400)
         self.setMinimumHeight(400)
@@ -41,6 +41,11 @@ class PreprocessingDialog(QtFramelessTool):
         self.preprocessing = deepcopy(modality.preprocessing)
         self.original_hash = hash_parameters(**self.preprocessing.to_dict())
         self.set_from_model()
+        self.lock(locked)
+
+    def lock(self, lock: bool) -> None:
+        """Lock/unlock widgets."""
+        hp.disable_widgets(self.flip_choices, self.translate_x, self.translate_y, self.rotate_spin, disabled=lock)
 
     def on_preview_preprocessing(self) -> None:
         """Preview preprocessing."""
@@ -182,7 +187,7 @@ class PreprocessingDialog(QtFramelessTool):
             value=0,
             minimum=-10000,
             maximum=10000,
-            step_size=50,
+            step_size=10,
             suffix="µm",
             tooltip="Translate X",
             func=self.on_update_model,
@@ -192,7 +197,7 @@ class PreprocessingDialog(QtFramelessTool):
             value=0,
             minimum=-10000,
             maximum=10000,
-            step_size=50,
+            step_size=10,
             suffix="µm",
             tooltip="Translate Y",
             func=self.on_update_model,
@@ -241,7 +246,7 @@ class PreprocessingDialog(QtFramelessTool):
                 self.translate_x,
                 hp.make_warning_label(
                     self,
-                    "Setting this value is not fully supported yet. Positive values might result in cropped images.",
+                    "Setting this value is not fully supported yet. Positive values might result in cropped" " images.",
                     small=True,
                 ),
                 stretch_id=(0,),
@@ -255,7 +260,7 @@ class PreprocessingDialog(QtFramelessTool):
                 self.translate_y,
                 hp.make_warning_label(
                     self,
-                    "Setting this value is not fully supported yet. Positive values might result in cropped images.",
+                    "Setting this value is not fully supported yet. Positive values might result in cropped" " images.",
                     small=True,
                 ),
                 stretch_id=(0,),

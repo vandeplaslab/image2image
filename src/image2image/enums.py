@@ -29,10 +29,10 @@ ALLOWED_PROJECT_WSIPREP_FORMATS = (
     "TOML Project (*.i2wsiprep.toml);;"
 )
 ALLOWED_PROJECT_WSIREG_FORMATS = (
-    "Any projects (*.i2wsireg.json *.i2wsireg.toml *.config.json);; "
+    "Any projects (*.i2wsireg.json *.i2wsireg.toml *.wsireg *.i2reg *.config.json);; "
     "JSON Project (*.i2wsireg.json);; "
     "TOML Project (*.i2wsireg.toml);;"
-    "I2Reg Project (*.config.json);;"
+    "I2Reg Project (*.wsireg *.i2reg *.config.json);;"
 )
 ALLOWED_IMAGE_FORMATS = (
     "Any imaging (*.d *.tsf *.tdf *.imzML  *.ibd *.data *.metadata.h5 peaks_*.h5 *.npy *.czi *.ome.tiff *.tiff *.scn"

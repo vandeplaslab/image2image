@@ -621,6 +621,11 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
         """Open registration application."""
         create_new_window("crop")
 
+    @staticmethod
+    def on_open_wsireg():
+        """Open registration application."""
+        create_new_window("wsireg")
+
 
 def create_new_window(plugin: str) -> None:
     """Create new window."""
@@ -633,7 +638,7 @@ def create_new_window(plugin: str) -> None:
     program = args.pop(0)
     process.setProgram(program)
     # create arguments
-    for k in ["convert", "register", "viewer", "crop", "merge", "fusion", "wsiprep"]:
+    for k in ["convert", "register", "viewer", "crop", "merge", "fusion", "wsiprep", "wsireg"]:
         if k in args:
             index = args.index(k)
             args[index] = plugin
