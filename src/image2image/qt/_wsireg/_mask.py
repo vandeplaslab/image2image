@@ -11,7 +11,6 @@ import qtextra.helpers as hp
 from loguru import logger
 from napari.layers import Image, Shapes
 from napari.layers.shapes._shapes_constants import Box
-
 from qtextra._napari.common.layer_controls.qt_shapes_controls import QtShapesControls
 from qtextra.utils.utilities import connect
 from qtextra.widgets.qt_dialog import QtFramelessTool
@@ -21,21 +20,50 @@ from qtpy.QtWidgets import QLayout
 from image2image.utils.utilities import init_shapes_layer
 
 if ty.TYPE_CHECKING:
+    from image2image_io.readers import BaseReader
     from image2image_reg.models import Modality, Preprocessing
     from qtextra._napari.image.wrapper import NapariImageView
 
-    from image2image_io.readers import BaseReader
     from image2image.qt.dialog_wsireg import ImageWsiRegWindow
 
 
 logger = logger.bind(src="MaskDialog")
 
 
-class MaskDialog(QtFramelessTool):
+def get_transform_mask(modality: Modality) -> bool:
+    """Transform mask for modality."""
+    pre = modality.preprocessing
+    return pre.translate_x == 0 and pre.translate_y == 0 and pre.rotate_counter_clockwise == 0
+
+
+def get_affine(reader: BaseReader, preprocessing: Preprocessing) -> tuple[np.ndarray, np.ndarray]:
+    """Get affine matrix for preprocessing."""
+    from image2image.utils.transform import combined_transform
+
+    if preprocessing is None:
+        return np.eye(3), np.eye(3)
+
+    shape = reader.image_shape
+    scale = reader.scale_for_pyramid(-1)
+    affine = combined_transform(
+        shape,
+        scale,
+        preprocessing.rotate_counter_clockwise,
+        (preprocessing.translate_y, preprocessing.translate_x),
+        flip_lr=preprocessing.flip == "h",
+        flip_ud=preprocessing.flip == "v",
+    )
+    return affine, np.linalg.inv(affine)
+
+
+class ShapesDialog(QtFramelessTool):
     """Dialog to mask a group."""
 
     HIDE_WHEN_CLOSE = True
     _editing = False
+    TITLE: str
+    INFO_LABEL: str
+    MASK_OR_CROP: str
 
     evt_mask = Signal(object)
 
@@ -113,7 +141,8 @@ class MaskDialog(QtFramelessTool):
         name = self.slide_choice.currentText()
         if name:
             modality = self._parent.registration_model.modalities[name]
-            return modality.is_masked()  # TODO: Implement is_masked method
+            # TODO: Implement is_masked method
+            return modality.is_masked() if self.MASK_OR_CROP == "mask" else modality.is_cropped()
         return False
 
     def _on_update_crop_from_canvas(self, index: int = 0) -> None:
@@ -181,8 +210,9 @@ class MaskDialog(QtFramelessTool):
         """Transform data from stored data (which is stored in the micron units."""
         wrapper = self._parent.data_model.get_wrapper()
         reader = wrapper.get_reader_for_path(modality.path)
-        if modality.mask_polygon is None:
-            bbox = modality.mask_bbox
+        polygon = getattr(modality, f"{self.MASK_OR_CROP}_polygon")
+        bbox = getattr(modality, f"{self.MASK_OR_CROP}_bbox")
+        if polygon is None:
             if bbox is None:
                 return []
             left, top, width, height = bbox.x, bbox.y, bbox.width, bbox.height
@@ -191,7 +221,7 @@ class MaskDialog(QtFramelessTool):
             data = np.asarray([[top, left], [top, right], [bottom, right], [bottom, left]])
             data = data * reader.resolution
             return [(data, "rectangle")]
-        yx = modality.mask_polygon.xy[:, ::-1]
+        yx = polygon.xy[:, ::-1]
         yx = yx * reader.resolution
         return [(yx, "polygon")]
 
@@ -222,40 +252,32 @@ class MaskDialog(QtFramelessTool):
 
     def on_associate_mask_with_modality(self) -> None:
         """Associate mask with modality at the specified location."""
-        name = self.slide_choice.currentText()
-        modality = self._parent.registration_model.modalities[name]
-        yx, bbox = self._transform_to_preprocessing(modality)
-        if yx is not None:
-            modality.mask_polygon = yx
-            modality.mask_bbox = None
-        elif bbox is not None:
-            modality.mask_bbox = bbox
-            modality.mask_polygon = None
-        modality.transform_mask = get_transform_mask(modality)
-        kind = "polygon" if yx is not None else "bbox"
-        logger.trace(f"Added mask for modality {name} to {kind}")
-        self.evt_mask.emit(modality)
+        raise NotImplementedError("Must implement method")
 
     def on_dissociate_mask_from_modality(self) -> None:
         """Dissociate mask from modality."""
-        name = self.slide_choice.currentText()
-        modality = self._parent.registration_model.modalities[name]
-        modality.mask_polygon = None
-        modality.mask_bbox = None
-        logger.trace(f"Removed mask for modality {name}")
-        self.evt_mask.emit(modality)
+        raise NotImplementedError("Must implement method")
 
     # noinspection PyAttributeOutsideInit
     def make_panel(self) -> QLayout:
         """Make panel."""
         self.layer_controls = QtShapesControls(self.mask_layer)
+        # disable certain modes
+        hp.disable_widgets(
+            self.layer_controls.line_button,
+            self.layer_controls.path_button,
+            self.layer_controls.ellipse_button,
+            self.layer_controls.editable_checkbox,
+            disabled=True,
+        )
+
         self.slide_choice = hp.make_combobox(self, tooltip="Select modality", func=self.on_select_modality)
         self.only_current = hp.make_checkbox(
             self, tooltip="Only show currently selected modality.", func=self.on_select_modality
         )
-        self.initialize_btn = hp.make_btn(self, "Initialize mask", func=self.on_initialize_mask)
-        self.add_btn = hp.make_btn(self, "Associate mask", func=self.on_associate_mask_with_modality)
-        self.remove_btn = hp.make_btn(self, "Dissociate mask", func=self.on_dissociate_mask_from_modality)
+        self.initialize_btn = hp.make_btn(self, "Initialize shape", func=self.on_initialize_mask)
+        self.add_btn = hp.make_btn(self, "Associate shape", func=self.on_associate_mask_with_modality)
+        self.remove_btn = hp.make_btn(self, "Dissociate shape", func=self.on_dissociate_mask_from_modality)
         self.auto_update = hp.make_checkbox(self, "", tooltip="Auto-associate mask when making changes", checked=True)
 
         self.horizontal_label = hp.make_label(self, alignment=Qt.AlignmentFlag.AlignCenter, object_name="crop_label")
@@ -263,18 +285,9 @@ class MaskDialog(QtFramelessTool):
 
         layout = hp.make_form_layout()
         layout.setContentsMargins(6, 6, 6, 6)
-        layout.addRow(self._make_hide_handle("Mask...")[1])
+        layout.addRow(self._make_hide_handle(self.TITLE)[1])
         layout.addRow(
-            hp.make_label(
-                self,
-                "This dialog allows for you to draw a mask for some (or all) of the images. Masks can be helpful"
-                " in registration problems by focusing on a specific region of interest.<br>"
-                "<b>Please remember that masks should be created on the original image (not translated or rotated)."
-                "<br>Transformations will be applied during the registration process!</b>",
-                wrap=True,
-                enable_url=True,
-                alignment=Qt.AlignmentFlag.AlignCenter,
-            )
+            hp.make_label(self, self.INFO_LABEL, wrap=True, enable_url=True, alignment=Qt.AlignmentFlag.AlignCenter)
         )
         layout.addRow(hp.make_h_line())
         layout.addRow(self.layer_controls)
@@ -288,27 +301,77 @@ class MaskDialog(QtFramelessTool):
         return layout
 
 
-def get_transform_mask(modality: Modality) -> bool:
-    """Transform mask for modality."""
-    pre = modality.preprocessing
-    return pre.translate_x == 0 and pre.translate_y == 0 and pre.rotate_counter_clockwise == 0
+class MaskDialog(ShapesDialog):
+    """Mask dialog."""
 
-
-def get_affine(reader: BaseReader, preprocessing: Preprocessing) -> tuple[np.ndarray, np.ndarray]:
-    """Get affine matrix for preprocessing."""
-    from image2image.utils.transform import combined_transform
-
-    if preprocessing is None:
-        return np.eye(3), np.eye(3)
-
-    shape = reader.image_shape
-    scale = reader.scale_for_pyramid(-1)
-    affine = combined_transform(
-        shape,
-        scale,
-        preprocessing.rotate_counter_clockwise,
-        (preprocessing.translate_y, preprocessing.translate_x),
-        flip_lr=preprocessing.flip == "h",
-        flip_ud=preprocessing.flip == "v",
+    TITLE = "Mask"
+    INFO_LABEL = (
+        "This dialog allows for you to draw a mask for some (or all) of the images. Masks can be helpful"
+        " in registration problems by focusing on a specific region of interest.<br>"
+        "<b>Please remember that masks should be created on the original image (not translated or rotated)."
+        "<br>Transformations will be applied during the registration process!</b>"
     )
-    return affine, np.linalg.inv(affine)
+    MASK_OR_CROP = "mask"
+
+    def on_associate_mask_with_modality(self) -> None:
+        """Associate mask with modality at the specified location."""
+        name = self.slide_choice.currentText()
+        modality = self._parent.registration_model.modalities[name]
+        yx, bbox = self._transform_to_preprocessing(modality)
+        if yx is not None:
+            modality.preprocessing.mask_polygon = yx
+            modality.preprocessing.mask_bbox = None
+        elif bbox is not None:
+            modality.preprocessing.mask_bbox = bbox
+            modality.preprocessing.mask_polygon = None
+        modality.preprocessing.transform_mask = get_transform_mask(modality)
+        kind = "polygon" if yx is not None else "bbox"
+        logger.trace(f"Added mask for modality {name} to {kind}")
+        self.evt_mask.emit(modality)
+
+    def on_dissociate_mask_from_modality(self) -> None:
+        """Dissociate mask from modality."""
+        name = self.slide_choice.currentText()
+        modality = self._parent.registration_model.modalities[name]
+        modality.preprocessing.mask_polygon = None
+        modality.preprocessing.mask_bbox = None
+        logger.trace(f"Removed mask for modality {name}")
+        self.evt_mask.emit(modality)
+
+
+class CropDialog(ShapesDialog):
+    """Mask dialog."""
+
+    TITLE = "Crop"
+    INFO_LABEL = (
+        "This dialog allows for you draw a shape for some (or all) of the images. This can be helpful"
+        " by cropping the image ahead of registration.<br>"
+        "<b>Please remember that masks should be created on the original image (not translated or rotated)."
+        "<br>Transformations will be applied during the registration process!</b>"
+    )
+    MASK_OR_CROP = "crop"
+
+    def on_associate_mask_with_modality(self) -> None:
+        """Associate mask with modality at the specified location."""
+        name = self.slide_choice.currentText()
+        modality = self._parent.registration_model.modalities[name]
+        yx, bbox = self._transform_to_preprocessing(modality)
+        if yx is not None:
+            modality.preprocessing.crop_polygon = yx
+            modality.preprocessing.crop_bbox = None
+        elif bbox is not None:
+            modality.preprocessing.crop_bbox = bbox
+            modality.preprocessing.crop_polygon = None
+        # modality.transform_mask = get_transform_mask(modality)
+        kind = "polygon" if yx is not None else "bbox"
+        logger.trace(f"Added crop for modality {name} to {kind}")
+        self.evt_mask.emit(modality)
+
+    def on_dissociate_mask_from_modality(self) -> None:
+        """Dissociate mask from modality."""
+        name = self.slide_choice.currentText()
+        modality = self._parent.registration_model.modalities[name]
+        modality.preprocessing.crop_polygon = None
+        modality.preprocessing.crop_bbox = None
+        logger.trace(f"Removed crop for modality {name}")
+        self.evt_mask.emit(modality)

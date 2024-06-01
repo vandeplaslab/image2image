@@ -2,19 +2,20 @@
 
 from __future__ import annotations
 
+import typing as ty
 from contextlib import suppress
 
 import numpy as np
-import typing as ty
-
 import qtextra.helpers as hp
 from image2image_reg.models import Modality, Preprocessing
 from loguru import logger
-from qtextra.widgets.qt_image_button import QtVisibleButton, QtLockButton
+from qtextra.widgets.qt_image_button import QtLockButton, QtVisibleButton
 from qtextra.widgets.qt_list_widget import QtListItem, QtListWidget
 from qtpy.QtCore import QRegularExpression, Qt, Signal, Slot  # type: ignore[attr-defined]
 from qtpy.QtGui import QRegularExpressionValidator
 from qtpy.QtWidgets import QHBoxLayout, QListWidgetItem, QSizePolicy, QWidget
+
+from image2image.qt._wsireg._widgets import QtModalityLabel
 
 if ty.TYPE_CHECKING:
     from image2image_reg.workflows.iwsireg import IWsiReg
@@ -82,6 +83,9 @@ class QtModalityItem(QtListItem):
         self.preprocessing_label = hp.make_scrollable_label(
             self, "<no pre-processing>", alignment=Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop
         )
+        self.preprocessing_label.evt_clicked.connect(self.on_open_preprocessing)
+
+        self.modality_icon = QtModalityLabel(self)
         self.mask_icon = hp.make_qta_label(
             self,
             "mask",
@@ -119,15 +123,23 @@ class QtModalityItem(QtListItem):
         layout.setLabelAlignment(Qt.AlignmentFlag.AlignRight)
         layout.addRow(hp.make_label(self, "Name"), self.name_label)
         layout.addRow(hp.make_label(self, "Pixel size"), self.resolution_label)
-        layout.addRow(hp.make_label(self, "Pre-processing"), lay)
+        layout.addRow(hp.make_label(self, "Process"), lay)
 
         main_layout = QHBoxLayout(self)
         main_layout.setContentsMargins(1, 1, 1, 1)
         main_layout.setSpacing(1)
-        main_layout.addLayout(layout, stretch=True)
         main_layout.addLayout(
-            hp.make_v_layout(self.lock_btn, self.visible_btn, self.mask_icon, self.crop_icon, stretch_after=True),
+            hp.make_v_layout(
+                self.modality_icon,
+                self.lock_btn,
+                self.visible_btn,
+                self.mask_icon,
+                self.crop_icon,
+                stretch_after=True,
+                widget_alignment=Qt.AlignmentFlag.AlignCenter,
+            ),
         )
+        main_layout.addLayout(layout, stretch=True)
 
         self.mode = False
         self._set_from_model()
@@ -135,6 +147,7 @@ class QtModalityItem(QtListItem):
     def _set_from_model(self, _: ty.Any = None) -> None:
         """Update UI elements."""
         self.name_label.setText(self.item_model.name)
+        self.modality_icon.state = "image"
         self.resolution_label.setText(f"{self.item_model.pixel_size:.3f}")
         self.preprocessing_label.setText(self.item_model.preprocessing.as_str())
         self.mask_icon.setVisible(self.item_model.is_masked())  # TODO: change to pre-processing
@@ -164,7 +177,7 @@ class QtModalityItem(QtListItem):
 
     def _on_lock_preprocessing(self, _state: bool = False) -> None:
         """Show image."""
-        with suppress(RuntimeError):
+        with suppress(RuntimeError, AttributeError):
             self._preprocessing_dlg.lock(self.lock_btn.locked)
 
     def _on_show_image(self, _state: bool = False) -> None:

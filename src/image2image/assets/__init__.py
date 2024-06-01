@@ -43,8 +43,13 @@ update_icon_mapping(
         "swap": "mdi6.swap-vertical-bold",
         "keep_image": "mdi6.check-circle-outline",
         "remove_image": "mdi6.close-circle-outline",
+        # modality
+        "image": "mdi6.image",
+        "geojson": "msc.json",
+        "points": "mdi6.scatter-plot",
         # app icons
-        "viewer": "fa5.images",
+        "viewer": "fa5.eye",
+        "wsireg": "fa5.images",
         "register": "fa5s.layer-group",
         "sync": "fa5s.sync-alt",
         "crop": "fa5s.crop-alt",

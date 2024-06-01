@@ -726,7 +726,7 @@ class ImageRegistrationWindow(Window):
 
     def on_show_initial(self):
         """Show initial transform dialog."""
-        from image2image.qt._dialogs._preprocess import PreprocessMovingDialog
+        from image2image.qt._register._preprocess import PreprocessMovingDialog
 
         # add image
         #     self.on_add_transformed_moving()

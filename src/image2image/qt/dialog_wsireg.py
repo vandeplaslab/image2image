@@ -2,19 +2,18 @@
 
 from __future__ import annotations
 
-import numpy as np
 import typing as ty
 from functools import partial
 from pathlib import Path
 
+import numpy as np
 import qtextra.helpers as hp
 from image2image_io.config import CONFIG as READER_CONFIG
 from image2image_reg.models import Modality
 from image2image_reg.workflows.iwsireg import IWsiReg
 from koyo.timer import MeasureTimer
-from loguru import logger
-
 from koyo.typing import PathLike
+from loguru import logger
 from napari.layers import Image
 from qtextra.utils.utilities import connect
 from qtextra.widgets.qt_close_window import QtConfirmCloseDialog
@@ -23,7 +22,7 @@ from superqt import ensure_main_thread
 
 from image2image import __version__
 from image2image.config import CONFIG
-from image2image.enums import ALLOWED_WSIREG_FORMATS, ALLOWED_PROJECT_WSIREG_FORMATS
+from image2image.enums import ALLOWED_PROJECT_WSIREG_FORMATS, ALLOWED_WSIREG_FORMATS
 from image2image.models.data import DataModel
 from image2image.qt._dialogs._select import LoadWidget
 from image2image.qt._wsireg._list import QtModalityList
@@ -33,7 +32,7 @@ from image2image.qt.dialog_base import Window
 if ty.TYPE_CHECKING:
     from image2image_reg.models import Preprocessing
 
-    from image2image.qt._wsireg._mask import MaskDialog
+    from image2image.qt._wsireg._mask import CropDialog, MaskDialog
 
 MASK_LAYER_NAME = "Mask"
 MASK_FILENAME = "mask.tmp"
@@ -55,6 +54,7 @@ class ImageWsiRegWindow(Window):
     _output_dir = None
     _registration_model: IWsiReg | None = None
     _mask_dlg: MaskDialog | None = None
+    _crop_dlg: MaskDialog | None = None
 
     def __init__(self, parent: QWidget | None, run_check_version: bool = True):
         super().__init__(
@@ -296,17 +296,18 @@ class ImageWsiRegWindow(Window):
 
             self._mask_dlg = MaskDialog(self)
             self._mask_dlg.evt_mask.connect(self.modality_list.toggle_mask)
-        self._mask_dlg.show()
+        size = self._mask_dlg.sizeHint()
+        self._mask_dlg.show_above_widget(self.mask_btn, x_offset=-size.width() // 8, y_offset=size.height() // 2)
 
     def on_open_crop_dialog(self) -> None:
         """Open mask dialog."""
-        raise NotImplementedError("Must implement method")
-        # if self._mask_dlg is None:
-        #     from image2image.qt._wsireg._mask import MaskDialog
-        #
-        #     self._mask_dlg = MaskDialog(self)
-        #     self._mask_dlg.evt_mask.connect(self.modality_list.toggle_mask)
-        # self._mask_dlg.show()
+        if self._crop_dlg is None:
+            from image2image.qt._wsireg._mask import CropDialog
+
+            self._crop_dlg = CropDialog(self)
+            self._crop_dlg.evt_mask.connect(self.modality_list.toggle_crop)
+        size = self._crop_dlg.sizeHint()
+        self._crop_dlg.show_above_widget(self.crop_btn, x_offset=-size.width() // 8, y_offset=size.height() // 2)
 
     def on_set_output_dir(self) -> None:
         """Set output directory."""
@@ -426,6 +427,13 @@ class ImageWsiRegWindow(Window):
 
         self.modality_list = QtModalityList(self)
         self.registration_map = RegistrationMap(self)
+        self.mask_btn = hp.make_btn(
+            self, "Mask...", tooltip="Set mask to focus registration...", func=self.on_open_mask_dialog
+        )
+        self.crop_btn = hp.make_btn(
+            self, "Crop...", tooltip="Crop the image to focus registration...", func=self.on_open_crop_dialog
+        )
+
         self.name_label = hp.make_line_edit(
             side_widget, "Name", tooltip="Name of the project", placeholder="e.g. project.wsireg", func=self.on_validate
         )
@@ -493,7 +501,8 @@ class ImageWsiRegWindow(Window):
         side_layout.addRow(hp.make_h_line_with_text("or"))
         side_layout.addRow(self._image_widget)
         side_layout.addRow(self.modality_list)
-        side_layout.addRow(hp.make_btn(self, "Mask...", tooltip="Set mask", func=self.on_open_mask_dialog))
+        side_layout.addRow(self.mask_btn)
+        side_layout.addRow(hp.make_h_layout(self.mask_btn, self.crop_btn))
         side_layout.addRow(hp.make_h_layout(self.use_preview_check, self.hide_others_check, margin=2, spacing=2))
         side_layout.addRow(hp.make_h_line_with_text("Registration paths"))
         side_layout.addRow(self.registration_map)
