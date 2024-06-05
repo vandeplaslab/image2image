@@ -323,9 +323,8 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
             channel_names = model.channel_names()
             layer_names = [layer.name for layer in view_wrapper.layers if isinstance(layer, (Image, Shapes, Points))]
             for name in layer_names:
-                if name not in channel_names:
-                    if view_wrapper.remove_layer(name, silent=True):
-                        logger.trace(f"Removed '{name}' from {view_kind}.")
+                if name not in channel_names and view_wrapper.remove_layer(name, silent=True):
+                    logger.trace(f"Removed '{name}' from {view_kind}.")
         except Exception as e:  # noqa: BLE001
             log_exception_or_error(e)
 
@@ -629,23 +628,27 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
 
 def create_new_window(plugin: str) -> None:
     """Create new window."""
+    import os
     import sys
-    from qtpy.QtCore import QProcess
+
     from koyo.system import IS_WIN
+    from qtpy.QtCore import QProcess
+
+    program = os.environ.get("IMAGE2IMAGE_PROGRAM", None)
 
     process = QProcess()
     args = sys.argv
-    program = args.pop(0)
+    if not program:
+        program = args.pop(0)
     process.setProgram(program)
-    # create arguments
-    for k in ["convert", "register", "viewer", "crop", "merge", "fusion", "wsiprep", "wsireg"]:
-        if k in args:
-            index = args.index(k)
-            args[index] = plugin
-            break
-    logger.trace(f"Executing {sys.executable} {' '.join(args)}...")
+    arguments = []
+    if "--dev" in args:
+        arguments.append("--dev")
+    arguments.append("--tool")
+    arguments.append(plugin)
+    logger.trace(f"Executing {sys.executable} {' '.join(arguments)}...")
     if IS_WIN and hasattr(process, "setNativeArguments"):
-        process.setNativeArguments(" ".join(args))
+        process.setNativeArguments(" ".join(arguments))
     else:
-        process.setArguments(args)
+        process.setArguments(arguments)
     process.startDetached()

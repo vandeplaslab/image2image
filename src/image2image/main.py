@@ -90,6 +90,9 @@ def run(
         maybe_submit_segfault(USER_LOG_DIR)
     install_segfault_handler(USER_LOG_DIR)
 
+    args = sys.argv
+    if "image2image" in args:
+        os.environ["IMAGE2IMAGE_PROGRAM"] = args[0]
     if tool == "launcher":
         from image2image.qt.launcher import Launcher
 

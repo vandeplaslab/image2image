@@ -17,7 +17,7 @@ from loguru import logger
 from napari.layers import Image
 from qtextra.utils.utilities import connect
 from qtextra.widgets.qt_close_window import QtConfirmCloseDialog
-from qtpy.QtWidgets import QDialog, QHBoxLayout, QStatusBar, QVBoxLayout, QWidget
+from qtpy.QtWidgets import QDialog, QHBoxLayout, QMenuBar, QStatusBar, QVBoxLayout, QWidget
 from superqt import ensure_main_thread
 
 from image2image import __version__
@@ -502,7 +502,7 @@ class ImageWsiRegWindow(Window):
         side_layout.addRow(self._image_widget)
         side_layout.addRow(self.modality_list)
         side_layout.addRow(self.mask_btn)
-        side_layout.addRow(hp.make_h_layout(self.mask_btn, self.crop_btn))
+        side_layout.addRow(hp.make_h_layout(self.mask_btn, self.crop_btn, spacing=2))
         side_layout.addRow(hp.make_h_layout(self.use_preview_check, self.hide_others_check, margin=2, spacing=2))
         side_layout.addRow(hp.make_h_line_with_text("Registration paths"))
         side_layout.addRow(self.registration_map)
@@ -516,6 +516,7 @@ class ImageWsiRegWindow(Window):
             hp.make_h_layout(
                 hp.make_btn(side_widget, "Save...", tooltip="Export I2Reg project", func=self.on_save_to_i2reg),
                 hp.make_btn(side_widget, "Close", tooltip="Close I2Reg project", func=self.on_close),
+                spacing=2,
             )
         )
         side_layout.addRow(hidden_settings)
@@ -523,6 +524,7 @@ class ImageWsiRegWindow(Window):
             hp.make_h_layout(
                 hp.make_btn(side_widget, "Run", tooltip="Immediately execute registration", func=self.on_run),
                 hp.make_btn(side_widget, "Queue", tooltip="Add registration to queue", func=self.on_queue),
+                spacing=2,
             )
         )
 
@@ -540,7 +542,7 @@ class ImageWsiRegWindow(Window):
         main_layout.addLayout(layout)
 
         # extra settings
-        # self._make_menu()
+        self._make_menu()
         self._make_icon()
         self._make_statusbar()
 
@@ -562,6 +564,47 @@ class ImageWsiRegWindow(Window):
 
         dlg = QtScreenshotDialog(self.view, self)
         dlg.show_above_widget(self.clipboard_btn)
+
+    def _make_menu(self) -> None:
+        """Make menu items."""
+        # File menu
+        menu_file = hp.make_menu(self, "File")
+        hp.make_menu_item(
+            self,
+            "Add image (.tiff, .czi, + others)...",
+            "Ctrl+I",
+            menu=menu_file,
+            func=self._image_widget.on_select_dataset,
+        )
+        menu_file.addSeparator()
+        hp.make_menu_item(
+            self,
+            "Clear data",
+            menu=menu_file,
+            func=self._image_widget.on_close_dataset,
+        )
+        menu_file.addSeparator()
+        hp.make_menu_item(self, "Quit", menu=menu_file, func=self.close)
+
+        # Tools menu
+        menu_tools = hp.make_menu(self, "Tools")
+        hp.make_menu_item(
+            self, "Show scale bar controls...", "Ctrl+S", menu=menu_tools, icon="ruler", func=self.on_show_scalebar
+        )
+        menu_tools.addSeparator()
+        hp.make_menu_item(self, "Show Logger...", "Ctrl+L", menu=menu_tools, func=self.on_show_logger)
+        hp.make_menu_item(
+            self, "Show IPython console...", "Ctrl+T", menu=menu_tools, icon="ipython", func=self.on_show_console
+        )
+
+        # set actions
+        self.menubar = QMenuBar(self)
+        self.menubar.addAction(menu_file.menuAction())
+        self.menubar.addAction(menu_tools.menuAction())
+        self.menubar.addAction(self._make_apps_menu().menuAction())
+        self.menubar.addAction(self._make_config_menu().menuAction())
+        self.menubar.addAction(self._make_help_menu().menuAction())
+        self.setMenuBar(self.menubar)
 
     def _make_statusbar(self) -> None:
         """Make statusbar."""
