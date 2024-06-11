@@ -12,7 +12,7 @@ ALLOWED_PROJECT_IMPORT_REGISTER_FORMATS = (
     "imsmicrolink transformation (*.toml);;"
 )
 ALLOWED_PROJECT_EXPORT_REGISTER_FORMATS = (
-    "Any transformation (*.json *.toml);; "
+    "Any transformation (*.json *.toml *.xml);; "
     "Transformation (*.i2r.json);; "
     "Transformation (*.i2r.toml);;"
     "MATLAB fusion format (*.xml);;"
@@ -34,6 +34,7 @@ ALLOWED_PROJECT_WSIREG_FORMATS = (
     "TOML Project (*.i2wsireg.toml);;"
     "I2Reg Project (*.wsireg *.i2reg *.config.json);;"
 )
+
 ALLOWED_IMAGE_FORMATS = (
     "Any imaging (*.d *.tsf *.tdf *.imzML  *.ibd *.data *.metadata.h5 peaks_*.h5 *.npy *.czi *.ome.tiff *.tiff *.scn"
     " *.tif *.qptiff *.qptiff.raw *.qptiff.intermediate *.svs *.ndpi *.jpg *.jpeg *.png);; "

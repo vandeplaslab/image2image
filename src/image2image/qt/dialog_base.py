@@ -396,6 +396,7 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
         )
         hp.make_menu_item(self, "Open 'Merge' App", menu=menu_apps, func=self.on_open_merge)
         hp.make_menu_item(self, "Open 'Fusion' App", menu=menu_apps, func=self.on_open_fusion)
+        hp.make_menu_item(self, "Open 'WsiReg' App", menu=menu_apps, func=self.on_open_wsireg)
         return menu_apps
 
     def _make_help_menu(self) -> QMenu:
@@ -582,8 +583,8 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
             self.statusbar.showMessage("")
 
     @staticmethod
-    def on_open_convert():
-        """Open registration application."""
+    def on_open_convert() -> None:
+        """Open convert application."""
         from koyo.system import IS_MAC_ARM, IS_PYINSTALLER
 
         if IS_PYINSTALLER and IS_MAC_ARM:
@@ -596,33 +597,33 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
         create_new_window("convert")
 
     @staticmethod
-    def on_open_fusion():
-        """Open registration application."""
+    def on_open_fusion() -> None:
+        """Open fusion application."""
         create_new_window("fusion")
 
     @staticmethod
-    def on_open_merge():
-        """Open registration application."""
+    def on_open_merge() -> None:
+        """Open merge application."""
         create_new_window("merge")
 
     @staticmethod
-    def on_open_register():
-        """Open registration application."""
+    def on_open_register() -> None:
+        """Open register application."""
         create_new_window("register")
 
     @staticmethod
-    def on_open_viewer():
-        """Open registration application."""
+    def on_open_viewer() -> None:
+        """Open viewer application."""
         create_new_window("viewer")
 
     @staticmethod
-    def on_open_crop():
-        """Open registration application."""
+    def on_open_crop() -> None:
+        """Open crop application."""
         create_new_window("crop")
 
     @staticmethod
-    def on_open_wsireg():
-        """Open registration application."""
+    def on_open_wsireg() -> None:
+        """Open wsireg application."""
         create_new_window("wsireg")
 
 

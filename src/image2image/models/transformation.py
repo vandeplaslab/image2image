@@ -310,7 +310,7 @@ class Transformation(BaseModel):
         return path
 
     def to_xml(self, path: PathLike) -> None:
-        """Export dat aas fusion file."""
+        """Export data as fusion file."""
         from image2image.utils.utilities import write_xml_registration
 
         affine = self.compute(yx=False, px=True).params

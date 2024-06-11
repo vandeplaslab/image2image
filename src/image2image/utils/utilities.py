@@ -338,7 +338,7 @@ def add(layer, event, snap=True) -> None:
         layer.events.add_point()
 
 
-def write_xml_registration(output_path: PathLike, affine: np.ndarray):
+def write_xml_registration(filename: PathLike, affine: np.ndarray):
     """Export affine matrix as XML file."""
     from xml.dom.minidom import parseString
 
@@ -352,12 +352,11 @@ def write_xml_registration(output_path: PathLike, affine: np.ndarray):
         " ".join([str(x) for x in affine[1]]),
         " ".join([str(x) for x in affine[2]]),
     ]
-    affine = "\n".join(temp)
-    meta = {"affine_transformation_matrix": affine}
+    meta = {"affine_transformation_matrix": "\n".join(temp)}
 
     xml = dicttoxml(meta, custom_root="data_source_registration", attr_type=False)
 
-    with open(output_path, "w") as f:
+    with open(filename, "w") as f:
         f.write(parseString(xml).toprettyxml())
 
 

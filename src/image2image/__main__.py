@@ -6,7 +6,7 @@ from multiprocessing import freeze_support, set_start_method
 from image2image.cli import cli
 
 
-def main():
+def main() -> None:
     """Main entry point for the ionglow CLI."""
     return cli()
 
