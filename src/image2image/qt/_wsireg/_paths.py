@@ -108,6 +108,11 @@ class RegistrationMap(QWidget):
         self.transformation_map: dict[str, list[str | None]] = {}
         self._init_ui()
 
+    @property
+    def registration_model(self) -> IWsiReg:
+        """Registration model."""
+        return self._parent.registration_model
+
     def _init_ui(self) -> None:
         """Create UI."""
         self._choice = hp.make_combobox(
@@ -154,12 +159,19 @@ class RegistrationMap(QWidget):
                 stretch_after=True,
             )
         )
-        layout.addRow(hp.make_label(self, "Registration paths"), self._choice)
+        layout.addRow(
+            hp.make_label(self, "Registration paths"),
+            hp.make_h_layout(
+                self._choice,
+                hp.make_qta_btn(self, "reload", tooltip="Refresh paths", func=self.populate),
+                spacing=1,
+            ),
+        )
         layout.addRow(self._warning_label)
 
     def on_path_choice(self, _=None) -> None:
         """Handle path selection."""
-        registration_model: IWsiReg = self._parent.registration_model
+        registration_model: IWsiReg = self.registration_model
         path = self._choice.currentText()
         if path:
             parts = path.split(" » ")
@@ -209,13 +221,13 @@ class RegistrationMap(QWidget):
             hp.warn(self, "Please select source and target images.")
             return
         self._warning_label.setText("")
-        registration_model: IWsiReg = self._parent.registration_model
+        registration_model: IWsiReg = self.registration_model
         if not registration_model.has_registration_path(source, target, through):
             registration_model.add_registration_path(source, target, transform=registrations, through=through)
             logger.trace(f"Added registration path: {source} » {through} » {target}")
             self.populate_paths()
             self._choice.setCurrentText(path)
-        self._parent.modality_list.toggle_name(registration_model.n_registrations > 0)
+        self.toggle_name()
 
     def on_remove_path(self) -> None:
         """Add path."""
@@ -223,29 +235,35 @@ class RegistrationMap(QWidget):
         if not valid:
             self._warning_label.setText("Please select source and target images.")
             return
-        registration_model: IWsiReg = self._parent.registration_model
+        registration_model: IWsiReg = self.registration_model
         registration_model.remove_registration_path(source, target, through)
         logger.trace(f"Removed registration path: {source} » {through} » {target}")
         self.populate_paths()
-        self._parent.modality_list.toggle_name(registration_model.n_registrations > 0)
+        self.toggle_name()
 
     def on_reset_paths(self) -> None:
         """Reset all registration paths."""
         if not hp.confirm(self, "Are you sure you want to reset all registration paths?", "Please confirm."):
             return
-        registration_model: IWsiReg = self._parent.registration_model
+        registration_model: IWsiReg = self.registration_model
         registration_model.reset_registration_paths()
         self.populate_paths()
+
+    def toggle_name(self):
+        """Toggle name."""
+        self._parent.modality_list.toggle_name(self.registration_model.n_registrations > 0)
 
     def populate(self) -> None:
         """Populate options."""
         self.populate_images()
         self.populate_paths()
+        self.toggle_name()
 
     def depopulate(self) -> None:
         """Populate options."""
         self.populate_images()
         self.populate_paths()
+        self.toggle_name()
 
     def populate_images(self) -> None:
         """Populate options."""

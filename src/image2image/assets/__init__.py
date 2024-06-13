@@ -27,14 +27,12 @@ update_icon_mapping(
         # wsireg
         "mask": "mdi6.drama-masks",
         "process": "msc.wand",
-        "preview": "mdi6.image-edit",
+        # "preview": "mdi6.image-edit",
+        "preview": "mdi6.camera-iris",
         "attachment": "ri.attachment-2",
         "shapes": "fa5s.shapes",
         # other
-        "add": "ri.add-circle-fill",
-        "remove": "ri.indeterminate-circle-line",
         "remove_single": "mdi.close-circle",
-        "cancel": "mdi.close-circle",
         "remove_multiple": "mdi.close-circle-multiple",
         "remove_all": "fa5s.trash-alt",
         "bring_to_top": "fa5s.angle-double-up",

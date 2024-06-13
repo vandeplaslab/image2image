@@ -8,13 +8,17 @@ from pathlib import Path
 
 import numpy as np
 import qtextra.helpers as hp
+import qtextra.queue.cli_queue as _q
 from image2image_io.config import CONFIG as READER_CONFIG
 from image2image_reg.models import Modality
 from image2image_reg.workflows.iwsireg import IWsiReg
+from koyo.secret import hash_obj
 from koyo.timer import MeasureTimer
 from koyo.typing import PathLike
 from loguru import logger
 from napari.layers import Image
+from qtextra.queue.popup import QUEUE, QueuePopup
+from qtextra.queue.task import Task
 from qtextra.utils.utilities import connect
 from qtextra.widgets.qt_close_window import QtConfirmCloseDialog
 from qtpy.QtWidgets import QDialog, QHBoxLayout, QMenuBar, QStatusBar, QVBoxLayout, QWidget
@@ -28,14 +32,53 @@ from image2image.qt._dialogs._select import LoadWidget
 from image2image.qt._wsireg._list import QtModalityList
 from image2image.qt._wsireg._paths import RegistrationMap
 from image2image.qt.dialog_base import Window
+from image2image.utils.utilities import get_i2reg_path
 
 if ty.TYPE_CHECKING:
     from image2image_reg.models import Preprocessing
 
     from image2image.qt._wsireg._mask import CropDialog, MaskDialog
 
-MASK_LAYER_NAME = "Mask"
-MASK_FILENAME = "mask.tmp"
+logger.enable("qtextra")
+
+_q.N_PARALLEL = 2
+
+
+def make_registration_task(
+    project: IWsiReg,
+    write_not_transformed: bool = False,
+    write_transformed: bool = False,
+    write_merged: bool = False,
+    remove_merged: bool = False,
+    as_uint8: bool = False,
+) -> Task:
+    """Make registration task."""
+    task_id = hash_obj(project.project_dir)
+    commands = [
+        get_i2reg_path(),
+        "--no_color",
+        "--debug",
+        "register",
+        "--project_dir",
+        f"{project.project_dir!s}",
+    ]
+    if any([write_transformed, write_not_transformed, write_merged]):
+        commands.append("--write")
+    if write_not_transformed:
+        commands.append("--write_not_transformed")
+    if write_transformed:
+        commands.append("--write_transformed")
+    if write_merged:
+        commands.append("--write_merged")
+    if remove_merged:
+        commands.append("--remove_merged")
+    if as_uint8:
+        commands.append("--as_uint8")
+    return Task(
+        task_id=task_id,
+        task_name=f"{project.project_dir!s}",
+        commands=[commands],
+    )
 
 
 def guess_preprocessing(reader) -> Preprocessing:
@@ -56,13 +99,19 @@ class ImageWsiRegWindow(Window):
     _mask_dlg: MaskDialog | None = None
     _crop_dlg: MaskDialog | None = None
 
-    def __init__(self, parent: QWidget | None, run_check_version: bool = True):
+    def __init__(
+        self, parent: QWidget | None, run_check_version: bool = True, project_dir: PathLike | None = None, **_kwargs
+    ):
         super().__init__(
             parent, f"image2wsireg: WSI Registration app (v{__version__})", run_check_version=run_check_version
         )
-        # if CONFIG.first_time_viewer:
+        # if CONFIG.first_time_wsireg:
         #     hp.call_later(self, self.on_show_tutorial, 10_000)
         self._setup_config()
+        self.queue_popup = QueuePopup(self)
+        self.queue_btn.clicked.connect(self.queue_popup.show)  # noqa
+        if project_dir:
+            self._on_load_from_project(project_dir)
 
     @property
     def registration_model(self) -> IWsiReg | None:
@@ -93,9 +142,9 @@ class ImageWsiRegWindow(Window):
         # connect(self.view.widget.canvas.events.key_press, self.keyPressEvent, state=state)
         connect(self.view.viewer.events.status, self._status_changed, state=state)
 
+        connect(self.modality_list.evt_rename, self.on_rename_modality, state=state)
         connect(self.modality_list.evt_hide_others, self.on_hide_modalities, state=state)
         connect(self.modality_list.evt_preview_preprocessing, self.on_preview, state=state)
-        connect(self.modality_list.evt_name, self.on_update_modality_name, state=state)
         connect(self.modality_list.evt_resolution, self.on_update_modality, state=state)
         connect(self.modality_list.evt_show, self.on_show_modality, state=state)
         connect(self.modality_list.evt_set_preprocessing, self.on_update_modality, state=state)
@@ -103,10 +152,35 @@ class ImageWsiRegWindow(Window):
         connect(self.modality_list.evt_preprocessing_close, self.on_preview_close, state=state)
         connect(self.modality_list.evt_color, self.on_update_colormap, state=state)
 
+        connect(QUEUE.evt_errored, self.on_registration_finished, state=state)
+        connect(QUEUE.evt_finished, self.on_registration_finished, state=state)
+
+    def on_registration_finished(self, task: Task, _: ty.Any = None) -> None:
+        """Open registration in viewer."""
+        if self.open_when_finished.isChecked():
+            path = Path(task.task_name) / "Images"
+            self.on_open_viewer(f"image_dir={path!s}")
+            logger.trace("Registration finished - opening viewer.")
+
+    def on_rename_modality(self, widget, new_name: str) -> None:
+        """Rename modality."""
+        modality = widget.item_model
+        if not new_name:
+            hp.set_object_name(widget.name_label, object_name="error")
+            return
+        if modality.name == new_name:
+            return
+        if new_name in self.registration_model.modalities:
+            hp.toast(self, "Error", f"Name <b>{new_name}</b> already exists.", icon="error", position="top_left")
+            widget.name_label.setText(modality.name)
+            return
+        old_name = modality.name
+        modality.name = new_name
+        self.on_update_modality_name(old_name, modality)
+
     def on_update_modality_name(self, old_name: str, modality: Modality) -> None:
         """Update modality."""
-        self.registration_model.modalities[old_name].name = modality.name
-        self.registration_model.modalities[modality.name] = self.registration_model.modalities.pop(old_name)
+        self.registration_model.rename_modality(old_name, modality.name)
         layer = self.view.get_layer(old_name)
         if layer:
             layer.name = modality.name
@@ -300,7 +374,7 @@ class ImageWsiRegWindow(Window):
         self._mask_dlg.show_above_widget(self.mask_btn, x_offset=-size.width() // 8, y_offset=size.height() // 2)
 
     def on_open_crop_dialog(self) -> None:
-        """Open mask dialog."""
+        """Open crop dialog."""
         if self._crop_dlg is None:
             from image2image.qt._wsireg._mask import CropDialog
 
@@ -308,6 +382,9 @@ class ImageWsiRegWindow(Window):
             self._crop_dlg.evt_mask.connect(self.modality_list.toggle_crop)
         size = self._crop_dlg.sizeHint()
         self._crop_dlg.show_above_widget(self.crop_btn, x_offset=-size.width() // 8, y_offset=size.height() // 2)
+
+    def on_open_merge_dialog(self) -> None:
+        """Open merge dialog."""
 
     def on_set_output_dir(self) -> None:
         """Set output directory."""
@@ -341,12 +418,7 @@ class ImageWsiRegWindow(Window):
         if output_dir is None:
             hp.toast(self, "Error", "Please provide an output directory.", icon="error", position="top_left")
             return
-        is_valid, errors = self.registration_model.validate(require_paths=True)
-        if not is_valid:
-            from image2image.qt._dialogs._errors import ErrorsDialog
-
-            dlg = ErrorsDialog(self, errors)
-            dlg.show()
+        if not self._validate():
             return
 
         self.registration_model.merge_images = self.write_merged_check.isChecked()
@@ -382,11 +454,48 @@ class ImageWsiRegWindow(Window):
                 if paths:
                     self._image_widget.on_set_path(paths)
 
+    def _validate(self) -> None:
+        """Validate project."""
+        is_valid, errors = self.registration_model.validate(require_paths=True)
+        if not is_valid:
+            from image2image.qt._dialogs._errors import ErrorsDialog
+
+            dlg = ErrorsDialog(self, errors)
+            dlg.show()
+        return is_valid
+
+    def _queue_registration_model(self, add_delayed: bool) -> bool:
+        """Queue registration model."""
+        if not self.registration_model:
+            return False
+        if not self._validate():
+            return False
+
+        task = make_registration_task(
+            self.registration_model,
+            write_transformed=self.write_registered_check.isChecked(),
+            write_not_registered=self.write_not_registered_check.isChecked(),
+            write_merged=self.write_merged_check.isChecked(),
+            as_uint8=self.as_uint8.isChecked(),
+        )
+        if task:
+            if QUEUE.is_queued(task.task_id):
+                hp.toast(
+                    self, "Already queued", "This task is already in the queue.", icon="warning", position="top_left"
+                )
+                return False
+            QUEUE.add_task(task, add_delayed=add_delayed)
+        return True
+
     def on_run(self) -> None:
         """Execute registration."""
+        if self._queue_registration_model(add_delayed=False):
+            self.queue_popup.show()
 
     def on_queue(self) -> None:
         """Queue registration."""
+        if self._queue_registration_model(add_delayed=True):
+            self.queue_popup.show()
 
     def on_close(self) -> None:
         """Close project."""
@@ -433,6 +542,9 @@ class ImageWsiRegWindow(Window):
         self.crop_btn = hp.make_btn(
             self, "Crop...", tooltip="Crop the image to focus registration...", func=self.on_open_crop_dialog
         )
+        self.merge_btn = hp.make_btn(
+            self, "Merge...", tooltip="Specify images to merge...", func=self.on_open_merge_dialog
+        )
 
         self.name_label = hp.make_line_edit(
             side_widget, "Name", tooltip="Name of the project", placeholder="e.g. project.wsireg", func=self.on_validate
@@ -448,7 +560,7 @@ class ImageWsiRegWindow(Window):
             self,
             "Use preview image",
             tooltip="Use preview image for viewing instead of the first channel only.",
-            checked=False,
+            value=False,
             func=self.on_show_modalities,
         )
         self.hide_others_check = hp.make_checkbox(
@@ -459,23 +571,23 @@ class ImageWsiRegWindow(Window):
             func=self.on_show_modalities,
         )
 
-        self.write_non_transformed_check = hp.make_checkbox(
+        self.write_not_registered_check = hp.make_checkbox(
             self,
             "",
-            tooltip="Write original, not-transformed images (those without any transformations such as target).",
-            checked=True,
+            tooltip="Write original, not-registered images (those without any transformations such as target).",
+            value=True,
         )
-        self.write_transformed_check = hp.make_checkbox(
+        self.write_registered_check = hp.make_checkbox(
             self,
             "",
-            tooltip="Write original, transformed images.",
-            checked=True,
+            tooltip="Write original, registered images.",
+            value=True,
         )
         self.write_merged_check = hp.make_checkbox(
             self,
             "",
             tooltip="Merge non- and transformed images into a single image.",
-            checked=False,
+            value=False,
         )
         self.as_uint8 = hp.make_checkbox(
             self,
@@ -484,12 +596,19 @@ class ImageWsiRegWindow(Window):
             checked=True,
             value=CONFIG.as_uint8,
         )
+        self.open_when_finished = hp.make_checkbox(
+            self,
+            "",
+            tooltip="Open images in the viewer when registration is finished.",
+            value=True,
+        )
 
         hidden_settings = hp.make_advanced_collapsible(side_widget, "Advanced options", allow_checkbox=False)
-        hidden_settings.addRow(hp.make_label(self, "Write non-transformed images"), self.write_non_transformed_check)
-        hidden_settings.addRow(hp.make_label(self, "Write transformed images"), self.write_transformed_check)
+        hidden_settings.addRow(hp.make_label(self, "Write unregistered images"), self.write_not_registered_check)
+        hidden_settings.addRow(hp.make_label(self, "Write registered images"), self.write_registered_check)
         hidden_settings.addRow(hp.make_label(self, "Merge transformed images"), self.write_merged_check)
         hidden_settings.addRow(hp.make_label(self, "Reduce data size"), self.as_uint8)
+        hidden_settings.addRow(hp.make_label(self, "Open when finished"), self.open_when_finished)
 
         side_layout = hp.make_form_layout(side_widget)
         hp.style_form_layout(side_layout)
@@ -502,7 +621,7 @@ class ImageWsiRegWindow(Window):
         side_layout.addRow(self._image_widget)
         side_layout.addRow(self.modality_list)
         side_layout.addRow(self.mask_btn)
-        side_layout.addRow(hp.make_h_layout(self.mask_btn, self.crop_btn, spacing=2))
+        side_layout.addRow(hp.make_h_layout(self.mask_btn, self.crop_btn, self.merge_btn, spacing=2))
         side_layout.addRow(hp.make_h_layout(self.use_preview_check, self.hide_others_check, margin=2, spacing=2))
         side_layout.addRow(hp.make_h_line_with_text("Registration paths"))
         side_layout.addRow(self.registration_map)
@@ -523,7 +642,7 @@ class ImageWsiRegWindow(Window):
         side_layout.addRow(
             hp.make_h_layout(
                 hp.make_btn(side_widget, "Run", tooltip="Immediately execute registration", func=self.on_run),
-                hp.make_btn(side_widget, "Queue", tooltip="Add registration to queue", func=self.on_queue),
+                hp.make_btn(side_widget, "Add to queue", tooltip="Add registration to queue", func=self.on_queue),
                 spacing=2,
             )
         )
@@ -615,6 +734,8 @@ class ImageWsiRegWindow(Window):
         self.statusbar = QStatusBar()
         self.statusbar.setSizeGripEnabled(False)
 
+        self.queue_btn = hp.make_qta_btn(self, "queue", tooltip="Open queue popup.", small=True)
+        self.statusbar.addPermanentWidget(self.queue_btn)
         self.screenshot_btn = hp.make_qta_btn(
             self,
             "save",

@@ -141,8 +141,7 @@ class ShapesDialog(QtFramelessTool):
         name = self.slide_choice.currentText()
         if name:
             modality = self._parent.registration_model.modalities[name]
-            # TODO: Implement is_masked method
-            return modality.is_masked() if self.MASK_OR_CROP == "mask" else modality.is_cropped()
+            return modality.preprocessing.is_masked() if self.MASK_OR_CROP == "mask" else modality.is_cropped()
         return False
 
     def _on_update_crop_from_canvas(self, index: int = 0) -> None:

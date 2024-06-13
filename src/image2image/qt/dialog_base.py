@@ -544,7 +544,7 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
                 "Drag & drop",
                 "Drop the files in the app and we will try to open them..",
                 icon="info",
-                position="top_left",
+                position="top_right",
             )
             hp.update_property(self.centralWidget(), "drag", True)
             hp.call_later(self, lambda: hp.update_property(self.centralWidget(), "drag", False), 2000)
@@ -558,7 +558,7 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
                 "Drag & drop not allowed",
                 "Drag & drop is not allowed in this app.",
                 icon="error",
-                position="top_left",
+                position="top_right",
             )
 
     def dragLeaveEvent(self, event):
@@ -583,7 +583,7 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
             self.statusbar.showMessage("")
 
     @staticmethod
-    def on_open_convert() -> None:
+    def on_open_convert(*args: str) -> None:
         """Open convert application."""
         from koyo.system import IS_MAC_ARM, IS_PYINSTALLER
 
@@ -594,40 +594,40 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
                 "App not available on this platform.",
             )
             return
-        create_new_window("convert")
+        create_new_window("convert", *args)
 
     @staticmethod
-    def on_open_fusion() -> None:
+    def on_open_fusion(*args: str) -> None:
         """Open fusion application."""
-        create_new_window("fusion")
+        create_new_window("fusion", *args)
 
     @staticmethod
-    def on_open_merge() -> None:
+    def on_open_merge(*args: str) -> None:
         """Open merge application."""
-        create_new_window("merge")
+        create_new_window("merge", *args)
 
     @staticmethod
-    def on_open_register() -> None:
+    def on_open_register(*args: str) -> None:
         """Open register application."""
-        create_new_window("register")
+        create_new_window("register", *args)
 
     @staticmethod
-    def on_open_viewer() -> None:
+    def on_open_viewer(*args: str) -> None:
         """Open viewer application."""
-        create_new_window("viewer")
+        create_new_window("viewer", *args)
 
     @staticmethod
-    def on_open_crop() -> None:
+    def on_open_crop(*args: str) -> None:
         """Open crop application."""
-        create_new_window("crop")
+        create_new_window("crop", *args)
 
     @staticmethod
-    def on_open_wsireg() -> None:
+    def on_open_wsireg(*args: str) -> None:
         """Open wsireg application."""
-        create_new_window("wsireg")
+        create_new_window("wsireg", *args)
 
 
-def create_new_window(plugin: str) -> None:
+def create_new_window(plugin: str, *extra_args) -> None:
     """Create new window."""
     import os
     import sys
@@ -647,6 +647,8 @@ def create_new_window(plugin: str) -> None:
         arguments.append("--dev")
     arguments.append("--tool")
     arguments.append(plugin)
+    if extra_args:
+        arguments.extend(extra_args)
     logger.trace(f"Executing {sys.executable} {' '.join(arguments)}...")
     if IS_WIN and hasattr(process, "setNativeArguments"):
         process.setNativeArguments(" ".join(arguments))

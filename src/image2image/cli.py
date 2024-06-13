@@ -1,9 +1,12 @@
 """CLI."""
 
+from __future__ import annotations
+
 import typing as ty
 
 import click
 from koyo.system import IS_MAC, IS_MAC_ARM, IS_PYINSTALLER
+from koyo.click import parse_extra_args
 
 from image2image import __version__
 
@@ -53,8 +56,14 @@ def dev_options(func: ty.Callable) -> ty.Callable:
     show_default=True,
 )
 @click.command(
-    context_settings={"help_option_names": ["-h", "--help"], "max_content_width": 120, "ignore_unknown_options": True},
+    context_settings={
+        "help_option_names": ["-h", "--help"],
+        "max_content_width": 120,
+        "ignore_unknown_options": True,
+        "allow_extra_args": True,
+    },
 )
+@click.argument("extra_args", nargs=-1, type=click.UNPROCESSED)
 @click.pass_context
 def cli(
     ctx: click.Context,
@@ -63,6 +72,7 @@ def cli(
     no_color: bool,
     dev: bool = False,
     extras: ty.Any = None,
+    extra_args: ty.Tuple[str, ...] | None = None,
 ) -> None:
     """Launch image2image app.
 
@@ -90,4 +100,6 @@ def cli(
         else:
             verbosity = 0.5
     level = min(0.5, verbosity) * 10
-    run(level=int(level), no_color=no_color, dev=dev, tool=tool)
+    kws = parse_extra_args(extra_args)
+    run(level=int(level), no_color=no_color, dev=dev, tool=tool, **kws)
+

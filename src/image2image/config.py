@@ -19,6 +19,7 @@ class Config(BaseConfig):
     output_dir: str = Field(
         "", title="Output directory", description="Directory where output should be saved.", in_app=False
     )
+    last_dir: str = Field("", title="Last directory", description="Last directory used.", in_app=False)
 
     # visuals
     theme: str = Field(
@@ -157,7 +158,7 @@ class Config(BaseConfig):
         True, title="Send locals", description="Send locals with telemetry.", in_app=True
     )
 
-    @validator("fixed_dir", "moving_dir", "output_dir", pre=True, allow_reuse=True)
+    @validator("fixed_dir", "moving_dir", "output_dir", "last_dir", pre=True, allow_reuse=True)
     def _validate_path(value: PathLike) -> str:  # type: ignore[misc]
         """Validate path."""
         return str(value)

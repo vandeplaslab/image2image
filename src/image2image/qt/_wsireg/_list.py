@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import typing as ty
 from contextlib import suppress
+from pathlib import Path
 
 import numpy as np
 import qtextra.helpers as hp
@@ -15,6 +16,7 @@ from qtpy.QtCore import QRegularExpression, Qt, Signal, Slot  # type: ignore[att
 from qtpy.QtGui import QRegularExpressionValidator
 from qtpy.QtWidgets import QHBoxLayout, QListWidgetItem, QSizePolicy, QWidget
 
+from image2image.config import CONFIG
 from image2image.qt._wsireg._widgets import QtModalityLabel
 
 if ty.TYPE_CHECKING:
@@ -33,7 +35,7 @@ class QtModalityItem(QtListItem):
     """
 
     evt_show = Signal(Modality, bool)
-    evt_name = Signal(str, Modality)
+    evt_rename = Signal(object, str)
     evt_resolution = Signal(Modality)
     evt_set_preprocessing = Signal(Modality)
     evt_hide_others = Signal(Modality)
@@ -79,6 +81,27 @@ class QtModalityItem(QtListItem):
         )
         self.color_btn = hp.make_swatch(self, color, tooltip="Click here to change color.")
         self.color_btn.evt_color_changed.connect(self._on_change_color)
+        self.attach_image_btn = hp.make_qta_btn(
+            self,
+            "image",
+            tooltip="Click here to attach Image file. (.czi, .tiff)",
+            normal=True,
+            func=self.on_attach_image,
+        )
+        self.attach_geojson_btn = hp.make_qta_btn(
+            self,
+            "shapes",
+            tooltip="Click here to attach GeoJSON file (.geojson).",
+            normal=True,
+            func=self.on_attach_geojson,
+        )
+        self.attach_points_btn = hp.make_qta_btn(
+            self,
+            "points",
+            tooltip="Click here to attach points file (.csv, .txt).",
+            normal=True,
+            func=self.on_attach_points,
+        )
 
         self.preprocessing_label = hp.make_scrollable_label(
             self, "<no pre-processing>", alignment=Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop
@@ -117,6 +140,9 @@ class QtModalityItem(QtListItem):
         lay.setContentsMargins(0, 0, 0, 0)
         lay.setSpacing(0)
         lay.addLayout(hp.make_v_layout(self.preprocessing_btn, self.preview_btn, self.color_btn, stretch_after=True))
+        lay.addLayout(
+            hp.make_v_layout(self.attach_image_btn, self.attach_geojson_btn, self.attach_points_btn, stretch_after=True)
+        )
         lay.addWidget(self.preprocessing_label, alignment=Qt.AlignmentFlag.AlignTop, stretch=True)
 
         layout = hp.make_form_layout()
@@ -149,9 +175,58 @@ class QtModalityItem(QtListItem):
         self.name_label.setText(self.item_model.name)
         self.modality_icon.state = "image"
         self.resolution_label.setText(f"{self.item_model.pixel_size:.3f}")
-        self.preprocessing_label.setText(self.item_model.preprocessing.as_str())
-        self.mask_icon.setVisible(self.item_model.is_masked())  # TODO: change to pre-processing
+        text, tooltip = self.item_model.preprocessing.as_str()
+        self.preprocessing_label.setText(text)
+        self.preprocessing_label.setToolTip(tooltip)
+        self.mask_icon.setVisible(self.item_model.preprocessing.is_masked())
         self.crop_icon.setVisible(self.item_model.preprocessing.is_cropped())
+        n = self.registration_model.get_attachments(self.item_model.name, "image")
+        self.attach_image_btn.set_count(n)
+        n = self.registration_model.get_attachments(self.item_model.name, "geojson")
+        self.attach_geojson_btn.set_count(n)
+        n = self.registration_model.get_attachments(self.item_model.name, "points")
+        self.attach_points_btn.set_count(n)
+
+    @property
+    def registration_model(self) -> IWsiReg:
+        """Get registration model."""
+        parent = self.parent()
+        if hasattr(parent, "registration_model"):
+            return parent.registration_model
+        return self.parent().parent().registration_model
+
+    def on_attach_image(self) -> None:
+        """Attach Image file."""
+        path = hp.get_filename(
+            self, "Attach image file", file_filter="Image files (*.czi *.tiff)", base_dir=CONFIG.last_dir
+        )
+        if path:
+            CONFIG.last_dir = Path(path).parent
+            name = Path(path).stem.replace(".ome", "")
+            self.registration_model.auto_add_attachment_images(self.item_model.name, name, path)
+            self._set_from_model()
+
+    def on_attach_geojson(self) -> None:
+        """Attach GeoJSON file."""
+        path = hp.get_filename(
+            self, "Attach GeoJSON file", file_filter="GeoJSON files (*.geojson)", base_dir=CONFIG.last_dir
+        )
+        if path:
+            CONFIG.last_dir = Path(path).parent
+            name = Path(path).stem
+            self.registration_model.add_attachment_geojson(self.item_model.name, name, [path])
+            self._set_from_model()
+
+    def on_attach_points(self) -> None:
+        """Attach points file."""
+        path = hp.get_filename(
+            self, "Attach points file", file_filter="Points files (*.csv *.txt)", base_dir=CONFIG.last_dir
+        )
+        if path:
+            CONFIG.last_dir = Path(path).parent
+            name = Path(path).stem
+            self.registration_model.add_attachment_points(self.item_model.name, name, [path])
+            self._set_from_model()
 
     @property
     def color(self) -> np.ndarray:
@@ -190,17 +265,14 @@ class QtModalityItem(QtListItem):
 
     def _on_update_name(self) -> None:
         """Update name."""
-        name = self.name_label.text()
-        if name:
-            old_name = self.item_model.name
-            self.item_model.name = name
-            self.evt_name.emit(old_name, self.item_model)
-        else:
-            hp.set_object_name(self.name_label, "error")
+        self.evt_rename.emit(self, self.name_label.text())
 
     def _on_update_resolution(self) -> None:
         """Update resolution."""
-        self.item_model.pixel_size = float(self.resolution_label.text())
+        resolution = self.resolution_label.text()
+        if not resolution:
+            return
+        self.item_model.pixel_size = float(resolution)
         self.evt_resolution.emit(self.item_model)
 
     def on_open_preprocessing(self) -> None:
@@ -236,7 +308,9 @@ class QtModalityItem(QtListItem):
 
     def on_update_preprocessing(self, preprocessing: Preprocessing) -> None:
         """Update pre-processing."""
-        self.preprocessing_label.setText(preprocessing.as_str())
+        text, tooltip = preprocessing.as_str()
+        self.preprocessing_label.setText(text)
+        self.preprocessing_label.setToolTip(tooltip)
 
     def on_set_preprocessing(self, preprocessing: Preprocessing) -> None:
         """Set pre-processing."""
@@ -251,7 +325,7 @@ class QtModalityItem(QtListItem):
 
     def toggle_mask(self) -> None:
         """Toggle name."""
-        self.mask_icon.setVisible(self.item_model.is_masked())  # TODO: change to pre-processing
+        self.mask_icon.setVisible(self.item_model.preprocessing.is_masked())
 
     def toggle_crop(self) -> None:
         """Toggle name."""
@@ -271,6 +345,7 @@ class QtModalityList(QtListWidget):
     """List of notifications."""
 
     evt_show = Signal(Modality, bool)
+    evt_rename = Signal(object, str)
     evt_name = Signal(str, Modality)
     evt_resolution = Signal(Modality)
     evt_hide_others = Signal(Modality)
@@ -290,13 +365,18 @@ class QtModalityList(QtListWidget):
         self.setUniformItemSizes(True)
         self._parent = parent
 
+    @property
+    def registration_model(self) -> IWsiReg:
+        """Get registration model."""
+        return self._parent.registration_model
+
     def _make_widget(self, item: QListWidgetItem) -> QtModalityItem:
         color = get_next_color(self.count())
 
         widget = QtModalityItem(item, parent=self, color=color)
         widget.evt_remove.connect(self.remove_item)
         widget.evt_show.connect(self.evt_show.emit)
-        widget.evt_name.connect(self.evt_name.emit)
+        widget.evt_rename.connect(self.evt_rename.emit)
         widget.evt_resolution.connect(self.evt_resolution.emit)
         widget.evt_hide_others.connect(self.evt_hide_others.emit)
         widget.evt_preview_preprocessing.connect(self.evt_preview_preprocessing.emit)
@@ -325,14 +405,16 @@ class QtModalityList(QtListWidget):
 
     def populate(self) -> None:
         """Create list of items."""
-        registration_model: IWsiReg = self._parent.registration_model
+        registration_model = self.registration_model
         for model in registration_model.modalities.values():
+            if registration_model.is_attachment(model.name):
+                continue
             self.append_item(model)
         logger.debug("Populated modality list.")
 
     def depopulate(self) -> None:
         """Remove list of items."""
-        registration_model: IWsiReg = self._parent.registration_model
+        registration_model = self.registration_model
         for item in self.item_iter(reverse=True):
             if item.item_model not in registration_model.modalities.values():
                 self.remove_item(item, force=True)

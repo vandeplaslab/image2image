@@ -382,3 +382,59 @@ def ensure_extension(path: PathLike, extension: str) -> Path:
         suffix = path.suffix
         path = path.with_suffix(f".{extension}{suffix}")
     return path
+
+
+def get_cli_path(name: str) -> str:
+    """Get path to imimspy executable.
+
+    The path is determined in the following order:
+    1. First, we check whether environment variable `AUTOIMS_{name.upper()}_PATH` is set.
+    2. If not, we check whether we are running as a PyInstaller app.
+    3. If not, we check whether we are running as a Python app.
+    4. If not, we raise an error.
+    """
+    import os
+    import sys
+
+    from koyo.system import IS_LINUX, IS_MAC, IS_WIN
+    from koyo.utilities import running_as_pyinstaller_app
+
+    env_var = f"IMAGE2IMAGE_{name.upper()}_PATH"
+    if os.environ.get(env_var, None):
+        script_path = Path(os.environ[env_var])
+        if script_path.exists():
+            return str(script_path)
+
+    base_path = Path(sys.executable).parent
+    if running_as_pyinstaller_app():
+        if IS_WIN:
+            script_path = base_path / f"{name}.exe"
+        elif IS_MAC or IS_LINUX:
+            script_path = base_path / name
+        else:
+            raise NotImplementedError(f"Unsupported OS: {sys.platform}")
+        if script_path.exists():
+            return str(script_path)
+    else:
+        # on Windows, {name} lives under the `Scripts` directory
+        if IS_WIN:
+            script_path = base_path / "Scripts"
+            if script_path.exists() and (script_path / f"{name}.exe").exists():
+                return str(script_path / f"{name}.exe")
+        elif IS_MAC or IS_LINUX:
+            script_path = base_path / name
+            if script_path.exists():
+                return str(script_path)
+        else:
+            script_path = base_path / f"{name}.exe"
+            if script_path.exists():
+                return str(script_path)
+    raise RuntimeError(f"Could not find '{name}' executable.")
+
+
+def get_i2reg_path() -> str:
+    """Get image2image-reg path.
+
+    You can force a specific path by setting the environment variable `IMAGE2IMAGE_I2REG`.
+    """
+    return get_cli_path("i2reg")

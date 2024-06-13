@@ -10,6 +10,7 @@ import numpy as np
 import qtextra.helpers as hp
 from image2image_io.config import CONFIG as READER_CONFIG
 from koyo.timer import MeasureTimer
+from koyo.typing import PathLike
 from loguru import logger
 from napari.layers import Image, Points, Shapes
 from qtextra.utils.utilities import connect
@@ -43,11 +44,29 @@ class ImageViewerWindow(Window):
     points_layer: list[Points] | None = None
     _console = None
 
-    def __init__(self, parent: QWidget | None, run_check_version: bool = True):
+    def __init__(
+        self,
+        parent: QWidget | None,
+        run_check_version: bool = True,
+        image_path: PathLike | list[PathLike] | None = None,
+        image_dir: PathLike | None = None,
+        **_kwargs,
+    ):
         super().__init__(parent, f"image2image: Viewer app (v{__version__})", run_check_version=run_check_version)
         if CONFIG.first_time_viewer:
             hp.call_later(self, self.on_show_tutorial, 10_000)
         self._setup_config()
+        self.on_open_images(image_dir, image_path)
+
+    def on_open_images(self, image_dir: PathLike | None = None, image_path: PathLike | list[PathLike] | None = None):
+        """Open images."""
+        if image_path:
+            if not isinstance(image_path, list):
+                image_path = [image_path]
+            self._image_widget.on_set_path(image_path)
+        if image_dir:
+            image_path = list(Path(image_dir).rglob("*"))
+            self._image_widget.on_set_path(image_path)
 
     @staticmethod
     def _setup_config() -> None:
