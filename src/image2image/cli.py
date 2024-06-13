@@ -102,4 +102,3 @@ def cli(
     level = min(0.5, verbosity) * 10
     kws = parse_extra_args(extra_args)
     run(level=int(level), no_color=no_color, dev=dev, tool=tool, **kws)
-
