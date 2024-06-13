@@ -46,7 +46,7 @@ _q.N_PARALLEL = 2
 
 def make_registration_task(
     project: IWsiReg,
-    write_not_transformed: bool = False,
+    write_not_registered: bool = False,
     write_transformed: bool = False,
     write_merged: bool = False,
     remove_merged: bool = False,
@@ -62,9 +62,9 @@ def make_registration_task(
         "--project_dir",
         f"{project.project_dir!s}",
     ]
-    if any([write_transformed, write_not_transformed, write_merged]):
+    if any([write_transformed, write_not_registered, write_merged]):
         commands.append("--write")
-    if write_not_transformed:
+    if write_not_registered:
         commands.append("--write_not_transformed")
     if write_transformed:
         commands.append("--write_transformed")
