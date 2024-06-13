@@ -180,11 +180,11 @@ class QtModalityItem(QtListItem):
         self.preprocessing_label.setToolTip(tooltip)
         self.mask_icon.setVisible(self.item_model.preprocessing.is_masked())
         self.crop_icon.setVisible(self.item_model.preprocessing.is_cropped())
-        n = self.registration_model.get_attachments(self.item_model.name, "image")
+        n = self.registration_model.get_attachment_count(self.item_model.name, "image")
         self.attach_image_btn.set_count(n)
-        n = self.registration_model.get_attachments(self.item_model.name, "geojson")
+        n = self.registration_model.get_attachment_count(self.item_model.name, "geojson")
         self.attach_geojson_btn.set_count(n)
-        n = self.registration_model.get_attachments(self.item_model.name, "points")
+        n = self.registration_model.get_attachment_count(self.item_model.name, "points")
         self.attach_points_btn.set_count(n)
 
     @property

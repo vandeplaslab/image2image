@@ -385,6 +385,12 @@ class ImageWsiRegWindow(Window):
 
     def on_open_merge_dialog(self) -> None:
         """Open merge dialog."""
+        modalities = self.registration_model.get_image_modalities(with_attachment=False)
+        if not modalities or len(modalities) < 2:
+            hp.toast(self, "Error", "Need more images to merge..", icon="error", position="top_left")
+            return
+
+        hp.select_from_list(self, "Select images to merge")
 
     def on_set_output_dir(self) -> None:
         """Set output directory."""
@@ -545,6 +551,7 @@ class ImageWsiRegWindow(Window):
         self.merge_btn = hp.make_btn(
             self, "Merge...", tooltip="Specify images to merge...", func=self.on_open_merge_dialog
         )
+        self.merge_btn.hide()
 
         self.name_label = hp.make_line_edit(
             side_widget, "Name", tooltip="Name of the project", placeholder="e.g. project.wsireg", func=self.on_validate
@@ -603,13 +610,6 @@ class ImageWsiRegWindow(Window):
             value=True,
         )
 
-        hidden_settings = hp.make_advanced_collapsible(side_widget, "Advanced options", allow_checkbox=False)
-        hidden_settings.addRow(hp.make_label(self, "Write unregistered images"), self.write_not_registered_check)
-        hidden_settings.addRow(hp.make_label(self, "Write registered images"), self.write_registered_check)
-        hidden_settings.addRow(hp.make_label(self, "Merge transformed images"), self.write_merged_check)
-        hidden_settings.addRow(hp.make_label(self, "Reduce data size"), self.as_uint8)
-        hidden_settings.addRow(hp.make_label(self, "Open when finished"), self.open_when_finished)
-
         side_layout = hp.make_form_layout(side_widget)
         hp.style_form_layout(side_layout)
         side_layout.addRow(
@@ -619,12 +619,14 @@ class ImageWsiRegWindow(Window):
         )
         side_layout.addRow(hp.make_h_line_with_text("or"))
         side_layout.addRow(self._image_widget)
+        # Modalities
         side_layout.addRow(self.modality_list)
-        side_layout.addRow(self.mask_btn)
         side_layout.addRow(hp.make_h_layout(self.mask_btn, self.crop_btn, self.merge_btn, spacing=2))
         side_layout.addRow(hp.make_h_layout(self.use_preview_check, self.hide_others_check, margin=2, spacing=2))
+        # Registration paths
         side_layout.addRow(hp.make_h_line_with_text("Registration paths"))
         side_layout.addRow(self.registration_map)
+        # Project
         side_layout.addRow(hp.make_h_line_with_text("I2Reg project"))
         side_layout.addRow(hp.make_label(side_widget, "Name"), self.name_label)
         side_layout.addRow(
@@ -638,7 +640,15 @@ class ImageWsiRegWindow(Window):
                 spacing=2,
             )
         )
+        # Advanced options
+        hidden_settings = hp.make_advanced_collapsible(side_widget, "Advanced options", allow_checkbox=False)
+        hidden_settings.addRow(hp.make_label(self, "Write unregistered images"), self.write_not_registered_check)
+        hidden_settings.addRow(hp.make_label(self, "Write registered images"), self.write_registered_check)
+        hidden_settings.addRow(hp.make_label(self, "Merge transformed images"), self.write_merged_check)
+        hidden_settings.addRow(hp.make_label(self, "Reduce data size"), self.as_uint8)
+        hidden_settings.addRow(hp.make_label(self, "Open when finished"), self.open_when_finished)
         side_layout.addRow(hidden_settings)
+        # Execution buttons
         side_layout.addRow(
             hp.make_h_layout(
                 hp.make_btn(side_widget, "Run", tooltip="Immediately execute registration", func=self.on_run),
