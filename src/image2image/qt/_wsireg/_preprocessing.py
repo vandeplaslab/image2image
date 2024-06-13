@@ -92,6 +92,7 @@ class PreprocessingDialog(QtFramelessTool):
         self.preprocessing.image_type = {"Brightfield": "BF", "Fluorescence": "FL"}[self.type_choice.currentText()]
         self.preprocessing.max_intensity_projection = self.mip_check.isChecked()
         self.preprocessing.contrast_enhance = self.contrast_check.isChecked()
+        self.preprocessing.equalize_histogram = self.equalize_check.isChecked()
         self.preprocessing.invert_intensity = self.invert_check.isChecked()
         self.preprocessing.channel_indices, self.preprocessing.channel_names = self.get_selected_channels()
         self.preprocessing.as_uint8 = self.uint8_check.isChecked()
@@ -162,6 +163,9 @@ class PreprocessingDialog(QtFramelessTool):
             func=self.on_update_model,
         )
         self.mip_check = hp.make_checkbox(self, "", tooltip="Max intensity projection", func=self.on_update_model)
+        self.equalize_check = hp.make_checkbox(
+            self, "", tooltip="Equalize histogram enhancement", func=self.on_update_model
+        )
         self.contrast_check = hp.make_checkbox(self, "", tooltip="Contrast enhancement", func=self.on_update_model)
         self.invert_check = hp.make_checkbox(self, "", tooltip="Invert intensity", func=self.on_update_model)
         self.channel_table = QtCheckableTableView(
@@ -234,6 +238,7 @@ class PreprocessingDialog(QtFramelessTool):
         layout.addRow(hp.make_h_line_with_text("Intensity", self))
         layout.addRow("Image type", self.type_choice)
         layout.addRow("Max. intensity projection", self.mip_check)
+        layout.addRow("Histogram equalization", self.equalize_check)
         layout.addRow("Contrast enhancement", self.contrast_check)
         layout.addRow("Invert intensity", self.invert_check)
         layout.addRow("UInt8 (reduce data size)", self.uint8_check)
