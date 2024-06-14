@@ -209,8 +209,8 @@ class ShapesDialog(QtFramelessTool):
         """Transform data from stored data (which is stored in the micron units."""
         wrapper = self._parent.data_model.get_wrapper()
         reader = wrapper.get_reader_for_path(modality.path)
-        polygon = getattr(modality, f"{self.MASK_OR_CROP}_polygon")
-        bbox = getattr(modality, f"{self.MASK_OR_CROP}_bbox")
+        polygon = getattr(modality.preprocessing, f"{self.MASK_OR_CROP}_polygon")
+        bbox = getattr(modality.preprocessing, f"{self.MASK_OR_CROP}_bbox")
         if polygon is None:
             if bbox is None:
                 return []

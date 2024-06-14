@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import typing as ty
+from qtpy.QtWidgets import QSizePolicy
 from functools import partial
 from pathlib import Path
 
@@ -65,9 +66,9 @@ def make_registration_task(
     if any([write_transformed, write_not_registered, write_merged]):
         commands.append("--write")
     if write_not_registered:
-        commands.append("--write_not_transformed")
+        commands.append("--write_not_registered")
     if write_transformed:
-        commands.append("--write_transformed")
+        commands.append("--write_registered")
     if write_merged:
         commands.append("--write_merged")
     if remove_merged:
@@ -200,6 +201,7 @@ class ImageWsiRegWindow(Window):
         if preprocessing is None:
             preprocessing = modality.preprocessing
 
+        pyramid = CONFIG.pyramid_level
         wrapper = self.data_model.get_wrapper()
         if wrapper:
             layer = self.view.get_layer(modality.name)
@@ -210,8 +212,8 @@ class ImageWsiRegWindow(Window):
             colormap = "gray" if widget is None else widget.colormap
             with MeasureTimer() as timer:
                 reader = wrapper.get_reader_for_path(modality.path)
-                scale = reader.scale_for_pyramid(-1)
-                image = preprocess_preview(reader.pyramid[-1], reader.is_rgb, scale[0], preprocessing)
+                scale = reader.scale_for_pyramid(pyramid)
+                image = preprocess_preview(reader.pyramid[pyramid], reader.is_rgb, scale[0], preprocessing)
                 self.view.add_image(
                     image,
                     name=modality.name,
@@ -222,18 +224,19 @@ class ImageWsiRegWindow(Window):
                         "key": reader.key,
                     },
                 )
-            logger.trace(f"Processed image for preview in {timer()}")
+            logger.trace(f"Processed image for preview in {timer()} with {pyramid} pyramid level")
 
     def on_preview_live(self, modality: Modality, preprocessing: Preprocessing) -> None:
         """Preview image."""
         from image2image.utils.transform import combined_transform
 
+        pyramid = CONFIG.pyramid_level
         wrapper = self.data_model.get_wrapper()
         if wrapper:
             reader = wrapper.get_reader_for_path(modality.path)
-            image = reader.get_channel(0, -1)
+            image = reader.get_channel(0, pyramid)
             shape = reader.get_image_shape_for_shape(image.shape)
-            scale = reader.scale_for_pyramid(-1)
+            scale = reader.scale_for_pyramid(pyramid)
             matrix = combined_transform(
                 shape,
                 scale,
@@ -271,7 +274,7 @@ class ImageWsiRegWindow(Window):
         else:
             logger.warning(f"Failed to load data - model={model}")
 
-    def on_show_modalities(self) -> None:
+    def on_show_modalities(self, _: ty.Any = None) -> None:
         """Show modality images."""
         self.modality_list.toggle_preview(self.use_preview_check.isChecked())
         for _, modality, widget in self.modality_list.item_model_widget_iter():
@@ -289,37 +292,42 @@ class ImageWsiRegWindow(Window):
         """Preview image."""
         from image2image_reg.utils.preprocessing import preprocess_preview
 
+        pyramid = CONFIG.pyramid_level
         wrapper = self.data_model.get_wrapper()
         if wrapper:
-            reader = wrapper.get_reader_for_path(modality.path)
-            if self.use_preview_check.isChecked():
-                image = preprocess_preview(reader.pyramid[-1], reader.is_rgb, reader.resolution, modality.preprocessing)
-            else:
-                image = reader.get_channel(0, -1)
-            layer = self.view.get_layer(modality.name)
-            widget = self.modality_list.get_widget_for_item_model(modality)
-            colormap = "gray" if widget is None else widget.color
-            if overwrite and layer:
-                self.view.remove_layer(modality.name)
-            if not state:
-                if layer:
-                    layer.visible = state
-            else:
-                self.view.add_image(
-                    image,
-                    name=modality.name,
-                    scale=reader.scale_for_pyramid(-1),
-                    blending="additive",
-                    colormap=colormap,
-                    # contrast_limits=contrast_limits,
-                    # affine=model.affine(image.shape),  # type: ignore[arg-type]
-                    metadata={
-                        "key": reader.key,
-                        # "contrast_limits_range": contrast_limits_range,
-                        # "contrast_limits": contrast_limits,
-                    },
-                    visible=state,
-                )
+            with MeasureTimer() as timer:
+                reader = wrapper.get_reader_for_path(modality.path)
+                if self.use_preview_check.isChecked():
+                    image = preprocess_preview(
+                        reader.pyramid[pyramid], reader.is_rgb, reader.resolution, modality.preprocessing
+                    )
+                else:
+                    image = reader.get_channel(0, pyramid)
+                layer = self.view.get_layer(modality.name)
+                widget = self.modality_list.get_widget_for_item_model(modality)
+                colormap = "gray" if widget is None else widget.color
+                if overwrite and layer:
+                    self.view.remove_layer(modality.name)
+                if not state:
+                    if layer:
+                        layer.visible = state
+                else:
+                    self.view.add_image(
+                        image,
+                        name=modality.name,
+                        scale=reader.scale_for_pyramid(pyramid),
+                        blending="additive",
+                        colormap=colormap,
+                        # contrast_limits=contrast_limits,
+                        # affine=model.affine(image.shape),  # type: ignore[arg-type]
+                        metadata={
+                            "key": reader.key,
+                            # "contrast_limits_range": contrast_limits_range,
+                            # "contrast_limits": contrast_limits,
+                        },
+                        visible=state,
+                    )
+                logger.trace(f"Processed image for preview in {timer()} with {pyramid} pyramid level")
 
     def on_populate_list(self) -> None:
         """Populate list."""
@@ -426,16 +434,7 @@ class ImageWsiRegWindow(Window):
             return
         if not self._validate():
             return
-
-        self.registration_model.merge_images = self.write_merged_check.isChecked()
-        self.registration_model.name = name
-        self.registration_model.output_dir = output_dir
-        if self.registration_model.project_dir.exists() and not hp.confirm(
-            self, f"Project <b>{self.registration_model.name}</b> already exists.<br><b>Overwrite?</b>"
-        ):
-            return
-
-        path = self.registration_model.save()
+        path = self.save_model()
         if path:
             hp.toast(self, "Saved", f"Saved project to {hp.hyper(path)}.", icon="success", position="top_left")
             logger.info(f"Saved project to {path}")
@@ -470,13 +469,35 @@ class ImageWsiRegWindow(Window):
             dlg.show()
         return is_valid
 
+    def save_model(self) -> Path | None:
+        """Save model in the current state."""
+        name = self.name_label.text()
+        if not name:
+            hp.toast(self, "Error", "Please provide a name for the project.", icon="error", position="top_left")
+            return
+        output_dir = self.output_dir
+        if output_dir is None:
+            hp.toast(self, "Error", "Please provide an output directory.", icon="error", position="top_left")
+            return
+        self.registration_model.merge_images = self.write_merged_check.isChecked()
+        self.registration_model.name = name
+        self.registration_model.output_dir = output_dir
+        if self.registration_model.project_dir.exists() and not hp.confirm(
+            self, f"Project <b>{self.registration_model.name}</b> already exists.<br><b>Overwrite?</b>"
+        ):
+            return
+        path = self.registration_model.save()
+        logger.trace(f"Saved project to {self.registration_model.project_dir}")
+        return path
+
     def _queue_registration_model(self, add_delayed: bool) -> bool:
         """Queue registration model."""
         if not self.registration_model:
             return False
         if not self._validate():
             return False
-
+        if not self.save_model():
+            return False
         task = make_registration_task(
             self.registration_model,
             write_transformed=self.write_registered_check.isChecked(),
@@ -735,6 +756,10 @@ class ImageWsiRegWindow(Window):
         self.menubar.addAction(self._make_help_menu().menuAction())
         self.setMenuBar(self.menubar)
 
+    def on_update_config(self, _: ty.Any) -> None:
+        """Update config."""
+        CONFIG.pyramid_level = self.polygon_index.value()
+
     def _make_statusbar(self) -> None:
         """Make statusbar."""
         from qtextra.widgets.qt_image_button import QtThemeButton
@@ -743,6 +768,20 @@ class ImageWsiRegWindow(Window):
 
         self.statusbar = QStatusBar()
         self.statusbar.setSizeGripEnabled(False)
+
+        self.polygon_index = hp.make_int_spin_box(
+            self,
+            value=CONFIG.pyramid_level,
+            minimum=-3,
+            maximum=0,
+            tooltip="Index of the polygon to show in the fixed image.",
+        )
+        self.polygon_index.setSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum)
+        self.polygon_index.valueChanged.connect(self.on_update_config)
+        self.polygon_index.valueChanged.connect(self.on_show_modalities)
+        self.statusbar.addPermanentWidget(hp.make_label(self, "Pyramid level:"))
+        self.statusbar.addPermanentWidget(self.polygon_index)
+        self.statusbar.addPermanentWidget(hp.make_v_line())
 
         self.queue_btn = hp.make_qta_btn(self, "queue", tooltip="Open queue popup.", small=True)
         self.statusbar.addPermanentWidget(self.queue_btn)

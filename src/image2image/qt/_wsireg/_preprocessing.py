@@ -59,6 +59,7 @@ class PreprocessingDialog(QtFramelessTool):
             self.type_choice.setCurrentIndex({"BF": 0, "FL": 1}[self.preprocessing.image_type])
             self.mip_check.setChecked(self.preprocessing.max_intensity_projection)
             self.contrast_check.setChecked(self.preprocessing.contrast_enhance)
+            self.equalize_check.setChecked(self.preprocessing.equalize_histogram)
             self.invert_check.setChecked(self.preprocessing.invert_intensity)
             self.uint8_check.setChecked(self.preprocessing.as_uint8)
             self.flip_choices.setCurrentIndex({"H": 1, "V": 2}.get(self.preprocessing.flip, 0))
