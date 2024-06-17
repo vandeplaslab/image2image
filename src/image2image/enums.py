@@ -120,3 +120,18 @@ VIEW_TYPE_TRANSLATIONS = {
     ViewType.RANDOM: "Random",
     ViewType.OVERLAY: "Overlay",
 }
+
+REGISTRATION_PATH_HELP = (
+    "Type or registration path. There are several types including:<br>"
+    "<b>rigid</b> - Translation and rotation<br>"
+    "<b>similarity</b> - Translation, rotation, and scale<br>"
+    "<b>affine</b> - Translation, rotation, scale, and shear<br>"
+    "<b>nl</b> - Non-linear registration<br>"
+    "<br>The suffix of the registration also indicates the type:<br>"
+    "<b>reduced</b> - Quicker registration with fewer parameters or optimization steps<br>"
+    "<b>mid</b> - Medium registration with more parameters or optimization steps<br>"
+    "<b>expanded</b> - Slower registration with more optimization steps<br>"
+    "<b>extreme</b> - Even slower registration with more optimization steps<br>"
+    "<b>ams</b> - Advanced Mean Squares metric instead of Advanced Mattes Mutual Information<br>"
+    "<b>anc</b> - Advanced Normalized Correlation metric instead of Advanced Mattes Mutual Information<br>"
+)

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import typing as ty
-from qtpy.QtWidgets import QSizePolicy
 from functools import partial
 from pathlib import Path
 
@@ -22,7 +21,8 @@ from qtextra.queue.popup import QUEUE, QueuePopup
 from qtextra.queue.task import Task
 from qtextra.utils.utilities import connect
 from qtextra.widgets.qt_close_window import QtConfirmCloseDialog
-from qtpy.QtWidgets import QDialog, QHBoxLayout, QMenuBar, QStatusBar, QVBoxLayout, QWidget
+from qtpy.QtCore import Qt
+from qtpy.QtWidgets import QDialog, QHBoxLayout, QMenuBar, QSizePolicy, QStatusBar, QVBoxLayout, QWidget
 from superqt import ensure_main_thread
 
 from image2image import __version__
@@ -78,6 +78,7 @@ def make_registration_task(
     return Task(
         task_id=task_id,
         task_name=f"{project.project_dir!s}",
+        task_name_repr=hp.hyper(project.project_dir, value=f".{project.project_dir.parent}/{project.project_dir.name}"),
         commands=[commands],
     )
 
@@ -160,8 +161,19 @@ class ImageWsiRegWindow(Window):
         """Open registration in viewer."""
         if self.open_when_finished.isChecked():
             path = Path(task.task_name) / "Images"
-            self.on_open_viewer(f"image_dir={path!s}")
-            logger.trace("Registration finished - opening viewer.")
+            if path.exists():
+                self.on_open_viewer(f"image_dir={path!s}")
+                logger.trace("Registration finished - opening viewer.")
+            else:
+                hp.toast(self, "Error", f"Failed to open viewer for {path!s}.", icon="error", position="top_left")
+
+    def on_open_in_viewer(self) -> None:
+        """Open registration in viewer."""
+        if self.registration_model:
+            path = self.registration_model.project_dir / "Images"
+            if path.exists():
+                self.on_open_viewer(f"image_dir={path!s}")
+                logger.trace("Opening viewer.")
 
     def on_rename_modality(self, widget, new_name: str) -> None:
         """Rename modality."""
@@ -474,18 +486,18 @@ class ImageWsiRegWindow(Window):
         name = self.name_label.text()
         if not name:
             hp.toast(self, "Error", "Please provide a name for the project.", icon="error", position="top_left")
-            return
+            return None
         output_dir = self.output_dir
         if output_dir is None:
             hp.toast(self, "Error", "Please provide an output directory.", icon="error", position="top_left")
-            return
+            return None
         self.registration_model.merge_images = self.write_merged_check.isChecked()
         self.registration_model.name = name
         self.registration_model.output_dir = output_dir
         if self.registration_model.project_dir.exists() and not hp.confirm(
             self, f"Project <b>{self.registration_model.name}</b> already exists.<br><b>Overwrite?</b>"
         ):
-            return
+            return None
         path = self.registration_model.save()
         logger.trace(f"Saved project to {self.registration_model.project_dir}")
         return path
@@ -651,15 +663,8 @@ class ImageWsiRegWindow(Window):
         side_layout.addRow(hp.make_h_line_with_text("I2Reg project"))
         side_layout.addRow(hp.make_label(side_widget, "Name"), self.name_label)
         side_layout.addRow(
-            hp.make_label(side_widget, "Output directory"),
+            hp.make_label(side_widget, "Output\ndirectory", alignment=Qt.AlignmentFlag.AlignRight),
             hp.make_h_layout(self.output_dir_label, self.output_dir_btn, stretch_id=(0,), spacing=1, margin=1),
-        )
-        side_layout.addRow(
-            hp.make_h_layout(
-                hp.make_btn(side_widget, "Save...", tooltip="Export I2Reg project", func=self.on_save_to_i2reg),
-                hp.make_btn(side_widget, "Close", tooltip="Close I2Reg project", func=self.on_close),
-                spacing=2,
-            )
         )
         # Advanced options
         hidden_settings = hp.make_advanced_collapsible(side_widget, "Advanced options", allow_checkbox=False)
@@ -669,14 +674,19 @@ class ImageWsiRegWindow(Window):
         hidden_settings.addRow(hp.make_label(self, "Reduce data size"), self.as_uint8)
         hidden_settings.addRow(hp.make_label(self, "Open when finished"), self.open_when_finished)
         side_layout.addRow(hidden_settings)
-        # Execution buttons
-        side_layout.addRow(
-            hp.make_h_layout(
-                hp.make_btn(side_widget, "Run", tooltip="Immediately execute registration", func=self.on_run),
-                hp.make_btn(side_widget, "Add to queue", tooltip="Add registration to queue", func=self.on_queue),
-                spacing=2,
-            )
+
+        self.run_btn = hp.make_btn(
+            side_widget, "Save", tooltip="Immediately execute registration", properties={"with_menu": True}
         )
+        menu = hp.make_menu(self.run_btn)
+        hp.make_menu_item(side_widget, "Save", menu=menu, func=self.on_save_to_i2reg)
+        hp.make_menu_item(side_widget, "Run registration", menu=menu, func=self.on_run)
+        hp.make_menu_item(side_widget, "Queue registration", menu=menu, func=self.on_queue)
+        hp.make_menu_item(side_widget, "Open project in viewer", menu=menu, func=self.on_open_in_viewer)
+        hp.make_menu_item(side_widget, "Close project (without saving)", menu=menu, func=self.on_close)
+        self.run_btn.setMenu(menu)
+        # Execution buttons
+        side_layout.addRow(self.run_btn)
 
         layout = QHBoxLayout()
         layout.setSpacing(0)

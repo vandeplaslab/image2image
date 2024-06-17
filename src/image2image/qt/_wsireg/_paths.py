@@ -9,6 +9,7 @@ from loguru import logger
 from qtpy.QtWidgets import QWidget
 
 from image2image.config import CONFIG
+from image2image.enums import REGISTRATION_PATH_HELP
 
 if ty.TYPE_CHECKING:
     from image2image_reg.workflows.iwsireg import IWsiReg
@@ -32,20 +33,26 @@ class RegistrationPaths(QWidget):
                 "affine",
                 "similarity",
                 "nl",
-                "fi_correction",
                 "nl_reduced",
                 "nl_mid",
                 "nl2",
-                "rigid_expanded",
+                "rigid_expanded",  # Expanded
+                "similarity_expanded",
                 "affine_expanded",
                 "nl_expanded",
-                "rigid_ams",
+                "rigid_extreme",  # Extreme
+                "similarity_extreme",
+                "affine_extreme",
+                "nl_extreme",
+                "rigid_ams",  # AMS
+                "similarity_ams",
                 "affine_ams",
                 "nl_ams",
-                "rigid_anc",
-                "affine_anc",
+                "rigid_anc",  # ANC
                 "similarity_anc",
+                "affine_anc",
                 "nl_anc",
+                "fi_correction",  # Other
             ],
             default="rigid",
             tooltip="Select registration type(s)...",
@@ -57,10 +64,11 @@ class RegistrationPaths(QWidget):
         layout.setSpacing(2)
         layout.addRow(
             hp.make_h_layout(
+                hp.make_qta_label(self, "help", hover=True, tooltip=REGISTRATION_PATH_HELP),
                 self._choice,
                 hp.make_btn(self, "Add", func=self.on_add_transformation),
                 hp.make_btn(self, "Reset", func=self.on_reset_transformation),
-                stretch_id=(0,),
+                stretch_id=(1,),
                 spacing=2,
                 margin=(0, 0, 0, 0),
             )
