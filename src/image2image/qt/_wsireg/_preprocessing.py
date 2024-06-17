@@ -12,6 +12,7 @@ from qtextra.widgets.qt_dialog import QtFramelessTool
 from qtextra.widgets.qt_table_view import QtCheckableTableView
 from qtpy.QtCore import Signal
 from qtpy.QtWidgets import QFormLayout, QWidget
+from superqt.utils import qdebounced
 
 if ty.TYPE_CHECKING:
     from image2image_reg.models import Modality
@@ -47,6 +48,7 @@ class PreprocessingDialog(QtFramelessTool):
         """Lock/unlock widgets."""
         hp.disable_widgets(self.flip_choices, self.translate_x, self.translate_y, self.rotate_spin, disabled=lock)
 
+    @qdebounced(timeout=300, leading=False)
     def on_preview_preprocessing(self) -> None:
         """Preview preprocessing."""
         if not self.preview_check.isChecked():

@@ -87,6 +87,7 @@ class QtModalityItem(QtListItem):
             tooltip="Click here to attach Image file. (.czi, .tiff)",
             normal=True,
             func=self.on_attach_image,
+            properties={"with_count": True},
         )
         self.attach_geojson_btn = hp.make_qta_btn(
             self,
@@ -94,6 +95,7 @@ class QtModalityItem(QtListItem):
             tooltip="Click here to attach GeoJSON file (.geojson).",
             normal=True,
             func=self.on_attach_geojson,
+            properties={"with_count": True},
         )
         self.attach_points_btn = hp.make_qta_btn(
             self,
@@ -101,6 +103,7 @@ class QtModalityItem(QtListItem):
             tooltip="Click here to attach points file (.csv, .txt).",
             normal=True,
             func=self.on_attach_points,
+            properties={"with_count": True},
         )
 
         self.preprocessing_label = hp.make_scrollable_label(
@@ -113,14 +116,12 @@ class QtModalityItem(QtListItem):
             self,
             "mask",
             normal=True,
-            retain_size=True,
             tooltip="When mask is applied to the image, this icon will be visible.",
         )
         self.crop_icon = hp.make_qta_label(
             self,
             "crop",
             normal=True,
-            retain_size=True,
             tooltip="When cropping is applied to the image, this icon will be visible.",
         )
 
@@ -326,10 +327,12 @@ class QtModalityItem(QtListItem):
     def toggle_mask(self) -> None:
         """Toggle name."""
         self.mask_icon.setVisible(self.item_model.preprocessing.is_masked())
+        self.on_update_preprocessing(self.item_model.preprocessing)
 
     def toggle_crop(self) -> None:
         """Toggle name."""
         self.crop_icon.setVisible(self.item_model.preprocessing.is_cropped())
+        self.on_update_preprocessing(self.item_model.preprocessing)
 
     def toggle_preview(self, disabled: bool) -> None:
         """Toggle name."""

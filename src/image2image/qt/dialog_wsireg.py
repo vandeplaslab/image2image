@@ -34,6 +34,7 @@ from image2image.qt._wsireg._list import QtModalityList
 from image2image.qt._wsireg._paths import RegistrationMap
 from image2image.qt.dialog_base import Window
 from image2image.utils.utilities import get_i2reg_path
+from superqt.utils import qdebounced
 
 if ty.TYPE_CHECKING:
     from image2image_reg.models import Preprocessing
@@ -149,7 +150,7 @@ class ImageWsiRegWindow(Window):
         connect(self.modality_list.evt_resolution, self.on_update_modality, state=state)
         connect(self.modality_list.evt_show, self.on_show_modality, state=state)
         connect(self.modality_list.evt_set_preprocessing, self.on_update_modality, state=state)
-        connect(self.modality_list.evt_preview_transform_preprocessing, self.on_preview_live, state=state)
+        connect(self.modality_list.evt_preview_transform_preprocessing, self.on_preview_transform, state=state)
         connect(self.modality_list.evt_preprocessing_close, self.on_preview_close, state=state)
         connect(self.modality_list.evt_color, self.on_update_colormap, state=state)
 
@@ -201,7 +202,7 @@ class ImageWsiRegWindow(Window):
         if preprocessing is None:
             preprocessing = modality.preprocessing
 
-        pyramid = CONFIG.pyramid_level
+        pyramid = self.pyramid_level.value()
         wrapper = self.data_model.get_wrapper()
         if wrapper:
             layer = self.view.get_layer(modality.name)
@@ -226,11 +227,11 @@ class ImageWsiRegWindow(Window):
                 )
             logger.trace(f"Processed image for preview in {timer()} with {pyramid} pyramid level")
 
-    def on_preview_live(self, modality: Modality, preprocessing: Preprocessing) -> None:
+    def on_preview_transform(self, modality: Modality, preprocessing: Preprocessing) -> None:
         """Preview image."""
         from image2image.utils.transform import combined_transform
 
-        pyramid = CONFIG.pyramid_level
+        pyramid = self.pyramid_level.value()
         wrapper = self.data_model.get_wrapper()
         if wrapper:
             reader = wrapper.get_reader_for_path(modality.path)
@@ -274,8 +275,12 @@ class ImageWsiRegWindow(Window):
         else:
             logger.warning(f"Failed to load data - model={model}")
 
+    @qdebounced(timeout=250)
     def on_show_modalities(self, _: ty.Any = None) -> None:
         """Show modality images."""
+        self._on_show_modalities()
+
+    def _on_show_modalities(self) -> None:
         self.modality_list.toggle_preview(self.use_preview_check.isChecked())
         for _, modality, widget in self.modality_list.item_model_widget_iter():
             self.on_show_modality(modality, state=widget.visible_btn.visible, overwrite=True)
@@ -292,7 +297,7 @@ class ImageWsiRegWindow(Window):
         """Preview image."""
         from image2image_reg.utils.preprocessing import preprocess_preview
 
-        pyramid = CONFIG.pyramid_level
+        pyramid = self.pyramid_level.value()
         wrapper = self.data_model.get_wrapper()
         if wrapper:
             with MeasureTimer() as timer:
@@ -756,10 +761,6 @@ class ImageWsiRegWindow(Window):
         self.menubar.addAction(self._make_help_menu().menuAction())
         self.setMenuBar(self.menubar)
 
-    def on_update_config(self, _: ty.Any) -> None:
-        """Update config."""
-        CONFIG.pyramid_level = self.polygon_index.value()
-
     def _make_statusbar(self) -> None:
         """Make statusbar."""
         from qtextra.widgets.qt_image_button import QtThemeButton
@@ -769,18 +770,17 @@ class ImageWsiRegWindow(Window):
         self.statusbar = QStatusBar()
         self.statusbar.setSizeGripEnabled(False)
 
-        self.polygon_index = hp.make_int_spin_box(
+        self.pyramid_level = hp.make_int_spin_box(
             self,
-            value=CONFIG.pyramid_level,
+            value=-1,
             minimum=-3,
-            maximum=0,
+            maximum=-1,
             tooltip="Index of the polygon to show in the fixed image.",
         )
-        self.polygon_index.setSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum)
-        self.polygon_index.valueChanged.connect(self.on_update_config)
-        self.polygon_index.valueChanged.connect(self.on_show_modalities)
+        self.pyramid_level.setSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum)
+        self.pyramid_level.valueChanged.connect(self.on_show_modalities)
         self.statusbar.addPermanentWidget(hp.make_label(self, "Pyramid level:"))
-        self.statusbar.addPermanentWidget(self.polygon_index)
+        self.statusbar.addPermanentWidget(self.pyramid_level)
         self.statusbar.addPermanentWidget(hp.make_v_line())
 
         self.queue_btn = hp.make_qta_btn(self, "queue", tooltip="Open queue popup.", small=True)

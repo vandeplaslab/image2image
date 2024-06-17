@@ -318,11 +318,15 @@ class MaskDialog(ShapesDialog):
         modality = self._parent.registration_model.modalities[name]
         yx, bbox = self._transform_to_preprocessing(modality)
         if yx is not None:
+            modality.preprocessing.use_mask = True
             modality.preprocessing.mask_polygon = yx
             modality.preprocessing.mask_bbox = None
         elif bbox is not None:
+            modality.preprocessing.use_mask = True
             modality.preprocessing.mask_bbox = bbox
             modality.preprocessing.mask_polygon = None
+        else:
+            modality.preprocessing.use_mask = False
         modality.preprocessing.transform_mask = get_transform_mask(modality)
         kind = "polygon" if yx is not None else "bbox"
         logger.trace(f"Added mask for modality {name} to {kind}")
@@ -356,11 +360,15 @@ class CropDialog(ShapesDialog):
         modality = self._parent.registration_model.modalities[name]
         yx, bbox = self._transform_to_preprocessing(modality)
         if yx is not None:
+            modality.preprocessing.use_crop = True
             modality.preprocessing.crop_polygon = yx
             modality.preprocessing.crop_bbox = None
         elif bbox is not None:
+            modality.preprocessing.use_crop = True
             modality.preprocessing.crop_bbox = bbox
             modality.preprocessing.crop_polygon = None
+        else:
+            modality.preprocessing.use_crop = False
         # modality.transform_mask = get_transform_mask(modality)
         kind = "polygon" if yx is not None else "bbox"
         logger.trace(f"Added crop for modality {name} to {kind}")
