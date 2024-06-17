@@ -55,9 +55,17 @@ class PreprocessingDialog(QtFramelessTool):
             return
         self.evt_preview_preprocessing.emit(self.modality, self.preprocessing)
 
+    @qdebounced(timeout=300, leading=False)
+    def on_preview_preprocessing_transform(self) -> None:
+        """Preview preprocessing."""
+        if not self.preview_check.isChecked():
+            return
+        self.evt_preview_transform_preprocessing.emit(self.modality, self.preprocessing)
+
     def set_from_model(self) -> None:
         """Set from model."""
         with self.setting_config():
+            self._title_label.setText(f"Pre-processing - {self.modality.name}")
             self.type_choice.setCurrentIndex({"BF": 0, "FL": 1}[self.preprocessing.image_type])
             self.mip_check.setChecked(self.preprocessing.max_intensity_projection)
             self.contrast_check.setChecked(self.preprocessing.contrast_enhance)
@@ -99,14 +107,20 @@ class PreprocessingDialog(QtFramelessTool):
         self.preprocessing.invert_intensity = self.invert_check.isChecked()
         self.preprocessing.channel_indices, self.preprocessing.channel_names = self.get_selected_channels()
         self.preprocessing.as_uint8 = self.uint8_check.isChecked()
+        self.evt_update.emit(self.preprocessing)
+        self.evt_preview_transform_preprocessing.emit(self.modality, self.preprocessing)
+
+    def on_update_transform_model(self, _=None) -> None:
+        """Update model."""
+        if self._is_setting_config:
+            return
         self.preprocessing.flip = {"None": None, "Horizontal": "h", "Vertical": "v"}[self.flip_choices.currentText()]
         self.preprocessing.translate_x = self.translate_x.value()
         self.preprocessing.translate_y = self.translate_y.value()
         self.preprocessing.rotate_counter_clockwise = self.rotate_spin.value()
         self.preprocessing.downsample = self.downsample_spin.value()
         self.evt_update.emit(self.preprocessing)
-        self.evt_preview_transform_preprocessing.emit(self.modality, self.preprocessing)
-        self.on_preview_preprocessing()
+        self.on_preview_preprocessing_transform()
 
     def on_set_defaults(self, _=None) -> None:
         """Set defaults."""
@@ -187,7 +201,7 @@ class PreprocessingDialog(QtFramelessTool):
             self,
             ["None", "Horizontal", "Vertical"],
             tooltip="Horizontal or vertial image flip.",
-            func=self.on_update_model,
+            func=self.on_update_transform_model,
         )
         self.translate_x = hp.make_int_spin_box(
             self,
@@ -197,7 +211,7 @@ class PreprocessingDialog(QtFramelessTool):
             step_size=10,
             suffix="µm",
             tooltip="Translate X",
-            func=self.on_update_model,
+            func=self.on_update_transform_model,
         )
         self.translate_y = hp.make_int_spin_box(
             self,
@@ -207,7 +221,7 @@ class PreprocessingDialog(QtFramelessTool):
             step_size=10,
             suffix="µm",
             tooltip="Translate Y",
-            func=self.on_update_model,
+            func=self.on_update_transform_model,
         )
         self.rotate_spin = hp.make_double_spin_box(
             self,
@@ -217,10 +231,10 @@ class PreprocessingDialog(QtFramelessTool):
             step_size=5,
             suffix="°",
             tooltip="Rotate (counter-clockwise)",
-            func=self.on_update_model,
+            func=self.on_update_transform_model,
         )
         self.downsample_spin = hp.make_int_spin_box(
-            self, default=1, minimum=1, maximum=10, tooltip="Downsample", func=self.on_update_model
+            self, default=1, minimum=1, maximum=10, tooltip="Downsample", func=self.on_update_transform_model
         )
 
         self.preview_check = hp.make_checkbox(self, "", func=self.on_preview_preprocessing, value=True)

@@ -6,6 +6,7 @@ import typing as ty
 
 import qtextra.helpers as hp
 from loguru import logger
+from qtpy.QtCore import Signal
 from qtpy.QtWidgets import QWidget
 
 from image2image.config import CONFIG
@@ -109,6 +110,8 @@ class RegistrationPaths(QWidget):
 
 class RegistrationMap(QWidget):
     """Registration map."""
+
+    evt_message = Signal(str)
 
     def __init__(self, parent: QWidget | None = None):
         super().__init__(parent)
@@ -215,6 +218,11 @@ class RegistrationMap(QWidget):
         if any(v != "" for v in [source, target, through]):
             self._choice.setCurrentText("")
 
+    def _log_message(self, message: str) -> None:
+        """Log message."""
+        logger.trace(message)
+        self.evt_message.emit(message)
+
     def on_add_path(self) -> None:
         """Add path."""
         valid, source, target, through, *_, path = self._get_registration_path_data()
@@ -231,10 +239,13 @@ class RegistrationMap(QWidget):
         self._warning_label.setText("")
         registration_model: IWsiReg = self.registration_model
         if not registration_model.has_registration_path(source, target, through):
-            registration_model.add_registration_path(source, target, transform=registrations, through=through)
-            logger.trace(f"Added registration path: {source} » {through} » {target}")
-            self.populate_paths()
-            self._choice.setCurrentText(path)
+            registration_model.add_registration_path(source, target, through=through, transform=registrations)
+            self._log_message(f"Added registration path: {source} » {through} » {target}")
+        else:
+            registration_model.update_registration_path(source, target, through=through, transform=registrations)
+            self._log_message(f"Updated registration path: {source} » {through} » {target}")
+        self.populate_paths()
+        self._choice.setCurrentText(path)
         self.toggle_name()
 
     def on_remove_path(self) -> None:
@@ -245,9 +256,9 @@ class RegistrationMap(QWidget):
             return
         registration_model: IWsiReg = self.registration_model
         registration_model.remove_registration_path(source, target, through)
-        logger.trace(f"Removed registration path: {source} » {through} » {target}")
         self.populate_paths()
         self.toggle_name()
+        self._log_message(f"Removed registration path: {source} » {through} » {target}")
 
     def on_reset_paths(self) -> None:
         """Reset all registration paths."""
@@ -256,6 +267,7 @@ class RegistrationMap(QWidget):
         registration_model: IWsiReg = self.registration_model
         registration_model.reset_registration_paths()
         self.populate_paths()
+        self._log_message("Reset all registration paths.")
 
     def toggle_name(self):
         """Toggle name."""

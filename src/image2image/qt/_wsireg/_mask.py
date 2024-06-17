@@ -122,14 +122,14 @@ class ShapesDialog(QtFramelessTool):
         if self._editing:
             return
         n = len(self.mask_layer.data)
-        if n > 1:
-            logger.warning("More than one crop rectangle found. Using the first one.")
-            hp.toast(
-                self.parent(),
-                "Only one crop rectangle is allowed.",
-                "More than one crop rectangle found. We will <b>only</b> use the first region!",
-                icon="warning",
-            )
+        # if n > 1:
+        #     logger.warning("More than one crop rectangle found. Using the first one.")
+        #     hp.toast(
+        #         self.parent(),
+        #         "Only one crop rectangle is allowed.",
+        #         "More than one crop rectangle found. We will <b>only</b> use the first region!",
+        #         icon="warning",
+        #     )
         if n == 0:
             return
         self._on_update_crop_from_canvas(0)

@@ -212,12 +212,16 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
                     if array is None:
                         raise ValueError(f"Failed to get array for '{name}'.")
                     contrast_limits, contrast_limits_range = get_contrast_limits(array)
+                    if any(v in name.lower() for v in ("brightfield", "bright")):
+                        colormap = "gray"
+                    else:
+                        colormap = get_colormap(index, view_wrapper.layers)
                     image_layer.append(
                         view_wrapper.viewer.add_image(
                             array,
                             name=name,
                             blending="additive",
-                            colormap=get_colormap(index, view_wrapper.layers),
+                            colormap=colormap,
                             visible=name in channel_list,
                             affine=current_affine,
                             scale=current_scale,
@@ -282,6 +286,10 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
         else:
             array = reader.get_channel_pyramid(channel_index)
             contrast_limits, contrast_limits_range = get_contrast_limits(array)
+            if any(v in name.lower() for v in ("brightfield", "bright")):
+                colormap = "gray"
+            else:
+                colormap = get_colormap(channel_index, view_wrapper.layers)
             if layer and len(array) == 1:
                 layer_name = layer.metadata.get("name", " | ")
                 if layer_name.split(" | ")[1] == full_channel_name.split(" | ")[1]:
@@ -294,7 +302,7 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
                     array,
                     name=name,
                     blending="additive",
-                    colormap=get_colormap(channel_index, view_wrapper.layers),
+                    colormap=colormap,
                     affine=current_affine,
                     scale=current_scale,
                     contrast_limits=contrast_limits,
@@ -648,7 +656,9 @@ def create_new_window(plugin: str, *extra_args) -> None:
     arguments.append("--tool")
     arguments.append(plugin)
     if extra_args:
-        arguments.extend(extra_args)
+        for arg in extra_args:
+            if isinstance(arg, str):
+                arguments.append(arg)
     logger.trace(f"Executing {sys.executable} {' '.join(arguments)}...")
     if IS_WIN and hasattr(process, "setNativeArguments"):
         process.setNativeArguments(" ".join(arguments))

@@ -24,6 +24,7 @@ from qtextra.widgets.qt_close_window import QtConfirmCloseDialog
 from qtpy.QtCore import Qt
 from qtpy.QtWidgets import QDialog, QHBoxLayout, QMenuBar, QSizePolicy, QStatusBar, QVBoxLayout, QWidget
 from superqt import ensure_main_thread
+from superqt.utils import qdebounced
 
 from image2image import __version__
 from image2image.config import CONFIG
@@ -34,7 +35,6 @@ from image2image.qt._wsireg._list import QtModalityList
 from image2image.qt._wsireg._paths import RegistrationMap
 from image2image.qt.dialog_base import Window
 from image2image.utils.utilities import get_i2reg_path
-from superqt.utils import qdebounced
 
 if ty.TYPE_CHECKING:
     from image2image_reg.models import Preprocessing
@@ -154,6 +154,7 @@ class ImageWsiRegWindow(Window):
         connect(self.modality_list.evt_preview_transform_preprocessing, self.on_preview_transform, state=state)
         connect(self.modality_list.evt_preprocessing_close, self.on_preview_close, state=state)
         connect(self.modality_list.evt_color, self.on_update_colormap, state=state)
+        connect(self.registration_map.evt_message, self.statusbar.showMessage)
 
         connect(QUEUE.evt_errored, self.on_registration_finished, state=state)
         connect(QUEUE.evt_finished, self.on_registration_finished, state=state)
@@ -237,31 +238,62 @@ class ImageWsiRegWindow(Window):
                         "key": reader.key,
                     },
                 )
-            logger.trace(f"Processed image for preview in {timer()} with {pyramid} pyramid level")
+            logger.trace(f"Processed image {modality.name} for preview in {timer()} with {pyramid} pyramid level")
 
     def on_preview_transform(self, modality: Modality, preprocessing: Preprocessing) -> None:
         """Preview image."""
-        from image2image.utils.transform import combined_transform
+        from image2image_reg.utils.preprocessing import preprocess_preview
+
+        if preprocessing is None:
+            preprocessing = modality.preprocessing
 
         pyramid = self.pyramid_level.value()
         wrapper = self.data_model.get_wrapper()
         if wrapper:
-            reader = wrapper.get_reader_for_path(modality.path)
-            image = reader.get_channel(0, pyramid)
-            shape = reader.get_image_shape_for_shape(image.shape)
-            scale = reader.scale_for_pyramid(pyramid)
-            matrix = combined_transform(
-                shape,
-                scale,
-                preprocessing.rotate_counter_clockwise,
-                (preprocessing.translate_y, preprocessing.translate_x),
-                flip_lr=preprocessing.flip == "h",
-                flip_ud=preprocessing.flip == "v",
-            )
-            # matrix = matrix @ scale_transform(scale)
             layer = self.view.get_layer(modality.name)
-            if layer:
-                layer.affine = matrix
+            if layer and layer.rgb:
+                self.view.remove_layer(modality.name)
+
+            widget = self.modality_list.get_widget_for_item_model(modality)
+            colormap = "gray" if widget is None else widget.colormap
+            with MeasureTimer() as timer:
+                reader = wrapper.get_reader_for_path(modality.path)
+                scale = reader.scale_for_pyramid(pyramid)
+                image = preprocess_preview(reader.pyramid[pyramid], reader.is_rgb, scale[0], preprocessing)
+                self.view.add_image(
+                    image,
+                    name=modality.name,
+                    scale=scale,
+                    blending="additive",
+                    colormap=colormap,
+                    metadata={
+                        "key": reader.key,
+                    },
+                )
+            logger.trace(
+                f"Processed image {modality.name} for preview transform in {timer()} with {pyramid} pyramid level"
+            )
+        # from image2image.utils.transform import combined_transform
+        #
+        # pyramid = self.pyramid_level.value()
+        # wrapper = self.data_model.get_wrapper()
+        # if wrapper:
+        #     reader = wrapper.get_reader_for_path(modality.path)
+        #     image = reader.get_channel(0, pyramid)
+        #     shape = reader.get_image_shape_for_shape(image.shape)
+        #     scale = reader.scale_for_pyramid(pyramid)
+        #     matrix = combined_transform(
+        #         shape,
+        #         scale,
+        #         preprocessing.rotate_counter_clockwise,
+        #         (preprocessing.translate_y, preprocessing.translate_x),
+        #         flip_lr=preprocessing.flip == "h",
+        #         flip_ud=preprocessing.flip == "v",
+        #     )
+        #     # matrix = matrix @ scale_transform(scale)
+        #     layer = self.view.get_layer(modality.name)
+        #     if layer:
+        #         layer.affine = matrix
 
     def on_preview_close(self, modality: Modality) -> None:
         """Preview window was closed."""
@@ -314,10 +346,9 @@ class ImageWsiRegWindow(Window):
         if wrapper:
             with MeasureTimer() as timer:
                 reader = wrapper.get_reader_for_path(modality.path)
+                scale = reader.scale_for_pyramid(pyramid)
                 if self.use_preview_check.isChecked():
-                    image = preprocess_preview(
-                        reader.pyramid[pyramid], reader.is_rgb, reader.resolution, modality.preprocessing
-                    )
+                    image = preprocess_preview(reader.pyramid[pyramid], reader.is_rgb, scale[0], modality.preprocessing)
                 else:
                     image = reader.get_channel(0, pyramid)
                 layer = self.view.get_layer(modality.name)
@@ -332,11 +363,10 @@ class ImageWsiRegWindow(Window):
                     self.view.add_image(
                         image,
                         name=modality.name,
-                        scale=reader.scale_for_pyramid(pyramid),
+                        scale=scale,
                         blending="additive",
                         colormap=colormap,
                         # contrast_limits=contrast_limits,
-                        # affine=model.affine(image.shape),  # type: ignore[arg-type]
                         metadata={
                             "key": reader.key,
                             # "contrast_limits_range": contrast_limits_range,
@@ -344,7 +374,7 @@ class ImageWsiRegWindow(Window):
                         },
                         visible=state,
                     )
-                logger.trace(f"Processed image for preview in {timer()} with {pyramid} pyramid level")
+                logger.trace(f"Processed image {modality.name} in {timer()} with {pyramid} pyramid level")
 
     def on_populate_list(self) -> None:
         """Populate list."""
@@ -507,13 +537,13 @@ class ImageWsiRegWindow(Window):
         logger.trace(f"Saved project to {self.registration_model.project_dir}")
         return path
 
-    def _queue_registration_model(self, add_delayed: bool) -> bool:
+    def _queue_registration_model(self, add_delayed: bool, save: bool = True) -> bool:
         """Queue registration model."""
         if not self.registration_model:
             return False
         if not self._validate():
             return False
-        if not self.save_model():
+        if save and not self.save_model():
             return False
         task = make_registration_task(
             self.registration_model,
@@ -536,9 +566,19 @@ class ImageWsiRegWindow(Window):
         if self._queue_registration_model(add_delayed=False):
             self.queue_popup.show()
 
+    def on_run_no_save(self) -> None:
+        """Execute registration."""
+        if self._queue_registration_model(add_delayed=False, save=False):
+            self.queue_popup.show()
+
     def on_queue(self) -> None:
         """Queue registration."""
         if self._queue_registration_model(add_delayed=True):
+            self.queue_popup.show()
+
+    def on_queue_no_save(self) -> None:
+        """Queue registration."""
+        if self._queue_registration_model(add_delayed=True, save=False):
             self.queue_popup.show()
 
     def on_close(self) -> None:
@@ -681,14 +721,69 @@ class ImageWsiRegWindow(Window):
         side_layout.addRow(hidden_settings)
 
         self.run_btn = hp.make_btn(
-            side_widget, "Save", tooltip="Immediately execute registration", properties={"with_menu": True}
+            side_widget, "Execute...", tooltip="Immediately execute registration", properties={"with_menu": True}
         )
         menu = hp.make_menu(self.run_btn)
-        hp.make_menu_item(side_widget, "Save", menu=menu, func=self.on_save_to_i2reg)
-        hp.make_menu_item(side_widget, "Run registration", menu=menu, func=self.on_run)
-        hp.make_menu_item(side_widget, "Queue registration", menu=menu, func=self.on_queue)
-        hp.make_menu_item(side_widget, "Open project in viewer", menu=menu, func=self.on_open_in_viewer)
-        hp.make_menu_item(side_widget, "Close project (without saving)", menu=menu, func=self.on_close)
+        hp.make_menu_item(
+            side_widget,
+            "Save",
+            menu=menu,
+            func=self.on_save_to_i2reg,
+            icon="save",
+            tooltip="Save i2reg project to disk.",
+        )
+        menu.addSeparator()
+        hp.make_menu_item(
+            side_widget,
+            "Run registration",
+            menu=menu,
+            func=self.on_run,
+            icon="run",
+            tooltip="Perform registration. Images will open in the viewer when finished.",
+        )
+        hp.make_menu_item(
+            side_widget,
+            "Run registration (without saving, not recommended)",
+            menu=menu,
+            func=self.on_run_no_save,
+            icon="run",
+            tooltip="Perform registration. Images will open in the viewer when finished. Project will not be"
+            " saved before adding to the queue.",
+        )
+        hp.make_menu_item(
+            side_widget,
+            "Queue registration",
+            menu=menu,
+            func=self.on_queue,
+            icon="queue",
+            tooltip="Registration task will be added to the queue and you can start it manually.",
+        )
+        hp.make_menu_item(
+            side_widget,
+            "Queue registration (without saving, not recommended)",
+            menu=menu,
+            func=self.on_queue_no_save,
+            icon="queue",
+            tooltip="Registration task will be added to the queue and you can start it manually. Project will not be"
+            " saved before adding to the queue.",
+        )
+        hp.make_menu_item(
+            side_widget,
+            "Open project in viewer",
+            menu=menu,
+            func=self.on_open_in_viewer,
+            icon="viewer",
+            tooltip="Open the project in the viewer. This only makes sense if registration is complete.",
+        )
+        menu.addSeparator()
+        hp.make_menu_item(
+            side_widget,
+            "Close project (without saving)",
+            menu=menu,
+            func=self.on_close,
+            icon="delete",
+            tooltip="Close the project without saving.",
+        )
         self.run_btn.setMenu(menu)
         # Execution buttons
         side_layout.addRow(self.run_btn)
@@ -729,6 +824,18 @@ class ImageWsiRegWindow(Window):
 
         dlg = QtScreenshotDialog(self.view, self)
         dlg.show_above_widget(self.clipboard_btn)
+
+    def _get_console_variables(self) -> dict:
+        """Get variables for the console."""
+        variables = super()._get_console_variables()
+        variables.update(
+            {
+                "viewer": self.view.viewer,
+                "data_model": self.data_model,
+                "wrapper": self.data_model.wrapper,
+            }
+        )
+        return variables
 
     def _make_menu(self) -> None:
         """Make menu items."""
@@ -785,7 +892,8 @@ class ImageWsiRegWindow(Window):
             value=-1,
             minimum=-3,
             maximum=-1,
-            tooltip="Index of the polygon to show in the fixed image.",
+            tooltip="Index of the polygon to show in the fixed image. Negative values are used go from smallest to\n"
+            " highest level. Value of 0 means that the highest resolution is shown which will be slow to pre-process.",
         )
         self.pyramid_level.setSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum)
         self.pyramid_level.valueChanged.connect(self.on_show_modalities)

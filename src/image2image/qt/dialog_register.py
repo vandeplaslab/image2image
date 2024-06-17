@@ -783,9 +783,8 @@ class ImageRegistrationWindow(Window):
         # retrieve affine matrix which might be composite of initial + transform or just initial
         affine = self.transform.params  # if self.transform is not None else self.transform_model.moving_initial_affine
 
-        colormap = get_colormap(0, self.view_moving.layers, moving_image_layer.colormap)
-
         # add image and apply transformation
+        colormap = get_colormap(0, self.view_moving.layers, moving_image_layer.colormap)
         if self.transformed_moving_image_layer:
             self.transformed_moving_image_layer.affine = affine
             if update_data:
