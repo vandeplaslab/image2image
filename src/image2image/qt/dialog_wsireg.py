@@ -12,7 +12,7 @@ import qtextra.queue.cli_queue as _q
 from image2image_io.config import CONFIG as READER_CONFIG
 from image2image_reg.models import Modality
 from image2image_reg.workflows.iwsireg import IWsiReg
-from koyo.secret import hash_obj
+from koyo.secret import hash_obj, hash_parameters
 from koyo.timer import MeasureTimer
 from koyo.typing import PathLike
 from loguru import logger
@@ -91,6 +91,11 @@ def guess_preprocessing(reader) -> Preprocessing:
     if reader.is_rgb:
         return Preprocessing.brightfield()
     return Preprocessing.fluorescence()
+
+
+def hash_preprocessing(preprocessing: Preprocessing) -> str:
+    """Hash preprocessing."""
+    return hash_parameters(**preprocessing.to_dict(), n_in_hash=6)
 
 
 class ImageWsiRegWindow(Window):
@@ -273,27 +278,6 @@ class ImageWsiRegWindow(Window):
             logger.trace(
                 f"Processed image {modality.name} for preview transform in {timer()} with {pyramid} pyramid level"
             )
-        # from image2image.utils.transform import combined_transform
-        #
-        # pyramid = self.pyramid_level.value()
-        # wrapper = self.data_model.get_wrapper()
-        # if wrapper:
-        #     reader = wrapper.get_reader_for_path(modality.path)
-        #     image = reader.get_channel(0, pyramid)
-        #     shape = reader.get_image_shape_for_shape(image.shape)
-        #     scale = reader.scale_for_pyramid(pyramid)
-        #     matrix = combined_transform(
-        #         shape,
-        #         scale,
-        #         preprocessing.rotate_counter_clockwise,
-        #         (preprocessing.translate_y, preprocessing.translate_x),
-        #         flip_lr=preprocessing.flip == "h",
-        #         flip_ud=preprocessing.flip == "v",
-        #     )
-        #     # matrix = matrix @ scale_transform(scale)
-        #     layer = self.view.get_layer(modality.name)
-        #     if layer:
-        #         layer.affine = matrix
 
     def on_preview_close(self, modality: Modality) -> None:
         """Preview window was closed."""
@@ -329,12 +313,22 @@ class ImageWsiRegWindow(Window):
         for _, modality, widget in self.modality_list.item_model_widget_iter():
             self.on_show_modality(modality, state=widget.visible_btn.visible, overwrite=True)
 
-    def on_hide_modalities(self, modality: Modality) -> None:
+    def on_hide_not_previewed_modalities(self) -> None:
+        """Hide any modality that is not previewed."""
+        modalities = []
+        for _, modality, widget in self.modality_list.item_model_widget_iter():
+            if widget._preprocessing_dlg is not None:
+                modalities.append(modality)
+        self.on_hide_modalities(modalities)
+
+    def on_hide_modalities(self, modality: Modality | list[Modality]) -> None:
         """Hide other modalities."""
         if not self.hide_others_check.isChecked():
             return
+        if not isinstance(modality, list):
+            modality = [modality]
         for layer in self.view.get_layers_of_type(Image):
-            layer.visible = layer.name in (modality.name, f"{modality.name} (preview)")
+            layer.visible = layer.name in [mod.name for mod in modality]
         self.modality_list.toggle_visible([layer.name for layer in self.view.get_layers_of_type(Image)])
 
     def on_show_modality(self, modality: Modality, state: bool = True, overwrite: bool = False) -> None:
@@ -347,11 +341,19 @@ class ImageWsiRegWindow(Window):
             with MeasureTimer() as timer:
                 reader = wrapper.get_reader_for_path(modality.path)
                 scale = reader.scale_for_pyramid(pyramid)
+                layer = self.view.get_layer(modality.name)
+                preprocessing_hash = (
+                    hash_preprocessing(modality.preprocessing) if self.use_preview_check.isChecked() else ""
+                )
+                # no need to re-process if the layer is already there
+                if layer and layer.metadata.get("preview_hash") == preprocessing_hash:
+                    layer.visible = state
+                    return
+
                 if self.use_preview_check.isChecked():
                     image = preprocess_preview(reader.pyramid[pyramid], reader.is_rgb, scale[0], modality.preprocessing)
                 else:
                     image = reader.get_channel(0, pyramid)
-                layer = self.view.get_layer(modality.name)
                 widget = self.modality_list.get_widget_for_item_model(modality)
                 colormap = "gray" if widget is None else widget.color
                 if overwrite and layer:
@@ -366,11 +368,9 @@ class ImageWsiRegWindow(Window):
                         scale=scale,
                         blending="additive",
                         colormap=colormap,
-                        # contrast_limits=contrast_limits,
                         metadata={
                             "key": reader.key,
-                            # "contrast_limits_range": contrast_limits_range,
-                            # "contrast_limits": contrast_limits,
+                            "preview_hash": preprocessing_hash,
                         },
                         visible=state,
                     )
@@ -653,7 +653,7 @@ class ImageWsiRegWindow(Window):
             "Hide others when previewing",
             tooltip="When previewing, hide other images to reduce clutter.",
             checked=False,
-            func=self.on_show_modalities,
+            func=self.on_hide_not_previewed_modalities,
         )
 
         self.write_not_registered_check = hp.make_checkbox(

@@ -340,13 +340,13 @@ class DataModel(BaseModel):
         return self.n_paths > 0
 
     def crop(
-        self, left: int, right: int, top: int, bottom: int
+        self, left: int, right: int, top: int, bottom: int, yx: ty.Optional[np.ndarray] = None
     ) -> ty.Generator[tuple[Path, "BaseReader", np.ndarray], None, None]:
         """Crop image(s) to the specified region."""
         wrapper = self.wrapper
         if wrapper:
             for path, reader in wrapper.path_reader_iter():
-                cropped = reader.crop(left, right, top, bottom)
+                cropped = reader.crop(left, right, top, bottom, yx=yx)
                 yield path, reader, cropped
 
 

@@ -235,6 +235,11 @@ class QtModalityItem(QtListItem):
         return self.color_btn.color
 
     @property
+    def hex_color(self) -> str:
+        """Get color."""
+        return self.color_btn.hex_color
+
+    @property
     def colormap(self) -> object:
         """Get colormap."""
         from qtextra.utils.colormap import napari_colormap
@@ -374,7 +379,11 @@ class QtModalityList(QtListWidget):
         return self._parent.registration_model
 
     def _make_widget(self, item: QListWidgetItem) -> QtModalityItem:
-        color = get_next_color(self.count())
+        try:
+            colors = [widget.hex_color.lower() for _, _, widget in self.item_model_widget_iter()]
+        except AttributeError:
+            colors = []
+        color = get_next_color(self.count(), other_colors=colors)
 
         widget = QtModalityItem(item, parent=self, color=color)
         widget.evt_remove.connect(self.remove_item)
@@ -448,9 +457,16 @@ class QtModalityList(QtListWidget):
             widget.toggle_visible(model.name not in names)
 
 
-def get_next_color(n: int) -> str:
+def get_next_color(n: int, other_colors: list[str] | None = None) -> str:
     """Get next color based on the number of items."""
-    colors = ["#FF0000", "#00FF00", "#0000FF", "#FFFF00", "#FF00FF", "#00FFFF"]
+    if other_colors is None:
+        other_colors = []
+    print(other_colors)
+    colors = ["#ff0000", "#00ff00", "#0000ff", "#ffff00", "#f00ff", "#00ffff"]
     if n < len(colors):
-        return colors[n]
+        color = colors[n]
+        if color in other_colors:
+            n += 1
+            return get_next_color(n, other_colors=other_colors)
+        return color
     return "#808080"
