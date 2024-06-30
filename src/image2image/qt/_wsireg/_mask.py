@@ -111,6 +111,14 @@ class ShapesDialog(QtFramelessTool):
             self.layer_controls.set_layer(layer)
         return layer
 
+    def is_current_masked(self) -> bool:
+        """Check if current modality is masked."""
+        name = self.slide_choice.currentText()
+        if name:
+            modality = self._parent.registration_model.modalities[name]
+            return modality.preprocessing.is_masked() if self.MASK_OR_CROP == "mask" else modality.is_cropped()
+        return False
+
     def _get_default_crop_area(self) -> tuple[int, int, int, int]:
         (_, y, x) = self.view.viewer.camera.center
         top, bottom = y - 4096, y + 4096
@@ -122,62 +130,28 @@ class ShapesDialog(QtFramelessTool):
         if self._editing:
             return
         n = len(self.mask_layer.data)
-        # if n > 1:
-        #     logger.warning("More than one crop rectangle found. Using the first one.")
-        #     hp.toast(
-        #         self.parent(),
-        #         "Only one crop rectangle is allowed.",
-        #         "More than one crop rectangle found. We will <b>only</b> use the first region!",
-        #         icon="warning",
-        #     )
         if n == 0:
             return
-        self._on_update_crop_from_canvas(0)
         if self.auto_update.isChecked() and self.is_current_masked():
             self.on_associate_mask_with_modality()
 
-    def is_current_masked(self) -> bool:
-        """Check if current modality is masked."""
-        name = self.slide_choice.currentText()
-        if name:
-            modality = self._parent.registration_model.modalities[name]
-            return modality.preprocessing.is_masked() if self.MASK_OR_CROP == "mask" else modality.is_cropped()
-        return False
-
-    def _on_update_crop_from_canvas(self, index: int = 0) -> None:
-        n = len(self.mask_layer.data)
-        if n == 0 or index > n or index < 0:
-            self.horizontal_label.setText("")
-            self.vertical_label.setText("")
-            return
-        left, right, top, bottom, shape_type, data = self._get_crop_area_for_index(index)
-        self.horizontal_label.setText(f"{left:<10} - {right:>10} ({right - left:>7})")
-        self.vertical_label.setText(f"{top:<10} - {bottom:>10} ({bottom - top:>7})")
-
-    def _get_crop_area_for_index(self, index: int = 0) -> tuple[int, int, int, int, str | None, np.ndarray | None]:
+    def _get_crop_area_for_index(
+        self,
+    ) -> ty.Generator[tuple[int, int, int, int, str | None, np.ndarray | None], None, None]:
         """Return crop area."""
         n = len(self.mask_layer.data)
-        if index > n or index < 0:
+        if n == 0:
             return 0, 0, 0, 0, None, None
-        array = self.mask_layer.data[index]
-        shape_type = self.mask_layer.shape_type[index]
-        rect = self.mask_layer.interaction_box(index)
-        rect = rect[Box.LINE_HANDLE]
-        xmin, xmax = np.min(rect[:, 1]), np.max(rect[:, 1])
-        xmin = max(0, xmin)
-        ymin, ymax = np.min(rect[:, 0]), np.max(rect[:, 0])
-        ymin = max(0, ymin)
-        return floor(xmin), ceil(xmax), floor(ymin), ceil(ymax), shape_type, array
-
-    def on_initialize_mask(self) -> None:
-        """Make mask for the currently selected group."""
-        self.mask_layer.mode = "select"
-        if len(self.mask_layer.data) == 0:
-            left, right, top, bottom = self._get_default_crop_area()
-            rect = np.asarray([[top, left], [top, right], [bottom, right], [bottom, left]])
-            self.mask_layer.data = [(rect, "polygon")]
-        self.mask_layer.selected_data = [0]
-        self.mask_layer.mode = "select"
+        for index in range(n):
+            array = self.mask_layer.data[index]
+            shape_type = self.mask_layer.shape_type[index]
+            rect = self.mask_layer.interaction_box(index)
+            rect = rect[Box.LINE_HANDLE]
+            xmin, xmax = np.min(rect[:, 1]), np.max(rect[:, 1])
+            xmin = max(0, xmin)
+            ymin, ymax = np.min(rect[:, 0]), np.max(rect[:, 0])
+            ymin = max(0, ymin)
+            yield floor(xmin), ceil(xmax), floor(ymin), ceil(ymax), shape_type, array
 
     def on_show_mask(self) -> None:
         """Show mask."""
@@ -228,19 +202,22 @@ class ShapesDialog(QtFramelessTool):
         yx = yx * reader.resolution
         return [(yx, "polygon")]
 
-    def _transform_to_preprocessing(self, modality: Modality) -> tuple:
+    def _transform_to_preprocessing(self, modality: Modality) -> tuple[np.ndarray | None, tuple[int] | None]:
         """Transform data from napari layer to preprocessing data."""
         wrapper = self._parent.data_model.get_wrapper()
         reader = wrapper.get_reader_for_path(modality.path)
         _, inv_affine = get_affine(reader, modality.preprocessing)
-        left, right, top, bottom, shape_type, yx = self._get_crop_area_for_index(0)
-        if shape_type == "polygon":
-            # convert to pixel coordinates and round
-            yx = np.dot(inv_affine[:2, :2], yx.T).T + inv_affine[:2, 2]
-            yx = yx * reader.inv_resolution
-            return np.round(yx).astype(np.int32)[:, ::-1], None
-        bbox = np.asarray([left, bottom, (right - left), (bottom - top)])
-        return None, tuple(np.round(bbox * reader.inv_resolution).astype(int))
+        yx_, bbox_ = [], []
+        for left, right, top, bottom, shape_type, yx in self._get_crop_area_for_index():
+            if shape_type == "polygon":
+                # convert to pixel coordinates and round
+                yx = np.dot(inv_affine[:2, :2], yx.T).T + inv_affine[:2, 2]
+                yx = yx * reader.inv_resolution
+                yx_.append((np.round(yx).astype(np.int32)[:, ::-1], None))
+            else:
+                bbox = np.asarray([left, bottom, (right - left), (bottom - top)])
+                bbox_.append((None, tuple(np.round(bbox * reader.inv_resolution).astype(int))))
+        return yx_ or None, bbox_ or None
 
     def on_select_modality(self, _=None) -> None:
         """Select mask for the currently selected group."""
@@ -278,13 +255,9 @@ class ShapesDialog(QtFramelessTool):
         self.only_current = hp.make_checkbox(
             self, tooltip="Only show currently selected modality.", func=self.on_select_modality
         )
-        self.initialize_btn = hp.make_btn(self, "Initialize shape", func=self.on_initialize_mask)
         self.add_btn = hp.make_btn(self, "Associate shape", func=self.on_associate_mask_with_modality)
         self.remove_btn = hp.make_btn(self, "Dissociate shape", func=self.on_dissociate_mask_from_modality)
         self.auto_update = hp.make_checkbox(self, "", tooltip="Auto-associate mask when making changes", checked=True)
-
-        self.horizontal_label = hp.make_label(self, alignment=Qt.AlignmentFlag.AlignCenter, object_name="crop_label")
-        self.vertical_label = hp.make_label(self, alignment=Qt.AlignmentFlag.AlignCenter, object_name="crop_label")
 
         layout = hp.make_form_layout()
         layout.setContentsMargins(6, 6, 6, 6)
@@ -297,9 +270,7 @@ class ShapesDialog(QtFramelessTool):
         layout.addRow(hp.make_h_line())
         layout.addRow(hp.make_label(self, "Modality:"), self.slide_choice)
         layout.addRow(hp.make_label(self, "Show current"), self.only_current)
-        layout.addRow(hp.make_label(self, "Horizontal"), self.horizontal_label)
-        layout.addRow(hp.make_label(self, "Vertical"), self.vertical_label)
-        layout.addRow(hp.make_h_layout(self.initialize_btn, self.add_btn, self.remove_btn))
+        layout.addRow(hp.make_h_layout(self.add_btn, self.remove_btn))
         layout.addRow(hp.make_label(self, "Auto-update"), self.auto_update)
         return layout
 
@@ -363,6 +334,9 @@ class CropDialog(ShapesDialog):
         name = self.slide_choice.currentText()
         modality = self._parent.registration_model.modalities[name]
         yx, bbox = self._transform_to_preprocessing(modality)
+        if yx is not None and bbox is not None:
+            hp.warn("Cannot have both polygon and bbox for crop")
+            return
         if yx is not None:
             modality.preprocessing.use_crop = True
             modality.preprocessing.crop_polygon = yx

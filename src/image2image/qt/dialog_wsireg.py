@@ -635,9 +635,8 @@ class ImageWsiRegWindow(Window):
             side_widget, "Name", tooltip="Name of the project", placeholder="e.g. project.wsireg", func=self.on_validate
         )
         self.output_dir_label = hp.make_label(
-            side_widget, "Output directory", tooltip="Output directory", enable_url=True
+            side_widget, hp.hyper(self.output_dir), tooltip="Output directory", enable_url=True
         )
-        self.output_dir_label.setText(hp.hyper(self.output_dir))
         self.output_dir_btn = hp.make_qta_btn(
             side_widget, "folder", tooltip="Change output directory", func=self.on_set_output_dir, normal=True
         )
@@ -707,8 +706,8 @@ class ImageWsiRegWindow(Window):
         # Project
         side_layout.addRow(hp.make_h_line_with_text("I2Reg project"))
         side_layout.addRow(hp.make_label(side_widget, "Name"), self.name_label)
+        side_layout.addRow(hp.make_label(side_widget, "Output directory", alignment=Qt.AlignmentFlag.AlignLeft))
         side_layout.addRow(
-            hp.make_label(side_widget, "Output\ndirectory", alignment=Qt.AlignmentFlag.AlignRight),
             hp.make_h_layout(self.output_dir_label, self.output_dir_btn, stretch_id=(0,), spacing=1, margin=1),
         )
         # Advanced options
@@ -720,19 +719,13 @@ class ImageWsiRegWindow(Window):
         hidden_settings.addRow(hp.make_label(self, "Open when finished"), self.open_when_finished)
         side_layout.addRow(hidden_settings)
 
+        self.save_btn = hp.make_qta_btn(
+            self, "save", normal=True, tooltip="Save i2reg project to disk.", func=self.on_save_to_i2reg
+        )
         self.run_btn = hp.make_btn(
             side_widget, "Execute...", tooltip="Immediately execute registration", properties={"with_menu": True}
         )
         menu = hp.make_menu(self.run_btn)
-        hp.make_menu_item(
-            side_widget,
-            "Save",
-            menu=menu,
-            func=self.on_save_to_i2reg,
-            icon="save",
-            tooltip="Save i2reg project to disk.",
-        )
-        menu.addSeparator()
         hp.make_menu_item(
             side_widget,
             "Run registration",
@@ -767,6 +760,7 @@ class ImageWsiRegWindow(Window):
             tooltip="Registration task will be added to the queue and you can start it manually. Project will not be"
             " saved before adding to the queue.",
         )
+        menu.addSeparator()
         hp.make_menu_item(
             side_widget,
             "Open project in viewer",
@@ -786,7 +780,7 @@ class ImageWsiRegWindow(Window):
         )
         self.run_btn.setMenu(menu)
         # Execution buttons
-        side_layout.addRow(self.run_btn)
+        side_layout.addRow(hp.make_h_layout(self.save_btn, self.run_btn, stretch_id=(1,), spacing=1))
 
         layout = QHBoxLayout()
         layout.setSpacing(0)
@@ -833,6 +827,7 @@ class ImageWsiRegWindow(Window):
                 "viewer": self.view.viewer,
                 "data_model": self.data_model,
                 "wrapper": self.data_model.wrapper,
+                "project": self.registration_model,
             }
         )
         return variables
@@ -892,8 +887,8 @@ class ImageWsiRegWindow(Window):
             value=-1,
             minimum=-3,
             maximum=-1,
-            tooltip="Index of the polygon to show in the fixed image. Negative values are used go from smallest to\n"
-            " highest level. Value of 0 means that the highest resolution is shown which will be slow to pre-process.",
+            tooltip="Index of the polygon to show in the fixed image.\nNegative values are used go from smallest to"
+            " highest level.\nValue of 0 means that the highest resolution is shown which will be slow to pre-process.",
         )
         self.pyramid_level.setSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum)
         self.pyramid_level.valueChanged.connect(self.on_show_modalities)
