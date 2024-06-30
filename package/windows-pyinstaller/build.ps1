@@ -58,6 +58,7 @@ if ($update_pip) {
 # only update app
 if ($update_app) {
     $local_install.Add("image2image-io")
+    $local_install.Add("image2image-reg")
     $local_install.Add("image2image")
 }
 
