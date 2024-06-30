@@ -5,8 +5,9 @@ from __future__ import annotations
 import typing as ty
 
 import click
+from koyo.click import cli_parse_paths_sort
 from koyo.system import IS_MAC, IS_MAC_ARM, IS_PYINSTALLER
-from koyo.click import parse_extra_args
+from koyo.utilities import is_installed
 
 from image2image import __version__
 
@@ -17,19 +18,54 @@ if IS_MAC_ARM and IS_PYINSTALLER:
 
 def dev_options(func: ty.Callable) -> ty.Callable:
     """Setup dev options."""
-    # if os.environ.get("IONGLOW_DEV_MODE", "0") == "1":
-    func = click.option(
-        "--dev",
-        help="Flat to indicate that CLI should run in development mode and catch all errors.",
-        default=False,
-        is_flag=True,
-        show_default=True,
-    )(func)
+    if not IS_PYINSTALLER:
+        func = click.option(
+            "--dev",
+            help="Flat to indicate that CLI should run in development mode and catch all errors.",
+            default=False,
+            is_flag=True,
+            show_default=True,
+        )(func)
     return func
 
 
+@click.group(
+    context_settings={
+        "help_option_names": ["-h", "--help"],
+        "max_content_width": 120,
+        # "ignore_unknown_options": True,
+        # "allow_extra_args": True,
+    },
+    invoke_without_command=True,
+)
 @click.version_option(__version__, prog_name="image2image")
-@dev_options
+@click.option(
+    "-t",
+    "--tool",
+    type=click.Choice(AVAILABLE_TOOLS),
+    default="launcher",
+    show_default=True,
+)
+@click.option(
+    "--project_dir",
+    help="Path to the WsiReg project directory. It usually ends in .i2reg extension (for 'wsireg' tool).",
+    type=click.Path(exists=True, resolve_path=True, file_okay=False, dir_okay=True),
+    show_default=True,
+)
+@click.option(
+    "--image_dir",
+    help="Path to directory with microscopy images (for 'viewer' tool).",
+    type=click.Path(exists=True, resolve_path=True, file_okay=False, dir_okay=True),
+    show_default=True,
+)
+@click.option(
+    "--image_path",
+    help="Path to microscopy images (for 'viewer' tool).",
+    type=click.UNPROCESSED,
+    show_default=True,
+    multiple=True,
+    callback=cli_parse_paths_sort,
+)
 @click.option(
     "--no_color",
     help="Flag to enable colored logs.",
@@ -48,22 +84,7 @@ def dev_options(func: ty.Callable) -> ty.Callable:
     help="Verbose output. This is additive flag so `-vvv` will print `INFO` messages and -vvvv will print `DEBUG`"
     " information.",
 )
-@click.option(
-    "-t",
-    "--tool",
-    type=click.Choice(AVAILABLE_TOOLS),
-    default="launcher",
-    show_default=True,
-)
-@click.command(
-    context_settings={
-        "help_option_names": ["-h", "--help"],
-        "max_content_width": 120,
-        "ignore_unknown_options": True,
-        "allow_extra_args": True,
-    },
-)
-@click.argument("extra_args", nargs=-1, type=click.UNPROCESSED)
+@dev_options
 @click.pass_context
 def cli(
     ctx: click.Context,
@@ -71,8 +92,9 @@ def cli(
     verbosity: float,
     no_color: bool,
     dev: bool = False,
-    extras: ty.Any = None,
-    extra_args: ty.Tuple[str, ...] | None = None,
+    project_dir: str | None = None,
+    image_path: str | list[str] | None = None,
+    image_dir: str | None = None,
 ) -> None:
     """Launch image2image app.
 
@@ -100,5 +122,89 @@ def cli(
         else:
             verbosity = 0.5
     level = min(0.5, verbosity) * 10
-    kws = parse_extra_args(extra_args)
-    run(level=int(level), no_color=no_color, dev=dev, tool=tool, **kws)
+    run(
+        level=int(level),
+        no_color=no_color,
+        dev=dev,
+        tool=tool,
+        image_path=image_path,
+        image_dir=image_dir,
+        project_dir=project_dir,
+    )
+
+
+if is_installed("image2image_reg"):
+    from image2image_reg.cli import (
+        WriterMode,
+        as_uint8_,
+        fmt_,
+        n_parallel_,
+        original_size_,
+        overwrite_,
+        parallel_mode_,
+        project_path_multi_,
+        register_runner,
+        remove_merged_,
+        write_merged_,
+        write_not_registered_,
+        write_registered_,
+    )
+
+    @overwrite_
+    @parallel_mode_
+    @n_parallel_
+    @as_uint8_
+    @original_size_
+    @remove_merged_
+    @write_merged_
+    @write_not_registered_
+    @write_registered_
+    @fmt_
+    @click.option(
+        "-w/-W",
+        "--write/--no_write",
+        help="Write images to disk.",
+        is_flag=True,
+        default=True,
+        show_default=True,
+    )
+    @click.option(
+        "--histogram_match/--no_histogram_match",
+        help="Match image histograms before co-registering - this might improve co-registration.",
+        is_flag=True,
+        default=False,
+        show_default=True,
+    )
+    @project_path_multi_
+    @cli.command("i2reg")
+    def register_cmd(
+        project_dir: ty.Sequence[str],
+        histogram_match: bool,
+        write: bool,
+        fmt: WriterMode,
+        write_registered: bool,
+        write_not_registered: bool,
+        write_merged: bool,
+        remove_merged: bool,
+        original_size: bool,
+        as_uint8: bool | None,
+        n_parallel: int,
+        parallel_mode: str,
+        overwrite: bool,
+    ) -> None:
+        """Register images."""
+        register_runner(
+            project_dir,
+            histogram_match=histogram_match,
+            write_images=write,
+            fmt=fmt,
+            write_registered=write_registered,
+            write_merged=write_merged,
+            remove_merged=remove_merged,
+            write_not_registered=write_not_registered,
+            original_size=original_size,
+            as_uint8=as_uint8,
+            n_parallel=n_parallel,
+            parallel_mode=parallel_mode,
+            overwrite=overwrite,
+        )

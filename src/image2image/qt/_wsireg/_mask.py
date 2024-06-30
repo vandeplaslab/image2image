@@ -200,6 +200,10 @@ class ShapesDialog(QtFramelessTool):
         with suppress(TypeError):
             self.mask_layer.visible = False
 
+    def on_remove_mask(self) -> None:
+        """Remove mask."""
+        self.view.remove_layer(self.mask_layer)
+
     def hide(self):
         """Hide dialog."""
         self.on_hide_mask()

@@ -392,19 +392,21 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
         from koyo.system import IS_MAC_ARM, IS_PYINSTALLER
 
         menu_apps = hp.make_menu(self, "Apps")
-        hp.make_menu_item(self, "Open 'Register' App", menu=menu_apps, func=self.on_open_register)
-        hp.make_menu_item(self, "Open 'Viewer' App", menu=menu_apps, func=self.on_open_viewer)
-        hp.make_menu_item(self, "Open 'Crop' App", menu=menu_apps, func=self.on_open_crop)
+        hp.make_menu_item(self, "Open Register App", menu=menu_apps, func=self.on_open_register)
+        hp.make_menu_item(self, "Open Viewer App", menu=menu_apps, func=self.on_open_viewer)
+        hp.make_menu_item(self, "Open WsiReg App", menu=menu_apps, func=self.on_open_wsireg)
+        hp.make_menu_item(self, "Open Crop App", menu=menu_apps, func=self.on_open_crop)
         hp.make_menu_item(
             self,
-            "Open 'Convert' App",
+            "Open Convert App",
             menu=menu_apps,
             func=self.on_open_convert,
             disabled=IS_MAC_ARM and IS_PYINSTALLER,
         )
-        hp.make_menu_item(self, "Open 'Merge' App", menu=menu_apps, func=self.on_open_merge)
-        hp.make_menu_item(self, "Open 'Fusion' App", menu=menu_apps, func=self.on_open_fusion)
-        hp.make_menu_item(self, "Open 'WsiReg' App", menu=menu_apps, func=self.on_open_wsireg)
+        hp.make_menu_item(self, "Open Merge App", menu=menu_apps, func=self.on_open_merge)
+        hp.make_menu_item(self, "Open Fusion App", menu=menu_apps, func=self.on_open_fusion)
+        menu_apps.addSeparator()
+        hp.make_menu_item(self, "Open Launcher App", menu=menu_apps, func=self.on_open_launcher)
         return menu_apps
 
     def _make_help_menu(self) -> QMenu:
@@ -610,6 +612,11 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
         create_new_window("fusion", *args)
 
     @staticmethod
+    def on_open_launcher(*args: str) -> None:
+        """Open launcher application."""
+        create_new_window("", *args)
+
+    @staticmethod
     def on_open_merge(*args: str) -> None:
         """Open merge application."""
         create_new_window("merge", *args)
@@ -653,8 +660,9 @@ def create_new_window(plugin: str, *extra_args) -> None:
     arguments = []
     if "--dev" in args:
         arguments.append("--dev")
-    arguments.append("--tool")
-    arguments.append(plugin)
+    if plugin:
+        arguments.append("--tool")
+        arguments.append(plugin)
     if extra_args:
         for arg in extra_args:
             if isinstance(arg, str):

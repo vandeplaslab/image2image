@@ -21,8 +21,8 @@ from image2image.utils._appdirs import USER_LOG_DIR
 REGISTER_TEXT = "Co-register your microscopy and imaging mass spectrometry data."
 VIEWER_TEXT = "Overlay your microscopy and imaging mass spectrometry data."
 CROP_TEXT = "Crop your microscopy data to reduce it's size (handy for Image Fusion)."
-CONVERT_TEXT = "Convert your multi-scene CZI image to OME-TIFF."
-MERGE_TEXT = "Convert your multi-scene CZI image to OME-TIFF."
+CONVERT_TEXT = "Convert multi-scene CZI images or other formats to OME-TIFF."
+MERGE_TEXT = "Merge multiple OME-TIFF images into a single file."
 FUSION_TEXT = "Export your data for Image Fusion in MATLAB compatible format."
 WSIREG_TEXT = "Register whole slide microscopy images."
 CONVERT_UNAVAILABLE = IS_PYINSTALLER and IS_MAC_ARM
@@ -54,21 +54,23 @@ class Launcher(QtDialog):
         tile_layout.setColumnStretch(4, 1)
         # First row
         # register app
-        register = _make_tile(self, "Registration App", REGISTER_TEXT, "register", Window.on_open_register)
+        register = _make_tile(self, "Registration<br>App", REGISTER_TEXT, "register", Window.on_open_register)
         tile_layout.addWidget(register, 0, 1)
         # viewer app
-        viewer = _make_tile(self, "Viewer App", VIEWER_TEXT, "viewer", Window.on_open_viewer)
+        viewer = _make_tile(self, "Viewer<br>App", VIEWER_TEXT, "viewer", Window.on_open_viewer)
         tile_layout.addWidget(viewer, 0, 2)
-        crop = _make_tile(self, "WsiReg App", WSIREG_TEXT, "wsireg", Window.on_open_wsireg)
+        crop = _make_tile(self, "WsiReg<br>App", WSIREG_TEXT, "wsireg", Window.on_open_wsireg)
         tile_layout.addWidget(crop, 0, 3)
         # Second row
         # crop app
-        crop = _make_tile(self, "Crop App", CROP_TEXT, "crop", Window.on_open_crop, icon_kws={"color": "#ff0000"})
+        crop = _make_tile(
+            self, "Image Crop<br>App", CROP_TEXT, "crop", Window.on_open_crop, icon_kws={"color": "#ff0000"}
+        )
         tile_layout.addWidget(crop, 1, 1)
         # convert app
         convert = _make_tile(
             self,
-            "Image to OME-TIFF App",
+            "Image to OME-TIFF<br>App",
             CONVERT_TEXT,
             "change",
             Window.on_open_convert
@@ -78,11 +80,11 @@ class Launcher(QtDialog):
         )
         tile_layout.addWidget(convert, 1, 2)
         # merge app
-        merge = _make_tile(self, "Merge OME-TIFFs App", MERGE_TEXT, "merge", Window.on_open_merge)
+        merge = _make_tile(self, "Merge OME-TIFFs<br>App", MERGE_TEXT, "merge", Window.on_open_merge)
         tile_layout.addWidget(merge, 1, 3)
         # Third row
         # export app
-        export = _make_tile(self, "Fusion Preparation App", FUSION_TEXT, "fusion", Window.on_open_fusion)
+        export = _make_tile(self, "Fusion Preparation<br>App", FUSION_TEXT, "fusion", Window.on_open_fusion)
         tile_layout.addWidget(export, 2, 2)
 
         main_layout = QVBoxLayout()
