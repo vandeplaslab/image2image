@@ -99,7 +99,7 @@ class ImageWsiPrepWindow(Window):
         .add("flip(l-r)", "flip_lr", "bool", 70, sizing="fixed", tooltip="Flip image left-right.", checkable=True)
     )
 
-    def __init__(self, parent: QWidget | None = None, run_check_version: bool = True):
+    def __init__(self, parent: QWidget | None = None, run_check_version: bool = True, **kwargs: ty.Any):
         super().__init__(
             parent,
             f"image2image: Prepare your microscopy data for co-registration (v{__version__})",

@@ -109,7 +109,7 @@ class ImageRegistrationWindow(Window):
     evt_fixed_dropped = Signal("QEvent")
     evt_moving_dropped = Signal("QEvent")
 
-    def __init__(self, parent: QWidget | None, run_check_version: bool = True):
+    def __init__(self, parent: QWidget | None, run_check_version: bool = True, **kwargs: ty.Any):
         super().__init__(
             parent,
             f"image2image: Registration app (v{__version__})",

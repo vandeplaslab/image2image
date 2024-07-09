@@ -71,7 +71,7 @@ class ImageMergeWindow(Window):
         .add("scenes & channels", "metadata", "str", 0)
     )
 
-    def __init__(self, parent: QWidget | None, run_check_version: bool = True):
+    def __init__(self, parent: QWidget | None, run_check_version: bool = True, **kwargs: ty.Any):
         super().__init__(
             parent,
             f"image2image: Merge images (v{__version__})",

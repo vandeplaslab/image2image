@@ -43,7 +43,7 @@ class ImageFusionWindow(Window):
         .add("progress", "progress", "str", 0)
     )
 
-    def __init__(self, parent: QWidget | None, run_check_version: bool = True):
+    def __init__(self, parent: QWidget | None, run_check_version: bool = True, **kwargs: ty.Any):
         super().__init__(
             parent,
             f"image2image: Export images for MATLAB fusion (v{__version__})",

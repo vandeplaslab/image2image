@@ -192,15 +192,23 @@ class ShapesDialog(QtFramelessTool):
         if polygon is None:
             if bbox is None:
                 return []
-            left, top, width, height = bbox.x, bbox.y, bbox.width, bbox.height
-            right = left + width
-            bottom = top - height
-            data = np.asarray([[top, left], [top, right], [bottom, right], [bottom, left]])
-            data = data * reader.resolution
-            return [(data, "rectangle")]
-        yx = polygon.xy[:, ::-1]
-        yx = yx * reader.resolution
-        return [(yx, "polygon")]
+            data = []
+            for left, top, width, height in zip(bbox.x, bbox.y, bbox.width, bbox.height):
+                right = left + width
+                bottom = top + height
+                data.append(
+                    (
+                        np.asarray([(top, left), (top, right), (bottom, right), (bottom, left)]) * reader.resolution,
+                        "rectangle",
+                    )
+                )
+            return data
+        data = []
+        yx = polygon.xy
+        if isinstance(yx, list):
+            for xy in yx:
+                data.append((np.asarray(xy[:, ::-1]) * reader.resolution, "polygon"))
+        return data
 
     def _transform_to_preprocessing(self, modality: Modality) -> tuple[np.ndarray | None, tuple[int] | None]:
         """Transform data from napari layer to preprocessing data."""
@@ -213,10 +221,10 @@ class ShapesDialog(QtFramelessTool):
                 # convert to pixel coordinates and round
                 yx = np.dot(inv_affine[:2, :2], yx.T).T + inv_affine[:2, 2]
                 yx = yx * reader.inv_resolution
-                yx_.append((np.round(yx).astype(np.int32)[:, ::-1], None))
+                yx_.append(np.round(yx).astype(np.int32)[:, ::-1])
             else:
-                bbox = np.asarray([left, bottom, (right - left), (bottom - top)])
-                bbox_.append((None, tuple(np.round(bbox * reader.inv_resolution).astype(int))))
+                bbox = np.asarray([left, top, (right - left), (bottom - top)])
+                bbox_.append(tuple(np.round(bbox * reader.inv_resolution).astype(int)))
         return yx_ or None, bbox_ or None
 
     def on_select_modality(self, _=None) -> None:
