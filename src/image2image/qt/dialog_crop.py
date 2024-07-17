@@ -34,6 +34,26 @@ if ty.TYPE_CHECKING:
     from image2image.models.data import DataModel
 
 
+def parse_crop_info(data: tuple[int, int, int, int] | np.ndarray | None = None) -> str:
+    """Parse crop data."""
+    if data is None:
+        return "No data"
+    if isinstance(data, np.ndarray):
+        left, right, top, bottom = data[:, 1].min(), data[:, 1].max(), data[:, 0].min(), data[:, 0].max()
+        return (
+            f"Shape: Polygon"
+            f"\nNumber of points: {len(data)}"
+            f"\nHorizontal: {left:.0f}-{right:.0f} ({right-left:.0f})"
+            f"\nVertical: {top:.0f}-{bottom:.0f} ({bottom-top:.0f})"
+        )
+    left, right, top, bottom = data
+    return (
+        f"Shape: Rectangle"
+        f"\nHorizontal: {left:.0f}-{right:.0f} ({right-left:.0f})"
+        f"\nVertical: {top:.0f}-{bottom:.0f} ({bottom-top:.0f})"
+    )
+
+
 class ImageCropWindow(Window):
     """Image viewer dialog."""
 
@@ -72,6 +92,7 @@ class ImageCropWindow(Window):
         connect(self._image_widget.dataset_dlg.evt_closed, self.on_close_image, state=state)
         connect(self._image_widget.evt_toggle_channel, self.on_toggle_channel, state=state)
         connect(self._image_widget.evt_toggle_all_channels, self.on_toggle_all_channels, state=state)
+        connect(self.view.viewer.events.status, self._status_changed, state=state)
 
     def on_toggle_channel(self, name: str, state: bool) -> None:
         """Toggle channel."""
@@ -194,31 +215,19 @@ class ImageCropWindow(Window):
         if not self.data_model.is_valid():
             hp.toast(self, "Invalid data", "Image data is invalid.", icon="error")
             return False
-        left, right, top, bottom = self._get_crop_area_for_index(index)
-        if left == right:
-            hp.toast(self, "Invalid crop area", f"Left and right values are the same for area={index}", icon="error")
-            return False
-        if top == bottom:
-            hp.toast(self, "Invalid crop area", f"Top and bottom values are the same for area={index}.", icon="error")
-            return False
-        # if bottom - top < 128:
-        #     hp.toast(
-        #         self,
-        #         "Invalid crop area",
-        #         f"The specified top and bottom areas are too small for area={index}. "
-        #         f"They should be larger than 128 pixels.",
-        #         icon="error",
-        #     )
-        #     return False
-        # if right - left < 128:
-        #     hp.toast(
-        #         self,
-        #         "Invalid crop area",
-        #         f"The specified left and right areas are too small for area={index}. "
-        #         f"They should be larger than 128 pixels.",
-        #         icon="error",
-        #     )
-        #     return False
+        data = self._get_crop_area_for_index(index)
+        if isinstance(data, tuple):
+            left, right, top, bottom = data
+            if left == right:
+                hp.toast(
+                    self, "Invalid crop area", f"Left and right values are the same for area={index}", icon="error"
+                )
+                return False
+            if top == bottom:
+                hp.toast(
+                    self, "Invalid crop area", f"Top and bottom values are the same for area={index}.", icon="error"
+                )
+                return False
         return True
 
     def on_preview(self):
@@ -295,14 +304,17 @@ class ImageCropWindow(Window):
             return
 
         CONFIG.output_dir = output_dir_
+        tile_size = int(self.tile_size.currentText())
+        as_uint8 = self.as_uint8.isChecked()
         if regions:
+            # list(crop_regions(self.data_model, Path(output_dir_), regions, tile_size=tile_size, as_uint8=as_uint8))
             self.worker_crop = create_worker(
                 crop_regions,
                 data_model=self.data_model,
                 output_dir=Path(output_dir_),
                 regions=regions,
-                tile_size=int(self.tile_size.currentText()),
-                as_uint8=self.as_uint8.isChecked(),
+                tile_size=tile_size,
+                as_uint8=as_uint8,
                 _start_thread=True,
                 _connect={
                     "aborted": partial(self._on_aborted, which="crop"),
@@ -326,27 +338,20 @@ class ImageCropWindow(Window):
         hp.toast(self, "Export failed", f"Failed to export: {exc}", icon="error")
         log_exception_or_error(exc)
 
-    def get_crop_areas(self) -> list[tuple[int, int, int, int]]:
+    def get_crop_areas(self) -> list[tuple[int, int, int, int] | np.ndarray]:
         """Get all crop areas."""
         regions = []
         for index in range(len(self.crop_layer.data)):
             if not self._validate(index):
                 return []
             # get crop area
-            left, right, top, bottom = self._get_crop_area_for_index(index)
-            regions.append((left, right, top, bottom))
+            data = self._get_crop_area_for_index(index)
+            if isinstance(data, np.ndarray):
+                regions.append(data)
+            else:
+                left, right, top, bottom = data
+                regions.append((left, right, top, bottom))
         return regions
-
-    def _get_crop_area(self) -> tuple[int, int, int, int]:
-        left = self.left_edit.text()
-        left = int(left or 0)  # type: ignore
-        top = self.top_edit.text()
-        top = int(top or 0)  # type: ignore
-        right = self.right_edit.text()
-        right = int(right or 0)  # type: ignore
-        bottom = self.bottom_edit.text()
-        bottom = int(bottom or 0)  # type: ignore
-        return left, right, top, bottom  # type: ignore
 
     def _get_default_crop_area(self) -> tuple[int, int, int, int]:
         (_, y, x) = self.view.viewer.camera.center
@@ -356,19 +361,13 @@ class ImageCropWindow(Window):
 
     def on_edit_crop(self):
         """Edit crop area."""
-        self.crop_layer.mode = "select"
-        if len(self.crop_layer.data) == 0:
-            left, right, top, bottom = self._get_default_crop_area()
-            rect = np.asarray([[top, left], [top, right], [bottom, right], [bottom, left]])
-            self.crop_layer.data = [(rect, "rectangle")]
-        self.crop_layer.selected_data = [0]
-        self.crop_layer.mode = "select"
+        self.crop_layer.mode = "add_polygon"
         self.view.select_one_layer(self.crop_layer)
 
-    def on_reset_crop(self):
+    def on_reset_crop(self) -> None:
         """Reset crop area."""
         n = len(self.crop_layer.data)
-        if not hp.confirm(
+        if n > 0 and not hp.confirm(
             self,
             f"Are you sure you want to reset the crop areas? There {pluralize('is', n)} currently <b>{n}</b> "
             f"highlighted {pluralize('area', n)}.",
@@ -376,16 +375,10 @@ class ImageCropWindow(Window):
         ):
             return
         self.crop_layer.data = []
-        with hp.qt_signals_blocked(self.left_edit, self.right_edit, self.top_edit):
-            left, right, top, bottom = self._get_default_crop_area()
-            self.left_edit.setText(f"{left:.0f}")
-            self.right_edit.setText(f"{right:.0f}")
-            self.top_edit.setText(f"{top:.0f}")
-            self.bottom_edit.setText(f"{bottom:.0f}")
-        self.on_update_rect_from_ui()
-        self.crop_layer.mode = "select"
-        self.crop_layer.selected_data = (0,)
+        self.crop_info.setText(parse_crop_info())
+        self.crop_layer.mode = "add_polygon"
         self._move_layer(self.view, self.crop_layer)
+        logger.info("Reset crop areas.")
 
     def on_update_ui_from_index(self) -> None:
         """Update crop rect based on the current index."""
@@ -399,18 +392,6 @@ class ImageCropWindow(Window):
             self.crop_layer._set_highlight()
         logger.trace(f"Updated rectangle (from index {current_index}).")
 
-    def on_update_rect_from_ui(self, _: int | None = None) -> None:
-        """Update crop rect."""
-        if self.crop_layer.data:
-            self.crop_layer.data = []
-
-        left, right, top, bottom = self._get_crop_area()
-        rect = np.asarray([[top, left], [top, right], [bottom, right], [bottom, left]])
-        with self._editing_crop():
-            self.crop_layer.data = [(rect, "rectangle")]
-        self._move_layer(self.view, self.crop_layer)
-        logger.trace(f"Updated rectangle (from ui) - {left}-{right}:{bottom}-{top}.")
-
     def on_update_crop_from_canvas(self, _evt: ty.Any = None) -> None:
         """Update crop values."""
         if self._editing:
@@ -421,35 +402,30 @@ class ImageCropWindow(Window):
             self.index_choice.setValue(n - 1)
         self._on_update_crop_from_canvas(self.index_choice.value())
 
-    def _get_crop_area_for_index(self, index: int = 0) -> tuple[int, int, int, int]:
+    def _get_crop_area_for_index(self, index: int = 0) -> tuple[int, int, int, int] | np.ndarray:
         """Return crop area."""
         n = len(self.crop_layer.data)
         if index > n or index < 0:
             return 0, 0, 0, 0
-        rect = self.crop_layer.interaction_box(index)
-        rect = rect[Box.LINE_HANDLE]
-        xmin, xmax = np.min(rect[:, 1]), np.max(rect[:, 1])
-        xmin = max(0, xmin)
-        ymin, ymax = np.min(rect[:, 0]), np.max(rect[:, 0])
-        ymin = max(0, ymin)
-        return floor(xmin), ceil(xmax), floor(ymin), ceil(ymax)
+        shape = self.crop_layer.shape_type[index]
+        if shape == "rectangle":
+            rect = self.crop_layer.interaction_box(index)
+            rect = rect[Box.LINE_HANDLE]
+            xmin, xmax = np.min(rect[:, 1]), np.max(rect[:, 1])
+            xmin = max(0, xmin)
+            ymin, ymax = np.min(rect[:, 0]), np.max(rect[:, 0])
+            ymin = max(0, ymin)
+            return floor(xmin), ceil(xmax), floor(ymin), ceil(ymax)
+        return self.crop_layer.data[index]
 
     def _on_update_crop_from_canvas(self, index: int = 0) -> None:
         n = len(self.crop_layer.data)
         if index > n or index < 0:
-            with hp.qt_signals_blocked(self.left_edit, self.right_edit, self.top_edit):
-                self.left_edit.setText("")
-                self.right_edit.setText("")
-                self.top_edit.setText("")
-                self.bottom_edit.setText("")
+            self.crop_info.setText("No data")
             return
-        left, right, top, bottom = self._get_crop_area_for_index(index)
-        with hp.qt_signals_blocked(self.left_edit, self.right_edit, self.top_edit):
-            self.left_edit.setText(str(left))
-            self.right_edit.setText(str(right))
-            self.top_edit.setText(str(top))
-            self.bottom_edit.setText(str(bottom))
-        logger.trace("Updated rectangle (from canvas).")
+        data = self._get_crop_area_for_index(index)
+        self.crop_info.setText(parse_crop_info(data))
+        logger.trace(f"Updated region {index} (from canvas).")
 
     @property
     def crop_layer(self) -> Shapes:
@@ -493,21 +469,13 @@ class ImageCropWindow(Window):
             func=self.on_update_ui_from_index,
         )
 
-        self.left_edit = hp.make_label(self, alignment=Qt.AlignmentFlag.AlignCenter, object_name="crop_label")
-        self.top_edit = hp.make_label(self, alignment=Qt.AlignmentFlag.AlignCenter, object_name="crop_label")
-        self.right_edit = hp.make_label(self, alignment=Qt.AlignmentFlag.AlignCenter, object_name="crop_label")
-        self.bottom_edit = hp.make_label(self, alignment=Qt.AlignmentFlag.AlignCenter, object_name="crop_label")
+        self.crop_info = hp.make_label(self, "", alignment=Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
+        self.crop_info.setMinimumHeight(50)
 
         crop_layout = QFormLayout()  # noqa
+        crop_layout.setSpacing(2)
         crop_layout.addRow(hp.make_label(self, "Crop area"), self.index_choice)
-        crop_layout.addRow(
-            hp.make_label(self, "Horizontal"),
-            hp.make_h_layout(self.left_edit, hp.make_label(self, "-"), self.right_edit),
-        )
-        crop_layout.addRow(
-            hp.make_label(self, "Vertical"),
-            hp.make_h_layout(self.top_edit, hp.make_label(self, "-"), self.bottom_edit),
-        )
+        crop_layout.addRow(hp.make_label(self, "Information"), self.crop_info)
 
         self.init_btn = hp.make_btn(
             self, "Initialize crop area", tooltip="Edit crop area (interactively)", func=self.on_edit_crop
@@ -712,24 +680,41 @@ class ImageCropWindow(Window):
         CONFIG.first_time_crop = False
 
 
-def get_project_data(data_model: DataModel, regions: list[tuple[int, int, int, int]]) -> dict:
+def get_project_data(data_model: DataModel, regions: list[tuple[int, int, int, int] | np.ndarray]) -> dict:
     """Write project."""
-    schema_version = "1.1"
+    schema_version = "1.2"
     data_ = data_model.to_dict()
+    regions = [
+        dict(yx=region.tolist())
+        if isinstance(region, np.ndarray)
+        else dict(left=region[0], right=region[1], top=region[2], bottom=region[3])
+        for region in regions
+    ]
     data = {
         "schema_version": schema_version,
         "tool": "crop",
         "version": __version__,
-        "crop": [dict(left=left, right=right, top=top, bottom=bottom) for left, right, top, bottom in regions],
+        "crop": regions,
         "images": data_["images"],
     }
     return data
 
 
+def _crop_regions(data_model: DataModel, polygon_or_bbox: list[tuple[int, int, int, int] | np.ndarray]):
+    """Crop regions."""
+    if isinstance(polygon_or_bbox, tuple):
+        left, right, top, bottom = polygon_or_bbox
+        for path, reader, cropped in data_model.crop(left, right, top, bottom):
+            yield path, reader, cropped, (left, right, top, bottom)
+    else:
+        for path, reader, cropped, (left, right, top, bottom) in data_model.crop_polygon(polygon_or_bbox):
+            yield path, reader, cropped, (left, right, top, bottom)
+
+
 def crop_regions(
     data_model: DataModel,
     output_dir: Path,
-    regions: list[tuple[int, int, int, int]],
+    regions: list[tuple[int, int, int, int] | np.ndarray],
     tile_size: int = 512,
     as_uint8: bool = True,
 ) -> ty.Generator[tuple[Path, int, int], None, None]:
@@ -737,28 +722,25 @@ def crop_regions(
     from image2image_io.writers import write_ome_tiff_from_array
 
     n = len(regions)
-    for current, (left, right, top, bottom) in enumerate(regions, start=1):
-        for path, reader, cropped in data_model.crop(left, right, top, bottom):
+    for current, polygon_or_bbox in enumerate(regions, start=1):
+        for path, reader, cropped, (left, right, top, bottom) in _crop_regions(data_model, polygon_or_bbox):
             logger.info(f"Exporting {path} with shape {cropped.shape}...")
             output_path = output_dir / f"{path.stem}_x={left}-{right}_y={top}-{bottom}".replace(".ome", "")
             if output_path.with_suffix(".ome.tiff").exists():
                 logger.warning(f"Skipping {output_path} as it already exists.")
                 yield output_path, current, n
                 continue
-            # try:
             filename = write_ome_tiff_from_array(output_path, reader, cropped, tile_size=tile_size, as_uint8=as_uint8)
             yield Path(filename), current, n
-            # except Exception:
-            #     yield None, current, n
 
 
 def preview_regions(
-    data_model: DataModel, regions: list[tuple[int, int, int, int]]
+    data_model: DataModel, regions: list[tuple[int, int, int, int] | np.ndarray]
 ) -> ty.Generator[tuple[str, np.ndarray, int, int], None, None]:
     """Preview images."""
     n = len(regions)
-    for current, (left, right, top, bottom) in enumerate(regions, start=1):
-        for path, _reader, cropped in data_model.crop(left, right, top, bottom):
+    for current, polygon_or_bbox in enumerate(regions, start=1):
+        for path, reader, cropped, (left, right, top, bottom) in _crop_regions(data_model, polygon_or_bbox):
             name = f"{path.stem}_x={left}-{right}_y={top}-{bottom}".replace(".ome", "")
             yield name, cropped, current, n
 

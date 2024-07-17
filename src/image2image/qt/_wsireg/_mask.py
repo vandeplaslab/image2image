@@ -214,7 +214,8 @@ class ShapesDialog(QtFramelessTool):
         """Transform data from napari layer to preprocessing data."""
         wrapper = self._parent.data_model.get_wrapper()
         reader = wrapper.get_reader_for_path(modality.path)
-        _, inv_affine = get_affine(reader, modality.preprocessing)
+        # _, inv_affine = get_affine(reader, modality.preprocessing)
+        inv_affine = np.eye(3)
         yx_, bbox_ = [], []
         for left, right, top, bottom, shape_type, yx in self._get_crop_area_for_index():
             if shape_type == "polygon":
@@ -289,9 +290,9 @@ class MaskDialog(ShapesDialog):
     TITLE = "Mask"
     INFO_LABEL = (
         "This dialog allows for you to draw a mask for some (or all) of the images. Masks can be helpful"
-        " in registration problems by focusing on a specific region of interest.<br>"
-        "<b>Please remember that masks should be created on the original image (not translated or rotated)."
-        "<br>Transformations will be applied during the registration process!</b>"
+        " in registration problems by focusing on a specific region of interest."  # <br>"
+        # "<b>Please remember that masks should be created on the original image (not translated or rotated)."
+        # "<br>Transformations will be applied during the registration process!</b>"
     )
     MASK_OR_CROP = "mask"
 
@@ -310,7 +311,8 @@ class MaskDialog(ShapesDialog):
             modality.preprocessing.mask_polygon = None
         else:
             modality.preprocessing.use_mask = False
-        modality.preprocessing.transform_mask = get_transform_mask(modality)
+        # modality.preprocessing.transform_mask = get_transform_mask(modality)
+        modality.preprocessing.transform_mask = False
         kind = "polygon" if yx is not None else "bbox"
         logger.trace(f"Added mask for modality {name} to {kind}")
         self.evt_mask.emit(modality)
@@ -331,9 +333,9 @@ class CropDialog(ShapesDialog):
     TITLE = "Crop"
     INFO_LABEL = (
         "This dialog allows for you draw a shape for some (or all) of the images. This can be helpful"
-        " by cropping the image ahead of registration.<br>"
-        "<b>Please remember that masks should be created on the original image (not translated or rotated)."
-        "<br>Transformations will be applied during the registration process!</b>"
+        " by cropping the image ahead of registration."  # <br>"
+        # "<b>Please remember that masks should be created on the original image (not translated or rotated)."
+        # "<br>Transformations will be applied during the registration process!</b>"
     )
     MASK_OR_CROP = "crop"
 
@@ -356,6 +358,7 @@ class CropDialog(ShapesDialog):
         else:
             modality.preprocessing.use_crop = False
         # modality.transform_mask = get_transform_mask(modality)
+        modality.transform_mask = False
         kind = "polygon" if yx is not None else "bbox"
         logger.trace(f"Added crop for modality {name} to {kind}")
         self.evt_mask.emit(modality)

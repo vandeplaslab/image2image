@@ -79,7 +79,7 @@ def make_registration_task(
     return Task(
         task_id=task_id,
         task_name=f"{project.project_dir!s}",
-        task_name_repr=hp.hyper(project.project_dir, value=f".{project.project_dir.parent}/{project.project_dir.name}"),
+        task_name_repr=hp.hyper(project.project_dir, value=project.project_dir.name),
         commands=[commands],
     )
 
@@ -93,9 +93,9 @@ def guess_preprocessing(reader) -> Preprocessing:
     return Preprocessing.fluorescence()
 
 
-def hash_preprocessing(preprocessing: Preprocessing) -> str:
+def hash_preprocessing(preprocessing: Preprocessing, pyramid: int = -1) -> str:
     """Hash preprocessing."""
-    return hash_parameters(**preprocessing.to_dict(), n_in_hash=6)
+    return hash_parameters(**preprocessing.to_dict(), pyramid=pyramid, n_in_hash=6)
 
 
 class ImageWsiRegWindow(Window):
@@ -169,7 +169,7 @@ class ImageWsiRegWindow(Window):
         if self.open_when_finished.isChecked():
             path = Path(task.task_name) / "Images"
             if path.exists():
-                self.on_open_viewer(f"image_dir={path!s}")
+                self.on_open_viewer("--image_dir", str(path))
                 logger.trace("Registration finished - opening viewer.")
             else:
                 hp.toast(self, "Error", f"Failed to open viewer for {path!s}.", icon="error", position="top_left")
@@ -179,7 +179,7 @@ class ImageWsiRegWindow(Window):
         if self.registration_model:
             path = self.registration_model.project_dir / "Images"
             if path.exists():
-                self.on_open_viewer(f"image_dir={path!s}")
+                self.on_open_viewer("--image_dir", str(path))
                 logger.trace("Opening viewer.")
 
     def on_rename_modality(self, widget, new_name: str) -> None:
@@ -304,6 +304,25 @@ class ImageWsiRegWindow(Window):
             logger.warning(f"Failed to load data - model={model}")
 
     @qdebounced(timeout=250)
+    def on_update_pyramid_level(self) -> None:
+        """Update pyramid level."""
+        self._on_update_pyramid_level()
+
+    def _on_update_pyramid_level(self) -> None:
+        """Update pyramid level."""
+        level = self.pyramid_level.value()
+        if level == 0:
+            if not hp.confirm(
+                self,
+                "Please confirm if you wish to preview the full-resolution image. Pre-processing might take a"
+                " bit of time.",
+                "Please confirm",
+            ):
+                return
+        self.on_show_modalities()
+        logger.trace(f"Updated pyramid level to {level}")
+
+    @qdebounced(timeout=250)
     def on_show_modalities(self, _: ty.Any = None) -> None:
         """Show modality images."""
         self._on_show_modalities()
@@ -343,7 +362,9 @@ class ImageWsiRegWindow(Window):
                 scale = reader.scale_for_pyramid(pyramid)
                 layer = self.view.get_layer(modality.name)
                 preprocessing_hash = (
-                    hash_preprocessing(modality.preprocessing) if self.use_preview_check.isChecked() else ""
+                    hash_preprocessing(modality.preprocessing, pyramid=pyramid)
+                    if self.use_preview_check.isChecked()
+                    else f"pyramid={pyramid}"
                 )
                 # no need to re-process if the layer is already there
                 if layer and layer.metadata.get("preview_hash") == preprocessing_hash:
@@ -886,12 +907,12 @@ class ImageWsiRegWindow(Window):
             self,
             value=-1,
             minimum=-3,
-            maximum=-1,
+            maximum=0,
             tooltip="Index of the polygon to show in the fixed image.\nNegative values are used go from smallest to"
             " highest level.\nValue of 0 means that the highest resolution is shown which will be slow to pre-process.",
         )
         self.pyramid_level.setSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum)
-        self.pyramid_level.valueChanged.connect(self.on_show_modalities)
+        self.pyramid_level.valueChanged.connect(self.on_update_pyramid_level)
         self.statusbar.addPermanentWidget(hp.make_label(self, "Pyramid level:"))
         self.statusbar.addPermanentWidget(self.pyramid_level)
         self.statusbar.addPermanentWidget(hp.make_v_line())

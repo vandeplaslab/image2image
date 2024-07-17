@@ -340,14 +340,24 @@ class DataModel(BaseModel):
         return self.n_paths > 0
 
     def crop(
-        self, left: int, right: int, top: int, bottom: int, yx: ty.Optional[np.ndarray] = None
+        self, left: int, right: int, top: int, bottom: int
     ) -> ty.Generator[tuple[Path, "BaseReader", np.ndarray], None, None]:
         """Crop image(s) to the specified region."""
         wrapper = self.wrapper
         if wrapper:
             for path, reader in wrapper.path_reader_iter():
-                cropped = reader.crop(left, right, top, bottom, yx=yx)
+                cropped = reader.crop(left, right, top, bottom)
                 yield path, reader, cropped
+
+    def crop_polygon(
+        self, yx: np.ndarray
+    ) -> ty.Generator[tuple[Path, "BaseReader", np.ndarray, tuple[int, int, int, int]], None, None]:
+        """Crop image(s) to the specified polygon region."""
+        wrapper = self.wrapper
+        if wrapper:
+            for path, reader in wrapper.path_reader_iter():
+                cropped, bbox = reader.crop_polygon(yx)
+                yield path, reader, cropped, bbox
 
 
 def load_viewer_setup_from_file(path: PathLike) -> I2V_METADATA:

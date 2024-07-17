@@ -23,7 +23,7 @@ from image2image.config import CONFIG
 from image2image.enums import ALLOWED_IMAGE_FORMATS_TIFF_ONLY
 from image2image.qt._dialogs._select import LoadWidget
 from image2image.qt.dialog_base import Window
-from image2image.utils.utilities import log_exception_or_error
+from image2image.utils.utilities import format_shape, log_exception_or_error
 
 if ty.TYPE_CHECKING:
     from image2image.models.data import DataModel
@@ -167,8 +167,8 @@ class ImageMergeWindow(Window):
 
                 # add type item
                 if reader.reader_type == "image":
-                    size = reader.image_shape
-                    image_size = f"{size[0]} x {size[1]}"
+                    shape = reader.shape
+                    image_size = format_shape(shape)
                 else:
                     image_size = "N/A"
                 type_item = QTableWidgetItem(image_size)

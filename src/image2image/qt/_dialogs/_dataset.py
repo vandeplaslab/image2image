@@ -35,7 +35,7 @@ from image2image.config import CONFIG, STATE
 from image2image.enums import ALLOWED_IMAGE_FORMATS, ALLOWED_IMAGE_FORMATS_WITH_GEOJSON
 from image2image.exceptions import MultiSceneCziError, UnsupportedFileFormatError
 from image2image.models.transform import TransformData
-from image2image.utils.utilities import extract_extension, log_exception_or_error
+from image2image.utils.utilities import extract_extension, format_shape, log_exception_or_error
 
 if ty.TYPE_CHECKING:
     from image2image_io.readers.coordinate_reader import CoordinateImageReader
@@ -488,8 +488,7 @@ class SelectDataDialog(QtFramelessTool):
 
                     # add type item
                     if reader.reader_type == "image":
-                        size = reader.image_shape
-                        image_size = f"{size[0]} x {size[1]}"
+                        image_size = format_shape(reader.shape)
                     else:
                         image_size = "N/A"
 

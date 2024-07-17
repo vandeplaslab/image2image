@@ -43,6 +43,11 @@ PREFERRED_COLORMAPS = [
 ]
 
 
+def format_shape(shape: tuple[int, ...]) -> str:
+    """Format shape."""
+    return " x ".join(str(x) for x in shape)
+
+
 def get_groups(filenames: list[str], keyword: str, by_slide: bool = False) -> dict[str, list[str]]:
     """Get groups."""
     groups: dict[str, list[str]] = {"no group": []}
