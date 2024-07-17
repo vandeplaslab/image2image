@@ -243,7 +243,9 @@ class ImageWsiRegWindow(Window):
                         "key": reader.key,
                     },
                 )
-            logger.trace(f"Processed image {modality.name} for preview in {timer()} with {pyramid} pyramid level")
+            logger.trace(
+                f"Processed image {modality.name} for preview in {timer()} at {pyramid} pyramid level ({image.shape})"
+            )
 
     def on_preview_transform(self, modality: Modality, preprocessing: Preprocessing) -> None:
         """Preview image."""
