@@ -58,6 +58,7 @@ def make_registration_task(
         get_i2reg_path(),
         "--no_color",
         "--debug",
+        "elastix",
         "register",
         "--project_dir",
         f"{project.project_dir!s}",
