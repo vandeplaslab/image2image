@@ -247,6 +247,14 @@ class DataModel(BaseModel):
             return wrapper.data[key]
         return None
 
+    def get_key_for_path(self, path: PathLike) -> list[str]:
+        """Get key for the path."""
+        path = Path(path)
+        wrapper = self.wrapper
+        if wrapper:
+            return wrapper.get_key_for_path(path)
+        return []
+
     def get_extractable_paths(self) -> list[Path]:
         """Get a list of paths which are extractable."""
         paths = []

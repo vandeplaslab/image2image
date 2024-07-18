@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import typing as ty
-from functools import partial
 from pathlib import Path
 
 import numpy as np
@@ -20,9 +19,8 @@ from napari.layers import Image
 from qtextra.queue.popup import QUEUE, QueuePopup
 from qtextra.queue.task import Task
 from qtextra.utils.utilities import connect
-from qtextra.widgets.qt_close_window import QtConfirmCloseDialog
 from qtpy.QtCore import Qt
-from qtpy.QtWidgets import QDialog, QHBoxLayout, QMenuBar, QSizePolicy, QStatusBar, QVBoxLayout, QWidget
+from qtpy.QtWidgets import QDialog, QHBoxLayout, QMenuBar, QSizePolicy, QVBoxLayout, QWidget
 from superqt import ensure_main_thread
 from superqt.utils import qdebounced
 
@@ -30,10 +28,10 @@ from image2image import __version__
 from image2image.config import CONFIG
 from image2image.enums import ALLOWED_PROJECT_WSIREG_FORMATS, ALLOWED_WSIREG_FORMATS
 from image2image.models.data import DataModel
+from image2image.qt._dialog_mixins import SingleViewerMixin
 from image2image.qt._dialogs._select import LoadWidget
 from image2image.qt._wsireg._list import QtModalityList
 from image2image.qt._wsireg._paths import RegistrationMap
-from image2image.qt.dialog_base import Window
 from image2image.utils.utilities import get_i2reg_path
 
 if ty.TYPE_CHECKING:
@@ -98,14 +96,15 @@ def hash_preprocessing(preprocessing: Preprocessing, pyramid: int = -1) -> str:
     return hash_parameters(**preprocessing.to_dict(), pyramid=pyramid, n_in_hash=6)
 
 
-class ImageWsiRegWindow(Window):
+class ImageWsiRegWindow(SingleViewerMixin):
     """Image viewer dialog."""
 
-    _console = None
-    _output_dir = None
     _registration_model: IWsiReg | None = None
     _mask_dlg: MaskDialog | None = None
     _crop_dlg: MaskDialog | None = None
+
+    WINDOW_CONFIG_ATTR = "confirm_close_wsireg"
+    WINDOW_CONSOLE_ARGS = (("view", "viewer"), "data_model", ("data_model", "wrapper"), "registration_model")
 
     def __init__(
         self, parent: QWidget | None, run_check_version: bool = True, project_dir: PathLike | None = None, **_kwargs
@@ -130,11 +129,6 @@ class ImageWsiRegWindow(Window):
             self._registration_model = IWsiReg(name=name, output_dir=CONFIG.output_dir, init=False)
         return self._registration_model
 
-    @property
-    def data_model(self) -> DataModel:
-        """Return transform model."""
-        return self._image_widget.model
-
     @staticmethod
     def _setup_config() -> None:
         READER_CONFIG.only_last_pyramid = True
@@ -150,6 +144,7 @@ class ImageWsiRegWindow(Window):
         # connect(self.view.widget.canvas.events.key_press, self.keyPressEvent, state=state)
         connect(self.view.viewer.events.status, self._status_changed, state=state)
 
+        connect(self.modality_list.evt_delete, self.on_remove_modality, state=state)
         connect(self.modality_list.evt_rename, self.on_rename_modality, state=state)
         connect(self.modality_list.evt_hide_others, self.on_hide_modalities, state=state)
         connect(self.modality_list.evt_preview_preprocessing, self.on_preview, state=state)
@@ -181,6 +176,12 @@ class ImageWsiRegWindow(Window):
             if path.exists():
                 self.on_open_viewer("--image_dir", str(path))
                 logger.trace("Opening viewer.")
+
+    def on_remove_modality(self, modality: Modality) -> None:
+        """Remove modality from the project."""
+        keys = self.data_model.get_key_for_path(modality.path)
+        for key in keys:
+            self._image_widget.dataset_dlg.on_remove_dataset(key)
 
     def on_rename_modality(self, widget, new_name: str) -> None:
         """Rename modality."""
@@ -342,9 +343,10 @@ class ImageWsiRegWindow(Window):
                 modalities.append(modality)
         self.on_hide_modalities(modalities)
 
-    def on_hide_modalities(self, modality: Modality | list[Modality]) -> None:
+    def on_hide_modalities(self, modality: Modality | list[Modality], hide: bool | None = None) -> None:
         """Hide other modalities."""
-        if not self.hide_others_check.isChecked():
+        hide = self.hide_others_check.isChecked() if hide is not None else hide
+        if not hide:
             return
         if not isinstance(modality, list):
             modality = [modality]
@@ -463,34 +465,12 @@ class ImageWsiRegWindow(Window):
 
     def on_open_merge_dialog(self) -> None:
         """Open merge dialog."""
-        modalities = self.registration_model.get_image_modalities(with_attachment=False)
-        if not modalities or len(modalities) < 2:
-            hp.toast(self, "Error", "Need more images to merge..", icon="error", position="top_left")
-            return
-
-        hp.select_from_list(self, "Select images to merge")
-
-    def on_set_output_dir(self) -> None:
-        """Set output directory."""
-        self.output_dir = hp.get_directory(self, "Select output directory", CONFIG.output_dir)
-
-    @property
-    def output_dir(self) -> Path:
-        """Output directory."""
-        if self._output_dir is None:
-            if CONFIG.output_dir is None:
-                return Path.cwd()
-            return Path(CONFIG.output_dir)
-        return Path(self._output_dir)
-
-    @output_dir.setter
-    def output_dir(self, directory: PathLike) -> None:
-        if directory:
-            self._output_dir = directory
-            CONFIG.output_dir = directory
-            formatted_output_dir = f".{self.output_dir.parent}/{self.output_dir.name}"
-            self.output_dir_label.setText(hp.hyper(self.output_dir, value=formatted_output_dir))
-            logger.debug(f"Output directory set to {self._output_dir}")
+        # modalities = self.registration_model.get_image_modalities(with_attachment=False)
+        # if not modalities or len(modalities) < 2:
+        #     hp.toast(self, "Error", "Need more images to merge..", icon="error", position="top_left")
+        #     return
+        #
+        # hp.select_from_list(self, "Select images to merge")
 
     def on_save_to_i2reg(self) -> None:
         """Save project to i2reg."""
@@ -644,10 +624,18 @@ class ImageWsiRegWindow(Window):
         self.modality_list = QtModalityList(self)
         self.registration_map = RegistrationMap(self)
         self.mask_btn = hp.make_btn(
-            self, "Mask...", tooltip="Set mask to focus registration...", func=self.on_open_mask_dialog
+            self,
+            "Mask...",
+            tooltip="Open dialog where you can specify mask for images to focus the registration on specific part of"
+            " the tissue...",
+            func=self.on_open_mask_dialog,
         )
         self.crop_btn = hp.make_btn(
-            self, "Crop...", tooltip="Crop the image to focus registration...", func=self.on_open_crop_dialog
+            self,
+            "Crop...",
+            tooltip="Open dialog where you can specify mask for images to crop the image to before the registration"
+            " takes place...",
+            func=self.on_open_crop_dialog,
         )
         self.merge_btn = hp.make_btn(
             self, "Merge...", tooltip="Specify images to merge...", func=self.on_open_merge_dialog
@@ -721,8 +709,8 @@ class ImageWsiRegWindow(Window):
         side_layout.addRow(self._image_widget)
         # Modalities
         side_layout.addRow(self.modality_list)
-        side_layout.addRow(hp.make_h_layout(self.mask_btn, self.crop_btn, self.merge_btn, spacing=2))
         side_layout.addRow(hp.make_h_layout(self.use_preview_check, self.hide_others_check, margin=2, spacing=2))
+        side_layout.addRow(hp.make_h_layout(self.mask_btn, self.crop_btn, self.merge_btn, spacing=2))
         # Registration paths
         side_layout.addRow(hp.make_h_line_with_text("Registration paths"))
         side_layout.addRow(self.registration_map)
@@ -823,87 +811,8 @@ class ImageWsiRegWindow(Window):
         self._make_icon()
         self._make_statusbar()
 
-    def on_activate_scalebar(self) -> None:
-        """Activate scalebar."""
-        self.view.viewer.scale_bar.visible = not self.view.viewer.scale_bar.visible
-
-    def on_show_scalebar(self) -> None:
-        """Show scale bar controls for the viewer."""
-        from image2image.qt._dialogs._scalebar import QtScaleBarControls
-
-        dlg = QtScaleBarControls(self.view.viewer, self.view.widget)
-        dlg.set_px_size(self.data_model.min_resolution)
-        dlg.show_above_widget(self.scalebar_btn)
-
-    def on_show_save_figure(self) -> None:
-        """Show scale bar controls for the viewer."""
-        from qtextra._napari.common.widgets.screenshot_dialog import QtScreenshotDialog
-
-        dlg = QtScreenshotDialog(self.view, self)
-        dlg.show_above_widget(self.clipboard_btn)
-
-    def _get_console_variables(self) -> dict:
-        """Get variables for the console."""
-        variables = super()._get_console_variables()
-        variables.update(
-            {
-                "viewer": self.view.viewer,
-                "data_model": self.data_model,
-                "wrapper": self.data_model.wrapper,
-                "project": self.registration_model,
-            }
-        )
-        return variables
-
-    def _make_menu(self) -> None:
-        """Make menu items."""
-        # File menu
-        menu_file = hp.make_menu(self, "File")
-        hp.make_menu_item(
-            self,
-            "Add image (.tiff, .czi, + others)...",
-            "Ctrl+I",
-            menu=menu_file,
-            func=self._image_widget.on_select_dataset,
-        )
-        menu_file.addSeparator()
-        hp.make_menu_item(
-            self,
-            "Clear data",
-            menu=menu_file,
-            func=self._image_widget.on_close_dataset,
-        )
-        menu_file.addSeparator()
-        hp.make_menu_item(self, "Quit", menu=menu_file, func=self.close)
-
-        # Tools menu
-        menu_tools = hp.make_menu(self, "Tools")
-        hp.make_menu_item(
-            self, "Show scale bar controls...", "Ctrl+S", menu=menu_tools, icon="ruler", func=self.on_show_scalebar
-        )
-        menu_tools.addSeparator()
-        hp.make_menu_item(self, "Show Logger...", "Ctrl+L", menu=menu_tools, func=self.on_show_logger)
-        hp.make_menu_item(
-            self, "Show IPython console...", "Ctrl+T", menu=menu_tools, icon="ipython", func=self.on_show_console
-        )
-
-        # set actions
-        self.menubar = QMenuBar(self)
-        self.menubar.addAction(menu_file.menuAction())
-        self.menubar.addAction(menu_tools.menuAction())
-        self.menubar.addAction(self._make_apps_menu().menuAction())
-        self.menubar.addAction(self._make_config_menu().menuAction())
-        self.menubar.addAction(self._make_help_menu().menuAction())
-        self.setMenuBar(self.menubar)
-
     def _make_statusbar(self) -> None:
-        """Make statusbar."""
-        from qtextra.widgets.qt_image_button import QtThemeButton
-
-        from image2image.qt._dialogs._sentry import send_feedback
-
-        self.statusbar = QStatusBar()
-        self.statusbar.setSizeGripEnabled(False)
+        super()._make_statusbar()
 
         self.pyramid_level = hp.make_int_spin_box(
             self,
@@ -915,110 +824,12 @@ class ImageWsiRegWindow(Window):
         )
         self.pyramid_level.setSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum)
         self.pyramid_level.valueChanged.connect(self.on_update_pyramid_level)
-        self.statusbar.addPermanentWidget(hp.make_label(self, "Pyramid level:"))
-        self.statusbar.addPermanentWidget(self.pyramid_level)
-        self.statusbar.addPermanentWidget(hp.make_v_line())
+        self.statusbar.insertPermanentWidget(0, hp.make_label(self, "Pyramid level:"))
+        self.statusbar.insertPermanentWidget(1, self.pyramid_level)
+        self.statusbar.insertPermanentWidget(2, hp.make_v_line())
 
         self.queue_btn = hp.make_qta_btn(self, "queue", tooltip="Open queue popup.", small=True)
-        self.statusbar.addPermanentWidget(self.queue_btn)
-        self.screenshot_btn = hp.make_qta_btn(
-            self,
-            "save",
-            tooltip="Save snapshot of the canvas to file. Right-click to show dialog with more options.",
-            func=self.view.widget.on_save_figure,
-            func_menu=self.on_show_save_figure,
-            small=True,
-        )
-        self.statusbar.addPermanentWidget(self.screenshot_btn)
-
-        self.clipboard_btn = hp.make_qta_btn(
-            self,
-            "screenshot",
-            tooltip="Take a snapshot of the canvas and copy it into your clipboard. Right-click to show dialog with"
-            " more options.",
-            func=self.view.widget.clipboard,
-            func_menu=self.on_show_save_figure,
-            small=True,
-        )
-        self.statusbar.addPermanentWidget(self.clipboard_btn)
-        self.scalebar_btn = hp.make_qta_btn(
-            self,
-            "ruler",
-            tooltip="Show scalebar.",
-            func=self.on_activate_scalebar,
-            func_menu=self.on_show_scalebar,
-            small=True,
-        )
-        self.statusbar.addPermanentWidget(self.scalebar_btn)
-
-        self.feedback_btn = hp.make_qta_btn(
-            self,
-            "feedback",
-            tooltip="Send feedback to the developers.",
-            func=partial(send_feedback, parent=self),
-            small=True,
-        )
-        self.statusbar.addPermanentWidget(self.feedback_btn)
-
-        self.theme_btn = QtThemeButton(self)
-        self.theme_btn.auto_connect()
-        with hp.qt_signals_blocked(self.theme_btn):
-            self.theme_btn.dark = CONFIG.theme == "dark"
-        self.theme_btn.clicked.connect(self.on_toggle_theme)
-        self.theme_btn.set_small()
-        self.statusbar.addPermanentWidget(self.theme_btn)
-
-        self.tutorial_btn = hp.make_qta_btn(
-            self, "help", tooltip="Give me a quick tutorial!", func=self.on_show_tutorial, small=True
-        )
-        self.statusbar.addPermanentWidget(self.tutorial_btn)
-        self.statusbar.addPermanentWidget(
-            hp.make_qta_btn(
-                self,
-                "ipython",
-                tooltip="Open IPython console",
-                small=True,
-                func=self.on_show_console,
-            )
-        )
-        self.update_status_btn = hp.make_btn(
-            self,
-            "Update available - click here to download!",
-            tooltip="Show information about available updates.",
-            func=self.on_show_update_info,
-        )
-        self.update_status_btn.setObjectName("update_btn")
-        self.update_status_btn.hide()
-        self.statusbar.addPermanentWidget(self.update_status_btn)
-        self.setStatusBar(self.statusbar)
-
-    def close(self, force=False):
-        """Override to handle closing app or just the window."""
-        if (
-            not force
-            or not CONFIG.confirm_close_wsireg
-            or QtConfirmCloseDialog(self, "confirm_close_wsireg", self.on_save_to_project, CONFIG).exec_()  # type: ignore[attr-defined]
-            == QDialog.DialogCode.Accepted
-        ):
-            return super().close()
-        return None
-
-    def closeEvent(self, evt):
-        """Close."""
-        if (
-            evt.spontaneous()
-            and CONFIG.confirm_close_wsireg
-            # and (self.data_model.is_valid() or self.registration.is_valid())
-            and QtConfirmCloseDialog(self, "confirm_close_wsireg", self.on_save_to_project, CONFIG).exec_()  # type: ignore[attr-defined]
-            != QDialog.DialogCode.Accepted
-        ):
-            evt.ignore()
-            return
-
-        if self._console:
-            self._console.close()
-        CONFIG.save()
-        evt.accept()
+        self.statusbar.insertPermanentWidget(3, self.queue_btn)
 
 
 if __name__ == "__main__":  # pragma: no cover

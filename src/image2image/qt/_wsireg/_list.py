@@ -34,6 +34,7 @@ class QtModalityItem(QtListItem):
     This widget permits display of label information as well as modification of color.
     """
 
+    evt_delete = Signal(Modality)
     evt_show = Signal(Modality, bool)
     evt_rename = Signal(object, str)
     evt_resolution = Signal(Modality)
@@ -43,6 +44,8 @@ class QtModalityItem(QtListItem):
     evt_preview_transform_preprocessing = Signal(Modality, Preprocessing)
     evt_preprocessing_close = Signal(Modality)
     evt_color = Signal(Modality, object)
+    evt_mask = Signal(Modality, bool)
+    evt_crop = Signal(Modality, bool)
 
     _preprocessing_dlg: PreprocessingDialog | None = None
     _mode: bool = False
@@ -112,13 +115,20 @@ class QtModalityItem(QtListItem):
         self.preprocessing_label.evt_clicked.connect(self.on_open_preprocessing)
 
         self.modality_icon = QtModalityLabel(self)
-        self.mask_icon = hp.make_qta_label(
+        self.remove_btn = hp.make_qta_btn(
+            self,
+            "delete",
+            tooltip="Remove modality from the list.",
+            normal=True,
+            func=lambda: self.evt_delete.emit(self.item_model),
+        )
+        self.mask_btn = hp.make_qta_btn(
             self,
             "mask",
             normal=True,
             tooltip="When mask is applied to the image, this icon will be visible.",
         )
-        self.crop_icon = hp.make_qta_label(
+        self.crop_btn = hp.make_qta_btn(
             self,
             "crop",
             normal=True,
@@ -158,10 +168,11 @@ class QtModalityItem(QtListItem):
         main_layout.addLayout(
             hp.make_v_layout(
                 self.modality_icon,
-                self.lock_btn,
+                self.remove_btn,
                 self.visible_btn,
-                self.mask_icon,
-                self.crop_icon,
+                self.lock_btn,
+                self.mask_btn,
+                self.crop_btn,
                 stretch_after=True,
                 widget_alignment=Qt.AlignmentFlag.AlignCenter,
             ),
@@ -179,8 +190,8 @@ class QtModalityItem(QtListItem):
         text, tooltip = self.item_model.preprocessing.as_str()
         self.preprocessing_label.setText(text)
         self.preprocessing_label.setToolTip(tooltip)
-        self.mask_icon.setVisible(self.item_model.preprocessing.is_masked())
-        self.crop_icon.setVisible(self.item_model.preprocessing.is_cropped())
+        self.mask_btn.setVisible(self.item_model.preprocessing.is_masked())
+        self.crop_btn.setVisible(self.item_model.preprocessing.is_cropped())
         n = self.registration_model.get_attachment_count(self.item_model.name, "image")
         self.attach_image_btn.set_count(n)
         n = self.registration_model.get_attachment_count(self.item_model.name, "geojson")
@@ -331,12 +342,12 @@ class QtModalityItem(QtListItem):
 
     def toggle_mask(self) -> None:
         """Toggle name."""
-        self.mask_icon.setVisible(self.item_model.preprocessing.is_masked())
+        self.mask_btn.setVisible(self.item_model.preprocessing.is_masked())
         self.on_update_preprocessing(self.item_model.preprocessing)
 
     def toggle_crop(self) -> None:
         """Toggle name."""
-        self.crop_icon.setVisible(self.item_model.preprocessing.is_cropped())
+        self.crop_btn.setVisible(self.item_model.preprocessing.is_cropped())
         self.on_update_preprocessing(self.item_model.preprocessing)
 
     def toggle_preview(self, disabled: bool) -> None:
@@ -352,6 +363,7 @@ class QtModalityItem(QtListItem):
 class QtModalityList(QtListWidget):
     """List of notifications."""
 
+    evt_delete = Signal(Modality)
     evt_show = Signal(Modality, bool)
     evt_rename = Signal(object, str)
     evt_name = Signal(str, Modality)
@@ -363,6 +375,8 @@ class QtModalityList(QtListWidget):
     evt_preprocessing_close = Signal(Modality)
     evt_remove = Signal(Modality)
     evt_color = Signal(Modality, object)
+    evt_mask = Signal(Modality, bool)
+    evt_crop = Signal(Modality, bool)
 
     def __init__(self, parent: QWidget):
         super().__init__(parent)
@@ -386,6 +400,7 @@ class QtModalityList(QtListWidget):
         color = get_next_color(self.count(), other_colors=colors)
 
         widget = QtModalityItem(item, parent=self, color=color)
+        widget.evt_delete.connect(self.evt_delete.emit)
         widget.evt_remove.connect(self.remove_item)
         widget.evt_show.connect(self.evt_show.emit)
         widget.evt_rename.connect(self.evt_rename.emit)
@@ -396,6 +411,8 @@ class QtModalityList(QtListWidget):
         widget.evt_preview_transform_preprocessing.connect(self.evt_preview_transform_preprocessing.emit)
         widget.evt_preprocessing_close.connect(self.evt_preprocessing_close.emit)
         widget.evt_color.connect(self.evt_color.emit)
+        widget.evt_mask.connect(self.evt_mask.emit)
+        widget.evt_crop.connect(self.evt_crop.emit)
         hp.call_later(self, widget._on_show_image, 50)
         return widget
 
@@ -461,7 +478,6 @@ def get_next_color(n: int, other_colors: list[str] | None = None) -> str:
     """Get next color based on the number of items."""
     if other_colors is None:
         other_colors = []
-    print(other_colors)
     colors = ["#ff0000", "#00ff00", "#0000ff", "#ffff00", "#f00ff", "#00ffff"]
     if n < len(colors):
         color = colors[n]

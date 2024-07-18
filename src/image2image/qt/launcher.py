@@ -24,7 +24,8 @@ CROP_TEXT = "Crop your microscopy data to reduce it's size (handy for Image Fusi
 CONVERT_TEXT = "Convert multi-scene CZI images or other formats to OME-TIFF."
 MERGE_TEXT = "Merge multiple OME-TIFF images into a single file."
 FUSION_TEXT = "Export your data for Image Fusion in MATLAB compatible format."
-WSIREG_TEXT = "Register whole slide microscopy images."
+WSIREG_TEXT = "Register whole slide microscopy images<br>(<b>i2reg</b>)."
+VALIS_TEXT = "Register whole slide microscopy images<br>(<b>Valis</b>)."
 CONVERT_UNAVAILABLE = IS_PYINSTALLER and IS_MAC_ARM
 if CONVERT_UNAVAILABLE:
     CONVERT_TEXT += "<br><br><i>Not available on Apple Silicon due to a bug I can't find...</i>"
@@ -51,41 +52,42 @@ class Launcher(QtDialog):
         tile_layout = QGridLayout()
         tile_layout.setSpacing(2)
         tile_layout.setColumnStretch(0, 1)
-        tile_layout.setColumnStretch(4, 1)
+        tile_layout.setColumnStretch(5, 1)
         # First row
         # register app
-        register = _make_tile(self, "Registration<br>App", REGISTER_TEXT, "register", Window.on_open_register)
-        tile_layout.addWidget(register, 0, 1)
+        tile = _make_tile(self, "Registration<br>App", REGISTER_TEXT, "register", Window.on_open_register)
+        tile_layout.addWidget(tile, 0, 1)
         # viewer app
-        viewer = _make_tile(self, "Viewer<br>App", VIEWER_TEXT, "viewer", Window.on_open_viewer)
-        tile_layout.addWidget(viewer, 0, 2)
-        crop = _make_tile(self, "WsiReg<br>App", WSIREG_TEXT, "wsireg", Window.on_open_wsireg)
-        tile_layout.addWidget(crop, 0, 3)
+        tile = _make_tile(self, "Viewer<br>App", VIEWER_TEXT, "viewer", Window.on_open_viewer)
+        tile_layout.addWidget(tile, 0, 2)
+        tile = _make_tile(self, "WsiReg<br>App", WSIREG_TEXT, "wsireg", Window.on_open_wsireg)
+        tile_layout.addWidget(tile, 0, 3)
+        tile = _make_tile(self, "Valis<br>App", VALIS_TEXT, "valis", Window.on_open_valis)
+        tile_layout.addWidget(tile, 0, 4)
         # Second row
         # crop app
-        crop = _make_tile(
+        tile = _make_tile(
             self, "Image Crop<br>App", CROP_TEXT, "crop", Window.on_open_crop, icon_kws={"color": "#ff0000"}
         )
-        tile_layout.addWidget(crop, 1, 1)
+        tile_layout.addWidget(tile, 1, 1)
         # convert app
-        convert = _make_tile(
+        tile = _make_tile(
             self,
             "Image to OME-TIFF<br>App",
             CONVERT_TEXT,
-            "change",
+            "convert",
             Window.on_open_convert
             if not CONVERT_UNAVAILABLE
             else lambda: hp.warn_pretty(self, "Not available on Apple Silicon."),
             icon_kws=dict(color=THEMES.get_hex_color("warning")) if CONVERT_UNAVAILABLE else None,
         )
-        tile_layout.addWidget(convert, 1, 2)
+        tile_layout.addWidget(tile, 1, 2)
         # merge app
-        merge = _make_tile(self, "Merge OME-TIFFs<br>App", MERGE_TEXT, "merge", Window.on_open_merge)
-        tile_layout.addWidget(merge, 1, 3)
-        # Third row
+        tile = _make_tile(self, "Merge OME-TIFFs<br>App", MERGE_TEXT, "merge", Window.on_open_merge)
+        tile_layout.addWidget(tile, 1, 3)
         # export app
-        export = _make_tile(self, "Fusion Preparation<br>App", FUSION_TEXT, "fusion", Window.on_open_fusion)
-        tile_layout.addWidget(export, 2, 2)
+        tile = _make_tile(self, "Fusion Preparation<br>App", FUSION_TEXT, "fusion", Window.on_open_fusion)
+        tile_layout.addWidget(tile, 1, 4)
 
         main_layout = QVBoxLayout()
         main_layout.addLayout(tile_layout, stretch=1)

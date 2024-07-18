@@ -31,8 +31,8 @@ class RegistrationPaths(QWidget):
             self,
             options=[
                 "rigid",
-                "affine",
                 "similarity",
+                "affine",
                 "nl",
                 "nl_reduced",
                 "nl_mid",
@@ -93,6 +93,9 @@ class RegistrationPaths(QWidget):
         """Update transformation path."""
         self._path.setText(
             " » ".join(self.transformations) if self.transformations else "<please select transformations>"
+        )
+        self._path.setToolTip(
+            "<br>".join(self.transformations) if self.transformations else "<please select transformations>"
         )
 
     @property

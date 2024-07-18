@@ -11,7 +11,7 @@ from koyo.utilities import is_installed
 
 from image2image import __version__
 
-AVAILABLE_TOOLS = ["launcher", "register", "viewer", "crop", "wsiprep", "wsireg", "fusion", "convert", "merge"]
+AVAILABLE_TOOLS = ["launcher", "register", "viewer", "crop", "wsiprep", "wsireg", "valis", "fusion", "convert", "merge"]
 if IS_MAC_ARM and IS_PYINSTALLER:
     AVAILABLE_TOOLS.pop(AVAILABLE_TOOLS.index("convert"))
 
@@ -134,8 +134,7 @@ def cli(
 
 
 if is_installed("image2image_reg"):
-    from image2image_reg.cli import (
-        WriterMode,
+    from image2image_reg.cli._common import (
         as_uint8_,
         fmt_,
         n_parallel_,
@@ -143,12 +142,13 @@ if is_installed("image2image_reg"):
         overwrite_,
         parallel_mode_,
         project_path_multi_,
-        register_runner,
         remove_merged_,
         write_merged_,
         write_not_registered_,
         write_registered_,
     )
+    from image2image_reg.cli.i2reg import register_runner
+    from image2image_reg.enums import WriterMode
 
     @overwrite_
     @parallel_mode_

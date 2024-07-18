@@ -17,7 +17,9 @@ COLOR_LOG_FMT = (
     " {message}"
 )
 
-AvailableTools = ty.Literal["launcher", "register", "viewer", "crop", "fusion", "convert", "merge", "wsiprep", "wsireg"]
+AvailableTools = ty.Literal[
+    "launcher", "register", "viewer", "crop", "fusion", "convert", "merge", "wsiprep", "wsireg", "valis"
+]
 
 
 def run(
@@ -141,6 +143,11 @@ def run(
         from image2image.qt.dialog_wsireg import ImageWsiRegWindow
 
         dlg = ImageWsiRegWindow(None, run_check_version=run_check_version, **kwargs)  # type: ignore[assignment]
+        dlg.setMinimumSize(1200, 800)
+    elif tool == "valis":
+        from image2image.qt.dialog_valis import ImageValisWindow
+
+        dlg = ImageValisWindow(None, run_check_version=run_check_version, **kwargs)  # type: ignore[assignment]
         dlg.setMinimumSize(1200, 800)
     else:
         raise ValueError("Launcher is not implemented yet.")

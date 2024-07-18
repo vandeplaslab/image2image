@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import typing as ty
 from contextlib import contextmanager, suppress
+from functools import partial
 from math import ceil, floor
 
 import numpy as np
@@ -239,6 +240,14 @@ class ShapesDialog(QtFramelessTool):
         if self.only_current.isChecked():
             self._parent.on_hide_modalities(modality)
 
+    def on_increment_modality(self, increment_by: int) -> None:
+        """Increment modality."""
+        count = self.slide_choice.count()
+        index = self.slide_choice.currentIndex()
+        new_index = (index + increment_by) % count
+        self.slide_choice.setCurrentIndex(index)
+        # self.on_select_modality()
+
     def on_associate_mask_with_modality(self) -> None:
         """Associate mask with modality at the specified location."""
         raise NotImplementedError("Must implement method")
@@ -261,12 +270,25 @@ class ShapesDialog(QtFramelessTool):
         )
 
         self.slide_choice = hp.make_combobox(self, tooltip="Select modality", func=self.on_select_modality)
-        self.only_current = hp.make_checkbox(
-            self, tooltip="Only show currently selected modality.", func=self.on_select_modality
+        self.previous_btn = hp.make_qta_btn(
+            self,
+            "chevron_left_circle",
+            func=partial(self.on_increment_modality, increment_by=-1),
+            tooltip="Go to previous modality.",
         )
-        self.add_btn = hp.make_btn(self, "Associate shape", func=self.on_associate_mask_with_modality)
-        self.remove_btn = hp.make_btn(self, "Dissociate shape", func=self.on_dissociate_mask_from_modality)
-        self.auto_update = hp.make_checkbox(self, "", tooltip="Auto-associate mask when making changes", checked=True)
+        self.next_btn = hp.make_qta_btn(
+            self,
+            "chevron_right_circle",
+            func=partial(self.on_increment_modality, increment_by=1),
+            tooltip="Go to next modality.",
+        )
+
+        self.only_current = hp.make_checkbox(
+            self, tooltip="Hide other modalities when drawing a mask.", func=self.on_select_modality
+        )
+        self.add_btn = hp.make_btn(self, f"Add {self.MASK_OR_CROP}", func=self.on_associate_mask_with_modality)
+        self.remove_btn = hp.make_btn(self, f"Remove {self.MASK_OR_CROP}", func=self.on_dissociate_mask_from_modality)
+        self.auto_update = hp.make_checkbox(self, "", tooltip="Auto-associate mask when making changes", value=True)
 
         layout = hp.make_form_layout()
         layout.setContentsMargins(6, 6, 6, 6)
@@ -277,8 +299,11 @@ class ShapesDialog(QtFramelessTool):
         layout.addRow(hp.make_h_line())
         layout.addRow(self.layer_controls)
         layout.addRow(hp.make_h_line())
-        layout.addRow(hp.make_label(self, "Modality:"), self.slide_choice)
-        layout.addRow(hp.make_label(self, "Show current"), self.only_current)
+        layout.addRow(
+            hp.make_label(self, "Modality"),
+            hp.make_h_layout(self.slide_choice, self.previous_btn, self.next_btn, stretch_id=(0,), spacing=2),
+        )
+        layout.addRow(hp.make_label(self, "Hide other"), self.only_current)
         layout.addRow(hp.make_h_layout(self.add_btn, self.remove_btn))
         layout.addRow(hp.make_label(self, "Auto-update"), self.auto_update)
         return layout

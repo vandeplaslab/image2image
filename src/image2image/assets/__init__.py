@@ -49,10 +49,13 @@ update_icon_mapping(
         "viewer": "fa5.eye",
         "wsireg": "fa5.images",
         "register": "fa5s.layer-group",
+        "convert": "fa5s.arrow-alt-circle-right",
         "sync": "fa5s.sync-alt",
         "crop": "fa5s.crop-alt",
         "fusion": "mdi6.content-save-check-outline",
         "merge": "msc.merge",
+        "valis": "fa5b.vimeo-square",
+        "launch": "mdi.rocket-launch",
     }
 )
 

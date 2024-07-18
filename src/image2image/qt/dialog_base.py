@@ -366,7 +366,9 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
 
     def _get_console_variables(self) -> dict:
         """Get variables for the console."""
-        return {"window": self, "CONFIG": CONFIG, "READER_CONFIG": READER_CONFIG}
+        import numpy as np
+
+        return {"window": self, "CONFIG": CONFIG, "READER_CONFIG": READER_CONFIG, "np": np}
 
     def _make_icon(self) -> None:
         """Make icon."""
@@ -392,21 +394,23 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
         from koyo.system import IS_MAC_ARM, IS_PYINSTALLER
 
         menu_apps = hp.make_menu(self, "Apps")
-        hp.make_menu_item(self, "Open Register App", menu=menu_apps, func=self.on_open_register)
-        hp.make_menu_item(self, "Open Viewer App", menu=menu_apps, func=self.on_open_viewer)
-        hp.make_menu_item(self, "Open WsiReg App", menu=menu_apps, func=self.on_open_wsireg)
-        hp.make_menu_item(self, "Open Crop App", menu=menu_apps, func=self.on_open_crop)
+        hp.make_menu_item(self, "Open Register App", menu=menu_apps, func=self.on_open_register, icon="register")
+        hp.make_menu_item(self, "Open Viewer App", menu=menu_apps, func=self.on_open_viewer, icon="viewer")
+        hp.make_menu_item(self, "Open WsiReg App", menu=menu_apps, func=self.on_open_wsireg, icon="wsireg")
+        hp.make_menu_item(self, "Open Valis App", menu=menu_apps, func=self.on_open_valis, icon="valis")
+        hp.make_menu_item(self, "Open Crop App", menu=menu_apps, func=self.on_open_crop, icon="crop")
         hp.make_menu_item(
             self,
             "Open Convert App",
             menu=menu_apps,
             func=self.on_open_convert,
             disabled=IS_MAC_ARM and IS_PYINSTALLER,
+            icon="convert",
         )
-        hp.make_menu_item(self, "Open Merge App", menu=menu_apps, func=self.on_open_merge)
-        hp.make_menu_item(self, "Open Fusion App", menu=menu_apps, func=self.on_open_fusion)
+        hp.make_menu_item(self, "Open Merge App", menu=menu_apps, func=self.on_open_merge, icon="merge")
+        hp.make_menu_item(self, "Open Fusion App", menu=menu_apps, func=self.on_open_fusion, icon="fusion")
         menu_apps.addSeparator()
-        hp.make_menu_item(self, "Open Launcher App", menu=menu_apps, func=self.on_open_launcher)
+        hp.make_menu_item(self, "Open Launcher App", menu=menu_apps, func=self.on_open_launcher, icon="launch")
         return menu_apps
 
     def _make_help_menu(self) -> QMenu:
@@ -640,6 +644,10 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
     def on_open_wsireg(*args: str) -> None:
         """Open wsireg application."""
         create_new_window("wsireg", *args)
+
+    def on_open_valis(*args: str) -> None:
+        """Open wsireg application."""
+        create_new_window("valis", *args)
 
 
 def create_new_window(plugin: str, *extra_args) -> None:
