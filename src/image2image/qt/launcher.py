@@ -79,7 +79,7 @@ class Launcher(QtDialog):
             Window.on_open_convert
             if not CONVERT_UNAVAILABLE
             else lambda: hp.warn_pretty(self, "Not available on Apple Silicon."),
-            icon_kws=dict(color=THEMES.get_hex_color("warning")) if CONVERT_UNAVAILABLE else None,
+            icon_kws={"color": THEMES.get_hex_color("warning")} if CONVERT_UNAVAILABLE else None,
         )
         tile_layout.addWidget(tile, 1, 2)
         # merge app

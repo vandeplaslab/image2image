@@ -8,10 +8,10 @@ from image2image.qt._dialogs._dataset import (
     SelectChannelsToLoadDialog,
     SelectDataDialog,
 )
-from image2image.qt._register._fiducials import FiducialsDialog
 from image2image.qt._dialogs._locate import LocateFilesDialog
 from image2image.qt._dialogs._misc import ImportSelectDialog
 from image2image.qt._dialogs._sysinfo import open_sysinfo
+from image2image.qt._register._fiducials import FiducialsDialog
 from image2image.qt._viewer._transform import SelectTransformDialog
 
 __all__ = [

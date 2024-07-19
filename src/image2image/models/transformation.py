@@ -402,10 +402,7 @@ def _read_image2register_latest_config(config: dict, validate_paths: bool = True
         fixed_reader_kws = {Path(temp["path"]).name: temp.get("reader_kws", None) for temp in config["fixed_paths"]}
         fixed_paths, fixed_missing_paths = _get_paths(paths)
     fixed_res = [temp["pixel_size_um"] for temp in config["fixed_paths"]]
-    if fixed_res:
-        fixed_resolution = float(np.min(fixed_res))
-    else:
-        fixed_resolution = 0.0
+    fixed_resolution = float(np.min(fixed_res)) if fixed_res else 0.0
 
     moving_paths, moving_missing_paths, moving_reader_kws = [], [], {}
     if validate_paths:
@@ -413,10 +410,7 @@ def _read_image2register_latest_config(config: dict, validate_paths: bool = True
         moving_reader_kws = {Path(temp["path"]).name: temp.get("reader_kws", None) for temp in config["moving_paths"]}
         moving_paths, moving_missing_paths = _get_paths(paths)
     moving_res = [temp["pixel_size_um"] for temp in config["moving_paths"]]
-    if moving_res:
-        moving_resolution = float(np.min(moving_res))
-    else:
-        moving_resolution = 0.0
+    moving_resolution = float(np.min(moving_res)) if moving_res else 0.0
 
     fixed_points = np.array(config["fixed_points_yx_px"])
     moving_points = np.array(config["moving_points_yx_px"])

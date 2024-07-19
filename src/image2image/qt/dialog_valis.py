@@ -6,38 +6,20 @@ import typing as ty
 from pathlib import Path
 
 import qtextra.helpers as hp
-import qtextra.queue.cli_queue as _q
 from image2image_io.config import CONFIG as READER_CONFIG
-from image2image_reg.models import Modality
 from image2image_reg.workflows.valis import ValisReg
-from koyo.secret import hash_obj, hash_parameters
-from koyo.timer import MeasureTimer
 from koyo.typing import PathLike
 from loguru import logger
-from napari.layers import Image
-from qtextra.queue.popup import QUEUE, QueuePopup
-from qtextra.queue.task import Task
-from qtextra.utils.utilities import connect
-from qtextra.widgets.qt_close_window import QtConfirmCloseDialog
+from qtextra.queue.popup import QueuePopup
 from qtpy.QtCore import Qt
-from qtpy.QtWidgets import QDialog, QHBoxLayout, QMenuBar, QSizePolicy, QStatusBar, QVBoxLayout, QWidget
-from superqt import ensure_main_thread
-from superqt.utils import qdebounced
+from qtpy.QtWidgets import QHBoxLayout, QVBoxLayout, QWidget
 
 from image2image import __version__
 from image2image.config import CONFIG
-from image2image.enums import ALLOWED_PROJECT_WSIREG_FORMATS, ALLOWED_WSIREG_FORMATS
-from image2image.models.data import DataModel
+from image2image.enums import ALLOWED_WSIREG_FORMATS
 from image2image.qt._dialog_mixins import SingleViewerMixin
 from image2image.qt._dialogs._select import LoadWidget
 from image2image.qt._wsireg._list import QtModalityList
-from image2image.qt._wsireg._paths import RegistrationMap
-from image2image.utils.utilities import get_i2reg_path
-
-if ty.TYPE_CHECKING:
-    from image2image_reg.models import Preprocessing
-
-    from image2image.qt._wsireg._mask import CropDialog, MaskDialog
 
 
 class ImageValisWindow(SingleViewerMixin):

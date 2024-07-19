@@ -25,13 +25,12 @@ class MixinDialog(QtFramelessTool):
 
     def reject(self) -> int:
         """Reject dialog."""
-        if self.changed:
-            if not hp.confirm(
-                self,
-                "Any changes you made will not be saved.<b><b>Are you sure you wish to continue</b>?",
-                "Reject changes?",
-            ):
-                return None
+        if self.changed and not hp.confirm(
+            self,
+            "Any changes you made will not be saved.<b><b>Are you sure you wish to continue</b>?",
+            "Reject changes?",
+        ):
+            return None
         return super().reject()
 
 
@@ -60,7 +59,7 @@ class ChannelRenameDialog(MixinDialog):
         """Accept dialog."""
         reader_metadata = self.reader_metadata
         # reset metadata
-        for scene_index, scene_metadata in reader_metadata.items():
+        for _, scene_metadata in reader_metadata.items():
             scene_metadata["keep"] = []
             scene_metadata["channel_ids"] = []
             scene_metadata["channel_names"] = []
@@ -220,7 +219,7 @@ class MergeDialog(MixinDialog):
 
     def on_populate_table(self) -> None:
         """Populate table."""
-        scenes = [str(k) for k in self.reader_metadata.keys()]
+        scenes = [str(k) for k in self.reader_metadata]
         with hp.qt_signals_blocked(self.scene_index):
             self.scene_index.clear()
             self.scene_index.addItems(scenes)
@@ -312,11 +311,10 @@ class MergeDialog(MixinDialog):
 
     def reject(self) -> int:
         """Reject dialog."""
-        if self.changed:
-            if not hp.confirm(
-                self,
-                "Any changes you made will not be saved.<b><b>Are you sure you wish to continue</b>?",
-                "Reject changes?",
-            ):
-                return None
+        if self.changed and not hp.confirm(
+            self,
+            "Any changes you made will not be saved.<b><b>Are you sure you wish to continue</b>?",
+            "Reject changes?",
+        ):
+            return None
         return super().reject()

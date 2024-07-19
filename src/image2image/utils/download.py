@@ -10,9 +10,7 @@ from koyo.release import DownloadDict, LatestVersion, get_target
 def check_if_can_download() -> bool:
     """Check if user can download new version."""
     user = getpass.getuser()
-    if user == "lgmigas":
-        return True
-    elif user.startswith("VMP1"):
+    if user == "lgmigas" or user.startswith("VMP1"):
         return True
     return False
 

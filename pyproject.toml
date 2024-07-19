@@ -161,6 +161,7 @@ extend-ignore = [
 "src/image2image/_sentry.py" = ["E401"]
 "tests/*.py" = ["D", "S"]
 "setup.py" = ["D"]
+"package/*.py" = ["INP"]
 
 # https://docs.pytest.org/en/6.2.x/customize.html
 [tool.pytest.ini_options]

@@ -20,7 +20,7 @@ from qtextra.queue.popup import QUEUE, QueuePopup
 from qtextra.queue.task import Task
 from qtextra.utils.utilities import connect
 from qtpy.QtCore import Qt
-from qtpy.QtWidgets import QDialog, QHBoxLayout, QMenuBar, QSizePolicy, QVBoxLayout, QWidget
+from qtpy.QtWidgets import QHBoxLayout, QSizePolicy, QVBoxLayout, QWidget
 from superqt import ensure_main_thread
 from superqt.utils import qdebounced
 
@@ -37,7 +37,7 @@ from image2image.utils.utilities import get_i2reg_path
 if ty.TYPE_CHECKING:
     from image2image_reg.models import Preprocessing
 
-    from image2image.qt._wsireg._mask import CropDialog, MaskDialog
+    from image2image.qt._wsireg._mask import MaskDialog
 
 logger.enable("qtextra")
 
@@ -315,14 +315,13 @@ class ImageWsiRegWindow(SingleViewerMixin):
     def _on_update_pyramid_level(self) -> None:
         """Update pyramid level."""
         level = self.pyramid_level.value()
-        if level == 0:
-            if not hp.confirm(
-                self,
-                "Please confirm if you wish to preview the full-resolution image. Pre-processing might take a"
-                " bit of time.",
-                "Please confirm",
-            ):
-                return
+        if level == 0 and not hp.confirm(
+            self,
+            "Please confirm if you wish to preview the full-resolution image. Pre-processing might take a"
+            " bit of time.",
+            "Please confirm",
+        ):
+            return
         self.on_show_modalities()
         logger.trace(f"Updated pyramid level to {level}")
 

@@ -158,7 +158,7 @@ class SelectTransformDialog(QtFramelessTool):
                 hp.warn_pretty(
                     self, f"Failed to load transformation from {path_}\n{e}", "Failed to load transformation"
                 )
-                logger.exception(e)
+                logger.exception(f"Failed to load transformation from {path_}")
                 return
             self.transform_model.add_transform(path_, transform_data)
             self.on_update_transform_list()

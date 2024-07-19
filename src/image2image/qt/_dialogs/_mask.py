@@ -253,7 +253,7 @@ class MasksDialog(QtFramelessTool):
                         fmt, mask_shape, masks, display_names, images, data_model, output_dir
                     ):
                         self._on_exported(res)
-                except Exception as exc:
+                except Exception as exc:  # noqa: BLE001
                     self._on_error(exc)
                 finally:
                     self._on_finished("export")
@@ -292,7 +292,7 @@ class MasksDialog(QtFramelessTool):
             try:
                 for res in self._on_transform_mask(mask_shape, masks, display_names, images, data_model):
                     self._on_preview(res)
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001
                 self._on_error(exc)
             finally:
                 self._on_finished("preview")

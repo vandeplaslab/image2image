@@ -52,7 +52,7 @@ def get_system_info(as_html=False):
         text += f"<b>Qt</b>: {QtCore.__version__}<br>"
         text += f"<b>{API_NAME}</b>: {API_VERSION}<br>"
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         text += f"<b>Qt</b>: Import failed ({e})<br>"
 
     modules = (
@@ -72,7 +72,7 @@ def get_system_info(as_html=False):
         try:
             loaded[module] = __import__(module)
             text += f"<b>{name}</b>: {loaded[module].__version__}<br>"
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             text += f"<b>{name}</b>: Import failed ({e})<br>"
 
     text += "<br><b>OpenGL:</b><br>"

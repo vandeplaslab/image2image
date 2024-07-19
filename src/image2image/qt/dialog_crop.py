@@ -685,9 +685,9 @@ def get_project_data(data_model: DataModel, regions: list[tuple[int, int, int, i
     schema_version = "1.2"
     data_ = data_model.to_dict()
     regions = [
-        dict(yx=region.tolist())
+        {"yx": region.tolist()}
         if isinstance(region, np.ndarray)
-        else dict(left=region[0], right=region[1], top=region[2], bottom=region[3])
+        else {"left": region[0], "right": region[1], "top": region[2], "bottom": region[3]}
         for region in regions
     ]
     data = {
@@ -740,7 +740,7 @@ def preview_regions(
     """Preview images."""
     n = len(regions)
     for current, polygon_or_bbox in enumerate(regions, start=1):
-        for path, reader, cropped, (left, right, top, bottom) in _crop_regions(data_model, polygon_or_bbox):
+        for path, _reader, cropped, (left, right, top, bottom) in _crop_regions(data_model, polygon_or_bbox):
             name = f"{path.stem}_x={left}-{right}_y={top}-{bottom}".replace(".ome", "")
             yield name, cropped, current, n
 

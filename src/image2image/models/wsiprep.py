@@ -244,10 +244,7 @@ class RegistrationGroup(BaseModel):
             image = registration.images[key]
             name_index = index if index_mode == "auto" else image.metadata[index_mode]
             reader = get_simple_reader(image.path)
-            if reader.is_rgb:
-                pre = Preprocessing.brightfield()
-            else:
-                pre = Preprocessing.fluorescence()
+            pre = Preprocessing.brightfield() if reader.is_rgb else Preprocessing.fluorescence()
 
             affine = image.affine(reader.image_shape, reader.scale)
             if RegistrationImage.is_identity(affine):
@@ -755,10 +752,7 @@ class Registration(BaseModel):
                 image = self.images[key]
                 name_index = index if index_mode == "auto" else image.metadata[index_mode]
                 reader = get_simple_reader(image.path)
-                if reader.is_rgb:
-                    pre = Preprocessing.brightfield()
-                else:
-                    pre = Preprocessing.fluorescence()
+                pre = Preprocessing.brightfield() if reader.is_rgb else Preprocessing.fluorescence()
 
                 affine: ty.Optional[np.ndarray] = image.affine(reader.image_shape, reader.scale)
                 if RegistrationImage.is_identity(affine):
@@ -843,9 +837,8 @@ def remove_if_not_present(config: dict, keys: list[str]) -> dict:
         # remove it from images
         image = config["images"].pop(key)
         # also, potentially remove it from a group
-        if "groups" in image:
-            if image["group_id"] != -1 and image["group_id"] in image["groups"]:
-                if key in image["groups"][image["group_id"]]["keys"]:
-                    index = image["groups"][image["group_id"]]["keys"].index(key)
-                    image["groups"][image["group_id"]]["keys"].pop(index)
+        if "groups" in image and image["group_id"] != -1 and image["group_id"] in image["groups"]:
+            if key in image["groups"][image["group_id"]]["keys"]:
+                index = image["groups"][image["group_id"]]["keys"].index(key)
+                image["groups"][image["group_id"]]["keys"].pop(index)
     return config

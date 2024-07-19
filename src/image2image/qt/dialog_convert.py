@@ -233,7 +233,7 @@ class ImageConvertWindow(Window):
                 continue
             metadata = []
             has_scenes = len(reader_metadata_) > 1
-            for index, (scene_index, scene_metadata) in enumerate(reader_metadata_.items()):
+            for _index, (scene_index, scene_metadata) in enumerate(reader_metadata_.items()):
                 channel_ids = scene_metadata["channel_ids"]
                 channel_names = scene_metadata["channel_names"]
                 if has_scenes and channel_ids:

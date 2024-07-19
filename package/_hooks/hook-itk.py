@@ -10,7 +10,7 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 # ------------------------------------------------------------------
 
-from PyInstaller.utils.hooks import collect_data_files, collect_submodules, collect_dynamic_libs
+from PyInstaller.utils.hooks import collect_data_files, collect_dynamic_libs, collect_submodules
 
 datas = collect_data_files("itk", include_py_files=True)
 hiddenimports = collect_submodules("itk")

@@ -95,10 +95,9 @@ class DataModel(BaseModel):
             if wrapper:
                 wrapper.remove(key)
                 logger.trace(f"Removed '{key}' from reader.")
-                if self.just_added_keys:
-                    if key in self.just_added_keys:
-                        self.just_added_keys.remove(key)
-                        logger.trace(f"Removed '{key}' from just_added_keys.")
+                if self.just_added_keys and key in self.just_added_keys:
+                    self.just_added_keys.remove(key)
+                    logger.trace(f"Removed '{key}' from just_added_keys.")
         # synchronize paths
         if wrapper:
             all_paths = [reader.path for reader in wrapper.reader_iter()]

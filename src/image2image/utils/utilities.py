@@ -52,10 +52,7 @@ def get_groups(filenames: list[str], keyword: str, by_slide: bool = False) -> di
     """Get groups."""
     groups: dict[str, list[str]] = {"no group": []}
     for index, filename in enumerate(filenames):
-        if by_slide:
-            group = str(index)
-        else:
-            group = extract_number(filename, keyword)
+        group = str(index) if by_slide else extract_number(filename, keyword)
 
         if group is None:
             groups["no group"].append(filename)
@@ -230,7 +227,8 @@ def get_contrast_limits(array: list[np.ndarray]) -> tuple[tuple[float, float] | 
 
     if len(array) == 0:
         return None, None
-    elif len(array) == 1:
+
+    if len(array) == 1:
         array_ = array[0]
     else:
         mid = len(array) // 2

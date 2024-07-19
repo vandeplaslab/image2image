@@ -487,10 +487,7 @@ class SelectDataDialog(QtFramelessTool):
                     self.table.setItem(index, self.TABLE_CONFIG.key, name_item)
 
                     # add type item
-                    if reader.reader_type == "image":
-                        image_size = format_shape(reader.shape)
-                    else:
-                        image_size = "N/A"
+                    image_size = format_shape(reader.shape) if reader.reader_type == "image" else "N/A"
 
                     type_item = QTableWidgetItem(image_size)
                     type_item.setFlags(type_item.flags() & ~Qt.ItemIsEditable)  # type: ignore[attr-defined]
@@ -677,10 +674,7 @@ class SelectDataDialog(QtFramelessTool):
                     keys = dlg.keys
             else:
                 wrapper = self.model.wrapper
-                if wrapper:
-                    keys = [reader.key for reader in wrapper.reader_iter()]
-                else:
-                    keys = self.model.keys
+                keys = [reader.key for reader in wrapper.reader_iter()] if wrapper else self.model.keys
             logger.trace(f"Closing {keys} keys...")
             if keys:
                 self.evt_closing.emit(self.model, self.model.get_channel_names_for_keys(keys), keys)  # noqa
@@ -688,8 +682,7 @@ class SelectDataDialog(QtFramelessTool):
                 self.evt_closed.emit(self.model)  # noqa
             self.on_populate_table()
             return True
-        else:
-            logger.warning("There are no dataset to close.")
+        logger.warning("There are no dataset to close.")
         return False
 
     def _on_load_dataset(
@@ -755,7 +748,7 @@ class SelectDataDialog(QtFramelessTool):
             just_added = model.just_added_keys
             options = {k: k for k in natsorted(just_added)}
             if len(options) == 1:
-                which = list(options.keys())[0]
+                which = next(iter(options.keys()))
             else:
                 from qtextra.widgets.qt_pick_option import QtScrollablePickOption
 

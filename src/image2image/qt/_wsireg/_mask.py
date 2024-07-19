@@ -244,7 +244,7 @@ class ShapesDialog(QtFramelessTool):
         """Increment modality."""
         count = self.slide_choice.count()
         index = self.slide_choice.currentIndex()
-        new_index = (index + increment_by) % count
+        (index + increment_by) % count
         self.slide_choice.setCurrentIndex(index)
         # self.on_select_modality()
 

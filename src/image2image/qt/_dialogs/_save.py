@@ -83,7 +83,7 @@ class ExportImageDialog(QtDialog):
             file_filter="OME-TIFF (*.ome.tiff);;",
         )
         if not filename or Path(filename).exists():
-            return
+            return None
         reader.to_ome_tiff(filename, as_uint8=CONFIG.as_uint8, tile_size=CONFIG.tile_size)
         hp.toast(self, "Image saved", f"Saved image {hp.hyper(Path(filename), self.key)} as OME-TIFF.", icon="info")
         return super().accept()

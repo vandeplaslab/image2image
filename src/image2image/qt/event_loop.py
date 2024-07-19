@@ -7,9 +7,8 @@ import sys
 from warnings import warn
 
 from napari._qt.dialogs.qt_notification import NapariQtNotification
-from napari._qt.qt_event_loop import _ipython_has_eventloop, _pycharm_has_eventloop
+from napari._qt.qt_event_loop import _ipython_has_eventloop
 from napari._qt.qthreading import wait_for_workers_to_quit
-from napari._qt.utils import _maybe_allow_interrupt
 from napari.plugins import plugin_manager
 from napari.resources._icons import _theme_path
 from napari.utils.notifications import notification_manager, show_console_notification

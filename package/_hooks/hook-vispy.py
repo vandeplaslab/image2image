@@ -11,7 +11,7 @@
 # ------------------------------------------------------------------
 
 from PyInstaller.utils.hooks import collect_data_files, collect_submodules
-from qtpy import PYQT5, PYSIDE2, PYSIDE6, PYQT6
+from qtpy import PYQT5, PYQT6, PYSIDE2, PYSIDE6
 
 datas = collect_data_files("vispy")
 hiddenimports = collect_submodules("vispy")
