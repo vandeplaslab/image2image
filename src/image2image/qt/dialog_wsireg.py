@@ -5,39 +5,33 @@ from __future__ import annotations
 import typing as ty
 from pathlib import Path
 
-import numpy as np
 import qtextra.helpers as hp
 import qtextra.queue.cli_queue as _q
-from image2image_io.config import CONFIG as READER_CONFIG
-from image2image_reg.models import Modality
 from image2image_reg.workflows.iwsireg import IWsiReg
-from koyo.secret import hash_obj, hash_parameters
+from koyo.secret import hash_obj
 from koyo.timer import MeasureTimer
 from koyo.typing import PathLike
 from loguru import logger
-from napari.layers import Image
-from qtextra.queue.popup import QUEUE, QueuePopup
+from qtextra.queue.popup import QUEUE
 from qtextra.queue.task import Task
 from qtextra.utils.utilities import connect
 from qtpy.QtCore import Qt
 from qtpy.QtWidgets import QHBoxLayout, QSizePolicy, QVBoxLayout, QWidget
-from superqt import ensure_main_thread
-from superqt.utils import qdebounced
 
 from image2image import __version__
 from image2image.config import CONFIG
 from image2image.enums import ALLOWED_PROJECT_WSIREG_FORMATS, ALLOWED_WSIREG_FORMATS
-from image2image.models.data import DataModel
-from image2image.qt._dialog_mixins import SingleViewerMixin
+from image2image.qt._dialog_wsi import ImageWsiWindow
 from image2image.qt._dialogs._select import LoadWidget
 from image2image.qt._wsireg._list import QtModalityList
 from image2image.qt._wsireg._paths import RegistrationMap
 from image2image.utils.utilities import get_i2reg_path
+from image2image.utils.valis import guess_preprocessing, hash_preprocessing
 
 if ty.TYPE_CHECKING:
-    from image2image_reg.models import Preprocessing
+    from image2image_reg.models import Modality, Preprocessing
 
-    from image2image.qt._wsireg._mask import MaskDialog
+    from image2image.qt._wsireg._mask import CropDialog, MaskDialog
 
 logger.enable("qtextra")
 
@@ -83,43 +77,23 @@ def make_registration_task(
     )
 
 
-def guess_preprocessing(reader) -> Preprocessing:
-    """Guess pre-processing."""
-    from image2image_reg.models import Preprocessing
-
-    if reader.is_rgb:
-        return Preprocessing.brightfield()
-    return Preprocessing.fluorescence()
-
-
-def hash_preprocessing(preprocessing: Preprocessing, pyramid: int = -1) -> str:
-    """Hash preprocessing."""
-    return hash_parameters(**preprocessing.to_dict(), pyramid=pyramid, n_in_hash=6)
-
-
-class ImageWsiRegWindow(SingleViewerMixin):
+class ImageWsiRegWindow(ImageWsiWindow):
     """Image viewer dialog."""
 
     _registration_model: IWsiReg | None = None
     _mask_dlg: MaskDialog | None = None
-    _crop_dlg: MaskDialog | None = None
+    _crop_dlg: CropDialog | None = None
 
+    WINDOW_TITLE = f"image2wsireg: WSI Registration app (v{__version__})"
     WINDOW_CONFIG_ATTR = "confirm_close_wsireg"
     WINDOW_CONSOLE_ARGS = (("view", "viewer"), "data_model", ("data_model", "wrapper"), "registration_model")
+
+    make_registration_task = make_registration_task
 
     def __init__(
         self, parent: QWidget | None, run_check_version: bool = True, project_dir: PathLike | None = None, **_kwargs
     ):
-        super().__init__(
-            parent, f"image2wsireg: WSI Registration app (v{__version__})", run_check_version=run_check_version
-        )
-        # if CONFIG.first_time_wsireg:
-        #     hp.call_later(self, self.on_show_tutorial, 10_000)
-        self._setup_config()
-        self.queue_popup = QueuePopup(self)
-        self.queue_btn.clicked.connect(self.queue_popup.show)  # noqa
-        if project_dir:
-            self._on_load_from_project(project_dir)
+        super().__init__(parent, run_check_version=run_check_version, project_dir=project_dir)
 
     @property
     def registration_model(self) -> IWsiReg | None:
@@ -129,13 +103,6 @@ class ImageWsiRegWindow(SingleViewerMixin):
             name = IWsiReg.format_project_name(name)
             self._registration_model = IWsiReg(name=name, output_dir=CONFIG.output_dir, init=False)
         return self._registration_model
-
-    @staticmethod
-    def _setup_config() -> None:
-        READER_CONFIG.only_last_pyramid = True
-        READER_CONFIG.init_pyramid = False
-        READER_CONFIG.split_czi = False
-        logger.trace("Setup config for image2wsireg.")
 
     def setup_events(self, state: bool = True) -> None:
         """Setup events."""
@@ -153,52 +120,12 @@ class ImageWsiRegWindow(SingleViewerMixin):
         connect(self.modality_list.evt_show, self.on_show_modality, state=state)
         connect(self.modality_list.evt_set_preprocessing, self.on_update_modality, state=state)
         connect(self.modality_list.evt_preview_transform_preprocessing, self.on_preview_transform, state=state)
-        connect(self.modality_list.evt_preprocessing_close, self.on_preview_close, state=state)
+        # connect(self.modality_list.evt_preprocessing_close, self.on_preview_close, state=state)
         connect(self.modality_list.evt_color, self.on_update_colormap, state=state)
         connect(self.registration_map.evt_message, self.statusbar.showMessage)
 
         connect(QUEUE.evt_errored, self.on_registration_finished, state=state)
         connect(QUEUE.evt_finished, self.on_registration_finished, state=state)
-
-    def on_registration_finished(self, task: Task, _: ty.Any = None) -> None:
-        """Open registration in viewer."""
-        if self.open_when_finished.isChecked():
-            path = Path(task.task_name) / "Images"
-            if path.exists():
-                self.on_open_viewer("--image_dir", str(path))
-                logger.trace("Registration finished - opening viewer.")
-            else:
-                hp.toast(self, "Error", f"Failed to open viewer for {path!s}.", icon="error", position="top_left")
-
-    def on_open_in_viewer(self) -> None:
-        """Open registration in viewer."""
-        if self.registration_model:
-            path = self.registration_model.project_dir / "Images"
-            if path.exists():
-                self.on_open_viewer("--image_dir", str(path))
-                logger.trace("Opening viewer.")
-
-    def on_remove_modality(self, modality: Modality) -> None:
-        """Remove modality from the project."""
-        keys = self.data_model.get_key_for_path(modality.path)
-        for key in keys:
-            self._image_widget.dataset_dlg.on_remove_dataset(key)
-
-    def on_rename_modality(self, widget, new_name: str) -> None:
-        """Rename modality."""
-        modality = widget.item_model
-        if not new_name:
-            hp.set_object_name(widget.name_label, object_name="error")
-            return
-        if modality.name == new_name:
-            return
-        if new_name in self.registration_model.modalities:
-            hp.toast(self, "Error", f"Name <b>{new_name}</b> already exists.", icon="error", position="top_left")
-            widget.name_label.setText(modality.name)
-            return
-        old_name = modality.name
-        modality.name = new_name
-        self.on_update_modality_name(old_name, modality)
 
     def on_update_modality_name(self, old_name: str, modality: Modality) -> None:
         """Update modality."""
@@ -209,12 +136,6 @@ class ImageWsiRegWindow(SingleViewerMixin):
         self.registration_map.populate_images()
         logger.trace(f"Updated modality name: {old_name} -> {modality.name}")
 
-    def on_update_modality(self, modality: Modality) -> None:
-        """Preview image."""
-        self.registration_model.modalities[modality.name].pixel_size = modality.pixel_size
-        self.registration_model.modalities[modality.name].preprocessing = modality.preprocessing
-        logger.trace(f"Updated modality: {modality.name}")
-
     def on_preview(self, modality: Modality, preprocessing: Preprocessing | None = None) -> None:
         """Preview image."""
         from image2image_reg.utils.preprocessing import preprocess_preview
@@ -223,6 +144,12 @@ class ImageWsiRegWindow(SingleViewerMixin):
             preprocessing = modality.preprocessing
 
         pyramid = self.pyramid_level.value()
+        preprocessing_hash = (
+            hash_preprocessing(modality.preprocessing, pyramid=pyramid)
+            if self.use_preview_check.isChecked()
+            else f"pyramid={pyramid}"
+        )
+
         wrapper = self.data_model.get_wrapper()
         if wrapper:
             layer = self.view.get_layer(modality.name)
@@ -241,9 +168,7 @@ class ImageWsiRegWindow(SingleViewerMixin):
                     scale=scale,
                     blending="additive",
                     colormap=colormap,
-                    metadata={
-                        "key": reader.key,
-                    },
+                    metadata={"key": reader.key, "preview_hash": preprocessing_hash},
                 )
             logger.trace(
                 f"Processed image {modality.name} for preview in {timer()} at {pyramid} pyramid level ({image.shape})"
@@ -257,6 +182,12 @@ class ImageWsiRegWindow(SingleViewerMixin):
             preprocessing = modality.preprocessing
 
         pyramid = self.pyramid_level.value()
+        preprocessing_hash = (
+            hash_preprocessing(modality.preprocessing, pyramid=pyramid)
+            if self.use_preview_check.isChecked()
+            else f"pyramid={pyramid}"
+        )
+
         wrapper = self.data_model.get_wrapper()
         if wrapper:
             layer = self.view.get_layer(modality.name)
@@ -275,84 +206,11 @@ class ImageWsiRegWindow(SingleViewerMixin):
                     scale=scale,
                     blending="additive",
                     colormap=colormap,
-                    metadata={
-                        "key": reader.key,
-                    },
+                    mmetadata={"key": reader.key, "preview_hash": preprocessing_hash},
                 )
             logger.trace(
                 f"Processed image {modality.name} for preview transform in {timer()} with {pyramid} pyramid level"
             )
-
-    def on_preview_close(self, modality: Modality) -> None:
-        """Preview window was closed."""
-        # self.view.remove_layer(f"{modality.name} (preview)")
-        # layer = self.view.get_layer(modality.name)
-        # if layer:
-        #     layer.visible = True
-
-    def on_update_colormap(self, modality: Modality, color: np.ndarray):
-        """Update colormap."""
-        layer = self.view.get_layer(modality.name)
-        if layer:
-            layer.colormap = color
-
-    @ensure_main_thread
-    def on_load_image(self, model: DataModel, _channel_list: list[str]) -> None:
-        """Load fixed image."""
-        if model and model.n_paths:
-            hp.toast(
-                self, "Loaded data", f"Loaded model with {model.n_paths} paths.", icon="success", position="top_left"
-            )
-            self.on_populate_list()
-        else:
-            logger.warning(f"Failed to load data - model={model}")
-
-    @qdebounced(timeout=250)
-    def on_update_pyramid_level(self) -> None:
-        """Update pyramid level."""
-        self._on_update_pyramid_level()
-
-    def _on_update_pyramid_level(self) -> None:
-        """Update pyramid level."""
-        level = self.pyramid_level.value()
-        if level == 0 and not hp.confirm(
-            self,
-            "Please confirm if you wish to preview the full-resolution image. Pre-processing might take a"
-            " bit of time.",
-            "Please confirm",
-        ):
-            return
-        self.on_show_modalities()
-        logger.trace(f"Updated pyramid level to {level}")
-
-    @qdebounced(timeout=250)
-    def on_show_modalities(self, _: ty.Any = None) -> None:
-        """Show modality images."""
-        self._on_show_modalities()
-
-    def _on_show_modalities(self) -> None:
-        self.modality_list.toggle_preview(self.use_preview_check.isChecked())
-        for _, modality, widget in self.modality_list.item_model_widget_iter():
-            self.on_show_modality(modality, state=widget.visible_btn.visible, overwrite=True)
-
-    def on_hide_not_previewed_modalities(self) -> None:
-        """Hide any modality that is not previewed."""
-        modalities = []
-        for _, modality, widget in self.modality_list.item_model_widget_iter():
-            if widget._preprocessing_dlg is not None:
-                modalities.append(modality)
-        self.on_hide_modalities(modalities)
-
-    def on_hide_modalities(self, modality: Modality | list[Modality], hide: bool | None = None) -> None:
-        """Hide other modalities."""
-        hide = self.hide_others_check.isChecked() if hide is not None else hide
-        if not hide:
-            return
-        if not isinstance(modality, list):
-            modality = [modality]
-        for layer in self.view.get_layers_of_type(Image):
-            layer.visible = layer.name in [mod.name for mod in modality]
-        self.modality_list.toggle_visible([layer.name for layer in self.view.get_layers_of_type(Image)])
 
     def on_show_modality(self, modality: Modality, state: bool = True, overwrite: bool = False) -> None:
         """Preview image."""
@@ -380,7 +238,7 @@ class ImageWsiRegWindow(SingleViewerMixin):
                 else:
                     image = reader.get_channel(0, pyramid)
                 widget = self.modality_list.get_widget_for_item_model(modality)
-                colormap = "gray" if widget is None else widget.color
+                colormap = "gray" if widget is None else widget.colormap
                 if overwrite and layer:
                     self.view.remove_layer(modality.name)
                 if not state:
@@ -393,10 +251,7 @@ class ImageWsiRegWindow(SingleViewerMixin):
                         scale=scale,
                         blending="additive",
                         colormap=colormap,
-                        metadata={
-                            "key": reader.key,
-                            "preview_hash": preprocessing_hash,
-                        },
+                        metadata={"key": reader.key, "preview_hash": preprocessing_hash},
                         visible=state,
                     )
                 logger.trace(f"Processed image {modality.name} in {timer()} with {pyramid} pyramid level")
@@ -423,10 +278,6 @@ class ImageWsiRegWindow(SingleViewerMixin):
         self.modality_list.populate()
         self.registration_map.populate()
         self.modality_list.toggle_preview(self.use_preview_check.isChecked())
-
-    def on_remove_image(self, model: DataModel, channel_names: list[str], keys: list[str]) -> None:
-        """Remove image."""
-        self.on_depopulate_list(keys)
 
     def on_depopulate_list(self, keys: list[str]) -> None:
         """De-populate list."""
@@ -509,16 +360,6 @@ class ImageWsiRegWindow(SingleViewerMixin):
                 if paths:
                     self._image_widget.on_set_path(paths)
 
-    def _validate(self) -> None:
-        """Validate project."""
-        is_valid, errors = self.registration_model.validate(require_paths=True)
-        if not is_valid:
-            from image2image.qt._dialogs._errors import ErrorsDialog
-
-            dlg = ErrorsDialog(self, errors)
-            dlg.show()
-        return is_valid
-
     def save_model(self) -> Path | None:
         """Save model in the current state."""
         name = self.name_label.text()
@@ -540,50 +381,6 @@ class ImageWsiRegWindow(SingleViewerMixin):
         logger.trace(f"Saved project to {self.registration_model.project_dir}")
         return path
 
-    def _queue_registration_model(self, add_delayed: bool, save: bool = True) -> bool:
-        """Queue registration model."""
-        if not self.registration_model:
-            return False
-        if not self._validate():
-            return False
-        if save and not self.save_model():
-            return False
-        task = make_registration_task(
-            self.registration_model,
-            write_transformed=self.write_registered_check.isChecked(),
-            write_not_registered=self.write_not_registered_check.isChecked(),
-            write_merged=self.write_merged_check.isChecked(),
-            as_uint8=self.as_uint8.isChecked(),
-        )
-        if task:
-            if QUEUE.is_queued(task.task_id):
-                hp.toast(
-                    self, "Already queued", "This task is already in the queue.", icon="warning", position="top_left"
-                )
-                return False
-            QUEUE.add_task(task, add_delayed=add_delayed)
-        return True
-
-    def on_run(self) -> None:
-        """Execute registration."""
-        if self._queue_registration_model(add_delayed=False):
-            self.queue_popup.show()
-
-    def on_run_no_save(self) -> None:
-        """Execute registration."""
-        if self._queue_registration_model(add_delayed=False, save=False):
-            self.queue_popup.show()
-
-    def on_queue(self) -> None:
-        """Queue registration."""
-        if self._queue_registration_model(add_delayed=True):
-            self.queue_popup.show()
-
-    def on_queue_no_save(self) -> None:
-        """Queue registration."""
-        if self._queue_registration_model(add_delayed=True, save=False):
-            self.queue_popup.show()
-
     def on_close(self) -> None:
         """Close project."""
         if self.registration_model and hp.confirm(
@@ -596,11 +393,6 @@ class ImageWsiRegWindow(SingleViewerMixin):
             self.modality_list.populate()
             self.registration_map.populate()
             logger.trace("Closed project.")
-
-    def on_validate(self, _: ty.Any = None) -> None:
-        """Validate project."""
-        name = self.name_label.text()
-        hp.set_object_name(self.name_label, object_name="error" if not name else "")
 
     def _setup_ui(self):
         """Create panel."""
@@ -723,8 +515,8 @@ class ImageWsiRegWindow(SingleViewerMixin):
         )
         # Advanced options
         hidden_settings = hp.make_advanced_collapsible(side_widget, "Advanced options", allow_checkbox=False)
-        hidden_settings.addRow(hp.make_label(self, "Write unregistered images"), self.write_not_registered_check)
         hidden_settings.addRow(hp.make_label(self, "Write registered images"), self.write_registered_check)
+        hidden_settings.addRow(hp.make_label(self, "Write unregistered images"), self.write_not_registered_check)
         hidden_settings.addRow(hp.make_label(self, "Merge transformed images"), self.write_merged_check)
         hidden_settings.addRow(hp.make_label(self, "Reduce data size"), self.as_uint8)
         hidden_settings.addRow(hp.make_label(self, "Open when finished"), self.open_when_finished)

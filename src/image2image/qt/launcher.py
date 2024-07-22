@@ -7,6 +7,7 @@ import typing as ty
 import qtextra.helpers as hp
 from image2image_io.config import CONFIG as READER_CONFIG
 from koyo.system import IS_MAC_ARM, IS_PYINSTALLER
+from koyo.utilities import is_installed
 from qtextra.config import THEMES
 from qtextra.widgets.qt_dialog import QtDialog
 from qtextra.widgets.qt_logger import QtLoggerDialog
@@ -26,9 +27,12 @@ MERGE_TEXT = "Merge multiple OME-TIFF images into a single file."
 FUSION_TEXT = "Export your data for Image Fusion in MATLAB compatible format."
 WSIREG_TEXT = "Register whole slide microscopy images<br>(<b>i2reg</b>)."
 VALIS_TEXT = "Register whole slide microscopy images<br>(<b>Valis</b>)."
-CONVERT_UNAVAILABLE = IS_PYINSTALLER and IS_MAC_ARM
-if CONVERT_UNAVAILABLE:
+HAS_CONVERT = not IS_PYINSTALLER and not IS_MAC_ARM
+if HAS_CONVERT:
     CONVERT_TEXT += "<br><br><i>Not available on Apple Silicon due to a bug I can't find...</i>"
+HAS_VALIS = is_installed("valis") and is_installed("pyvips")
+if not HAS_VALIS:
+    VALIS_TEXT += "<br><br><i>Valis or pyvips is not installed.</i>"
 
 
 def _make_tile(parent: QWidget, title: str, description: str, icon: str, func: ty.Callable, **icon_kws) -> QtTileWidget:
@@ -62,7 +66,16 @@ class Launcher(QtDialog):
         tile_layout.addWidget(tile, 0, 2)
         tile = _make_tile(self, "WsiReg<br>App", WSIREG_TEXT, "wsireg", Window.on_open_wsireg)
         tile_layout.addWidget(tile, 0, 3)
-        tile = _make_tile(self, "Valis<br>App", VALIS_TEXT, "valis", Window.on_open_valis)
+        tile = _make_tile(
+            self,
+            "Valis<br>App",
+            VALIS_TEXT,
+            "valis",
+            Window.on_open_valis
+            if HAS_VALIS
+            else lambda: hp.warn_pretty(self, "Valis or pyvips is not installed on this machine."),
+            icon_kws=None if HAS_VALIS else {"color": THEMES.get_hex_color("warning")},
+        )
         tile_layout.addWidget(tile, 0, 4)
         # Second row
         # crop app
@@ -76,10 +89,8 @@ class Launcher(QtDialog):
             "Image to OME-TIFF<br>App",
             CONVERT_TEXT,
             "convert",
-            Window.on_open_convert
-            if not CONVERT_UNAVAILABLE
-            else lambda: hp.warn_pretty(self, "Not available on Apple Silicon."),
-            icon_kws={"color": THEMES.get_hex_color("warning")} if CONVERT_UNAVAILABLE else None,
+            Window.on_open_convert if HAS_CONVERT else lambda: hp.warn_pretty(self, "Not available on Apple Silicon."),
+            icon_kws=None if HAS_CONVERT else {"color": THEMES.get_hex_color("warning")},
         )
         tile_layout.addWidget(tile, 1, 2)
         # merge app
