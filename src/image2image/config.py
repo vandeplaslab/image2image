@@ -135,6 +135,12 @@ class Config(BaseConfig):
         True, title="Confirm close", description="Confirm close WsiReg app.", in_app=True
     )
 
+    # Valis-app parameters
+    first_time_valis: bool = Field(
+        True, title="First time", description="First time running the Valis app.", in_app=True
+    )
+    confirm_close_valis: bool = Field(True, title="Confirm close", description="Confirm close Valis app.", in_app=True)
+
     # Viewer-app parameters
     first_time_convert: bool = Field(
         True, title="First time", description="First time running the convert app.", in_app=True

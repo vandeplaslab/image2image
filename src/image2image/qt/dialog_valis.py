@@ -7,43 +7,85 @@ from pathlib import Path
 
 import qtextra.helpers as hp
 from image2image_io.config import CONFIG as READER_CONFIG
+from image2image_reg.enums import ValisDetectorMethod, ValisMatcherMethod
 from image2image_reg.workflows.valis import ValisReg
+from koyo.secret import hash_obj
+from koyo.timer import MeasureTimer
 from koyo.typing import PathLike
 from loguru import logger
-from qtextra.queue.popup import QueuePopup
+from qtextra.queue.queue_widget import QUEUE
+from qtextra.queue.task import Task
+from qtextra.utils.utilities import connect
 from qtpy.QtCore import Qt
 from qtpy.QtWidgets import QHBoxLayout, QVBoxLayout, QWidget
 
 from image2image import __version__
 from image2image.config import CONFIG
 from image2image.enums import ALLOWED_WSIREG_FORMATS
-from image2image.qt._dialog_mixins import SingleViewerMixin
+from image2image.qt._dialog_wsi import ImageWsiWindow
 from image2image.qt._dialogs._select import LoadWidget
 from image2image.qt._wsireg._list import QtModalityList
+from image2image.utils.utilities import get_i2reg_path
+from image2image.utils.valis import guess_preprocessing, hash_preprocessing
+
+if ty.TYPE_CHECKING:
+    from image2image_reg.models import Modality, Preprocessing
 
 
-class ImageValisWindow(SingleViewerMixin):
+def make_registration_task(
+    project: ValisReg,
+    write_not_registered: bool = False,
+    write_transformed: bool = False,
+    write_merged: bool = False,
+    remove_merged: bool = False,
+    as_uint8: bool = False,
+) -> Task:
+    """Make registration task."""
+    task_id = hash_obj(project.project_dir)
+    commands = [
+        get_i2reg_path(),
+        "--no_color",
+        "--debug",
+        "valis",
+        "register",
+        "--project_dir",
+        f"{project.project_dir!s}",
+    ]
+    if any([write_transformed, write_not_registered, write_merged]):
+        commands.append("--write")
+    if write_not_registered:
+        commands.append("--write_not_registered")
+    if write_transformed:
+        commands.append("--write_registered")
+    if write_merged:
+        commands.append("--write_merged")
+    if remove_merged:
+        commands.append("--remove_merged")
+    if as_uint8:
+        commands.append("--as_uint8")
+    return Task(
+        task_id=task_id,
+        task_name=f"{project.project_dir!s}",
+        task_name_repr=hp.hyper(project.project_dir, value=project.project_dir.name),
+        commands=[commands],
+    )
+
+
+class ImageValisWindow(ImageWsiWindow):
     """Image viewer dialog."""
 
-    _console = None
-    _output_dir = None
     _registration_model: ValisReg | None = None
 
-    WINDOW_HAS_QUEUE = True
+    WINDOW_TITLE = f"image2valis: Valis Registration app (v{__version__})"
+    WINDOW_CONFIG_ATTR = "confirm_close_valis"
+    WINDOW_CONSOLE_ARGS = (("view", "viewer"), "data_model", ("data_model", "wrapper"), "registration_model")
+
+    make_registration_task = make_registration_task
 
     def __init__(
         self, parent: QWidget | None, run_check_version: bool = True, project_dir: PathLike | None = None, **_kwargs
     ):
-        super().__init__(
-            parent, f"image2valis: Valis Registration app (v{__version__})", run_check_version=run_check_version
-        )
-        # if CONFIG.first_time_wsireg:
-        #     hp.call_later(self, self.on_show_tutorial, 10_000)
-        self._setup_config()
-        self.queue_popup = QueuePopup(self)
-        self.queue_btn.clicked.connect(self.queue_popup.show)  # noqa
-        # if project_dir:
-        #     self._on_load_from_project(project_dir)
+        super().__init__(parent, run_check_version=run_check_version, project_dir=project_dir)
 
     @staticmethod
     def _setup_config() -> None:
@@ -63,26 +105,23 @@ class ImageValisWindow(SingleViewerMixin):
 
     def setup_events(self, state: bool = True) -> None:
         """Setup events."""
-        # connect(self._image_widget.dataset_dlg.evt_loaded, self.on_load_image, state=state)
-        # connect(self._image_widget.dataset_dlg.evt_closing, self.on_remove_image, state=state)
-        # connect(self._image_widget.dataset_dlg.evt_project, self._on_load_from_project, state=state)
-        # # connect(self.view.widget.canvas.events.key_press, self.keyPressEvent, state=state)
-        # connect(self.view.viewer.events.status, self._status_changed, state=state)
-        #
-        # connect(self.modality_list.evt_delete, self.on_remove_modality, state=state)
-        # connect(self.modality_list.evt_rename, self.on_rename_modality, state=state)
-        # connect(self.modality_list.evt_hide_others, self.on_hide_modalities, state=state)
-        # connect(self.modality_list.evt_preview_preprocessing, self.on_preview, state=state)
-        # connect(self.modality_list.evt_resolution, self.on_update_modality, state=state)
-        # connect(self.modality_list.evt_show, self.on_show_modality, state=state)
-        # connect(self.modality_list.evt_set_preprocessing, self.on_update_modality, state=state)
-        # connect(self.modality_list.evt_preview_transform_preprocessing, self.on_preview_transform, state=state)
-        # connect(self.modality_list.evt_preprocessing_close, self.on_preview_close, state=state)
-        # connect(self.modality_list.evt_color, self.on_update_colormap, state=state)
-        # connect(self.registration_map.evt_message, self.statusbar.showMessage)
-        #
-        # connect(QUEUE.evt_errored, self.on_registration_finished, state=state)
-        # connect(QUEUE.evt_finished, self.on_registration_finished, state=state)
+        connect(self._image_widget.dataset_dlg.evt_loaded, self.on_load_image, state=state)
+        connect(self._image_widget.dataset_dlg.evt_closing, self.on_remove_image, state=state)
+        connect(self._image_widget.dataset_dlg.evt_project, self._on_load_from_project, state=state)
+        # connect(self.view.widget.canvas.events.key_press, self.keyPressEvent, state=state)
+        connect(self.view.viewer.events.status, self._status_changed, state=state)
+
+        connect(self.modality_list.evt_delete, self.on_remove_modality, state=state)
+        connect(self.modality_list.evt_rename, self.on_rename_modality, state=state)
+        connect(self.modality_list.evt_hide_others, self.on_hide_modalities, state=state)
+        connect(self.modality_list.evt_preview_preprocessing, self.on_preview, state=state)
+        connect(self.modality_list.evt_resolution, self.on_update_modality, state=state)
+        connect(self.modality_list.evt_show, self.on_show_modality, state=state)
+        connect(self.modality_list.evt_set_preprocessing, self.on_update_modality, state=state)
+        connect(self.modality_list.evt_color, self.on_update_colormap, state=state)
+
+        connect(QUEUE.evt_errored, self.on_registration_finished, state=state)
+        connect(QUEUE.evt_finished, self.on_registration_finished, state=state)
 
     def on_validate(self, _: ty.Any = None) -> None:
         """Validate project."""
@@ -108,21 +147,21 @@ class ImageValisWindow(SingleViewerMixin):
         side_widget.setMinimumWidth(400)
         side_widget.setMaximumWidth(400)
 
-        self.modality_list = QtModalityList(self)
+        self.modality_list = QtModalityList(self, valis=True)
 
         self.use_preview_check = hp.make_checkbox(
             self,
             "Use preview image",
             tooltip="Use preview image for viewing instead of the first channel only.",
             value=False,
-            # func=self.on_show_modalities,
+            func=self.on_show_modalities,
         )
         self.hide_others_check = hp.make_checkbox(
             self,
             "Hide others when previewing",
             tooltip="When previewing, hide other images to reduce clutter.",
             checked=False,
-            # func=self.on_hide_not_previewed_modalities,
+            func=self.on_hide_not_previewed_modalities,
         )
 
         self.reference_choice = hp.make_combobox(
@@ -132,10 +171,16 @@ class ImageValisWindow(SingleViewerMixin):
             " selected.",
         )
         self.feature_choice = hp.make_combobox(
-            self, [], tooltip="Feature detection method when performing feature matching between adjacent images."
+            self,
+            ty.get_args(ValisDetectorMethod),
+            tooltip="Feature detection method when performing feature matching between adjacent images.",
+            value="svgg",
         )
         self.matcher_choice = hp.make_combobox(
-            self, [], tooltip="Feature matching method when performing feature matching between adjacent images."
+            self,
+            ty.get_args(ValisDetectorMethod),
+            tooltip="Feature matching method when performing feature matching between adjacent images.",
+            value="ransac",
         )
         self.reflection_check = hp.make_checkbox(
             self,
@@ -143,6 +188,22 @@ class ImageValisWindow(SingleViewerMixin):
             tooltip="Check for reflection during registration. Disabling this option can speed-up registration but"
             " make sure that images are not mirrored.",
             value=True,
+        )
+        self.non_rigid_check = hp.make_checkbox(
+            self,
+            "",
+            tooltip="Perform non-rigid registration (using deformable field).",
+            value=True,
+        )
+        self.micro_check = hp.make_checkbox(
+            self,
+            "",
+            tooltip="Perform micro registration (using deformable field). This performs additional (slower)"
+            " registration using higher resolution images.",
+            value=True,
+        )
+        self.micro_fraction = hp.make_double_spin_box(
+            self, 0, 1, 0.05, n_decimals=3, tooltip="Fraction of the image to use for micro registration.", value=0.125
         )
 
         self.name_label = hp.make_line_edit(
@@ -155,6 +216,24 @@ class ImageValisWindow(SingleViewerMixin):
             side_widget, "folder", tooltip="Change output directory", func=self.on_set_output_dir, normal=True
         )
 
+        self.write_not_registered_check = hp.make_checkbox(
+            self,
+            "",
+            tooltip="Write original, not-registered images (those without any transformations such as target).",
+            value=True,
+        )
+        self.write_registered_check = hp.make_checkbox(
+            self,
+            "",
+            tooltip="Write original, registered images.",
+            value=True,
+        )
+        self.write_merged_check = hp.make_checkbox(
+            self,
+            "",
+            tooltip="Merge non- and transformed images into a single image.",
+            value=False,
+        )
         self.as_uint8 = hp.make_checkbox(
             self,
             "",
@@ -187,6 +266,9 @@ class ImageValisWindow(SingleViewerMixin):
         side_layout.addRow(hp.make_label(self, "Feature detector"), self.feature_choice)
         side_layout.addRow(hp.make_label(self, "Feature matcher"), self.matcher_choice)
         side_layout.addRow(hp.make_label(self, "Check for reflection"), self.reflection_check)
+        side_layout.addRow(hp.make_label(self, "Non-rigid registration"), self.non_rigid_check)
+        side_layout.addRow(hp.make_label(self, "Micro registration"), self.micro_check)
+        side_layout.addRow(hp.make_label(self, "Fraction"), self.micro_fraction)
         # Project
         side_layout.addRow(hp.make_h_line_with_text("Valis project"))
         side_layout.addRow(hp.make_label(side_widget, "Name"), self.name_label)
@@ -196,12 +278,15 @@ class ImageValisWindow(SingleViewerMixin):
         )
         # Advanced options
         hidden_settings = hp.make_advanced_collapsible(side_widget, "Advanced options", allow_checkbox=False)
+        hidden_settings.addRow(hp.make_label(self, "Write registered images"), self.write_registered_check)
+        hidden_settings.addRow(hp.make_label(self, "Write unregistered images"), self.write_not_registered_check)
+        hidden_settings.addRow(hp.make_label(self, "Merge transformed images"), self.write_merged_check)
         hidden_settings.addRow(hp.make_label(self, "Reduce data size"), self.as_uint8)
         hidden_settings.addRow(hp.make_label(self, "Open when finished"), self.open_when_finished)
         side_layout.addRow(hidden_settings)
 
         self.save_btn = hp.make_qta_btn(
-            self, "save", normal=True, tooltip="Save i2reg project to disk.", func=self.on_save_to_i2reg
+            self, "save", normal=True, tooltip="Save Valis project to disk.", func=self.on_save_to_valis
         )
         self.run_btn = hp.make_btn(
             side_widget, "Execute...", tooltip="Immediately execute registration", properties={"with_menu": True}
@@ -281,6 +366,23 @@ class ImageValisWindow(SingleViewerMixin):
         self._make_icon()
         self._make_statusbar()
 
+    def on_save_to_valis(self) -> None:
+        """Save project to i2reg."""
+        name = self.name_label.text()
+        if not name:
+            hp.toast(self, "Error", "Please provide a name for the project.", icon="error", position="top_left")
+            return
+        output_dir = self.output_dir
+        if output_dir is None:
+            hp.toast(self, "Error", "Please provide an output directory.", icon="error", position="top_left")
+            return
+        if not self._validate():
+            return
+        path = self.save_model()
+        if path:
+            hp.toast(self, "Saved", f"Saved project to {hp.hyper(path)}.", icon="success", position="top_left")
+            logger.info(f"Saved project to {path}")
+
     def _on_load_from_project(self, path_: PathLike) -> None:
         if path_:
             path_ = Path(path_)
@@ -289,6 +391,10 @@ class ImageValisWindow(SingleViewerMixin):
                 self._registration_model = project
                 self.output_dir = project.output_dir
                 self.name_label.setText(project.name)
+                self.reflection_check.setChecked(project.check_for_reflections)
+                self.non_rigid_check.setChecked(project.non_rigid_registration)
+                self.micro_check.setChecked(project.micro_registration)
+                self.micro_fraction.setValue(project.micro_registration_fraction)
                 self._image_widget.on_close_dataset()
                 paths = [modality.path for modality in project.modalities.values()]
                 if paths:
@@ -304,55 +410,210 @@ class ImageValisWindow(SingleViewerMixin):
             dlg.show()
         return is_valid
 
-    def _queue_registration_model(self, add_delayed: bool, save: bool = True) -> bool:
-        """Queue registration model."""
-        # if not self.registration_model:
-        #     return False
-        # if not self._validate():
-        #     return False
-        # if save and not self.save_model():
-        #     return False
-        # task = make_registration_task(
-        #     self.registration_model,
-        #     write_transformed=self.write_registered_check.isChecked(),
-        #     write_not_registered=self.write_not_registered_check.isChecked(),
-        #     write_merged=self.write_merged_check.isChecked(),
-        #     as_uint8=self.as_uint8.isChecked(),
-        # )
-        # if task:
-        #     if QUEUE.is_queued(task.task_id):
-        #         hp.toast(
-        #             self, "Already queued", "This task is already in the queue.", icon="warning", position="top_left"
-        #         )
-        #         return False
-        #     QUEUE.add_task(task, add_delayed=add_delayed)
-        # return True
-
-    def on_run(self) -> None:
-        """Execute registration."""
-        if self._queue_registration_model(add_delayed=False):
-            self.queue_popup.show()
-
-    def on_run_no_save(self) -> None:
-        """Execute registration."""
-        if self._queue_registration_model(add_delayed=False, save=False):
-            self.queue_popup.show()
-
-    def on_queue(self) -> None:
-        """Queue registration."""
-        if self._queue_registration_model(add_delayed=True):
-            self.queue_popup.show()
-
-    def on_queue_no_save(self) -> None:
-        """Queue registration."""
-        if self._queue_registration_model(add_delayed=True, save=False):
-            self.queue_popup.show()
-
     def _make_statusbar(self) -> None:
         super()._make_statusbar()
 
         self.queue_btn = hp.make_qta_btn(self, "queue", tooltip="Open queue popup.", small=True)
         self.statusbar.insertPermanentWidget(0, self.queue_btn)
+
+    def on_populate_list(self) -> None:
+        """Populate list."""
+        # Add image(s) to the registration model
+        wrapper = self.data_model.get_wrapper()
+        if wrapper:
+            for reader in wrapper.reader_iter():
+                if not self.registration_model.has_modality(path=reader.path):
+                    preprocessing = guess_preprocessing(reader, valis=True)
+                    preprocessing.channel_names = reader.channel_names
+                    preprocessing.channel_indices = list(range(len(reader.channel_names)))
+                    self.registration_model.add_modality(
+                        name=reader.clean_name,
+                        path=reader.path,
+                        pixel_size=reader.resolution,
+                        channel_names=reader.channel_names,
+                        preprocessing=preprocessing,
+                        raise_on_error=False,
+                    )
+        # Populate table
+        self.modality_list.populate()
+        self.modality_list.toggle_preview(self.use_preview_check.isChecked())
+        self.populate_reference_list()
+
+    def on_depopulate_list(self, keys: list[str]) -> None:
+        """De-populate list."""
+        wrapper = self.data_model.get_wrapper()
+        if wrapper:
+            for key in keys:
+                reader = wrapper.get_reader_for_key(key)
+                if reader and self.registration_model.has_modality(path=reader.path):
+                    modality = self.registration_model.remove_modality(path=reader.path)
+                    if modality:
+                        self.view.remove_layer(modality.name)
+                        self.view.remove_layer(f"{modality.name} (preview)")
+        # Populate table
+        self.modality_list.depopulate()
+        self.populate_reference_list()
+
+    def populate_reference_list(self) -> None:
+        """Populate reference list."""
+        modalities = list(self.registration_model.modalities.keys())
+        self.reference_choice.clear()
+        self.reference_choice.addItem("None")
+        self.reference_choice.addItems(modalities)
+
+        reference = self.registration_model.reference
+        if reference is None or reference not in modalities:
+            reference = "None"
+        self.reference_choice.setCurrentText(reference)
+
+    def save_model(self) -> Path | None:
+        """Save model in the current state."""
+        name = self.name_label.text()
+        if not name:
+            hp.toast(self, "Error", "Please provide a name for the project.", icon="error", position="top_left")
+            return None
+        output_dir = self.output_dir
+        if output_dir is None:
+            hp.toast(self, "Error", "Please provide an output directory.", icon="error", position="top_left")
+            return None
+        self.registration_model.merge_images = self.write_merged_check.isChecked()
+        self.registration_model.name = name
+        self.registration_model.output_dir = output_dir
+        self.registration_model.check_for_reflections = self.reflection_check.isChecked()
+        self.registration_model.micro_registration = self.micro_check.isChecked()
+        self.registration_model.micro_registration_fraction = self.micro_fraction.value()
+        self.registration_model.non_rigid_registration = self.non_rigid_check.isChecked()
+        # set reference
+        reference = self.reference_choice.currentText()
+        self.registration_model.set_reference(reference if reference != "None" else None)
+        # set detector and matcher method
+        self.registration_model.feature_detector = self.feature_choice.currentText()
+        self.registration_model.feature_matcher = self.matcher_choice.currentText().upper()
+
+        if self.registration_model.project_dir.exists() and not hp.confirm(
+            self, f"Project <b>{self.registration_model.name}</b> already exists.<br><b>Overwrite?</b>"
+        ):
+            return None
+        path = self.registration_model.save()
+        logger.trace(f"Saved project to {self.registration_model.project_dir}")
+        return path
+
+    def on_close(self) -> None:
+        """Close project."""
+        if self.registration_model and hp.confirm(
+            self, "Are you sure you want to close the project?", "Close project?"
+        ):
+            self.name_label.setText("")
+            self._image_widget.on_close_dataset(force=True)
+            self.view.clear()
+            self.modality_list.populate()
+            self.populate_reference_list()
+            logger.trace("Closed project.")
+
+    def on_rename_modality(self, widget, new_name: str) -> None:
+        """Rename modality."""
+        modality = widget.item_model
+        if not new_name:
+            hp.set_object_name(widget.name_label, object_name="error")
+            return
+        if modality.name == new_name:
+            return
+        if new_name in self.registration_model.modalities:
+            hp.toast(self, "Error", f"Name <b>{new_name}</b> already exists.", icon="error", position="top_left")
+            widget.name_label.setText(modality.name)
+            return
+        old_name = modality.name
+        modality.name = new_name
+        self.on_update_modality_name(old_name, modality)
+
+    def on_update_modality_name(self, old_name: str, modality: Modality) -> None:
+        """Update modality."""
+        self.registration_model.rename_modality(old_name, modality.name)
+        layer = self.view.get_layer(old_name)
+        if layer:
+            layer.name = modality.name
+        self.populate_reference_list()
+        logger.trace(f"Updated modality name: {old_name} -> {modality.name}")
+
+    def on_show_modality(self, modality: Modality, state: bool = True, overwrite: bool = False) -> None:
+        """Preview image."""
+        from image2image_reg.utils.preprocessing import preprocess_preview_valis
+
+        pyramid = -1
+        wrapper = self.data_model.get_wrapper()
+        if wrapper:
+            with MeasureTimer() as timer:
+                reader = wrapper.get_reader_for_path(modality.path)
+                scale = reader.scale_for_pyramid(pyramid)
+                layer = self.view.get_layer(modality.name)
+                preprocessing_hash = (
+                    hash_preprocessing(modality.preprocessing, pyramid=pyramid)
+                    if self.use_preview_check.isChecked()
+                    else f"pyramid={pyramid}"
+                )
+                # no need to re-process if the layer is already there
+                if layer and layer.metadata.get("preview_hash") == preprocessing_hash:
+                    layer.visible = state
+                    return
+
+                if self.use_preview_check.isChecked():
+                    image = preprocess_preview_valis(
+                        reader.pyramid[pyramid], reader.is_rgb, scale[0], modality.preprocessing
+                    )
+                else:
+                    image = reader.get_channel(0, pyramid)
+                widget = self.modality_list.get_widget_for_item_model(modality)
+                colormap = "gray" if widget is None else widget.colormap
+                if overwrite and layer:
+                    self.view.remove_layer(modality.name)
+                if not state:
+                    if layer:
+                        layer.visible = state
+                else:
+                    self.view.add_image(
+                        image,
+                        name=modality.name,
+                        scale=scale,
+                        blending="additive",
+                        colormap=colormap,
+                        metadata={"key": reader.key, "preview_hash": preprocessing_hash},
+                        visible=state,
+                    )
+                logger.trace(f"Processed image {modality.name} in {timer()} with {pyramid} pyramid level")
+
+    def on_preview(self, modality: Modality, preprocessing: Preprocessing | None = None) -> None:
+        """Preview image."""
+        from image2image_reg.utils.preprocessing import preprocess_preview_valis
+
+        if preprocessing is None:
+            preprocessing = modality.preprocessing
+
+        pyramid = -1
+        preprocessing_hash = hash_preprocessing(modality.preprocessing, pyramid=pyramid)
+
+        wrapper = self.data_model.get_wrapper()
+        if wrapper:
+            layer = self.view.get_layer(modality.name)
+            if layer and layer.rgb:
+                self.view.remove_layer(modality.name)
+
+            widget = self.modality_list.get_widget_for_item_model(modality)
+            colormap = "gray" if widget is None else widget.colormap
+            with MeasureTimer() as timer:
+                reader = wrapper.get_reader_for_path(modality.path)
+                scale = reader.scale_for_pyramid(pyramid)
+                image = preprocess_preview_valis(reader.pyramid[pyramid], reader.is_rgb, scale[0], preprocessing)
+                self.view.add_image(
+                    image,
+                    name=modality.name,
+                    scale=scale,
+                    blending="additive",
+                    colormap=colormap,
+                    metadata={"key": reader.key, "preview_hash": preprocessing_hash},
+                )
+            logger.trace(
+                f"Processed image {modality.name} for preview in {timer()} at {pyramid} pyramid level ({image.shape})"
+            )
 
 
 if __name__ == "__main__":  # pragma: no cover

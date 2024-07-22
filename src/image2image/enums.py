@@ -18,21 +18,28 @@ ALLOWED_PROJECT_EXPORT_REGISTER_FORMATS = (
     "MATLAB fusion format (*.xml);;"
 )
 ALLOWED_PROJECT_VIEWER_FORMATS = (
-    "Any projects (*.i2v.json *.i2v.toml);; " "JSON Project (*.i2v.json);; " "TOML Project (*.i2v.toml);;"
+    "Any projects (*.i2v.json *.i2v.toml);; JSON project (*.i2v.json);; TOML project (*.i2v.toml);;"
 )
 ALLOWED_PROJECT_CROP_FORMATS = (
-    "Any projects (*.i2c.json *.i2c.toml);; " "JSON Project (*.i2c.json);; " "TOML Project (*.i2c.toml);;"
+    "Any projects (*.i2c.json *.i2c.toml);; JSON project (*.i2c.json);; TOML project (*.i2c.toml);;"
 )
 ALLOWED_PROJECT_WSIPREP_FORMATS = (
     "Any projects (*.i2wsiprep.json *.i2wsiprep.toml);; "
-    "JSON Project (*.i2wsiprep.json);; "
-    "TOML Project (*.i2wsiprep.toml);;"
+    "JSON project (*.i2wsiprep.json);; "
+    "TOML project (*.i2wsiprep.toml);;"
 )
 ALLOWED_PROJECT_WSIREG_FORMATS = (
     "Any projects (*.i2wsireg.json *.i2wsireg.toml *.wsireg *.i2reg *.config.json);; "
-    "JSON Project (*.i2wsireg.json);; "
-    "TOML Project (*.i2wsireg.toml);;"
-    "I2Reg Project (*.wsireg *.i2reg *.config.json);;"
+    "JSON project (*.i2reg.json);; "
+    "TOML project (*.i2reg.toml);;"
+    "I2Reg project (*.wsireg *.i2reg *.config.json);;"
+)
+
+ALLOWED_PROJECT_VALIS_FORMATS = (
+    "Any projects (*.valis.json *.valis.toml *.valis *.config.json);; "
+    "JSON project (*.valis.json);; "
+    "TOML project (*.valis.toml);;"
+    "Valis project (*.valis *.config.json);;"
 )
 
 ALLOWED_IMAGE_FORMATS = (

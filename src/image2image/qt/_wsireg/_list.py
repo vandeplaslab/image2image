@@ -20,7 +20,7 @@ from image2image.config import CONFIG
 from image2image.qt._wsireg._widgets import QtModalityLabel
 
 if ty.TYPE_CHECKING:
-    from image2image_reg.workflows.iwsireg import IWsiReg
+    from image2image_reg.workflows import IWsiReg, ValisReg
 
     from image2image.qt._wsireg._preprocessing import PreprocessingDialog
 
@@ -51,9 +51,10 @@ class QtModalityItem(QtListItem):
     _mode: bool = False
     item_model: Modality
 
-    def __init__(self, item: QListWidgetItem, parent: QWidget | None = None, color="#808080"):
+    def __init__(self, item: QListWidgetItem, parent: QWidget | None = None, color="#808080", valis: bool = False):
         super().__init__(parent)
         self.setMouseTracking(True)
+        self.valis = valis
         self.item = item
 
         self.name_label = hp.make_line_edit(
@@ -128,12 +129,14 @@ class QtModalityItem(QtListItem):
             normal=True,
             tooltip="When mask is applied to the image, this icon will be visible.",
         )
+        self.mask_btn.setHidden(self.valis)
         self.crop_btn = hp.make_qta_btn(
             self,
             "crop",
             normal=True,
             tooltip="When cropping is applied to the image, this icon will be visible.",
         )
+        self.crop_btn.setHidden(self.valis)
 
         self.lock_btn = QtLockButton(self)
         self.lock_btn.setToolTip("Prevent spatial transformation to the layer.")
@@ -190,14 +193,15 @@ class QtModalityItem(QtListItem):
         text, tooltip = self.item_model.preprocessing.as_str()
         self.preprocessing_label.setText(text)
         self.preprocessing_label.setToolTip(tooltip)
-        self.mask_btn.setVisible(self.item_model.preprocessing.is_masked())
-        self.crop_btn.setVisible(self.item_model.preprocessing.is_cropped())
         n = self.registration_model.get_attachment_count(self.item_model.name, "image")
         self.attach_image_btn.set_count(n)
         n = self.registration_model.get_attachment_count(self.item_model.name, "geojson")
         self.attach_geojson_btn.set_count(n)
         n = self.registration_model.get_attachment_count(self.item_model.name, "points")
         self.attach_points_btn.set_count(n)
+        if not self.valis:
+            self.mask_btn.setVisible(self.item_model.preprocessing.is_masked())
+            self.crop_btn.setVisible(self.item_model.preprocessing.is_cropped())
 
     @property
     def registration_model(self) -> IWsiReg:
@@ -302,7 +306,9 @@ class QtModalityItem(QtListItem):
             self._preprocessing_dlg = None
 
         if self._preprocessing_dlg is None:
-            self._preprocessing_dlg = PreprocessingDialog(self.item_model, parent=self, locked=self.lock_btn.locked)
+            self._preprocessing_dlg = PreprocessingDialog(
+                self.item_model, parent=self, locked=self.lock_btn.locked, valis=self.valis
+            )
             self._preprocessing_dlg.evt_update.connect(self.on_update_preprocessing)
             self._preprocessing_dlg.evt_preview_preprocessing.connect(self.evt_preview_preprocessing.emit)
             self._preprocessing_dlg.evt_set_preprocessing.connect(self.on_set_preprocessing)
@@ -378,7 +384,7 @@ class QtModalityList(QtListWidget):
     evt_mask = Signal(Modality, bool)
     evt_crop = Signal(Modality, bool)
 
-    def __init__(self, parent: QWidget):
+    def __init__(self, parent: QWidget, valis: bool = False):
         super().__init__(parent)
         self.setSpacing(1)
         # self.setSelectionsMode(QListWidget.SingleSelection)
@@ -386,9 +392,10 @@ class QtModalityList(QtListWidget):
         self.setSizePolicy(QSizePolicy.Policy.MinimumExpanding, QSizePolicy.Policy.MinimumExpanding)
         self.setUniformItemSizes(True)
         self._parent = parent
+        self.valis = valis
 
     @property
-    def registration_model(self) -> IWsiReg:
+    def registration_model(self) -> IWsiReg | ValisReg:
         """Get registration model."""
         return self._parent.registration_model
 
@@ -399,7 +406,7 @@ class QtModalityList(QtListWidget):
             colors = []
         color = get_next_color(self.count(), other_colors=colors)
 
-        widget = QtModalityItem(item, parent=self, color=color)
+        widget = QtModalityItem(item, parent=self, color=color, valis=self.valis)
         widget.evt_delete.connect(self.evt_delete.emit)
         widget.evt_remove.connect(self.remove_item)
         widget.evt_show.connect(self.evt_show.emit)

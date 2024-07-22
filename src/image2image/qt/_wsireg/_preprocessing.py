@@ -6,6 +6,7 @@ import typing as ty
 from copy import deepcopy
 
 from koyo.secret import hash_parameters
+from loguru import logger
 from qtextra import helpers as hp
 from qtextra.utils.table_config import TableConfig
 from qtextra.widgets.qt_dialog import QtFramelessTool
@@ -16,6 +17,34 @@ from superqt.utils import qdebounced
 
 if ty.TYPE_CHECKING:
     from image2image_reg.models import Modality
+
+
+def get_methods_for_modality(modality: Modality) -> list[str]:
+    """Select options that are appropriate for the modality."""
+    options = [
+        "NoProcessing",
+        "I2RegPreprocessor",
+        "OD",
+        "ColorfulStandardizer",  # only for RGB
+        "Luminosity",
+        "BgColorDistance",
+        "StainFlattener",
+        "Gray",
+        "ChannelGetter (no preview)",
+        "HEDeconvolution (no preview)",  # only for RGB
+        "HEPreprocessing (no preview)",  # only for RGB
+        "MaxIntensityProjection (no preview)",
+    ]
+    # if not rgb, remove a couple of options
+    if len(modality.channel_names) != 3 and "R" not in modality.channel_names:
+        options.pop(options.index("ColorfulStandardizer"))
+        options.pop(options.index("Luminosity"))
+        options.pop(options.index("BgColorDistance"))
+        options.pop(options.index("StainFlattener"))
+        options.pop(options.index("Gray"))
+        options.pop(options.index("HEDeconvolution (no preview)"))
+        options.pop(options.index("HEPreprocessing (no preview)"))
+    return options
 
 
 class PreprocessingDialog(QtFramelessTool):
@@ -33,16 +62,24 @@ class PreprocessingDialog(QtFramelessTool):
         .add("name", "channel_name", "str", 250)
     )
 
-    def __init__(self, modality: Modality, parent: QWidget | None = None, locked: bool = False):
+    def __init__(
+        self,
+        modality: Modality,
+        parent: QWidget | None = None,
+        locked: bool = False,
+        valis: bool = False,
+    ):
+        self.valis = valis
+        self.modality = modality
         super().__init__(parent)
         self.setMinimumWidth(400)
         self.setMinimumHeight(400)
 
-        self.modality = modality
         self.preprocessing = deepcopy(modality.preprocessing)
         self.original_hash = hash_parameters(**self.preprocessing.to_dict())
         self.set_from_model()
-        self.lock(locked)
+        self.lock(locked or valis)
+        self.on_toggle_available()
 
     def lock(self, lock: bool) -> None:
         """Lock/unlock widgets."""
@@ -53,6 +90,22 @@ class PreprocessingDialog(QtFramelessTool):
             self.rotate_spin,
             self.downsample_spin,
             disabled=lock,
+        )
+
+    def on_toggle_available(self) -> None:
+        """Toggle available options."""
+        if not self.valis:
+            return
+        disable = self.method.currentText() != "I2RegPreprocessor"
+        hp.disable_widgets(
+            *self.type_choice_group.buttons(),
+            self.mip_check,
+            self.equalize_check,
+            self.contrast_check,
+            self.invert_check,
+            self.uint8_check,
+            self.channel_table,
+            disabled=disable,
         )
 
     @qdebounced(timeout=300, leading=False)
@@ -72,7 +125,15 @@ class PreprocessingDialog(QtFramelessTool):
     def set_from_model(self) -> None:
         """Set from model."""
         with self.setting_config():
-            self._title_label.setText(f"Pre-processing - {self.modality.name}")
+            self._title_label.setText(f"{self.modality.name}")
+            method = {
+                None: "NoProcessing",
+                "None": "NoProcessing",
+                "ChannelGetter": "ChannelGetter (no preview)",
+                "HEPreprocessing": "HEPreprocessing (no preview)",
+                "MaxIntensityProjection": "MaxIntensityProjection (no preview)",
+            }.get(self.preprocessing.method, self.preprocessing.method)
+            self.method.setCurrentText(method)
             image_type = {"BF": 0, "FL": 1}[self.preprocessing.image_type]
             self.type_choice_group.button(image_type).setChecked(True)
             # spectral
@@ -112,6 +173,11 @@ class PreprocessingDialog(QtFramelessTool):
         if self._is_setting_config:
             return
         image_type = self.type_choice_group.checkedButton().text()
+        method = self.method.currentText()
+        if "(no preview)" in method:
+            method = method.split(" (no preview)")[0]
+            logger.warning(f"Method {method} does not support previewing.")
+        self.preprocessing.method = method
         self.preprocessing.image_type = {"Brightfield": "BF", "Fluorescence": "FL"}[image_type]
         self.preprocessing.max_intensity_projection = self.mip_check.isChecked()
         self.preprocessing.contrast_enhance = self.contrast_check.isChecked()
@@ -120,7 +186,7 @@ class PreprocessingDialog(QtFramelessTool):
         self.preprocessing.channel_indices, self.preprocessing.channel_names = self.get_selected_channels()
         self.preprocessing.as_uint8 = self.uint8_check.isChecked()
         self.evt_update.emit(self.preprocessing)
-        self.evt_preview_transform_preprocessing.emit(self.modality, self.preprocessing)
+        self.on_preview_preprocessing()
 
     def on_update_transform_model(self, _=None) -> None:
         """Update model."""
@@ -148,9 +214,9 @@ class PreprocessingDialog(QtFramelessTool):
         ):
             return
         if text == "Brightfield":
-            new_preprocessing = Preprocessing.brightfield()
+            new_preprocessing = Preprocessing.brightfield(valis=self.valis)
         elif text == "Fluorescence":
-            new_preprocessing = Preprocessing.fluorescence()
+            new_preprocessing = Preprocessing.fluorescence(valis=self.valis)
         else:
             new_preprocessing = Preprocessing.basic()
         new_preprocessing.channel_names = self.preprocessing.channel_names
@@ -186,6 +252,15 @@ class PreprocessingDialog(QtFramelessTool):
         self.defaults_choice_lay, self.defaults_choice_group = hp.make_toggle_group(
             self, "Basic", "Brightfield", "Fluorescence", func=self.on_set_defaults
         )
+
+        # pre-processing method
+        self.method = hp.make_combobox(
+            self,
+            get_methods_for_modality(self.modality),
+            tooltip="Pre-processing method (only valid for Valis registration)",
+            func=[self.on_toggle_available, self.on_update_model],
+        )
+        self.method.setHidden(not self.valis)
 
         # intensity preprocessing
         self.type_choice_lay, self.type_choice_group = hp.make_toggle_group(
@@ -270,6 +345,9 @@ class PreprocessingDialog(QtFramelessTool):
             )
         )
         layout.addRow("Defaults", self.defaults_choice_lay)
+        if self.valis:
+            layout.addRow(hp.make_h_line_with_text("Valis", self))
+        layout.addRow("Method", self.method)
         layout.addRow(hp.make_h_line_with_text("Intensity", self))
         layout.addRow("Image type", self.type_choice_lay)
         layout.addRow("Max. intensity projection", self.mip_check)
