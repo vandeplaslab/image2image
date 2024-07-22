@@ -663,12 +663,16 @@ class ImageWsiPrepWindow(Window):
     def on_project_mode(self) -> None:
         """Update project mode."""
         prev_mode = CONFIG.project_mode
-        if "per group" in prev_mode and "per group" not in self.project_mode.currentText() and not hp.confirm(
-            self,
-            "Changing the project mode from <b>'per group'</b> where <b>multiple</b> references are permitted to"
-            " <b>'per list'</b> where only <b>one</b> reference is permitted will remove all but the first"
-            " reference in each group. Are you sure you wish to continue?",
-            "Are you sure?",
+        if (
+            "per group" in prev_mode
+            and "per group" not in self.project_mode.currentText()
+            and not hp.confirm(
+                self,
+                "Changing the project mode from <b>'per group'</b> where <b>multiple</b> references are permitted to"
+                " <b>'per list'</b> where only <b>one</b> reference is permitted will remove all but the first"
+                " reference in each group. Are you sure you wish to continue?",
+                "Are you sure?",
+            )
         ):
             self.project_mode.setCurrentText(prev_mode)
             return
