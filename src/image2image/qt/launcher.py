@@ -28,11 +28,13 @@ FUSION_TEXT = "Export your data for Image Fusion in MATLAB compatible format."
 WSIREG_TEXT = "Register whole slide microscopy images<br>(<b>i2reg</b>)."
 VALIS_TEXT = "Register whole slide microscopy images<br>(<b>Valis</b>)."
 HAS_CONVERT = not IS_PYINSTALLER and not IS_MAC_ARM
+CONVERT_WARNING = ""
 if HAS_CONVERT:
-    CONVERT_TEXT += "<br><br><i>Not available on Apple Silicon due to a bug I can't find...</i>"
+    CONVERT_WARNING = "<i>Not available on Apple Silicon due to a bug I can't find...</i>"
 HAS_VALIS = is_installed("valis") and is_installed("pyvips")
+VALIS_WARNING = ""
 if not HAS_VALIS:
-    VALIS_TEXT += "<br><br><i>Valis or pyvips is not installed.</i>"
+    VALIS_WARNING = "<br><br><i>Valis or pyvips is not installed.</i>"
 
 
 def _make_tile(parent: QWidget, title: str, description: str, icon: str, func: ty.Callable, **icon_kws) -> QtTileWidget:
@@ -71,10 +73,11 @@ class Launcher(QtDialog):
             "Valis<br>App",
             VALIS_TEXT,
             "valis",
-            Window.on_open_valis
-            if HAS_VALIS
-            else lambda: hp.warn_pretty(self, "Valis or pyvips is not installed on this machine."),
+            Window.on_open_valis,
+            # if HAS_VALIS
+            # else lambda: hp.warn_pretty(self, "Valis or pyvips is not installed on this machine."),
             icon_kws=None if HAS_VALIS else {"color": THEMES.get_hex_color("warning")},
+            warning=VALIS_WARNING,
         )
         tile_layout.addWidget(tile, 0, 4)
         # Second row
@@ -91,6 +94,7 @@ class Launcher(QtDialog):
             "convert",
             Window.on_open_convert if HAS_CONVERT else lambda: hp.warn_pretty(self, "Not available on Apple Silicon."),
             icon_kws=None if HAS_CONVERT else {"color": THEMES.get_hex_color("warning")},
+            warning=CONVERT_WARNING,
         )
         tile_layout.addWidget(tile, 1, 2)
         # merge app
