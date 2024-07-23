@@ -648,12 +648,13 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
         from koyo.utilities import is_installed
 
         if not is_installed("valis") or not is_installed("pyvips"):
-            hp.warn_pretty(
-                None,
-                "Valis and/or pyvips is not installed on this machine. This app is not available, sorry!",
-                "App not available on this platform.",
-            )
-            return
+            logger.error("Valis and/or pyvips is not installed on this machine.")
+        #     hp.warn_pretty(
+        #     None,
+        #     "Valis and/or pyvips is not installed on this machine. This app is not available, sorry!",
+        #     "App not available on this platform.",
+        # )
+        # return
 
         create_new_window("valis", *args)
 
