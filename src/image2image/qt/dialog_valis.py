@@ -12,6 +12,7 @@ from image2image_reg.workflows.valis import ValisReg
 from koyo.secret import hash_obj
 from koyo.timer import MeasureTimer
 from koyo.typing import PathLike
+from koyo.utilities import is_installed
 from loguru import logger
 from qtextra.queue.queue_widget import QUEUE
 from qtextra.queue.task import Task
@@ -30,6 +31,9 @@ from image2image.utils.valis import guess_preprocessing, hash_preprocessing
 
 if ty.TYPE_CHECKING:
     from image2image_reg.models import Modality, Preprocessing
+
+
+HAS_VALIS = is_installed("valis") and is_installed("pyvips")
 
 
 def make_registration_task(
@@ -80,8 +84,6 @@ class ImageValisWindow(ImageWsiWindow):
     WINDOW_CONFIG_ATTR = "confirm_close_valis"
     WINDOW_CONSOLE_ARGS = (("view", "viewer"), "data_model", ("data_model", "wrapper"), "registration_model")
 
-    make_registration_task = make_registration_task
-
     def __init__(
         self, parent: QWidget | None, run_check_version: bool = True, project_dir: PathLike | None = None, **_kwargs
     ):
@@ -93,6 +95,24 @@ class ImageValisWindow(ImageWsiWindow):
         READER_CONFIG.init_pyramid = False
         READER_CONFIG.split_czi = False
         logger.trace("Setup config for image2wsireg.")
+
+    def make_registration_task(
+        self,
+        project: ValisReg,
+        write_not_registered: bool = False,
+        write_transformed: bool = False,
+        write_merged: bool = False,
+        remove_merged: bool = False,
+        as_uint8: bool = False,
+    ) -> Task:
+        return make_registration_task(
+            project,
+            write_not_registered=write_not_registered,
+            write_transformed=write_transformed,
+            write_merged=write_merged,
+            remove_merged=remove_merged,
+            as_uint8=as_uint8,
+        )
 
     @property
     def registration_model(self) -> ValisReg | None:
@@ -178,7 +198,7 @@ class ImageValisWindow(ImageWsiWindow):
         )
         self.matcher_choice = hp.make_combobox(
             self,
-            ty.get_args(ValisDetectorMethod),
+            ty.get_args(ValisMatcherMethod),
             tooltip="Feature matching method when performing feature matching between adjacent images.",
             value="ransac",
         )
@@ -299,6 +319,7 @@ class ImageValisWindow(ImageWsiWindow):
             func=self.on_run,
             icon="run",
             tooltip="Perform registration. Images will open in the viewer when finished.",
+            disabled=not HAS_VALIS,
         )
         hp.make_menu_item(
             side_widget,
@@ -308,6 +329,7 @@ class ImageValisWindow(ImageWsiWindow):
             icon="run",
             tooltip="Perform registration. Images will open in the viewer when finished. Project will not be"
             " saved before adding to the queue.",
+            disabled=not HAS_VALIS,
         )
         hp.make_menu_item(
             side_widget,
@@ -316,6 +338,7 @@ class ImageValisWindow(ImageWsiWindow):
             func=self.on_queue,
             icon="queue",
             tooltip="Registration task will be added to the queue and you can start it manually.",
+            disabled=not HAS_VALIS,
         )
         hp.make_menu_item(
             side_widget,
@@ -325,6 +348,7 @@ class ImageValisWindow(ImageWsiWindow):
             icon="queue",
             tooltip="Registration task will be added to the queue and you can start it manually. Project will not be"
             " saved before adding to the queue.",
+            disabled=not HAS_VALIS,
         )
         menu.addSeparator()
         hp.make_menu_item(

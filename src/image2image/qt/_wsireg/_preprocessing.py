@@ -6,6 +6,7 @@ import typing as ty
 from copy import deepcopy
 
 from koyo.secret import hash_parameters
+from koyo.utilities import is_installed
 from loguru import logger
 from qtextra import helpers as hp
 from qtextra.utils.table_config import TableConfig
@@ -18,9 +19,16 @@ from superqt.utils import qdebounced
 if ty.TYPE_CHECKING:
     from image2image_reg.models import Modality
 
+HAS_VALIS = is_installed("valis") and is_installed("pyvips")
+
 
 def get_methods_for_modality(modality: Modality) -> list[str]:
     """Select options that are appropriate for the modality."""
+
+    def _maybe_pop(option: str) -> None:
+        if option not in options:
+            options.pop(options.index(option))
+
     options = [
         "NoProcessing",
         "I2RegPreprocessor",
@@ -36,14 +44,36 @@ def get_methods_for_modality(modality: Modality) -> list[str]:
         "MaxIntensityProjection (no preview)",
     ]
     # if not rgb, remove a couple of options
+    to_pop = []
     if len(modality.channel_names) != 3 and "R" not in modality.channel_names:
-        options.pop(options.index("ColorfulStandardizer"))
-        options.pop(options.index("Luminosity"))
-        options.pop(options.index("BgColorDistance"))
-        options.pop(options.index("StainFlattener"))
-        options.pop(options.index("Gray"))
-        options.pop(options.index("HEDeconvolution (no preview)"))
-        options.pop(options.index("HEPreprocessing (no preview)"))
+        to_pop.extend(
+            [
+                "ColorfulStandardizer",
+                "Luminosity",
+                "BgColorDistance",
+                "StainFlattener",
+                "Gray",
+                "HEDeconvolution (no preview)",
+                "HEPreprocessing (no preview)",
+            ]
+        )
+    if not HAS_VALIS:
+        to_pop.extend(
+            [
+                "OD",
+                "ColorfulStandardizer",
+                "Luminosity",
+                "BgColorDistance",
+                "StainFlattener",
+                "Gray",
+                "ChannelGetter (no preview)",
+                "HEDeconvolution (no preview)",
+                "HEPreprocessing (no preview)",
+                "MaxIntensityProjection (no preview)",
+            ]
+        )
+    for option in set(to_pop):
+        _maybe_pop(option)
     return options
 
 
