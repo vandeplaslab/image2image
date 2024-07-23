@@ -331,7 +331,7 @@ class QtModalityItem(QtListItem):
 
     def on_update_preprocessing(self, preprocessing: Preprocessing) -> None:
         """Update pre-processing."""
-        text, tooltip = preprocessing.as_str()
+        text, tooltip = preprocessing.as_str(valis=self.valis)
         self.preprocessing_label.setText(text)
         self.preprocessing_label.setToolTip(tooltip)
 

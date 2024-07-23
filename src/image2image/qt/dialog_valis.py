@@ -22,7 +22,7 @@ from qtpy.QtWidgets import QHBoxLayout, QVBoxLayout, QWidget
 
 from image2image import __version__
 from image2image.config import CONFIG
-from image2image.enums import ALLOWED_WSIREG_FORMATS
+from image2image.enums import ALLOWED_VALIS_FORMATS
 from image2image.qt._dialog_wsi import ImageWsiWindow
 from image2image.qt._dialogs._select import LoadWidget
 from image2image.qt._wsireg._list import QtModalityList
@@ -158,8 +158,8 @@ class ImageValisWindow(ImageWsiWindow):
             self,
             self.view,
             select_channels=False,
-            available_formats=ALLOWED_WSIREG_FORMATS,
-            project_extension=[".valis.json"],
+            available_formats=ALLOWED_VALIS_FORMATS,
+            project_extension=["valis.config.json", ".valis.json", ".valis"],
             allow_geojson=True,
         )
 

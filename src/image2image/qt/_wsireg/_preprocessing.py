@@ -377,7 +377,9 @@ class PreprocessingDialog(QtFramelessTool):
         layout.addRow("Defaults", self.defaults_choice_lay)
         if self.valis:
             layout.addRow(hp.make_h_line_with_text("Valis", self))
-        layout.addRow("Method", self.method)
+        method_label = hp.make_label(self, "Method")
+        method_label.setHidden(not self.valis)
+        layout.addRow(method_label, self.method)
         layout.addRow(hp.make_h_line_with_text("Intensity", self))
         layout.addRow("Image type", self.type_choice_lay)
         layout.addRow("Max. intensity projection", self.mip_check)

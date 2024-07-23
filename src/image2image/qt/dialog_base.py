@@ -200,11 +200,11 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
                 current_scale = reader.scale if scale else (1, 1)
                 if reader.reader_type == "shapes" and hasattr(reader, "to_shapes_kwargs"):
                     kws = reader.to_shapes_kwargs(name=name, affine=current_affine)
-                    logger.trace(f"Adding '{name}' to {view_kind} with {len(kws['data'])} shapes...")
+                    logger.trace(f"Adding '{name}' to {view_kind} with {len(kws['data']):,} shapes...")
                     shape_layer.append(view_wrapper.viewer.add_shapes(**kws))
                 elif reader.reader_type == "points" and hasattr(reader, "to_points_kwargs"):
                     kws = reader.to_points_kwargs(channel_name=channel_name, name=name, affine=current_affine)
-                    logger.trace(f"Adding '{name}' to {view_kind} with {len(kws['data'])} points...")
+                    logger.trace(f"Adding '{name}' to {view_kind} with {len(kws['data']):,} points...")
                     points_layer.append(view_wrapper.viewer.add_points(**kws))
                 else:
                     if array is None:
@@ -392,8 +392,8 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
         from koyo.system import IS_MAC_ARM, IS_PYINSTALLER
 
         menu_apps = hp.make_menu(self, "Apps")
-        hp.make_menu_item(self, "Open Register App", menu=menu_apps, func=self.on_open_register, icon="register")
         hp.make_menu_item(self, "Open Viewer App", menu=menu_apps, func=self.on_open_viewer, icon="viewer")
+        hp.make_menu_item(self, "Open Register App", menu=menu_apps, func=self.on_open_register, icon="register")
         hp.make_menu_item(self, "Open WsiReg App", menu=menu_apps, func=self.on_open_wsireg, icon="wsireg")
         hp.make_menu_item(self, "Open Valis App", menu=menu_apps, func=self.on_open_valis, icon="valis")
         hp.make_menu_item(self, "Open Crop App", menu=menu_apps, func=self.on_open_crop, icon="crop")

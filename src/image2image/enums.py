@@ -91,6 +91,15 @@ ALLOWED_WSIREG_FORMATS = (
     "GeoJSON (*.geojson *.json);;"
     "Points (*.csv *.parquet);;"
 )
+ALLOWED_VALIS_FORMATS = (
+    "Any imaging (*.czi *.ome.tiff *.tiff *.scn"
+    "*.tif *.qptiff *.qptiff.raw *.qptiff.intermediate *.svs *.ndpi "
+    "*.geojson *.json *.csv *.txt *.parquet);; "
+    "CZI (*.czi);; "
+    "TIFF (*.ome.tiff *.tiff *.scn *.tif *.svs *.ndpi *.qptiff *.qptiff.raw *.qptiff.intermediate);; "
+    "GeoJSON (*.geojson *.json);;"
+    "Points (*.csv *.parquet);;"
+)
 
 
 class ImageTransformation(StringEnum):
