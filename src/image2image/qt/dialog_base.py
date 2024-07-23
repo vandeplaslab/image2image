@@ -199,15 +199,13 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
 
                 current_scale = reader.scale if scale else (1, 1)
                 if reader.reader_type == "shapes" and hasattr(reader, "to_shapes_kwargs"):
-                    shape_layer.append(
-                        view_wrapper.viewer.add_shapes(**reader.to_shapes_kwargs(name=name, affine=current_affine))
-                    )
+                    kws = reader.to_shapes_kwargs(name=name, affine=current_affine)
+                    logger.trace(f"Adding '{name}' to {view_kind} with {len(kws['data'])} shapes...")
+                    shape_layer.append(view_wrapper.viewer.add_shapes(**kws))
                 elif reader.reader_type == "points" and hasattr(reader, "to_points_kwargs"):
-                    points_layer.append(
-                        view_wrapper.viewer.add_points(
-                            **reader.to_points_kwargs(channel_name=channel_name, name=name, affine=current_affine)
-                        )
-                    )
+                    kws = reader.to_points_kwargs(channel_name=channel_name, name=name, affine=current_affine)
+                    logger.trace(f"Adding '{name}' to {view_kind} with {len(kws['data'])} points...")
+                    points_layer.append(view_wrapper.viewer.add_points(**kws))
                 else:
                     if array is None:
                         raise ValueError(f"Failed to get array for '{name}'.")
@@ -685,7 +683,7 @@ def create_new_window(plugin: str, *extra_args) -> None:
         for arg in extra_args:
             if isinstance(arg, str):
                 arguments.append(arg)
-    logger.trace(f"Executing {sys.executable} {' '.join(arguments)}...")
+    logger.trace(f"Executing {program} {' '.join(arguments)}...")
     if IS_WIN and hasattr(process, "setNativeArguments"):
         process.setNativeArguments(" ".join(arguments))
     else:

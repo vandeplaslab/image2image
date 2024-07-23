@@ -31,8 +31,6 @@ class ImageWsiWindow(SingleViewerMixin):
 
     _registration_model: IWsiReg | ValisReg | None = None
 
-    make_registration_task: ty.Callable[..., Task]
-
     WINDOW_TITLE: str
 
     # Widgets
@@ -64,6 +62,11 @@ class ImageWsiWindow(SingleViewerMixin):
         READER_CONFIG.init_pyramid = False
         READER_CONFIG.split_czi = False
         logger.trace("Setup config for image2wsireg.")
+
+    @staticmethod
+    def make_registration_task(**kwargs) -> Task:
+        """Make registration task."""
+        raise NotImplementedError("Must implement method")
 
     @property
     def registration_model(self) -> IWsiReg | ValisReg:
@@ -112,7 +115,7 @@ class ImageWsiWindow(SingleViewerMixin):
         if save and not self.save_model():
             return False
         task = self.make_registration_task(
-            self.registration_model,
+            project=self.registration_model,
             write_transformed=self.write_registered_check.isChecked(),
             write_not_registered=self.write_not_registered_check.isChecked(),
             write_merged=self.write_merged_check.isChecked(),

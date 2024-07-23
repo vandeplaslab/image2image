@@ -88,8 +88,6 @@ class ImageWsiRegWindow(ImageWsiWindow):
     WINDOW_CONFIG_ATTR = "confirm_close_wsireg"
     WINDOW_CONSOLE_ARGS = (("view", "viewer"), "data_model", ("data_model", "wrapper"), "registration_model")
 
-    make_registration_task = make_registration_task
-
     def __init__(
         self, parent: QWidget | None, run_check_version: bool = True, project_dir: PathLike | None = None, **_kwargs
     ):
@@ -103,6 +101,24 @@ class ImageWsiRegWindow(ImageWsiWindow):
             name = IWsiReg.format_project_name(name)
             self._registration_model = IWsiReg(name=name, output_dir=CONFIG.output_dir, init=False)
         return self._registration_model
+
+    def make_registration_task(
+        self,
+        project: IWsiReg,
+        write_not_registered: bool = False,
+        write_transformed: bool = False,
+        write_merged: bool = False,
+        remove_merged: bool = False,
+        as_uint8: bool = False,
+    ) -> Task:
+        return make_registration_task(
+            project,
+            write_not_registered=write_not_registered,
+            write_transformed=write_transformed,
+            write_merged=write_merged,
+            remove_merged=remove_merged,
+            as_uint8=as_uint8,
+        )
 
     def setup_events(self, state: bool = True) -> None:
         """Setup events."""
