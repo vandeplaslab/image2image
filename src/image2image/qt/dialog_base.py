@@ -392,7 +392,9 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
         from koyo.system import IS_MAC_ARM, IS_PYINSTALLER
 
         menu_apps = hp.make_menu(self, "Apps")
+        menu_apps.addSection("Viewer")
         hp.make_menu_item(self, "Open Viewer App", menu=menu_apps, func=self.on_open_viewer, icon="viewer")
+        menu_apps.addSection("Register")
         hp.make_menu_item(self, "Open Register App", menu=menu_apps, func=self.on_open_register, icon="register")
         hp.make_menu_item(self, "Open WsiReg App", menu=menu_apps, func=self.on_open_wsireg, icon="wsireg")
         hp.make_menu_item(self, "Open Valis App", menu=menu_apps, func=self.on_open_valis, icon="valis")

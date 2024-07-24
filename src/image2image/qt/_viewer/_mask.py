@@ -217,7 +217,7 @@ class MasksDialog(QtFramelessTool):
 
     def _on_export_run(
         self,
-        fmt: str,
+        fmts: list[str],
         mask_shape: tuple[int, int],
         mask_inv_pixel_size: float,
         masks: list[str],
@@ -231,8 +231,8 @@ class MasksDialog(QtFramelessTool):
         if output_dir is None:
             raise ValueError("Output directory is None.")
 
-        with_index = fmt == "hdf5"
-        with_shapes = fmt in ["geojson", "hdf5"]
+        with_index = "hdf5" in fmts
+        with_shapes = any(fmt in ["geojson", "hdf5"] for fmt in fmts)
 
         for (
             mask_reader,
@@ -255,25 +255,26 @@ class MasksDialog(QtFramelessTool):
         ):
             name = display_name or mask_reader.path.stem
             output_dir = Path(output_dir)
-            extension = {"hdf5": "h5", "binary": "png", "geojson": "geojson"}[fmt]
-            output_path = output_dir / f"{name}_ds={image_reader.path.stem}.{extension}"
-            logger.debug(f"Exporting mask to '{output_path}'")
-            if fmt == "hdf5":
-                write_masks_as_hdf5(
-                    output_path,
-                    display_name,
-                    transformed_mask,
-                    shapes,
-                    display_name,
-                    metadata={"polygon_index": transformed_mask_indexed},
-                )
-            elif fmt == "binary":
-                write_masks_as_image(output_path, transformed_mask)
-            elif fmt == "geojson":
-                write_masks_as_geojson(output_path, shapes, display_name)
-            else:
-                raise ValueError(f"Unsupported format '{fmt}'")
-            logger.debug(f"Exported mask to '{output_path}'")
+            for fmt in fmts:
+                extension = {"hdf5": "h5", "binary": "png", "geojson": "geojson"}[fmt]
+                output_path = output_dir / f"{name}_ds={image_reader.path.stem}.{extension}"
+                logger.debug(f"Exporting mask to '{output_path}'")
+                if fmt == "hdf5":
+                    write_masks_as_hdf5(
+                        output_path,
+                        display_name,
+                        transformed_mask,
+                        shapes,
+                        display_name,
+                        metadata={"polygon_index": transformed_mask_indexed},
+                    )
+                elif fmt == "binary":
+                    write_masks_as_image(output_path, transformed_mask)
+                elif fmt == "geojson":
+                    write_masks_as_geojson(output_path, shapes, display_name)
+                else:
+                    raise ValueError(f"Unsupported format '{fmt}'")
+                logger.debug(f"Exported mask to '{output_path}'")
             yield current, total
 
     def on_cancel(self, which: str) -> None:
@@ -285,11 +286,14 @@ class MasksDialog(QtFramelessTool):
             self.worker_export.quit()
             logger.trace("Requested aborting of the export process.")
 
-    def on_export(self, fmt: str) -> None:
+    def on_export(self, fmt: str | list[str]) -> None:
         """Export masks."""
         valid, data = self._validate()
         if not valid or data is None:
             return
+        if isinstance(fmt, str):
+            fmt = [fmt]
+
         # export masks
         data_model, masks, display_names, images, mask_shape, mask_inv_pixel_size = data
         output_dir_ = hp.get_directory(self, "Select output directory", base_dir=CONFIG.output_dir)
@@ -429,8 +433,10 @@ class MasksDialog(QtFramelessTool):
         hp.toast(self, "Failed", f"Failed export or preview: {exc}", icon="error")
         log_exception_or_error(exc)
 
-    def _on_warning(self, warning):
-        print(warning)
+    @staticmethod
+    def _on_warning(warning: tuple) -> None:
+        """Show warning."""
+        logger.warning(warning)
 
     def on_select(self, row: int) -> None:
         """Select channels."""
@@ -441,15 +447,14 @@ class MasksDialog(QtFramelessTool):
             return
         self.table_geo.set_value(self.TABLE_GEO_CONFIG.display_name, row, new_display_name)
 
-    def on_export_menu(self):
+    def on_export_choose(self) -> None:
         """Export masks."""
-        menu = hp.make_menu(self, "Tools")
-        hp.make_menu_item(self, "Save as HDF5", menu=menu, func=partial(self.on_export, "hdf5"), icon="hdf5")
-        hp.make_menu_item(
-            self, "Save as binary image", menu=menu, func=partial(self.on_export, "binary"), icon="binary"
-        )
-        hp.make_menu_item(self, "Save as GeoJSON", menu=menu, func=partial(self.on_export, "geojson"), icon="json")
-        hp.show_left_of_mouse(menu)
+        fmts = hp.choose_from_list(self, ["HDF5", "Binary image", "GeoJSON"], title="Choose export format")
+        if not fmts:
+            hp.toast(self, "No format selected.", "No format selected for export.", icon="error")
+            return
+        fmts = [{"HDF5": "hdf5", "Binary image": "binary", "GeoJSON": "geojson"}[fmt] for fmt in fmts]
+        self.on_export(fmts)
 
     # noinspection PyAttributeOutsideInit
     def make_panel(self) -> QFormLayout:
@@ -491,7 +496,7 @@ class MasksDialog(QtFramelessTool):
             self,
             "Export masks...",
             tooltip="Export mask as a AutoIMS compatible HDF5, GeoJSON or binary file.",
-            func=self.on_export_menu,
+            func=self.on_export_choose,
             cancel_func=partial(self.on_cancel, which="export"),
         )
 
