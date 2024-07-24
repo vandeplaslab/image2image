@@ -186,7 +186,7 @@ class PreprocessingDialog(QtFramelessTool):
 
     def set_selected_channels(self) -> None:
         """Set selected channels."""
-        channel_names = self.preprocessing.channel_names
+        channel_names = self.modality.channel_names
         channel_ids = self.preprocessing.channel_indices
         data = []
         for i, name in enumerate(channel_names):

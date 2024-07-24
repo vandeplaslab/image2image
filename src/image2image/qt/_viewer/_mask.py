@@ -314,7 +314,7 @@ class MasksDialog(QtFramelessTool):
             else:
                 self.worker_export = create_worker(
                     self._on_export_run,
-                    fmt=fmt,
+                    fmts=fmt,
                     mask_shape=mask_shape,
                     mask_inv_pixel_size=mask_inv_pixel_size,
                     masks=masks,

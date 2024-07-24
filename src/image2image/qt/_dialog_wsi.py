@@ -223,7 +223,8 @@ class ImageWsiWindow(SingleViewerMixin):
 
     def on_hide_modalities(self, modality: Modality | list[Modality], hide: bool | None = None) -> None:
         """Hide other modalities."""
-        hide = self.hide_others_check.isChecked() if hide is not None else hide
+        if hide is None:
+            hide = self.hide_others_check.isChecked()
         if not hide:
             return
         if not isinstance(modality, list):
@@ -232,7 +233,6 @@ class ImageWsiWindow(SingleViewerMixin):
         for layer in self.view.get_layers_of_type(Image):
             layer.visible = layer.name in visible_modalities
         self.modality_list.toggle_visible([layer.name for layer in self.view.get_layers_of_type(Image)])
-
         logger.trace(f"Hide {visible_modalities}")
 
     def on_open_in_viewer(self) -> None:
@@ -242,6 +242,10 @@ class ImageWsiWindow(SingleViewerMixin):
             if path.exists():
                 self.on_open_viewer("--image_dir", str(path))
                 logger.trace("Opening viewer.")
+
+    def on_preview_close(self) -> None:
+        """Preview was closed."""
+        self.on_show_modalities()
 
     def on_rename_modality(self, widget, new_name: str) -> None:
         """Rename modality."""

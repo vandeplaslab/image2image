@@ -163,7 +163,7 @@ class QtModalityItem(QtListItem):
         layout.setLabelAlignment(Qt.AlignmentFlag.AlignRight)
         layout.addRow(hp.make_label(self, "Name"), self.name_label)
         layout.addRow(hp.make_label(self, "Pixel size"), self.resolution_label)
-        layout.addRow(hp.make_label(self, "Process"), lay)
+        layout.addRow(hp.make_label(self, "Process", alignment=Qt.AlignmentFlag.AlignTop), lay)
 
         main_layout = QHBoxLayout(self)
         main_layout.setContentsMargins(1, 1, 1, 1)

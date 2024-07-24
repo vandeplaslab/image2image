@@ -139,6 +139,7 @@ class ImageValisWindow(ImageWsiWindow):
         connect(self.modality_list.evt_show, self.on_show_modality, state=state)
         connect(self.modality_list.evt_set_preprocessing, self.on_update_modality, state=state)
         connect(self.modality_list.evt_color, self.on_update_colormap, state=state)
+        connect(self.modality_list.evt_preprocessing_close, self.on_preview_close, state=state)
 
         connect(QUEUE.evt_errored, self.on_registration_finished, state=state)
         connect(QUEUE.evt_finished, self.on_registration_finished, state=state)
@@ -164,8 +165,8 @@ class ImageValisWindow(ImageWsiWindow):
         )
 
         side_widget = QWidget()
-        side_widget.setMinimumWidth(400)
-        side_widget.setMaximumWidth(400)
+        side_widget.setMinimumWidth(450)
+        side_widget.setMaximumWidth(450)
 
         self.modality_list = QtModalityList(self, valis=True)
 

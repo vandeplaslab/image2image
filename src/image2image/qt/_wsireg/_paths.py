@@ -174,14 +174,19 @@ class RegistrationMap(QWidget):
             )
         )
         layout.addRow(
-            hp.make_label(self, "Registration paths"),
+            hp.make_label(self, "Paths"),
             hp.make_h_layout(
                 self._choice,
+                hp.make_qta_btn(self, "graph", tooltip="Preview paths", func=self.on_preview),
                 hp.make_qta_btn(self, "reload", tooltip="Refresh paths", func=self.populate),
                 spacing=1,
             ),
         )
         layout.addRow(self._warning_label)
+
+    def on_preview(self) -> None:
+        """Preview paths as network."""
+        logger.info("Previewing registration paths...")
 
     def on_path_choice(self, _=None) -> None:
         """Handle path selection."""

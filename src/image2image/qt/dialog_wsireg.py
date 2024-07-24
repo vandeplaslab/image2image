@@ -136,7 +136,7 @@ class ImageWsiRegWindow(ImageWsiWindow):
         connect(self.modality_list.evt_show, self.on_show_modality, state=state)
         connect(self.modality_list.evt_set_preprocessing, self.on_update_modality, state=state)
         connect(self.modality_list.evt_preview_transform_preprocessing, self.on_preview_transform, state=state)
-        # connect(self.modality_list.evt_preprocessing_close, self.on_preview_close, state=state)
+        connect(self.modality_list.evt_preprocessing_close, self.on_preview_close, state=state)
         connect(self.modality_list.evt_color, self.on_update_colormap, state=state)
         connect(self.registration_map.evt_message, self.statusbar.showMessage)
 
@@ -161,7 +161,7 @@ class ImageWsiRegWindow(ImageWsiWindow):
 
         pyramid = self.pyramid_level.value()
         preprocessing_hash = (
-            hash_preprocessing(modality.preprocessing, pyramid=pyramid)
+            hash_preprocessing(preprocessing, pyramid=pyramid)
             if self.use_preview_check.isChecked()
             else f"pyramid={pyramid}"
         )
@@ -426,8 +426,8 @@ class ImageWsiRegWindow(ImageWsiWindow):
         )
 
         side_widget = QWidget()
-        side_widget.setMinimumWidth(400)
-        side_widget.setMaximumWidth(400)
+        side_widget.setMinimumWidth(450)
+        side_widget.setMaximumWidth(450)
 
         self.modality_list = QtModalityList(self)
         self.registration_map = RegistrationMap(self)
