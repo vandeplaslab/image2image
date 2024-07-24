@@ -126,7 +126,6 @@ class PreprocessingDialog(QtFramelessTool):
         """Toggle available options."""
         if not self.valis:
             return
-        disable = self.method.currentText() != "I2RegPreprocessor"
         hp.disable_widgets(
             *self.type_choice_group.buttons(),
             self.mip_check,
@@ -134,8 +133,11 @@ class PreprocessingDialog(QtFramelessTool):
             self.contrast_check,
             self.invert_check,
             self.uint8_check,
+            disabled=self.method.currentText() != "I2RegPreprocessor",
+        )
+        hp.disable_widgets(
             self.channel_table,
-            disabled=disable,
+            disabled=self.method.currentText() not in ["I2RegPreprocessor", "MaxIntensityProjection (no preview)"],
         )
 
     @qdebounced(timeout=300, leading=False)

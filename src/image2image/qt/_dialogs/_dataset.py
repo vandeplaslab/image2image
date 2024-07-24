@@ -749,7 +749,7 @@ class SelectDataDialog(QtFramelessTool):
             options = {k: k for k in natsorted(just_added)}
             if len(options) == 1:
                 which = next(iter(options.keys()))
-            else:
+            elif len(options) > 1:
                 from qtextra.widgets.qt_pick_option import QtScrollablePickOption
 
                 dlg = QtScrollablePickOption(
@@ -758,6 +758,10 @@ class SelectDataDialog(QtFramelessTool):
                 which = None
                 if dlg.exec_() == QDialog.DialogCode.Accepted:
                     which = dlg.option
+            else:
+                logger.warning("No images to select from.")
+                which = None
+
             remove_keys = [k for k in just_added if k != which]
             just_added = [which] if which else None
             if wrapper and just_added:

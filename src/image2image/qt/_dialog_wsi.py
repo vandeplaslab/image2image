@@ -219,6 +219,7 @@ class ImageWsiWindow(SingleViewerMixin):
             if widget._preprocessing_dlg is not None:
                 modalities.append(modality)
         self.on_hide_modalities(modalities)
+        logger.trace("Hiding not previewed modalities.")
 
     def on_hide_modalities(self, modality: Modality | list[Modality], hide: bool | None = None) -> None:
         """Hide other modalities."""
@@ -227,9 +228,12 @@ class ImageWsiWindow(SingleViewerMixin):
             return
         if not isinstance(modality, list):
             modality = [modality]
+        visible_modalities = [mod.name for mod in modality]
         for layer in self.view.get_layers_of_type(Image):
-            layer.visible = layer.name in [mod.name for mod in modality]
+            layer.visible = layer.name in visible_modalities
         self.modality_list.toggle_visible([layer.name for layer in self.view.get_layers_of_type(Image)])
+
+        logger.trace(f"Hide {visible_modalities}")
 
     def on_open_in_viewer(self) -> None:
         """Open registration in viewer."""

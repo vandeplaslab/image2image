@@ -109,9 +109,11 @@ class MasksDialog(QtFramelessTool):
         # get the image(s) with identity transform - this is the image to which the GeoJSON mask is to be transformed
         # from and therefore is the 'original' image shape from which to warp from.
         mask_shape = None
+        mask_inv_pixel_size = None
         for _, reader in wrapper.data.items():
             if reader.reader_type == "image" and reader.is_identity_transform():
                 mask_shape = reader.image_shape
+                mask_inv_pixel_size = reader.inv_resolution
                 break
         if mask_shape is None:
             hp.toast(
@@ -139,25 +141,58 @@ class MasksDialog(QtFramelessTool):
         if not images:
             hp.toast(self, "Could not export masks.", "Could not export masks - no images selected.", icon="error")
             return False, None
-        return True, (data_model, masks, display_names, images, mask_shape)
+        return True, (data_model, masks, display_names, images, mask_shape, mask_inv_pixel_size)
 
     @staticmethod
     def _on_transform_mask(
         mask_shape: tuple[int, int],
+        mask_inv_pixel_size: float,
         masks: list[str],
         display_names: list[str],
         images: list[str],
         data_model: DataModel,
-    ) -> ty.Generator[tuple[ShapesReader, BaseReader, np.ndarray, np.ndarray, str, dict, int, int], None, None]:
-        """Export masks."""
+        with_index: bool = True,
+        with_shapes: bool = True,
+    ) -> ty.Generator[
+        tuple[ShapesReader, BaseReader, np.ndarray, np.ndarray | None, str, dict | None, int, int], None, None
+    ]:
+        """Export masks.
+
+        Parameters
+        ----------
+        mask_shape : tuple[int, int]
+            Shape of the mask to transform.
+        mask_inv_pixel_size : float
+            Inverse pixel size of the mask.
+        masks : list[str]
+            List of mask keys.
+        display_names : list[str]
+            List of display names for the masks.
+        images : list[str]
+            List of image keys.
+        data_model : DataModel
+            Data model.
+        with_index : bool, optional
+            Whether to return the indexed mask, by default True
+        with_shapes : bool, optional
+            Whether to return the shapes, by default True
+        """
+        # iterate through images and retrieve the resolution
+
+        # iterate through masks and retrieve the mask and shapes
         n = int(len(masks) * len(images))
         for index, mask_key in enumerate(masks, start=1):
             mask_reader: ShapesReader = data_model.get_reader_for_key(mask_key)  # type: ignore[assignment]
             if not mask_reader:
                 raise ValueError(f"Could not find mask reader for '{mask_key}'")
-            mask = mask_reader.to_mask(mask_shape)
-            mask_indexed = mask_reader.to_mask(mask_shape, with_index=True)
-            _, shapes = mask_reader.to_shapes()
+            mask_indexed = None
+            mask = mask_reader.to_mask(mask_shape, inv_pixel_size=mask_inv_pixel_size)
+            if with_index:
+                mask_indexed = mask_reader.to_mask(mask_shape, inv_pixel_size=mask_inv_pixel_size, with_index=True)
+            shapes = None
+            if with_shapes:
+                _, shapes = mask_reader.to_shapes()
+            # iterate through images and warp
             display_name = display_names[index - 1]
             for image_key in images:
                 image_reader = data_model.get_reader_for_key(image_key)
@@ -166,7 +201,9 @@ class MasksDialog(QtFramelessTool):
                 # masks must be transformed to the image shape - sometimes that might involve warping if affine matrix
                 # is specified
                 transformed_mask = image_reader.warp(mask)
-                transformed_mask_indexed = image_reader.warp(mask_indexed)
+                transformed_mask_indexed = None
+                if mask_indexed is not None:
+                    transformed_mask_indexed = image_reader.warp(mask_indexed)
                 yield (
                     mask_reader,
                     image_reader,
@@ -182,6 +219,7 @@ class MasksDialog(QtFramelessTool):
         self,
         fmt: str,
         mask_shape: tuple[int, int],
+        mask_inv_pixel_size: float,
         masks: list[str],
         display_names: list[str],
         images: list[str],
@@ -193,6 +231,9 @@ class MasksDialog(QtFramelessTool):
         if output_dir is None:
             raise ValueError("Output directory is None.")
 
+        with_index = fmt == "hdf5"
+        with_shapes = fmt in ["geojson", "hdf5"]
+
         for (
             mask_reader,
             image_reader,
@@ -202,7 +243,16 @@ class MasksDialog(QtFramelessTool):
             shapes,
             current,
             total,
-        ) in self._on_transform_mask(mask_shape, masks, display_names, images, data_model):
+        ) in self._on_transform_mask(
+            mask_shape,
+            mask_inv_pixel_size,
+            masks,
+            display_names,
+            images,
+            data_model,
+            with_index=with_index,
+            with_shapes=with_shapes,
+        ):
             name = display_name or mask_reader.path.stem
             output_dir = Path(output_dir)
             extension = {"hdf5": "h5", "binary": "png", "geojson": "geojson"}[fmt]
@@ -241,7 +291,7 @@ class MasksDialog(QtFramelessTool):
         if not valid or data is None:
             return
         # export masks
-        data_model, masks, display_names, images, mask_shape = data
+        data_model, masks, display_names, images, mask_shape, mask_inv_pixel_size = data
         output_dir_ = hp.get_directory(self, "Select output directory", base_dir=CONFIG.output_dir)
         if output_dir_:
             output_dir = Path(output_dir_)
@@ -250,7 +300,7 @@ class MasksDialog(QtFramelessTool):
                 self.export_btn.active = True
                 try:
                     for res in self._on_export_run(
-                        fmt, mask_shape, masks, display_names, images, data_model, output_dir
+                        fmt, mask_shape, mask_inv_pixel_size, masks, display_names, images, data_model, output_dir
                     ):
                         self._on_exported(res)
                 except Exception as exc:  # noqa: BLE001
@@ -262,6 +312,7 @@ class MasksDialog(QtFramelessTool):
                     self._on_export_run,
                     fmt=fmt,
                     mask_shape=mask_shape,
+                    mask_inv_pixel_size=mask_inv_pixel_size,
                     masks=masks,
                     display_names=display_names,
                     images=images,
@@ -284,13 +335,22 @@ class MasksDialog(QtFramelessTool):
         if not valid or data is None:
             return
         # export masks
-        data_model, masks, display_names, images, mask_shape = data
+        data_model, masks, display_names, images, mask_shape, mask_inv_pixel_size = data
         logger.debug(f"Exporting {len(masks)} masks for {len(images)} images with {mask_shape} shape.")
         if IS_MAC:
             hp.disable_widgets(self.preview_btn.active_btn, disabled=True)
             self.preview_btn.active = True
             try:
-                for res in self._on_transform_mask(mask_shape, masks, display_names, images, data_model):
+                for res in self._on_transform_mask(
+                    mask_shape,
+                    mask_inv_pixel_size,
+                    masks,
+                    display_names,
+                    images,
+                    data_model,
+                    with_shapes=False,
+                    with_index=False,
+                ):
                     self._on_preview(res)
             except Exception as exc:  # noqa: BLE001
                 self._on_error(exc)
@@ -300,13 +360,17 @@ class MasksDialog(QtFramelessTool):
             self.worker_preview = create_worker(
                 self._on_transform_mask,
                 mask_shape=mask_shape,
+                mask_inv_pixel_size=mask_inv_pixel_size,
                 masks=masks,
                 display_names=display_names,
                 images=images,
                 data_model=data_model,
+                with_shapes=False,
+                with_index=False,
                 _connect={
                     "yielded": self._on_preview,
                     "errored": self._on_error,
+                    "warned": self._on_warning,
                     "finished": partial(self._on_finished, which="preview"),
                     "aborted": partial(self._on_aborted, which="preview"),
                 },
@@ -321,10 +385,13 @@ class MasksDialog(QtFramelessTool):
         mask_reader, image_reader, transformed_mask, _, display_name, _, current, total = res
         parent: ImageViewerWindow = self.parent()  # type: ignore[assignment]
         transform = image_reader.transform
+        name = f"{display_name} - {mask_reader.name} | {image_reader.name}"
+        layer = parent.view.get_layer(name)
+        colormap = "red" if not layer else layer.colormap
         parent.view.add_image(
             transformed_mask,
-            name=f"{display_name} - {mask_reader.name} | {image_reader.name}",
-            colormap="red",
+            name=name,
+            colormap=colormap,
             affine=transform,
             scale=image_reader.scale,
             contrast_limits=(0, 1),
@@ -361,6 +428,9 @@ class MasksDialog(QtFramelessTool):
     def _on_error(self, exc: Exception) -> None:
         hp.toast(self, "Failed", f"Failed export or preview: {exc}", icon="error")
         log_exception_or_error(exc)
+
+    def _on_warning(self, warning):
+        print(warning)
 
     def on_select(self, row: int) -> None:
         """Select channels."""
