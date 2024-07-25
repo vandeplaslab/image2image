@@ -57,7 +57,7 @@ class OverlayChannelsDialog(QtFramelessTool):
         self.allow_iterate = allow_iterate
         super().__init__(parent)
         self.setMinimumWidth(400)
-        self.setMinimumHeight(400)
+        self.setMinimumHeight(600)
 
     @contextmanager
     def editing(self) -> ty.Generator[None, None, None]:
