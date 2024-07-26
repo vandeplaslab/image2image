@@ -21,7 +21,7 @@ class NetworkViewer(QtFramelessTool):
     def __init__(self, parent: QWidget | None = None):
         self.__parent = parent
         super().__init__(parent)
-        self.setMaximumSize(600, 400)
+        self.setMinimumSize(600, 600)
         self.on_plot()
 
     @property
@@ -71,7 +71,7 @@ class NetworkViewer(QtFramelessTool):
 
         layout = hp.make_form_layout()
         layout.setSpacing(2)
-        layout.setContentsMargins(2, 2, 2, 2)
+        layout.setContentsMargins(6, 6, 6, 6)
         layout.addRow(handle_layout)
         layout.addRow(hp.make_h_line(self))
         # layout.addRow("View type", self.view_type)
