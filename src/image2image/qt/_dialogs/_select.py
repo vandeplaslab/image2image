@@ -62,6 +62,7 @@ class LoadWidget(QWidget):
         allow_swap: bool = False,
         allow_iterate: bool = False,
         project_extension: list[str] | None = None,
+        show_split_czi: bool = True,
     ):
         """Init."""
         self.allow_geojson = allow_geojson
@@ -81,6 +82,7 @@ class LoadWidget(QWidget):
             allow_flip_rotation=allow_flip_rotation,
             allow_swap=allow_swap,
             project_extension=project_extension,
+            show_split_czi=show_split_czi,
         )
 
         self.channel_dlg = (

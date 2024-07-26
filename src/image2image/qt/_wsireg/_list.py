@@ -236,7 +236,7 @@ class QtModalityItem(QtListItem):
     def on_attach_points(self) -> None:
         """Attach points file."""
         path = hp.get_filename(
-            self, "Attach points file", file_filter="Points files (*.csv *.txt)", base_dir=CONFIG.last_dir
+            self, "Attach points file", file_filter="Points files (*.csv *.txt *.tsv)", base_dir=CONFIG.last_dir
         )
         if path:
             CONFIG.last_dir = Path(path).parent

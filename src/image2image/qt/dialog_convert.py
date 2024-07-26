@@ -93,7 +93,7 @@ class ImageConvertWindow(Window):
     def _setup_config() -> None:
         READER_CONFIG.auto_pyramid = False
         READER_CONFIG.init_pyramid = False
-        READER_CONFIG.split_czi = False
+        READER_CONFIG.split_czi = True
         READER_CONFIG.split_rgb = True
         READER_CONFIG.only_last_pyramid = False
         logger.trace("Setup reader config for image2tiff.")
@@ -264,6 +264,8 @@ class ImageConvertWindow(Window):
         CONFIG.as_uint8 = self.as_uint8.isChecked()
         CONFIG.overwrite = self.overwrite.isChecked()
         CONFIG.tile_size = int(self.tile_size.currentText())
+        READER_CONFIG.split_czi = self.split_czi.isChecked()
+
         if paths:
             self.worker = create_worker(
                 images_to_ome_tiff,
@@ -350,15 +352,19 @@ class ImageConvertWindow(Window):
         if directory:
             self._output_dir = directory
             CONFIG.output_dir = directory
-            self.output_dir_label.setText(f"Output directory: {hp.hyper(self.output_dir)}")
+            self.output_dir_label.setText(hp.hyper(self.output_dir))
             logger.debug(f"Output directory set to {self._output_dir}")
 
     def _setup_ui(self):
         """Create panel."""
-        self.output_dir_label = hp.make_label(self, f"Output directory: {hp.hyper(self.output_dir)}", enable_url=True)
+        self.output_dir_label = hp.make_label(self, hp.hyper(self.output_dir), enable_url=True)
 
         self._image_widget = LoadWidget(
-            self, None, select_channels=False, available_formats=ALLOWED_IMAGE_FORMATS_MICROSCOPY_ONLY
+            self,
+            None,
+            select_channels=False,
+            available_formats=ALLOWED_IMAGE_FORMATS_MICROSCOPY_ONLY,
+            show_split_czi=False,
         )
         self._image_widget.info_text.setVisible(False)
 
@@ -393,16 +399,23 @@ class ImageConvertWindow(Window):
             default="512",
             value=f"{CONFIG.tile_size}",
         )
+        self.split_czi = hp.make_checkbox(
+            self,
+            "",
+            tooltip="Split CZI into multiple scenes when exporting.",
+            checked=True,
+            value=READER_CONFIG.split_czi,
+        )
         self.as_uint8 = hp.make_checkbox(
             self,
-            "Reduce data size (uint8 - dynamic range 0-255)",
+            "",
             tooltip="Convert to uint8 to reduce file size with minimal data loss.",
             checked=True,
             value=CONFIG.as_uint8,
         )
         self.overwrite = hp.make_checkbox(
             self,
-            "Overwrite existing files",
+            "",
             tooltip="Overwrite existing files without having to delete them (e.g. if adding merged channels).",
             checked=True,
             value=CONFIG.overwrite,
@@ -415,8 +428,8 @@ class ImageConvertWindow(Window):
             cancel_func=self.on_cancel,
         )
 
-        side_layout = hp.make_v_layout()
-        side_layout.addWidget(
+        side_layout = hp.make_form_layout()
+        side_layout.addRow(
             hp.make_label(
                 self,
                 "This app will <b>convert</b> many image types to <b>pyramidal OME-TIFF</b>.<br>"
@@ -427,11 +440,11 @@ class ImageConvertWindow(Window):
                 wrap=True,
             )
         )
-        side_layout.addWidget(hp.make_h_line())
-        side_layout.addWidget(self._image_widget)
-        side_layout.addWidget(hp.make_h_line())
-        side_layout.addWidget(self.table, stretch=True)
-        side_layout.addWidget(
+        side_layout.addRow(hp.make_h_line())
+        side_layout.addRow(self._image_widget)
+        side_layout.addRow(hp.make_h_line())
+        side_layout.addRow(self.table)  # , stretch=True)
+        side_layout.addRow(
             hp.make_label(
                 self,
                 "<b>Tip.</b> Double-click on the <b>scenes & channels</b> field to select/deselect"
@@ -442,20 +455,13 @@ class ImageConvertWindow(Window):
                 wrap=True,
             )
         )
-        side_layout.addWidget(hp.make_h_line(self))
-        side_layout.addWidget(self.directory_btn)
-        side_layout.addWidget(self.output_dir_label)
-        side_layout.addLayout(
-            hp.make_h_layout(
-                hp.make_label(self, "Tile size:"),
-                self.tile_size,
-                hp.make_v_line(),
-                self.as_uint8,
-                hp.make_v_line(),
-                self.overwrite,
-                stretch_after=True,
-            )
-        )
+        side_layout.addRow(hp.make_h_line(self))
+        side_layout.addRow(self.directory_btn)
+        side_layout.addRow("Output directory", self.output_dir_label)
+        side_layout.addRow("Split CZI", self.split_czi)
+        side_layout.addRow("Tile size", self.tile_size)
+        side_layout.addRow("Reduce file size", self.as_uint8)
+        side_layout.addRow("Overwrite", self.overwrite)
         side_layout.addWidget(self.export_btn)
 
         widget = QWidget()

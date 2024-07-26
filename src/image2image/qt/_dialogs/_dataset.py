@@ -443,6 +443,7 @@ class SelectDataDialog(QtFramelessTool):
         project_extension: list[str] | None = None,
         allow_flip_rotation: bool = False,
         allow_swap: bool = False,
+        show_split_czi: bool = True,
     ):
         self.is_fixed = is_fixed
         self.allow_flip_rotation = allow_flip_rotation
@@ -451,6 +452,7 @@ class SelectDataDialog(QtFramelessTool):
         self.select_channels = select_channels
         self.available_formats = available_formats
         self.project_extension = project_extension
+        self.show_split_czi = show_split_czi
         super().__init__(parent)
         self.n_max = n_max
         self.model = model
@@ -918,6 +920,8 @@ class SelectDataDialog(QtFramelessTool):
             tooltip="Split CZI scenes into separate datasets.",
             func=self.on_update_config,
         )
+        if not self.show_split_czi:
+            self.split_czi_check.hide()
         self.split_rgb_check = hp.make_checkbox(
             self,
             value=READER_CONFIG.split_rgb,
@@ -949,8 +953,8 @@ class SelectDataDialog(QtFramelessTool):
             hp.make_h_layout(
                 hp.make_label(self, "Shapes display"),
                 self.shapes_combo,
-                hp.make_v_line(),
-                hp.make_label(self, "Split CZI"),
+                hp.make_v_line(hide=not self.show_split_czi),
+                hp.make_label(self, "Split CZI", hide=not self.show_split_czi),
                 self.split_czi_check,
                 hp.make_v_line(),
                 hp.make_label(self, "Split RGB"),
