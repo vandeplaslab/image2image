@@ -143,6 +143,8 @@ class ImageValisWindow(ImageWsiWindow):
 
         connect(QUEUE.evt_errored, self.on_registration_finished, state=state)
         connect(QUEUE.evt_finished, self.on_registration_finished, state=state)
+        connect(QUEUE.evt_started, lambda _: self.spinner.show(), state=state)
+        connect(QUEUE.evt_empty, self.spinner.hide, state=state)
 
     def on_validate(self, _: ty.Any = None) -> None:
         """Validate project."""
@@ -438,8 +440,11 @@ class ImageValisWindow(ImageWsiWindow):
     def _make_statusbar(self) -> None:
         super()._make_statusbar()
 
+        self.spinner, _ = hp.make_loading_gif(self, which="infinity", size=(20, 20), retain_size=False, hide=True)
+        self.statusbar.insertPermanentWidget(0, self.spinner)
+
         self.queue_btn = hp.make_qta_btn(self, "queue", tooltip="Open queue popup.", small=True)
-        self.statusbar.insertPermanentWidget(0, self.queue_btn)
+        self.statusbar.insertPermanentWidget(1, self.queue_btn)
 
     def on_populate_list(self) -> None:
         """Populate list."""

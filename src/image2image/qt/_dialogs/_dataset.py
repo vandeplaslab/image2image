@@ -421,7 +421,7 @@ class SelectDataDialog(QtFramelessTool):
         TableConfig()  # type: ignore
         .add("name", "key", "str", 0)
         .add("pixel size (um)", "resolution", "str", 0)
-        .add("image size (px)", "image_size", "str", 0)
+        .add("shape", "image_size", "str", 0)
         .add("type", "type", "str", 0)
         .add("rotation", "rotation", "str", 0)
         .add("flip", "flip", "button", 0)
@@ -482,29 +482,29 @@ class SelectDataDialog(QtFramelessTool):
 
                     # add name item
                     name_item = QTableWidgetItem(reader.key)
-                    name_item.setFlags(name_item.flags() & ~Qt.ItemIsEditable)  # type: ignore[attr-defined]
-                    name_item.setTextAlignment(Qt.AlignCenter)  # type: ignore[attr-defined]
+                    name_item.setFlags(name_item.flags() & ~Qt.ItemIsEditable.ItemIsEditable)
+                    name_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
                     self.table.setItem(index, self.TABLE_CONFIG.key, name_item)
 
                     # add type item
-                    image_size = format_shape(reader.shape) if reader.reader_type == "image" else "N/A"
+                    image_size = format_shape(reader.shape)
 
                     type_item = QTableWidgetItem(image_size)
-                    type_item.setFlags(type_item.flags() & ~Qt.ItemIsEditable)  # type: ignore[attr-defined]
-                    type_item.setTextAlignment(Qt.AlignCenter)  # type: ignore[attr-defined]
+                    type_item.setFlags(type_item.flags() & ~Qt.ItemIsEditable.ItemIsEditable)
+                    type_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
                     self.table.setItem(index, self.TABLE_CONFIG.image_size, type_item)
 
                     # add type item
                     type_item = QTableWidgetItem(reader.reader_type)
-                    type_item.setFlags(type_item.flags() & ~Qt.ItemIsEditable)  # type: ignore[attr-defined]
-                    type_item.setTextAlignment(Qt.AlignCenter)  # type: ignore[attr-defined]
+                    type_item.setFlags(type_item.flags() & ~Qt.ItemIsEditable.ItemIsEditable)
+                    type_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
                     self.table.setItem(index, self.TABLE_CONFIG.type, type_item)
 
                     # add resolution item
-                    res_item = QLineEdit(f"{reader.resolution:.2f}")
+                    res_item = QLineEdit(f"{reader.resolution:.3f}")
                     res_item.setObjectName("table_cell")
-                    res_item.setAlignment(Qt.AlignCenter)  # type: ignore[attr-defined]
-                    res_item.setValidator(QDoubleValidator(0, 1000, 2))
+                    res_item.setAlignment(Qt.AlignmentFlag.AlignCenter)
+                    res_item.setValidator(QDoubleValidator(0, 1000, 4))
                     res_item.editingFinished.connect(partial(self.on_resolution, key=reader.key, item=res_item))
                     self.table.setCellWidget(index, self.TABLE_CONFIG.resolution, res_item)
 
@@ -522,13 +522,13 @@ class SelectDataDialog(QtFramelessTool):
                         )
                     else:
                         item = QTableWidgetItem("N/A")
-                        item.setFlags(item.flags() & ~Qt.ItemIsEditable)  # type: ignore[attr-defined]
-                        item.setTextAlignment(Qt.AlignCenter)  # type: ignore[attr-defined]
+                        item.setFlags(item.flags() & ~Qt.ItemIsEditable.ItemIsEditable)
+                        item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
                         self.table.setItem(index, self.TABLE_CONFIG.extract, item)
 
                         # item = QTableWidgetItem("N/A")
-                        # item.setFlags(item.flags() & ~Qt.ItemIsEditable)  # type: ignore[attr-defined]
-                        # item.setTextAlignment(Qt.AlignCenter)  # type: ignore[attr-defined]
+                        # item.setFlags(item.flags() & ~Qt.ItemIsEditable.ItemIsEditable)
+                        # item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
                         # self.table.setItem(index, self.TABLE_CONFIG.save, item)
                     if reader.reader_type == "image":
                         self.table.setCellWidget(
@@ -544,8 +544,8 @@ class SelectDataDialog(QtFramelessTool):
                         )
                     else:
                         item = QTableWidgetItem("N/A")
-                        item.setFlags(item.flags() & ~Qt.ItemIsEditable)  # type: ignore[attr-defined]
-                        item.setTextAlignment(Qt.AlignCenter)  # type: ignore[attr-defined]
+                        item.setFlags(item.flags() & ~Qt.ItemIsEditable.ItemIsEditable)
+                        item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
                         self.table.setItem(index, self.TABLE_CONFIG.save, item)
 
                     # add swap button

@@ -142,6 +142,8 @@ class ImageWsiRegWindow(ImageWsiWindow):
 
         connect(QUEUE.evt_errored, self.on_registration_finished, state=state)
         connect(QUEUE.evt_finished, self.on_registration_finished, state=state)
+        connect(QUEUE.evt_started, lambda _: self.spinner.show(), state=state)
+        connect(QUEUE.evt_empty, self.spinner.hide, state=state)
 
     def on_update_modality_name(self, old_name: str, modality: Modality) -> None:
         """Update modality."""
@@ -355,6 +357,27 @@ class ImageWsiRegWindow(ImageWsiWindow):
         if path:
             hp.toast(self, "Saved", f"Saved project to {hp.hyper(path)}.", icon="success", position="top_left")
             logger.info(f"Saved project to {path}")
+
+    def on_save_to_valis(self) -> None:
+        """Save project to Valis."""
+        name = self.name_label.text()
+        if not name:
+            hp.toast(self, "Error", "Please provide a name for the project.", icon="error", position="top_left")
+            return
+        output_dir = self.output_dir
+        if output_dir is None:
+            hp.toast(self, "Error", "Please provide an output directory.", icon="error", position="top_left")
+            return
+        if not self._validate():
+            return
+        self.registration_model.merge_images = self.write_merged_check.isChecked()
+        self.registration_model.name = name
+        self.registration_model.output_dir = output_dir
+        if self.registration_model.project_dir.with_suffix(".valis").exists() and not hp.confirm(
+            self, f"Project <b>{self.registration_model.name}</b> already exists.<br><b>Overwrite?</b>"
+        ):
+            return
+        self.registration_model.to_valis(output_dir)
 
     def on_load_from_project(self, _evt=None):
         """Load a previous project."""
@@ -591,6 +614,15 @@ class ImageWsiRegWindow(ImageWsiWindow):
         menu.addSeparator()
         hp.make_menu_item(
             side_widget,
+            "Save as Valis project",
+            menu=menu,
+            func=self.on_save_to_valis,
+            icon="save",
+            tooltip="Tries to save the project as valis project, without any guarantees.",
+        )
+        menu.addSeparator()
+        hp.make_menu_item(
+            side_widget,
             "Close project (without saving)",
             menu=menu,
             func=self.on_close,
@@ -636,8 +668,11 @@ class ImageWsiRegWindow(ImageWsiWindow):
         self.statusbar.insertPermanentWidget(1, self.pyramid_level)
         self.statusbar.insertPermanentWidget(2, hp.make_v_line())
 
+        self.spinner, _ = hp.make_loading_gif(self, which="infinity", size=(20, 20), retain_size=False, hide=True)
+        self.statusbar.insertPermanentWidget(3, self.spinner)
+
         self.queue_btn = hp.make_qta_btn(self, "queue", tooltip="Open queue popup.", small=True)
-        self.statusbar.insertPermanentWidget(3, self.queue_btn)
+        self.statusbar.insertPermanentWidget(4, self.queue_btn)
 
 
 if __name__ == "__main__":  # pragma: no cover

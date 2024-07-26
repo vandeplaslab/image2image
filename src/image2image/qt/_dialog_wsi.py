@@ -230,10 +230,12 @@ class ImageWsiWindow(SingleViewerMixin):
         if not isinstance(modality, list):
             modality = [modality]
         visible_modalities = [mod.name for mod in modality]
+        if not visible_modalities:
+            return
         for layer in self.view.get_layers_of_type(Image):
             layer.visible = layer.name in visible_modalities
         self.modality_list.toggle_visible([layer.name for layer in self.view.get_layers_of_type(Image)])
-        logger.trace(f"Hide {visible_modalities}")
+        logger.trace(f"Showing {visible_modalities}")
 
     def on_open_in_viewer(self) -> None:
         """Open registration in viewer."""

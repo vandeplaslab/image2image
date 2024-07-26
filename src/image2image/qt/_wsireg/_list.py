@@ -345,6 +345,10 @@ class QtModalityItem(QtListItem):
     def toggle_name(self, disabled: bool) -> None:
         """Toggle name."""
         self.name_label.setReadOnly(disabled)
+        tooltip = "Name of the modality."
+        if disabled:
+            tooltip += " (disabled because registration paths have already been defined)."
+        self.name_label.setToolTip(tooltip)
 
     def toggle_mask(self) -> None:
         """Toggle name."""

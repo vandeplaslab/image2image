@@ -131,7 +131,7 @@ class ImageCropWindow(Window):
 
     def on_close_image(self, model: DataModel) -> None:
         """Close fixed image."""
-        self._close_model(model, self.view, "view")
+        self._close_model(model, self.view, "view", exclude_names=["Mask"])
 
     def on_load_from_project(self) -> None:
         """Load previous data."""
@@ -470,7 +470,7 @@ class ImageCropWindow(Window):
         )
 
         self.crop_info = hp.make_label(self, "", alignment=Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
-        self.crop_info.setMinimumHeight(50)
+        self.crop_info.setMinimumHeight(100)
 
         crop_layout = QFormLayout()  # noqa
         crop_layout.setSpacing(2)
@@ -535,9 +535,9 @@ class ImageCropWindow(Window):
         side_layout.addRow(hp.make_h_layout(self.init_btn, self.reset_btn))
         side_layout.addRow(hp.make_h_line_with_text("Export"))
         side_layout.addRow(self.preview_btn)
+        side_layout.addRow(self.crop_btn)
         side_layout.addRow("Tile size", self.tile_size)
         side_layout.addRow(self.as_uint8)
-        side_layout.addRow(self.crop_btn)
         side_layout.addRow(self.export_project_btn)
         side_layout.addRow(hp.make_h_line_with_text("Layer controls"))
         side_layout.addRow(self.view.widget.controls)

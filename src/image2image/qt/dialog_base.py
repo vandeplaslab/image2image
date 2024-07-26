@@ -323,13 +323,21 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
             log_exception_or_error(e)
 
     @staticmethod
-    def _close_model(model: DataModel, view_wrapper: NapariImageView, view_kind: str = "view") -> None:
+    def _close_model(
+        model: DataModel, view_wrapper: NapariImageView, view_kind: str = "view", exclude_names: list[str] | None = None
+    ) -> None:
         """Close model."""
+        if not exclude_names:
+            exclude_names = []
         try:
             channel_names = model.channel_names()
             layer_names = [layer.name for layer in view_wrapper.layers if isinstance(layer, (Image, Shapes, Points))]
             for name in layer_names:
-                if name not in channel_names and view_wrapper.remove_layer(name, silent=True):
+                if (
+                    name not in exclude_names
+                    and name not in channel_names
+                    and view_wrapper.remove_layer(name, silent=True)
+                ):
                     logger.trace(f"Removed '{name}' from {view_kind}.")
         except Exception as e:  # noqa: BLE001
             log_exception_or_error(e)

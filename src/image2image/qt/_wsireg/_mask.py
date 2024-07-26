@@ -244,9 +244,10 @@ class ShapesDialog(QtFramelessTool):
         """Increment modality."""
         count = self.slide_choice.count()
         index = self.slide_choice.currentIndex()
-        (index + increment_by) % count
+        index = (index + increment_by) % count
         self.slide_choice.setCurrentIndex(index)
         # self.on_select_modality()
+        logger.trace(f"Changed modality to {index}")
 
     def on_associate_mask_with_modality(self) -> None:
         """Associate mask with modality at the specified location."""
