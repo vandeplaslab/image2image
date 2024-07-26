@@ -153,8 +153,8 @@ class RegistrationMap(QWidget):
 
         self._registration_path = RegistrationPaths(self)
         self._registration_path.registration_paths = CONFIG.transformations
-        self._warning_label = hp.make_label(self, "", color="warning", wrap=True)
-        self._warning_label.setVisible(False)
+        # self._warning_label = hp.make_label(self, "", color="warning", wrap=True)
+        # self._warning_label.setVisible(False)
 
         layout = hp.make_form_layout(self)
         layout.setContentsMargins(2, 2, 2, 2)
@@ -174,19 +174,23 @@ class RegistrationMap(QWidget):
             )
         )
         layout.addRow(
-            hp.make_label(self, "Paths"),
             hp.make_h_layout(
+                hp.make_label(self, "Paths"),
                 self._choice,
                 hp.make_qta_btn(self, "graph", tooltip="Preview paths", func=self.on_preview),
                 hp.make_qta_btn(self, "reload", tooltip="Refresh paths", func=self.populate),
                 spacing=1,
-            ),
+                stretch_id=(1,),
+            )
         )
-        layout.addRow(self._warning_label)
+        # layout.addRow(self._warning_label)
 
     def on_preview(self) -> None:
         """Preview paths as network."""
-        logger.info("Previewing registration paths...")
+        from image2image.qt._wsireg._network import NetworkViewer
+
+        dlg = NetworkViewer(self._parent)
+        dlg.show()
 
     def on_path_choice(self, _=None) -> None:
         """Handle path selection."""
@@ -235,16 +239,16 @@ class RegistrationMap(QWidget):
         """Add path."""
         valid, source, target, through, *_, path = self._get_registration_path_data()
         if not source and not target:
-            self._warning_label.setText("Please select source and target images.")
+            # self._warning_label.setText("Please select source and target images.")
             return
         registrations = self._registration_path.registration_paths
         if not registrations:
-            self._warning_label.setText("Please select registration path.")
+            # self._warning_label.setText("Please select registration path.")
             return
         if not valid:
             hp.warn(self, "Please select source and target images.")
             return
-        self._warning_label.setText("")
+        # self._warning_label.setText("")
         registration_model: IWsiReg = self.registration_model
         if not registration_model.has_registration_path(source, target, through):
             registration_model.add_registration_path(source, target, through=through, transform=registrations)
@@ -260,7 +264,7 @@ class RegistrationMap(QWidget):
         """Add path."""
         valid, source, target, through, *_ = self._get_registration_path_data()
         if not valid:
-            self._warning_label.setText("Please select source and target images.")
+            # self._warning_label.setText("Please select source and target images.")
             return
         registration_model: IWsiReg = self.registration_model
         registration_model.remove_registration_path(source, target, through)
