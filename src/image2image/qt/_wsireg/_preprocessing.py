@@ -250,7 +250,7 @@ class PreprocessingDialog(QtFramelessTool):
         elif text == "Fluorescence":
             new_preprocessing = Preprocessing.fluorescence(valis=self.valis)
         else:
-            new_preprocessing = Preprocessing.basic()
+            new_preprocessing = Preprocessing.basic(valis=self.valis)
         new_preprocessing.channel_names = self.preprocessing.channel_names
         new_preprocessing.channel_indices = self.preprocessing.channel_indices
         self.preprocessing = new_preprocessing
