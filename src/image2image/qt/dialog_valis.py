@@ -134,6 +134,7 @@ class ImageValisWindow(ImageWsiWindow):
 
         connect(self.modality_list.evt_delete, self.on_remove_modality, state=state)
         connect(self.modality_list.evt_rename, self.on_rename_modality, state=state)
+        connect(self._image_widget.dataset_dlg.evt_files, self._on_pre_loading_images, state=state)
         connect(self.modality_list.evt_hide_others, self.on_hide_modalities, state=state)
         connect(self.modality_list.evt_preview_preprocessing, self.on_preview, state=state)
         connect(self.modality_list.evt_resolution, self.on_update_modality, state=state)
@@ -472,6 +473,8 @@ class ImageValisWindow(ImageWsiWindow):
             self.view.clear()
             self.modality_list.populate()
             self.populate_reference_list()
+            self.output_dir_label.setText("")
+            self.output_dir = None
             logger.trace("Closed project.")
 
     def on_rename_modality(self, widget, new_name: str) -> None:

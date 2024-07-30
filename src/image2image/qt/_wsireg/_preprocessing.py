@@ -410,7 +410,7 @@ class PreprocessingDialog(QtFramelessTool):
             value=0,
             minimum=-360,
             maximum=360,
-            step_size=5,
+            step_size=1,
             suffix="°",
             tooltip="Rotate (counter-clockwise)",
             func=self.on_update_transform_model,

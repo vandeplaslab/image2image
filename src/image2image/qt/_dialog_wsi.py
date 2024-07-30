@@ -175,6 +175,26 @@ class ImageWsiWindow(SingleViewerMixin):
         if layer:
             layer.colormap = color
 
+    def _on_pre_loading_images(self, filelist: list[str]) -> None:
+        """Before files are loaded, we can check whether all files come from the same directory."""
+        # if path is already defined, let's not do anything
+        if self.output_dir_label.text():
+            return
+        common_output_dir = []
+        for path in filelist:
+            path = Path(path)
+            if path.is_file():
+                path = path.parent
+            if path.name in ["Images"]:
+                path = path.parent
+            if path.suffix in [".wsireg", ".valis"]:
+                path = path.parent
+            common_output_dir.append(path)
+        if len(set(common_output_dir)) == 1:
+            self.output_dir = common_output_dir[0]
+            self.output_dir_label.setText(hp.hyper(self.output_dir))
+            logger.trace(f"Automatically set output directory to {self.output_dir}")
+
     @ensure_main_thread
     def on_load_image(self, model: DataModel, _channel_list: list[str]) -> None:
         """Load fixed image."""
