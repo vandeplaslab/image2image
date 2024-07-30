@@ -57,6 +57,7 @@ update_icon_mapping(
         "merge": "msc.merge",
         "valis": "fa5b.vimeo-square",
         "launch": "mdi.rocket-launch",
+        "project": "mdi.file-import",
     }
 )
 

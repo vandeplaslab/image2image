@@ -83,6 +83,7 @@ class ImageValisWindow(ImageWsiWindow):
     WINDOW_TITLE = f"image2valis: Valis Registration app (v{__version__})"
     WINDOW_CONFIG_ATTR = "confirm_close_valis"
     WINDOW_CONSOLE_ARGS = (("view", "viewer"), "data_model", ("data_model", "wrapper"), "registration_model")
+    PROJECT_SUFFIX = ".valis"
 
     def __init__(
         self, parent: QWidget | None, run_check_version: bool = True, project_dir: PathLike | None = None, **_kwargs
@@ -146,11 +147,6 @@ class ImageValisWindow(ImageWsiWindow):
         connect(QUEUE.evt_started, lambda _: self.spinner.show(), state=state)
         connect(QUEUE.evt_empty, self.spinner.hide, state=state)
 
-    def on_validate(self, _: ty.Any = None) -> None:
-        """Validate project."""
-        name = self.name_label.text()
-        hp.set_object_name(self.name_label, object_name="error" if not name else "")
-
     def _setup_ui(self):
         """Create panel."""
         self.view = self._make_image_view(
@@ -164,6 +160,7 @@ class ImageValisWindow(ImageWsiWindow):
             available_formats=ALLOWED_VALIS_FORMATS,
             project_extension=["valis.config.json", ".valis.json", ".valis"],
             allow_geojson=True,
+            import_project=True,
         )
 
         side_widget = QWidget()
@@ -192,6 +189,7 @@ class ImageValisWindow(ImageWsiWindow):
             ["None"],
             tooltip="Reference image for registration. If 'None' is selected, reference image will be automatically"
             " selected.",
+            func=self.on_set_reference,
         )
         self.feature_choice = hp.make_combobox(
             self,
@@ -229,56 +227,14 @@ class ImageValisWindow(ImageWsiWindow):
             self, 0, 1, 0.05, n_decimals=3, tooltip="Fraction of the image to use for micro registration.", value=0.125
         )
 
-        self.name_label = hp.make_line_edit(
-            side_widget, "Name", tooltip="Name of the project", placeholder="e.g. *.valis.json", func=self.on_validate
-        )
-        self.output_dir_label = hp.make_label(
-            side_widget, hp.hyper(self.output_dir), tooltip="Output directory", enable_url=True
-        )
-        self.output_dir_btn = hp.make_qta_btn(
-            side_widget, "folder", tooltip="Change output directory", func=self.on_set_output_dir, normal=True
-        )
-
-        self.write_not_registered_check = hp.make_checkbox(
-            self,
-            "",
-            tooltip="Write original, not-registered images (those without any transformations such as target).",
-            value=True,
-        )
-        self.write_registered_check = hp.make_checkbox(
-            self,
-            "",
-            tooltip="Write original, registered images.",
-            value=True,
-        )
-        self.write_merged_check = hp.make_checkbox(
-            self,
-            "",
-            tooltip="Merge non- and transformed images into a single image.",
-            value=False,
-        )
-        self.as_uint8 = hp.make_checkbox(
-            self,
-            "",
-            tooltip="Convert to uint8 to reduce file size with minimal data loss.",
-            checked=True,
-            value=CONFIG.as_uint8,
-        )
-        self.open_when_finished = hp.make_checkbox(
-            self,
-            "",
-            tooltip="Open images in the viewer when registration is finished.",
-            value=True,
-        )
-
         side_layout = hp.make_form_layout(side_widget)
         hp.style_form_layout(side_layout)
-        side_layout.addRow(
-            hp.make_btn(
-                side_widget, "Import project...", tooltip="Load previous project", func=self.on_load_from_project
-            )
-        )
-        side_layout.addRow(hp.make_h_line_with_text("or"))
+        # side_layout.addRow(
+        #     hp.make_btn(
+        #         side_widget, "Import project...", tooltip="Load previous project", func=self.on_load_from_project
+        #     )
+        # )
+        # side_layout.addRow(hp.make_h_line_with_text("or"))
         side_layout.addRow(self._image_widget)
         # Modalities
         side_layout.addRow(self.modality_list)
@@ -293,87 +249,23 @@ class ImageValisWindow(ImageWsiWindow):
         side_layout.addRow(hp.make_label(self, "Micro registration"), self.micro_check)
         side_layout.addRow(hp.make_label(self, "Fraction"), self.micro_fraction)
         # Project
-        side_layout.addRow(hp.make_h_line_with_text("Valis project"))
+        self._make_output_widgets(side_widget)
+        side_layout.addRow(hp.make_h_line_with_text("I2Reg project"))
         side_layout.addRow(hp.make_label(side_widget, "Name"), self.name_label)
         side_layout.addRow(hp.make_label(side_widget, "Output directory", alignment=Qt.AlignmentFlag.AlignLeft))
         side_layout.addRow(
             hp.make_h_layout(self.output_dir_label, self.output_dir_btn, stretch_id=(0,), spacing=1, margin=1),
         )
         # Advanced options
-        hidden_settings = hp.make_advanced_collapsible(side_widget, "Advanced options", allow_checkbox=False)
-        hidden_settings.addRow(hp.make_label(self, "Write registered images"), self.write_registered_check)
-        hidden_settings.addRow(hp.make_label(self, "Write unregistered images"), self.write_not_registered_check)
-        hidden_settings.addRow(hp.make_label(self, "Merge transformed images"), self.write_merged_check)
-        hidden_settings.addRow(hp.make_label(self, "Reduce data size"), self.as_uint8)
-        hidden_settings.addRow(hp.make_label(self, "Open when finished"), self.open_when_finished)
+        hidden_settings = self._make_hidden_widgets(side_widget)
+        side_layout.addRow(hidden_settings)
         side_layout.addRow(hidden_settings)
 
-        self.save_btn = hp.make_qta_btn(
-            self, "save", normal=True, tooltip="Save Valis project to disk.", func=self.on_save_to_valis
-        )
-        self.run_btn = hp.make_btn(
-            side_widget, "Execute...", tooltip="Immediately execute registration", properties={"with_menu": True}
-        )
-        menu = hp.make_menu(self.run_btn)
-        hp.make_menu_item(
-            side_widget,
-            "Run registration",
-            menu=menu,
-            func=self.on_run,
-            icon="run",
-            tooltip="Perform registration. Images will open in the viewer when finished.",
-            disabled=not HAS_VALIS,
-        )
-        hp.make_menu_item(
-            side_widget,
-            "Run registration (without saving, not recommended)",
-            menu=menu,
-            func=self.on_run_no_save,
-            icon="run",
-            tooltip="Perform registration. Images will open in the viewer when finished. Project will not be"
-            " saved before adding to the queue.",
-            disabled=not HAS_VALIS,
-        )
-        hp.make_menu_item(
-            side_widget,
-            "Queue registration",
-            menu=menu,
-            func=self.on_queue,
-            icon="queue",
-            tooltip="Registration task will be added to the queue and you can start it manually.",
-            disabled=not HAS_VALIS,
-        )
-        hp.make_menu_item(
-            side_widget,
-            "Queue registration (without saving, not recommended)",
-            menu=menu,
-            func=self.on_queue_no_save,
-            icon="queue",
-            tooltip="Registration task will be added to the queue and you can start it manually. Project will not be"
-            " saved before adding to the queue.",
-            disabled=not HAS_VALIS,
-        )
-        menu.addSeparator()
-        hp.make_menu_item(
-            side_widget,
-            "Open project in viewer",
-            menu=menu,
-            func=self.on_open_in_viewer,
-            icon="viewer",
-            tooltip="Open the project in the viewer. This only makes sense if registration is complete.",
-        )
-        menu.addSeparator()
-        hp.make_menu_item(
-            side_widget,
-            "Close project (without saving)",
-            menu=menu,
-            func=self.on_close,
-            icon="delete",
-            tooltip="Close the project without saving.",
-        )
-        self.run_btn.setMenu(menu)
+        self._make_run_widgets(side_widget, "I2Reg", disabled=not HAS_VALIS)
         # Execution buttons
-        side_layout.addRow(hp.make_h_layout(self.save_btn, self.run_btn, stretch_id=(1,), spacing=1))
+        side_layout.addRow(
+            hp.make_h_layout(self.save_btn, self.viewer_btn, self.close_btn, self.run_btn, stretch_id=(3,), spacing=2)
+        )
 
         layout = QHBoxLayout()
         layout.setSpacing(0)
@@ -393,7 +285,43 @@ class ImageValisWindow(ImageWsiWindow):
         self._make_icon()
         self._make_statusbar()
 
-    def on_save_to_valis(self) -> None:
+    def on_set_reference(self) -> None:
+        """Set reference on the model."""
+        reference = self.reference_choice.currentText()
+        if reference == "None":
+            reference = None
+        self.registration_model.set_reference(reference)
+
+    def on_save_as_other_project(self) -> None:
+        """Save project to Valis."""
+        name = self.name_label.text()
+        if not name:
+            hp.toast(self, "Error", "Please provide a name for the project.", icon="error", position="top_left")
+            return
+        output_dir = self.output_dir
+        if output_dir is None:
+            hp.toast(self, "Error", "Please provide an output directory.", icon="error", position="top_left")
+            return
+        if not self._validate():
+            return
+        self.registration_model.merge_images = self.write_merged_check.isChecked()
+        self.registration_model.name = name
+        self.registration_model.output_dir = output_dir
+        if self.registration_model.project_dir.with_suffix(".wsireg").exists() and not hp.confirm(
+            self, f"Project <b>{self.registration_model.name}</b> already exists.<br><b>Overwrite?</b>"
+        ):
+            return
+        try:
+            obj = self.registration_model.to_i2reg(output_dir)
+            if obj:
+                hp.toast(
+                    self, "Saved", f"Saved project to {hp.hyper(obj.project_dir)}.", icon="success", position="top_left"
+                )
+                logger.trace(f"Saved i2reg project to {obj.project_dir}")
+        except (ValueError, FileNotFoundError):
+            hp.toast(self, "Error", "Could not save project to I2Reg format.", icon="error", position="top_left")
+
+    def on_save_to_project(self) -> None:
         """Save project to i2reg."""
         name = self.name_label.text()
         if not name:
@@ -418,6 +346,8 @@ class ImageValisWindow(ImageWsiWindow):
                 self._registration_model = project
                 self.output_dir = project.output_dir
                 self.name_label.setText(project.name)
+                self.feature_choice.setCurrentText(project.feature_detector)
+                self.matcher_choice.setCurrentText(project.feature_matcher.lower())
                 self.reflection_check.setChecked(project.check_for_reflections)
                 self.non_rigid_check.setChecked(project.non_rigid_registration)
                 self.micro_check.setChecked(project.micro_registration)
@@ -491,10 +421,13 @@ class ImageValisWindow(ImageWsiWindow):
         self.reference_choice.addItem("None")
         self.reference_choice.addItems(modalities)
 
-        reference = self.registration_model.reference
-        if reference is None or reference not in modalities:
-            reference = "None"
-        self.reference_choice.setCurrentText(reference)
+        try:
+            reference = self.registration_model.reference
+            if reference is None or reference not in modalities:
+                reference = "None"
+            self.reference_choice.setCurrentText(reference)
+        except Exception as e:
+            logger.error(f"Error setting reference: {e}")
 
     def save_model(self) -> Path | None:
         """Save model in the current state."""
@@ -533,6 +466,7 @@ class ImageValisWindow(ImageWsiWindow):
         if self.registration_model and hp.confirm(
             self, "Are you sure you want to close the project?", "Close project?"
         ):
+            self.registration_model.set_reference(None)
             self.name_label.setText("")
             self._image_widget.on_close_dataset(force=True)
             self.view.clear()

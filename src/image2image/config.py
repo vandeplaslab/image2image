@@ -10,6 +10,16 @@ from image2image.enums import ViewerOrientation
 from image2image.utils._appdirs import USER_CONFIG_DIR
 
 
+class State:
+    """State of the application."""
+
+    @property
+    def allow_filters(self) -> bool:
+        """Allow filters."""
+        return True
+        # return is_envvar("IMAGE2IMAGE_NO_FILTER", "0") or (not IS_PYINSTALLER and not IS_MAC)
+
+
 class Config(BaseConfig):
     """Configuration of few parameters."""
 
@@ -141,7 +151,7 @@ class Config(BaseConfig):
     )
     confirm_close_valis: bool = Field(True, title="Confirm close", description="Confirm close Valis app.", in_app=True)
 
-    # Viewer-app parameters
+    # Convert-app parameters
     first_time_convert: bool = Field(
         True, title="First time", description="First time running the convert app.", in_app=True
     )
@@ -175,14 +185,25 @@ class Config(BaseConfig):
         return ViewerOrientation(value)
 
 
-class State:
-    """State of the application."""
+class ConfigViewer(BaseConfig):
+    """Configuration for the viewer app."""
 
-    @property
-    def allow_filters(self) -> bool:
-        """Allow filters."""
-        return True
-        # return is_envvar("IMAGE2IMAGE_NO_FILTER", "0") or (not IS_PYINSTALLER and not IS_MAC)
+    USER_CONFIG_FILENAME = "config.viewer.json"
+
+    # paths
+    output_dir: str = Field(
+        "", title="Output directory", description="Directory where output should be saved.", in_app=False
+    )
+    last_dir: str = Field("", title="Last directory", description="Last directory used.", in_app=False)
+
+    # visuals
+    theme: str = Field(
+        "light", title="Theme", description="Theme of the application.", options=["light", "dark"], in_app=True
+    )
+
+    # Viewer-app parameters
+    first_time: bool = Field(True, title="First time", description="First time running the viewer app.", in_app=True)
+    confirm_close: bool = Field(True, title="Confirm close", description="Confirm close viewer app.", in_app=True)
 
 
 CONFIG: Config = Config()  # type: ignore[call-arg]

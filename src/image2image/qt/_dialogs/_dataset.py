@@ -415,6 +415,7 @@ class SelectDataDialog(QtFramelessTool):
     evt_closed = Signal(object)
     evt_resolution = Signal(str)
     evt_project = Signal(str)
+    evt_files = Signal(list)
     evt_swap = Signal(str, str)
 
     TABLE_CONFIG = (
@@ -580,6 +581,10 @@ class SelectDataDialog(QtFramelessTool):
         """Return list of available extensions based on the specified filter."""
         return extract_extension(self.available_formats_filter)
 
+    def on_select_project(self) -> None:
+        """Open project."""
+        print("SELECT PROJECt")
+
     def on_select_dataset(self) -> None:
         """Load path."""
         paths = hp.get_filename(
@@ -664,6 +669,7 @@ class SelectDataDialog(QtFramelessTool):
                 )
         if filenames_:
             logger.trace(f"Dropped {filenames_} file(s)...")
+            self.evt_files.emit(filenames_)
             self._on_load_dataset(filenames_)
 
     def on_close_dataset(self, force: bool = False) -> bool:

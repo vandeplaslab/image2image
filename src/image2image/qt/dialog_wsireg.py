@@ -87,6 +87,7 @@ class ImageWsiRegWindow(ImageWsiWindow):
     WINDOW_TITLE = f"image2wsireg: WSI Registration app (v{__version__})"
     WINDOW_CONFIG_ATTR = "confirm_close_wsireg"
     WINDOW_CONSOLE_ARGS = (("view", "viewer"), "data_model", ("data_model", "wrapper"), "registration_model")
+    PROJECT_SUFFIX = ".wsireg"
 
     def __init__(
         self, parent: QWidget | None, run_check_version: bool = True, project_dir: PathLike | None = None, **_kwargs
@@ -125,6 +126,7 @@ class ImageWsiRegWindow(ImageWsiWindow):
         connect(self._image_widget.dataset_dlg.evt_loaded, self.on_load_image, state=state)
         connect(self._image_widget.dataset_dlg.evt_closing, self.on_remove_image, state=state)
         connect(self._image_widget.dataset_dlg.evt_project, self._on_load_from_project, state=state)
+        connect(self._image_widget.dataset_dlg.evt_files, self._on_pre_loading_images, state=state)
         # connect(self.view.widget.canvas.events.key_press, self.keyPressEvent, state=state)
         connect(self.view.viewer.events.status, self._status_changed, state=state)
 
@@ -341,7 +343,7 @@ class ImageWsiRegWindow(ImageWsiWindow):
         #
         # hp.select_from_list(self, "Select images to merge")
 
-    def on_save_to_i2reg(self) -> None:
+    def on_save_to_project(self) -> None:
         """Save project to i2reg."""
         name = self.name_label.text()
         if not name:
@@ -358,7 +360,7 @@ class ImageWsiRegWindow(ImageWsiWindow):
             hp.toast(self, "Saved", f"Saved project to {hp.hyper(path)}.", icon="success", position="top_left")
             logger.info(f"Saved project to {path}")
 
-    def on_save_to_valis(self) -> None:
+    def on_save_as_other_project(self) -> None:
         """Save project to Valis."""
         name = self.name_label.text()
         if not name:
@@ -377,7 +379,15 @@ class ImageWsiRegWindow(ImageWsiWindow):
             self, f"Project <b>{self.registration_model.name}</b> already exists.<br><b>Overwrite?</b>"
         ):
             return
-        self.registration_model.to_valis(output_dir)
+        try:
+            obj = self.registration_model.to_valis(output_dir)
+            if obj:
+                hp.toast(
+                    self, "Saved", f"Saved project to {hp.hyper(obj.project_dir)}.", icon="success", position="top_left"
+                )
+                logger.trace(f"Saved i2reg project to {obj.project_dir}")
+        except (ValueError, FileNotFoundError):
+            hp.toast(self, "Error", "Could not save project to I2Reg format.", icon="error", position="top_left")
 
     def on_load_from_project(self, _evt=None):
         """Load a previous project."""
@@ -398,6 +408,22 @@ class ImageWsiRegWindow(ImageWsiWindow):
                 paths = [modality.path for modality in project.modalities.values()]
                 if paths:
                     self._image_widget.on_set_path(paths)
+
+    def _on_pre_loading_images(self, filelist: list[str]) -> None:
+        """Before files are loaded, we can check whether all files come from the same directory."""
+        # if path is already defined, let's not do anything
+        if self.output_dir_label.text():
+            return
+        common_output_dir = []
+        for path in filelist:
+            path = Path(path)
+            if path.is_file():
+                path = path.parent
+            common_output_dir.append(path)
+        if len(set(common_output_dir)) == 1:
+            self.output_dir = common_output_dir[0]
+            self.output_dir_label.setText(hp.hyper(self.output_dir))
+            logger.trace(f"Automatically set output directory to {self.output_dir}")
 
     def save_model(self) -> Path | None:
         """Save model in the current state."""
@@ -431,6 +457,8 @@ class ImageWsiRegWindow(ImageWsiWindow):
             self.view.clear()
             self.modality_list.populate()
             self.registration_map.populate()
+            self.output_dir_label.setText("")
+            self.output_dir = None
             logger.trace("Closed project.")
 
     def _setup_ui(self):
@@ -446,6 +474,7 @@ class ImageWsiRegWindow(ImageWsiWindow):
             available_formats=ALLOWED_WSIREG_FORMATS,
             project_extension=[".i2wsireg.json", ".i2wsireg.toml", ".config.json", ".wsireg", ".i2reg"],
             allow_geojson=True,
+            import_project=True,
         )
 
         side_widget = QWidget()
@@ -473,15 +502,6 @@ class ImageWsiRegWindow(ImageWsiWindow):
         )
         self.merge_btn.hide()
 
-        self.name_label = hp.make_line_edit(
-            side_widget, "Name", tooltip="Name of the project", placeholder="e.g. project.wsireg", func=self.on_validate
-        )
-        self.output_dir_label = hp.make_label(
-            side_widget, hp.hyper(self.output_dir), tooltip="Output directory", enable_url=True
-        )
-        self.output_dir_btn = hp.make_qta_btn(
-            side_widget, "folder", tooltip="Change output directory", func=self.on_set_output_dir, normal=True
-        )
         self.use_preview_check = hp.make_checkbox(
             self,
             "Use preview image",
@@ -497,46 +517,14 @@ class ImageWsiRegWindow(ImageWsiWindow):
             func=self.on_hide_not_previewed_modalities,
         )
 
-        self.write_not_registered_check = hp.make_checkbox(
-            self,
-            "",
-            tooltip="Write original, not-registered images (those without any transformations such as target).",
-            value=True,
-        )
-        self.write_registered_check = hp.make_checkbox(
-            self,
-            "",
-            tooltip="Write original, registered images.",
-            value=True,
-        )
-        self.write_merged_check = hp.make_checkbox(
-            self,
-            "",
-            tooltip="Merge non- and transformed images into a single image.",
-            value=False,
-        )
-        self.as_uint8 = hp.make_checkbox(
-            self,
-            "",
-            tooltip="Convert to uint8 to reduce file size with minimal data loss.",
-            checked=True,
-            value=CONFIG.as_uint8,
-        )
-        self.open_when_finished = hp.make_checkbox(
-            self,
-            "",
-            tooltip="Open images in the viewer when registration is finished.",
-            value=True,
-        )
-
         side_layout = hp.make_form_layout(side_widget)
         hp.style_form_layout(side_layout)
-        side_layout.addRow(
-            hp.make_btn(
-                side_widget, "Import project...", tooltip="Load previous project", func=self.on_load_from_project
-            )
-        )
-        side_layout.addRow(hp.make_h_line_with_text("or"))
+        # side_layout.addRow(
+        #     hp.make_btn(
+        #         side_widget, "Import project...", tooltip="Load previous project", func=self.on_load_from_project
+        #     )
+        # )
+        # side_layout.addRow(hp.make_h_line_with_text("or"))
         side_layout.addRow(self._image_widget)
         # Modalities
         side_layout.addRow(self.modality_list)
@@ -546,6 +534,7 @@ class ImageWsiRegWindow(ImageWsiWindow):
         side_layout.addRow(hp.make_h_line_with_text("Registration paths"))
         side_layout.addRow(self.registration_map)
         # Project
+        self._make_output_widgets(side_widget)
         side_layout.addRow(hp.make_h_line_with_text("I2Reg project"))
         side_layout.addRow(hp.make_label(side_widget, "Name"), self.name_label)
         side_layout.addRow(hp.make_label(side_widget, "Output directory", alignment=Qt.AlignmentFlag.AlignLeft))
@@ -553,85 +542,14 @@ class ImageWsiRegWindow(ImageWsiWindow):
             hp.make_h_layout(self.output_dir_label, self.output_dir_btn, stretch_id=(0,), spacing=1, margin=1),
         )
         # Advanced options
-        hidden_settings = hp.make_advanced_collapsible(side_widget, "Advanced options", allow_checkbox=False)
-        hidden_settings.addRow(hp.make_label(self, "Write registered images"), self.write_registered_check)
-        hidden_settings.addRow(hp.make_label(self, "Write unregistered images"), self.write_not_registered_check)
-        hidden_settings.addRow(hp.make_label(self, "Merge transformed images"), self.write_merged_check)
-        hidden_settings.addRow(hp.make_label(self, "Reduce data size"), self.as_uint8)
-        hidden_settings.addRow(hp.make_label(self, "Open when finished"), self.open_when_finished)
+        hidden_settings = self._make_hidden_widgets(side_widget)
         side_layout.addRow(hidden_settings)
 
-        self.save_btn = hp.make_qta_btn(
-            self, "save", normal=True, tooltip="Save i2reg project to disk.", func=self.on_save_to_i2reg
-        )
-        self.run_btn = hp.make_btn(
-            side_widget, "Execute...", tooltip="Immediately execute registration", properties={"with_menu": True}
-        )
-        menu = hp.make_menu(self.run_btn)
-        hp.make_menu_item(
-            side_widget,
-            "Run registration",
-            menu=menu,
-            func=self.on_run,
-            icon="run",
-            tooltip="Perform registration. Images will open in the viewer when finished.",
-        )
-        hp.make_menu_item(
-            side_widget,
-            "Run registration (without saving, not recommended)",
-            menu=menu,
-            func=self.on_run_no_save,
-            icon="run",
-            tooltip="Perform registration. Images will open in the viewer when finished. Project will not be"
-            " saved before adding to the queue.",
-        )
-        hp.make_menu_item(
-            side_widget,
-            "Queue registration",
-            menu=menu,
-            func=self.on_queue,
-            icon="queue",
-            tooltip="Registration task will be added to the queue and you can start it manually.",
-        )
-        hp.make_menu_item(
-            side_widget,
-            "Queue registration (without saving, not recommended)",
-            menu=menu,
-            func=self.on_queue_no_save,
-            icon="queue",
-            tooltip="Registration task will be added to the queue and you can start it manually. Project will not be"
-            " saved before adding to the queue.",
-        )
-        menu.addSeparator()
-        hp.make_menu_item(
-            side_widget,
-            "Open project in viewer",
-            menu=menu,
-            func=self.on_open_in_viewer,
-            icon="viewer",
-            tooltip="Open the project in the viewer. This only makes sense if registration is complete.",
-        )
-        menu.addSeparator()
-        hp.make_menu_item(
-            side_widget,
-            "Save as Valis project",
-            menu=menu,
-            func=self.on_save_to_valis,
-            icon="save",
-            tooltip="Tries to save the project as valis project, without any guarantees.",
-        )
-        menu.addSeparator()
-        hp.make_menu_item(
-            side_widget,
-            "Close project (without saving)",
-            menu=menu,
-            func=self.on_close,
-            icon="delete",
-            tooltip="Close the project without saving.",
-        )
-        self.run_btn.setMenu(menu)
+        self._make_run_widgets(side_widget, "Valis")
         # Execution buttons
-        side_layout.addRow(hp.make_h_layout(self.save_btn, self.run_btn, stretch_id=(1,), spacing=1))
+        side_layout.addRow(
+            hp.make_h_layout(self.save_btn, self.viewer_btn, self.close_btn, self.run_btn, stretch_id=(3,), spacing=2)
+        )
 
         layout = QHBoxLayout()
         layout.setSpacing(0)

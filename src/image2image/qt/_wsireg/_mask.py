@@ -78,7 +78,10 @@ class ShapesDialog(QtFramelessTool):
     def on_update_modality_options(self) -> None:
         """Update list of available modalities."""
         current = self.slide_choice.currentText()
-        hp.combobox_setter(self.slide_choice, items=self._parent.registration_model.modalities.keys(), set_item=current)
+        options = self._parent.registration_model.modalities.keys()
+        hp.combobox_setter(self.slide_choice, items=options, set_item=current)
+        current = self.copy_from_choice.currentText()
+        hp.combobox_setter(self.copy_from_choice, items=options, set_item=current)
 
     @property
     def view(self) -> NapariImageView:
@@ -249,6 +252,10 @@ class ShapesDialog(QtFramelessTool):
         # self.on_select_modality()
         logger.trace(f"Changed modality to {index}")
 
+    def _check_if_has_mask(self, modality: Modality) -> bool:
+        """Associate mask with modality at the specified location."""
+        raise NotImplementedError("Must implement method")
+
     def on_associate_mask_with_modality(self) -> None:
         """Associate mask with modality at the specified location."""
         raise NotImplementedError("Must implement method")
@@ -256,6 +263,24 @@ class ShapesDialog(QtFramelessTool):
     def on_dissociate_mask_from_modality(self) -> None:
         """Dissociate mask from modality."""
         raise NotImplementedError("Must implement method")
+
+    def on_copy(self) -> None:
+        """Copy mask from another modality."""
+        copy_to = self.slide_choice.currentText()
+        copy_from = self.copy_from_choice.currentText()
+        if copy_to == copy_from:
+            hp.toast(self, "Cannot copy mask", "Cannot copy from and to the same modality", icon="warning")
+            return
+        if copy_from:
+            copy_from_modality = self._parent.registration_model.modalities[copy_from]
+            if not self._check_if_has_mask(copy_from_modality):
+                return
+
+            # copy_to_modality = self._parent.registration_model.modalities[copy_to]
+            data = self._transform_from_preprocessing(copy_from_modality)
+            if data:
+                self.mask_layer.data = data or []
+                logger.trace(f"Copied mask from {copy_from}")
 
     # noinspection PyAttributeOutsideInit
     def make_panel(self) -> QLayout:
@@ -283,6 +308,7 @@ class ShapesDialog(QtFramelessTool):
             func=partial(self.on_increment_modality, increment_by=1),
             tooltip="Go to next modality.",
         )
+        self.copy_from_choice = hp.make_combobox(self, tooltip="Copy mask from another modality")
 
         self.only_current = hp.make_checkbox(
             self, tooltip="Hide other modalities when drawing a mask.", func=self.on_select_modality
@@ -304,6 +330,12 @@ class ShapesDialog(QtFramelessTool):
             hp.make_label(self, "Modality"),
             hp.make_h_layout(self.slide_choice, self.previous_btn, self.next_btn, stretch_id=(0,), spacing=2),
         )
+        layout.addRow(
+            hp.make_label(self, "Copy from"),
+            hp.make_h_layout(
+                self.copy_from_choice, hp.make_btn(self, "Copy", func=self.on_copy), spacing=2, stretch_id=(0,)
+            ),
+        )
         layout.addRow(hp.make_label(self, "Hide other"), self.only_current)
         layout.addRow(hp.make_h_layout(self.add_btn, self.remove_btn))
         layout.addRow(hp.make_label(self, "Auto-update"), self.auto_update)
@@ -322,6 +354,13 @@ class MaskDialog(ShapesDialog):
     )
     MASK_OR_CROP = "mask"
 
+    def _check_if_has_mask(self, modality: Modality) -> bool:
+        """Check if modality has mask."""
+        if not modality.preprocessing.is_masked():
+            hp.toast(self, "Cannot copy mask", "No mask associated with this modality", icon="warning")
+            return False
+        return True
+
     def on_associate_mask_with_modality(self) -> None:
         """Associate mask with modality at the specified location."""
         name = self.slide_choice.currentText()
@@ -337,7 +376,6 @@ class MaskDialog(ShapesDialog):
             modality.preprocessing.mask_polygon = None
         else:
             modality.preprocessing.use_mask = False
-        # modality.preprocessing.transform_mask = get_transform_mask(modality)
         modality.preprocessing.transform_mask = False
         kind = "polygon" if yx is not None else "bbox"
         logger.trace(f"Added mask for modality {name} to {kind}")
@@ -365,6 +403,13 @@ class CropDialog(ShapesDialog):
     )
     MASK_OR_CROP = "crop"
 
+    def _check_if_has_mask(self, modality: Modality) -> bool:
+        """Check if modality has mask."""
+        if not modality.preprocessing.is_cropped():
+            hp.toast(self, "Cannot copy mask", "No crop associated with this modality", icon="warning")
+            return False
+        return True
+
     def on_associate_mask_with_modality(self) -> None:
         """Associate mask with modality at the specified location."""
         name = self.slide_choice.currentText()
@@ -383,7 +428,6 @@ class CropDialog(ShapesDialog):
             modality.preprocessing.crop_polygon = None
         else:
             modality.preprocessing.use_crop = False
-        # modality.transform_mask = get_transform_mask(modality)
         modality.transform_mask = False
         kind = "polygon" if yx is not None else "bbox"
         logger.trace(f"Added crop for modality {name} to {kind}")
