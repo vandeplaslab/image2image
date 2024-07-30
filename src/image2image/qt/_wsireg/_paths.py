@@ -67,8 +67,22 @@ class RegistrationPaths(QWidget):
             hp.make_h_layout(
                 hp.make_qta_label(self, "help", hover=True, tooltip=REGISTRATION_PATH_HELP),
                 self._choice,
-                hp.make_btn(self, "Add", func=self.on_add_transformation),
-                hp.make_btn(self, "Reset", func=self.on_reset_transformation),
+                hp.make_qta_btn(
+                    self,
+                    "add",
+                    func=self.on_add_transformation,
+                    tooltip="Add selected transformation to the list.",
+                    standout=True,
+                    normal=True,
+                ),
+                hp.make_qta_btn(
+                    self,
+                    "reset",
+                    func=self.on_reset_transformation,
+                    tooltip="Reset all transformations.",
+                    standout=True,
+                    normal=True,
+                ),
                 stretch_id=(1,),
                 spacing=2,
                 margin=(0, 0, 0, 0),
@@ -164,8 +178,15 @@ class RegistrationMap(QWidget):
         layout.addRow(hp.make_label(self, "Through (optional)"), self._through_choice)
         layout.addRow(
             hp.make_h_layout(
-                hp.make_btn(self, "Add path", func=self.on_add_path),
-                hp.make_btn(self, "Remove path", func=self.on_remove_path),
+                hp.make_btn(
+                    self, "Add path", func=self.on_add_path, tooltip="Add current registration path to the list."
+                ),
+                hp.make_btn(
+                    self,
+                    "Remove path",
+                    func=self.on_remove_path,
+                    tooltip="Remove current registration path from the list.",
+                ),
                 hp.make_btn(self, "Reset", func=self.on_reset_paths),
                 spacing=2,
                 margin=0,
@@ -177,9 +198,13 @@ class RegistrationMap(QWidget):
             hp.make_h_layout(
                 hp.make_label(self, "Paths"),
                 self._choice,
-                hp.make_qta_btn(self, "graph", tooltip="Preview paths", func=self.on_preview),
-                hp.make_qta_btn(self, "reload", tooltip="Refresh paths", func=self.populate),
-                spacing=1,
+                hp.make_qta_btn(
+                    self, "graph", tooltip="Preview paths", func=self.on_preview, standout=True, normal=True
+                ),
+                hp.make_qta_btn(
+                    self, "reload", tooltip="Refresh paths", func=self.populate, standout=True, normal=True
+                ),
+                spacing=2,
                 stretch_id=(1,),
             )
         )

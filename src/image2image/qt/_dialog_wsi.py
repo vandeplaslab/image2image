@@ -32,6 +32,7 @@ class ImageWsiWindow(SingleViewerMixin):
     _registration_model: IWsiReg | ValisReg | None = None
 
     WINDOW_TITLE: str
+    PROJECT_SUFFIX: str
 
     # Widgets
     name_label: Qw.QLabel
@@ -132,28 +133,29 @@ class ImageWsiWindow(SingleViewerMixin):
 
     def on_run(self) -> None:
         """Execute registration."""
-        if self._queue_registration_model(add_delayed=False):
-            self.queue_popup.show()
+        self._queue_registration_model(add_delayed=False)
 
     def on_run_no_save(self) -> None:
         """Execute registration."""
-        if self._queue_registration_model(add_delayed=False, save=False):
-            self.queue_popup.show()
+        self._queue_registration_model(add_delayed=False, save=False)
 
     def on_queue(self) -> None:
         """Queue registration."""
-        if self._queue_registration_model(add_delayed=True):
-            self.queue_popup.show()
+        self._queue_registration_model(add_delayed=True)
 
     def on_queue_no_save(self) -> None:
         """Queue registration."""
-        if self._queue_registration_model(add_delayed=True, save=False):
-            self.queue_popup.show()
+        self._queue_registration_model(add_delayed=True, save=False)
 
-    def on_validate(self, _: ty.Any = None) -> None:
-        """Validate project."""
+    def on_validate_path(self, _: ty.Any = None) -> None:
+        """Validate project path."""
         name = self.name_label.text()
-        hp.set_object_name(self.name_label, object_name="error" if not name else "")
+        object_name = ""
+        if not name:
+            object_name = "error"
+        if name and self.output_dir and (self.output_dir / name).with_suffix(self.PROJECT_SUFFIX).exists():
+            object_name = "warning"
+        hp.set_object_name(self.name_label, object_name=object_name)
 
     def on_remove_modality(self, modality: Modality) -> None:
         """Remove modality from the project."""
@@ -172,6 +174,26 @@ class ImageWsiWindow(SingleViewerMixin):
         layer = self.view.get_layer(modality.name)
         if layer:
             layer.colormap = color
+
+    def _on_pre_loading_images(self, filelist: list[str]) -> None:
+        """Before files are loaded, we can check whether all files come from the same directory."""
+        # if path is already defined, let's not do anything
+        if self.output_dir_label.text():
+            return
+        common_output_dir = []
+        for path in filelist:
+            path = Path(path)
+            if path.is_file():
+                path = path.parent
+            if path.name in ["Images"]:
+                path = path.parent
+            if path.suffix in [".wsireg", ".valis"]:
+                path = path.parent
+            common_output_dir.append(path)
+        if len(set(common_output_dir)) == 1:
+            self.output_dir = common_output_dir[0]
+            self.output_dir_label.setText(hp.hyper(self.output_dir))
+            logger.trace(f"Automatically set output directory to {self.output_dir}")
 
     @ensure_main_thread
     def on_load_image(self, model: DataModel, _channel_list: list[str]) -> None:
@@ -194,10 +216,11 @@ class ImageWsiWindow(SingleViewerMixin):
         level = self.pyramid_level.value()
         if level == 0 and not hp.confirm(
             self,
-            "Please confirm if you wish to preview the full-resolution image. Pre-processing might take a"
-            " bit of time.",
+            "Please confirm if you wish to preview the full-resolution image.<br><b>Pre-processing might take"
+            " a bit of time.</b>",
             "Please confirm",
         ):
+            self.pyramid_level.setValue(-1)
             return
         self.on_show_modalities()
         logger.trace(f"Updated pyramid level to {level}")
@@ -285,3 +308,164 @@ class ImageWsiWindow(SingleViewerMixin):
     def on_remove_image(self, model: DataModel, channel_names: list[str], keys: list[str]) -> None:
         """Remove image."""
         self.on_depopulate_list(keys)
+
+    def on_save_to_project(self) -> None:
+        """Save project."""
+        raise NotImplementedError("Must implement method")
+
+    def on_save_as_other_project(self) -> None:
+        """Save as other project."""
+        raise NotImplementedError("Must implement method")
+
+    def _make_output_widgets(self, side_widget: Qw.QWidget) -> None:
+        self.name_label = hp.make_line_edit(
+            side_widget,
+            "Name",
+            tooltip="Name of the project",
+            placeholder=f"e.g. project{self.PROJECT_SUFFIX}",
+            func=self.on_validate_path,
+            func_changed=self.on_validate_path,
+        )
+        self.output_dir_label = hp.make_label(
+            side_widget, hp.hyper(self.output_dir), tooltip="Output directory", enable_url=True
+        )
+        self.output_dir_btn = hp.make_qta_btn(
+            side_widget,
+            "folder",
+            tooltip="Change output directory",
+            func=self.on_set_output_dir,
+            normal=True,
+            standout=True,
+        )
+
+    def _make_hidden_widgets(self, side_widget: Qw.QWidget) -> Qw.QWidget:
+        from image2image.config import CONFIG
+
+        self.write_not_registered_check = hp.make_checkbox(
+            self,
+            "",
+            tooltip="Write original, not-registered images (those without any transformations such as target).",
+            value=True,
+        )
+        self.write_registered_check = hp.make_checkbox(
+            self,
+            "",
+            tooltip="Write registered images.",
+            value=True,
+        )
+        self.write_attached_check = hp.make_checkbox(
+            self,
+            "",
+            tooltip="Write attached modalities (images, shapes or points).",
+            value=True,
+        )
+        self.write_merged_check = hp.make_checkbox(
+            self,
+            "",
+            tooltip="Merge non- and transformed images into a single image.",
+            value=False,
+        )
+        self.as_uint8 = hp.make_checkbox(
+            self,
+            "",
+            tooltip="Convert to uint8 to reduce file size with minimal data loss.",
+            checked=True,
+            value=CONFIG.as_uint8,
+        )
+        self.open_when_finished = hp.make_checkbox(
+            self,
+            "",
+            tooltip="Open images in the viewer when registration is finished.",
+            value=True,
+        )
+
+        hidden_settings = hp.make_advanced_collapsible(side_widget, "Export options", allow_checkbox=False)
+        hidden_settings.addRow(hp.make_label(self, "Write registered images"), self.write_registered_check)
+        hidden_settings.addRow(hp.make_label(self, "Write unregistered images"), self.write_not_registered_check)
+        hidden_settings.addRow(hp.make_label(self, "Merge attached modalities"), self.write_attached_check)
+        hidden_settings.addRow(hp.make_label(self, "Merge merged images"), self.write_merged_check)
+        hidden_settings.addRow(hp.make_label(self, "Reduce data size"), self.as_uint8)
+        hidden_settings.addRow(hp.make_label(self, "Open when finished"), self.open_when_finished)
+        return hidden_settings
+
+    def _make_run_widgets(
+        self,
+        side_widget: Qw.QWidget,
+        other_project: str,
+        disabled: bool = False,
+    ) -> Qw.QMenu:
+        self.save_btn = hp.make_qta_btn(
+            self,
+            "save",
+            normal=True,
+            tooltip="Save Valis project to disk.",
+            func=self.on_save_to_project,
+            standout=True,
+        )
+        self.close_btn = hp.make_qta_btn(
+            side_widget,
+            "delete",
+            tooltip="Close project (without saving)",
+            func=self.on_close,
+            standout=True,
+        )
+        self.viewer_btn = hp.make_qta_btn(
+            side_widget,
+            "viewer",
+            func=self.on_open_in_viewer,
+            tooltip="Open the project in the viewer. This only makes sense if registration is complete.",
+            standout=True,
+        )
+        self.run_btn = hp.make_btn(
+            side_widget, "Execute...", tooltip="Immediately execute registration", properties={"with_menu": True}
+        )
+        menu = hp.make_menu(self.run_btn)
+        hp.make_menu_item(
+            side_widget,
+            "Run registration",
+            menu=menu,
+            func=self.on_run,
+            icon="run",
+            tooltip="Perform registration. Images will open in the viewer when finished.",
+            disabled=disabled,
+        )
+        hp.make_menu_item(
+            side_widget,
+            "Run registration (without saving, not recommended)",
+            menu=menu,
+            func=self.on_run_no_save,
+            icon="run",
+            tooltip="Perform registration. Images will open in the viewer when finished. Project will not be"
+            " saved before adding to the queue.",
+            disabled=disabled,
+        )
+        hp.make_menu_item(
+            side_widget,
+            "Queue registration",
+            menu=menu,
+            func=self.on_queue,
+            icon="queue",
+            tooltip="Registration task will be added to the queue and you can start it manually.",
+            disabled=disabled,
+        )
+        hp.make_menu_item(
+            side_widget,
+            "Queue registration (without saving, not recommended)",
+            menu=menu,
+            func=self.on_queue_no_save,
+            icon="queue",
+            tooltip="Registration task will be added to the queue and you can start it manually. Project will not be"
+            " saved before adding to the queue.",
+            disabled=disabled,
+        )
+        menu.addSeparator()
+        hp.make_menu_item(
+            side_widget,
+            f"Save as {other_project} project",
+            menu=menu,
+            func=self.on_save_as_other_project,
+            icon="save",
+            tooltip=f"Tries to save the project as {other_project} project, without any guarantees.",
+        )
+        self.run_btn.setMenu(menu)
+        return menu

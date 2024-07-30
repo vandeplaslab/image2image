@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import typing as ty
 from copy import deepcopy
+from functools import partial
 
 from koyo.secret import hash_parameters
 from koyo.utilities import is_installed
@@ -110,14 +111,22 @@ class PreprocessingDialog(QtFramelessTool):
         self.set_from_model()
         self.lock(locked or valis)
         self.on_toggle_available()
+        if parent and hasattr(parent, "previewing"):
+            parent.previewing = True
 
     def lock(self, lock: bool) -> None:
         """Lock/unlock widgets."""
         hp.disable_widgets(
             *self.flip_choices_group.buttons(),
             self.translate_x,
+            self.translate_left,
+            self.translate_right,
             self.translate_y,
+            self.translate_up,
+            self.translate_down,
             self.rotate_spin,
+            self.rotate_bck,
+            self.rotate_fwd,
             self.downsample_spin,
             disabled=lock,
         )
@@ -263,6 +272,9 @@ class PreprocessingDialog(QtFramelessTool):
         """Set model."""
         self.evt_update.emit(self.preprocessing)
         self.evt_set_preprocessing.emit(self.preprocessing)
+        parent = self.parent()
+        if parent and hasattr(parent, "previewing"):
+            parent.previewing = False
         super().accept()
 
     def close(self) -> bool:
@@ -275,7 +287,22 @@ class PreprocessingDialog(QtFramelessTool):
         ):
             return
         self.evt_update.emit(self.modality.preprocessing)
+        parent = self.parent()
+        if parent and hasattr(parent, "previewing"):
+            parent.previewing = False
         super().close()
+
+    def on_rotate(self, value: int) -> None:
+        """Increment rotation by specified value."""
+        self.rotate_spin.setValue(self.rotate_spin.value() + value)
+
+    def on_translate_x(self, value: int) -> None:
+        """Increment translation(x) by specified value."""
+        self.translate_x.setValue(self.translate_x.value() + value)
+
+    def on_translate_y(self, value: int) -> None:
+        """Increment translation(y) by specified value."""
+        self.translate_y.setValue(self.translate_y.value() + value)
 
     # noinspection PyAttributeOutsideInit
     def make_panel(self) -> QFormLayout:
@@ -338,6 +365,18 @@ class PreprocessingDialog(QtFramelessTool):
             tooltip="Translate X",
             func=self.on_update_transform_model,
         )
+        self.translate_left = hp.make_qta_btn(
+            self,
+            "arrow_left",
+            tooltip="Add 500um from current value (it might not be left!)",
+            func=partial(self.on_translate_x, value=500),
+        )
+        self.translate_right = hp.make_qta_btn(
+            self,
+            "arrow_right",
+            tooltip="Subtract 500um to the current value (it might not be right!)",
+            func=partial(self.on_translate_x, value=-500),
+        )
         self.translate_y = hp.make_int_spin_box(
             self,
             value=0,
@@ -348,12 +387,30 @@ class PreprocessingDialog(QtFramelessTool):
             tooltip="Translate Y",
             func=self.on_update_transform_model,
         )
+        self.translate_up = hp.make_qta_btn(
+            self,
+            "arrow_up",
+            tooltip="Add 500um from current value (it might not be up!)",
+            func=partial(self.on_translate_y, value=500),
+        )
+        self.translate_down = hp.make_qta_btn(
+            self,
+            "arrow_down",
+            tooltip="Subtract 500um to the current value (it might not be down!)",
+            func=partial(self.on_translate_y, value=-500),
+        )
+        self.rotate_bck = hp.make_qta_btn(
+            self, "rotate_left", tooltip="Rotate (counter-clockwise)", func=partial(self.on_rotate, value=-90)
+        )
+        self.rotate_fwd = hp.make_qta_btn(
+            self, "rotate_right", tooltip="Rotate (clockwise)", func=partial(self.on_rotate, value=90)
+        )
         self.rotate_spin = hp.make_double_spin_box(
             self,
             value=0,
             minimum=-360,
             maximum=360,
-            step_size=5,
+            step_size=1,
             suffix="°",
             tooltip="Rotate (counter-clockwise)",
             func=self.on_update_transform_model,
@@ -395,14 +452,16 @@ class PreprocessingDialog(QtFramelessTool):
         layout.addRow(
             "Translate (x)",
             hp.make_h_layout(
-                self.translate_x,
                 hp.make_warning_label(
                     self,
                     "Setting this value is not fully supported yet.<br>Positive values might result in cropped"
                     " images.",
                     small=True,
                 ),
-                stretch_id=(0,),
+                self.translate_x,
+                self.translate_left,
+                self.translate_right,
+                stretch_id=(1,),
                 margin=0,
                 spacing=0,
             ),
@@ -410,19 +469,24 @@ class PreprocessingDialog(QtFramelessTool):
         layout.addRow(
             "Translate (y)",
             hp.make_h_layout(
-                self.translate_y,
                 hp.make_warning_label(
                     self,
                     "Setting this value is not fully supported yet.<br>Positive values might result in cropped"
                     " images.",
                     small=True,
                 ),
-                stretch_id=(0,),
+                self.translate_y,
+                self.translate_up,
+                self.translate_down,
+                stretch_id=(1,),
                 margin=0,
                 spacing=0,
             ),
         )
-        layout.addRow("Rotate (counter-clockwise)", self.rotate_spin)
+        layout.addRow(
+            "Rotate (counter-clockwise)",
+            hp.make_h_layout(self.rotate_spin, self.rotate_bck, self.rotate_fwd, spacing=1, margin=0, stretch_id=(0,)),
+        )
         layout.addRow("Downsample", self.downsample_spin)
         layout.addRow(hp.make_h_line())
         layout.addRow("Preview", self.preview_check)

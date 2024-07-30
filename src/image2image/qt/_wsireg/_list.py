@@ -50,6 +50,7 @@ class QtModalityItem(QtListItem):
     _preprocessing_dlg: PreprocessingDialog | None = None
     _mode: bool = False
     item_model: Modality
+    previewing: bool = False
 
     def __init__(self, item: QListWidgetItem, parent: QWidget | None = None, color="#808080", valis: bool = False):
         super().__init__(parent)
@@ -300,6 +301,7 @@ class QtModalityItem(QtListItem):
         """Open pre-processing dialog."""
         from ._preprocessing import PreprocessingDialog
 
+        self.previewing = True
         try:
             self._preprocessing_dlg.show()
         except (RuntimeError, AttributeError):
@@ -307,7 +309,10 @@ class QtModalityItem(QtListItem):
 
         if self._preprocessing_dlg is None:
             self._preprocessing_dlg = PreprocessingDialog(
-                self.item_model, parent=self, locked=self.lock_btn.locked, valis=self.valis
+                self.item_model,
+                parent=self,
+                locked=self.lock_btn.locked,
+                valis=self.valis,
             )
             self._preprocessing_dlg.evt_update.connect(self.on_update_preprocessing)
             self._preprocessing_dlg.evt_preview_preprocessing.connect(self.evt_preview_preprocessing.emit)
@@ -321,6 +326,7 @@ class QtModalityItem(QtListItem):
 
     def _on_close_preprocessing(self) -> None:
         self._preprocessing_dlg = None
+        self.previewing = False
         self.evt_preprocessing_close.emit(self.item_model)
         logger.trace(f"Pre-processing dialog closed for {self.item_model.name}.")
 

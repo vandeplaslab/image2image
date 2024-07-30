@@ -63,10 +63,12 @@ class LoadWidget(QWidget):
         allow_iterate: bool = False,
         project_extension: list[str] | None = None,
         show_split_czi: bool = True,
+        import_project: bool = False,
     ):
         """Init."""
         self.allow_geojson = allow_geojson
         self.select_channels = select_channels
+        self.import_project = import_project
         super().__init__(parent)
         self.view = view
         self.n_max = n_max
@@ -112,12 +114,13 @@ class LoadWidget(QWidget):
         self.info_text.setVisible(self.INFO_VISIBLE)
         layout.addRow(self.info_text)  # noqa
         self.active_icon = QtActiveIcon()
+        self.import_btn = hp.make_qta_btn(
+            self, "project", func=self.on_select_project, tooltip="Open project file.", standout=True, normal=True
+        )
+        if not self.import_project:
+            self.import_btn.setVisible(False)
         self.add_btn = hp.make_qta_btn(
-            self,
-            "add",
-            func=self.on_select_dataset,
-            tooltip="Add image(s) to the viewer.",
-            properties={"standout": True},
+            self, "add", func=self.on_select_dataset, tooltip="Add image(s) to the viewer.", standout=True, normal=True
         )
         self.more_btn = hp.make_btn(
             self,
@@ -127,13 +130,15 @@ class LoadWidget(QWidget):
         )
         layout.addRow(
             hp.make_h_layout(
+                self.import_btn,
                 self.add_btn,
                 hp.make_qta_btn(
                     self,
                     "delete",
                     func=self.on_close_dataset,
                     tooltip="Remove image(s) from the viewer.",
-                    properties={"standout": True},
+                    standout=True,
+                    normal=True,
                 ),
                 self.more_btn,
                 self.active_icon,
@@ -163,6 +168,10 @@ class LoadWidget(QWidget):
         if isinstance(paths, (str, Path)):
             paths = [paths]
         self.dataset_dlg._on_load_dataset(paths, transform_data, resolution, reader_kws)
+
+    def on_select_project(self) -> None:
+        """Open project."""
+        self.dataset_dlg.on_select_project()
 
     def on_select_dataset(self, _evt: ty.Any = None) -> None:
         """Load data."""
