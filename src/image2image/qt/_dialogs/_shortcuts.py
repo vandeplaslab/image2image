@@ -48,7 +48,9 @@ class RegisterShortcutsDialog(ShortcutsDialog):
     <br><b>Z</b> - Zoom-in on the currently set 'Area of interest'.
     <br><b>T</b> - Toggle between each of the transformed 'moving' images.
     <br><b>S</b> - Quickly enable/disable image synchronization.
-    <br><b>V</b> - Toggle visibility of the  transformed 'moving' images.
+    <br><b>V</b> - Toggle visibility of the transformed 'moving' image.
+    <br><b>Q</b> - Decrease opacity of the transformed 'moving' image.
+    <br><b>E</b> - Increase opacity of the transformed 'moving' image.
     """
 
 

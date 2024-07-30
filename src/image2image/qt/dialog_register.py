@@ -21,7 +21,6 @@ from napari.utils.events import Event
 from qtextra._napari.image.wrapper import NapariImageView
 from qtextra.utils.utilities import connect
 from qtextra.widgets.qt_close_window import QtConfirmCloseDialog
-from qtextra.widgets.qt_image_button import QtImagePushButton
 from qtextra.widgets.qt_mini_toolbar import QtMiniToolbar
 from qtpy.QtCore import Qt, Signal  # type: ignore[attr-defined]
 from qtpy.QtWidgets import QDialog, QFormLayout, QHBoxLayout, QMenuBar, QSizePolicy, QVBoxLayout, QWidget
@@ -43,6 +42,7 @@ from image2image.utils.utilities import (
 )
 
 if ty.TYPE_CHECKING:
+    from qtextra.widgets.qt_image_button import QtImagePushButton
     from skimage.transform import ProjectiveTransform
 
     from image2image.qt._dialogs import FiducialsDialog
@@ -971,6 +971,11 @@ class ImageRegistrationWindow(Window):
         self._current_index = current
         self.fiducials_dlg.on_select_point(current)
 
+    @qdebounced(timeout=50)
+    def on_adjust_transformed_opacity(self, increase_by: int) -> None:
+        """Toggle visibility of transformed image."""
+        self.moving_opacity.setValue(self.moving_opacity.value() + increase_by)
+
     def on_update_settings(self):
         """Update config."""
         CONFIG.sync_views = self.synchronize_zoom.isChecked()
@@ -1546,6 +1551,12 @@ class ImageRegistrationWindow(Window):
         elif key == Qt.Key.Key_S:
             self.on_toggle_synchronization()
             evt.ignore()
+        elif key == Qt.Key.Key_E:  # increase opacity
+            self.on_adjust_transformed_opacity(10)
+            evt.ignore()
+        elif key == Qt.Key.Key_Q:  # decrease opacity
+            self.on_adjust_transformed_opacity(-10)
+            evt.ignore()
         else:
             super().keyPressEvent(evt)
 
@@ -1589,6 +1600,7 @@ class ImageRegistrationWindow(Window):
             self,
             "Please select which view would you like to add the image(s) to?",
             {"fixed": "Fixed image", "moving": "Moving image"},
+            orientation="vertical",
         )
         which = None
         if dlg.exec_() == QDialog.DialogCode.Accepted:  # type: ignore[attr-defined]

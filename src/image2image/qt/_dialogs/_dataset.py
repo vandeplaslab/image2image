@@ -755,7 +755,10 @@ class SelectDataDialog(QtFramelessTool):
                 from qtextra.widgets.qt_pick_option import QtScrollablePickOption
 
                 dlg = QtScrollablePickOption(
-                    self, "Please select which image would you like to register?", options=options
+                    self,
+                    "Please select which image would you like to register?",
+                    options=options,
+                    orientation="vertical",
                 )
                 which = None
                 if dlg.exec_() == QDialog.DialogCode.Accepted:

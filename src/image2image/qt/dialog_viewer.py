@@ -314,6 +314,7 @@ class ImageViewerWindow(Window):
             " as this will determine the transformation matrix used to export the mask. If you are viewing multiple "
             " images, you should use the resolution of the image you are currently viewing.",
             options,
+            orientation="vertical",
         )
         which = None
         if dlg.exec_() == QDialog.DialogCode.Accepted:  # type: ignore[attr-defined]
