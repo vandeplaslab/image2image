@@ -27,7 +27,7 @@ from qtpy.QtWidgets import QDialog, QFormLayout, QHBoxLayout, QMenuBar, QSizePol
 from superqt.utils import ensure_main_thread, qdebounced
 
 from image2image import __version__
-from image2image.config import CONFIG
+from image2image.config import REGISTER_CONFIG, RegisterConfig
 from image2image.enums import ALLOWED_PROJECT_EXPORT_REGISTER_FORMATS, ALLOWED_PROJECT_IMPORT_REGISTER_FORMATS
 from image2image.models.data import DataModel
 from image2image.models.transformation import Transformation
@@ -110,6 +110,7 @@ class ImageRegistrationWindow(Window):
     evt_moving_dropped = Signal("QEvent")
 
     def __init__(self, parent: QWidget | None, run_check_version: bool = True, **kwargs: ty.Any):
+        self.CONFIG: RegisterConfig = REGISTER_CONFIG
         super().__init__(
             parent,
             f"image2image: Registration app (v{__version__})",
@@ -122,7 +123,7 @@ class ImageRegistrationWindow(Window):
             fixed_points=self.fixed_points_layer.data,
             moving_points=self.moving_points_layer.data,
         )
-        if CONFIG.first_time_register:
+        if self.CONFIG.first_time:
             hp.call_later(self, self.on_show_tutorial, 10_000)
         self._setup_config()
 
@@ -605,14 +606,14 @@ class ImageRegistrationWindow(Window):
         path_ = hp.get_save_filename(
             self,
             "Save transformation",
-            base_dir=CONFIG.output_dir,
+            base_dir=self.CONFIG.output_dir,
             file_filter=ALLOWED_PROJECT_EXPORT_REGISTER_FORMATS,
             base_filename=filename,
         )
         if path_:
             path = Path(path_)
             path = ensure_extension(path, "i2r")
-            CONFIG.output_dir = str(path.parent)
+            self.CONFIG.output_dir = str(path.parent)
             transform.to_file(path)
             hp.long_toast(
                 self,
@@ -625,7 +626,10 @@ class ImageRegistrationWindow(Window):
     def on_load_from_project(self, _evt: ty.Any = None) -> None:
         """Import transformation."""
         path_ = hp.get_filename(
-            self, "Load transformation", base_dir=CONFIG.output_dir, file_filter=ALLOWED_PROJECT_IMPORT_REGISTER_FORMATS
+            self,
+            "Load transformation",
+            base_dir=self.CONFIG.output_dir,
+            file_filter=ALLOWED_PROJECT_IMPORT_REGISTER_FORMATS,
         )
         self._on_load_from_project(path_)
 
@@ -637,7 +641,7 @@ class ImageRegistrationWindow(Window):
 
             # load transformation
             path = Path(path_)
-            CONFIG.output_dir = str(path.parent)
+            self.CONFIG.output_dir = str(path.parent)
 
             # get info on which settings should be imported
             dlg = ImportSelectDialog(self)
@@ -798,7 +802,7 @@ class ImageRegistrationWindow(Window):
                 blending="translucent",
                 affine=affine,
                 colormap=colormap,
-                opacity=CONFIG.opacity_moving / 100,
+                opacity=self.CONFIG.opacity_moving / 100,
             )
         self.transformed_moving_image_layer.visible = READER_CONFIG.show_transformed
         self._move_layer(self.view_fixed, self.transformed_moving_image_layer, -1, False)
@@ -818,7 +822,7 @@ class ImageRegistrationWindow(Window):
                 blending="translucent",
                 affine=np.eye(3),
                 colormap=moving_image_layer.colormap,
-                opacity=CONFIG.opacity_moving / 100,
+                opacity=self.CONFIG.opacity_moving / 100,
             )
 
     @ensure_main_thread
@@ -875,29 +879,29 @@ class ImageRegistrationWindow(Window):
 
     def on_update_layer(self, which: str, _value: ty.Any = None) -> None:
         """Update points layer."""
-        CONFIG.size_fixed = self.fixed_point_size.value()
-        CONFIG.size_moving = self.moving_point_size.value()
-        CONFIG.opacity_fixed = self.fixed_opacity.value()
-        CONFIG.opacity_moving = self.moving_opacity.value()
+        self.CONFIG.size_fixed = self.fixed_point_size.value()
+        self.CONFIG.size_moving = self.moving_point_size.value()
+        self.CONFIG.opacity_fixed = self.fixed_opacity.value()
+        self.CONFIG.opacity_moving = self.moving_opacity.value()
 
         # update point size
         if self.fixed_points_layer and which == "fixed":
-            self.fixed_points_layer.size = CONFIG.size_fixed
+            self.fixed_points_layer.size = self.CONFIG.size_fixed
             with suppress(IndexError):
-                self.fixed_points_layer.current_size = CONFIG.size_fixed
+                self.fixed_points_layer.current_size = self.CONFIG.size_fixed
         if self.moving_points_layer and which == "moving":
-            self.moving_points_layer.size = CONFIG.size_moving
+            self.moving_points_layer.size = self.CONFIG.size_moving
             with suppress(IndexError):
-                self.moving_points_layer.current_size = CONFIG.size_moving
+                self.moving_points_layer.current_size = self.CONFIG.size_moving
         if self.fixed_image_layer and which == "fixed":
-            self.fixed_image_layer[0].opacity = CONFIG.opacity_fixed / 100
+            self.fixed_image_layer[0].opacity = self.CONFIG.opacity_fixed / 100
         if self.transformed_moving_image_layer and which == "moving":
-            self.transformed_moving_image_layer.opacity = CONFIG.opacity_moving / 100
+            self.transformed_moving_image_layer.opacity = self.CONFIG.opacity_moving / 100
 
     def on_update_text(self, _: ty.Any = None, block: bool = False) -> None:
         """Update text data in each layer."""
-        CONFIG.label_color = self.text_color.hex_color
-        CONFIG.label_size = self.text_size.value()
+        self.CONFIG.label_color = self.text_color.hex_color
+        self.CONFIG.label_size = self.text_size.value()
 
         # update text information
         for layer in [self.fixed_points_layer, self.moving_points_layer]:
@@ -953,10 +957,10 @@ class ImageRegistrationWindow(Window):
     @qdebounced(timeout=50)
     def on_toggle_synchronization(self, _=None) -> None:
         """Toggle synchronization of views."""
-        CONFIG.sync_views = not CONFIG.sync_views
+        self.CONFIG.sync_views = not self.CONFIG.sync_views
         with hp.qt_signals_blocked(self.synchronize_zoom):
-            self.synchronize_zoom.setChecked(CONFIG.sync_views)
-        logger.trace(f"Synchronization of views is {'enabled' if CONFIG.sync_views else 'disabled'}.")
+            self.synchronize_zoom.setChecked(self.CONFIG.sync_views)
+        logger.trace(f"Synchronization of views is {'enabled' if self.CONFIG.sync_views else 'disabled'}.")
 
     @qdebounced(timeout=50)
     def on_zoom_on_point(self, increment: int):
@@ -978,7 +982,7 @@ class ImageRegistrationWindow(Window):
 
     def on_update_settings(self):
         """Update config."""
-        CONFIG.sync_views = self.synchronize_zoom.isChecked()
+        self.CONFIG.sync_views = self.synchronize_zoom.isChecked()
         self.on_sync_views_fixed()
 
     @qdebounced(timeout=100, leading=False)
@@ -998,7 +1002,7 @@ class ImageRegistrationWindow(Window):
         self.__on_sync_views(from_which)
 
     def __on_sync_views(self, from_which: str) -> None:
-        if not CONFIG.sync_views:
+        if not self.CONFIG.sync_views:
             return
         if self._zooming:
             logger.trace("Zooming in progress, skipping synchronization.")
@@ -1054,13 +1058,13 @@ class ImageRegistrationWindow(Window):
 
         self._fixed_widget = FixedWidget(
             self,
-            self.view_fixed,
+            self.view_fixed,self.CONFIG,
             allow_swap=False,
             project_extension=[".i2r.json", ".i2r.toml"],
         )
         self._moving_widget = MovingWidget(
             self,
-            self.view_moving,
+            self.view_moving,self.CONFIG,
             allow_swap=False,
             project_extension=[".i2r.json", ".i2r.toml"],
             allow_iterate=True,
@@ -1078,7 +1082,7 @@ class ImageRegistrationWindow(Window):
 
         self.initial_btn = hp.make_btn(
             side_widget,
-            "Orient moving image...",
+            "Initialize moving image...",
             func=self.on_show_initial,
             tooltip="You can optionally rotate or flip the moving image so that it's easier to align with the fixed"
             " image. This button will be disabled if there are ANY points in the moving image.",
@@ -1091,7 +1095,7 @@ class ImageRegistrationWindow(Window):
         )
         self.export_project_btn = hp.make_btn(
             side_widget,
-            "Export to file...",
+            "Export project...",
             tooltip="Export transformation to file. XML format is usable by MATLAB fusion.",
             func=self.on_save_to_project,
         )
@@ -1298,7 +1302,7 @@ class ImageRegistrationWindow(Window):
         self.view_fixed.viewer.scale_bar.unit = "um"
         self.view_fixed.widget.canvas.events.key_press.connect(self.keyPressEvent)
 
-        toolbar = QtMiniToolbar(self, Qt.Vertical, add_spacer=True)  # type: ignore[attr-defined]
+        toolbar = QtMiniToolbar(self, Qt.Orientation.Vertical, add_spacer=True, icon_size="normal")
         _fixed_clear_btn = toolbar.insert_qta_tool(
             "remove_all",
             func=lambda *args: self.on_clear("fixed", force=False),
@@ -1364,7 +1368,7 @@ class ImageRegistrationWindow(Window):
         self.view_moving.viewer.scale_bar.unit = "um"
         self.view_moving.widget.canvas.events.key_press.connect(self.keyPressEvent)
 
-        toolbar = QtMiniToolbar(self, Qt.Vertical, add_spacer=True)  # type: ignore[attr-defined]
+        toolbar = QtMiniToolbar(self, Qt.Orientation.Vertical, add_spacer=True, icon_size="normal")
         _moving_clear_btn = toolbar.insert_qta_tool(
             "remove_all",
             func=lambda *args: self.on_clear("moving", force=False),
@@ -1431,7 +1435,7 @@ class ImageRegistrationWindow(Window):
             "Sync views",
             "Synchronize zoom between views. It only starts taking effect once transformation model has been"
             " calculated.",
-            value=CONFIG.sync_views,
+            value=self.CONFIG.sync_views,
             func=self.on_toggle_synchronization,
         )
         self.synchronize_zoom.setSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum)
@@ -1440,7 +1444,7 @@ class ImageRegistrationWindow(Window):
 
         self.fixed_point_size = hp.make_int_spin_box(
             self,
-            value=CONFIG.size_fixed,
+            value=self.CONFIG.size_fixed,
             tooltip="Size of the points shown in the fixed image.",
         )
         self.fixed_point_size.setSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum)
@@ -1450,7 +1454,7 @@ class ImageRegistrationWindow(Window):
 
         self.moving_point_size = hp.make_int_spin_box(
             self,
-            value=CONFIG.size_moving,
+            value=self.CONFIG.size_moving,
             tooltip="Size of the points shown in the moving image.",
         )
         self.moving_point_size.setSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum)
@@ -1461,7 +1465,7 @@ class ImageRegistrationWindow(Window):
 
         self.fixed_opacity = hp.make_int_spin_box(
             self,
-            value=CONFIG.opacity_fixed,
+            value=self.CONFIG.opacity_fixed,
             step_size=10,
             tooltip="Opacity of the fixed image",
         )
@@ -1472,7 +1476,7 @@ class ImageRegistrationWindow(Window):
 
         self.moving_opacity = hp.make_int_spin_box(
             self,
-            value=CONFIG.opacity_moving,
+            value=self.CONFIG.opacity_moving,
             step_size=10,
             tooltip="Opacity of the moving image in the fixed view",
         )
@@ -1484,7 +1488,7 @@ class ImageRegistrationWindow(Window):
 
         self.text_size = hp.make_int_spin_box(
             self,
-            value=CONFIG.label_size,
+            value=self.CONFIG.label_size,
             minimum=4,
             maximum=60,
             tooltip="Size of the text associated with each label.",
@@ -1495,7 +1499,7 @@ class ImageRegistrationWindow(Window):
         self.statusbar.insertPermanentWidget(13, self.text_size)
 
         self.text_color = hp.make_swatch(
-            self, default=CONFIG.label_color, tooltip="Color of the text associated with each label."
+            self, default=self.CONFIG.label_color, tooltip="Color of the text associated with each label."
         )
         self.text_color.setSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum)  # type: ignore[attr-defined]
         self.text_color.evt_color_changed.connect(self.on_update_text)  # noqa
@@ -1564,8 +1568,8 @@ class ImageRegistrationWindow(Window):
         """Override to handle closing app or just the window."""
         if (
             not force
-            or not CONFIG.confirm_close_register
-            or QtConfirmCloseDialog(self, "confirm_close_register", self.on_save_to_project, CONFIG).exec_()  # type: ignore[attr-defined]
+            or not self.CONFIG.confirm_close
+            or QtConfirmCloseDialog(self, "confirm_close", self.on_save_to_project, self.CONFIG).exec_()  # type: ignore[attr-defined]
             == QDialog.DialogCode.Accepted
         ):
             return super().close()
@@ -1575,9 +1579,9 @@ class ImageRegistrationWindow(Window):
         """Close."""
         if (
             evt.spontaneous()
-            and CONFIG.confirm_close_register
+            and self.CONFIG.confirm_close
             and self.transform_model.is_valid()
-            and QtConfirmCloseDialog(self, "confirm_close_register", self.on_save_to_project, CONFIG).exec_()  # type: ignore[attr-defined]
+            and QtConfirmCloseDialog(self, "confirm_close", self.on_save_to_project, self.CONFIG).exec_()  # type: ignore[attr-defined]
             != QDialog.DialogCode.Accepted
         ):
             evt.ignore()
@@ -1585,7 +1589,7 @@ class ImageRegistrationWindow(Window):
 
         if self._console:
             self._console.close()
-        CONFIG.save()
+        self.CONFIG.save()
         READER_CONFIG.save()
         evt.accept()
 
@@ -1617,7 +1621,7 @@ class ImageRegistrationWindow(Window):
         from image2image.qt._dialogs._tutorial import show_register_tutorial
 
         show_register_tutorial(self)
-        CONFIG.first_time_register = False
+        self.CONFIG.first_time = False
 
 
 if __name__ == "__main__":  # pragma: no cover

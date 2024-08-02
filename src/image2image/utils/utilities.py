@@ -22,8 +22,6 @@ from napari.utils.events import Event
 from natsort import natsorted
 from vispy.color import Colormap as VispyColormap
 
-from image2image.config import CONFIG
-
 DRAG_DIST_THRESHOLD = 5
 
 np.seterr(divide="ignore", invalid="ignore")
@@ -301,11 +299,13 @@ def init_shapes_layer(layer: Shapes, visual: VispyShapesLayer) -> None:
 
 
 def _get_text_format() -> dict[str, ty.Any]:
+    from image2image.config import REGISTER_CONFIG
+
     return {
         "text": "{name}",
-        "color": CONFIG.label_color,
+        "color": REGISTER_CONFIG.label_color,
         "anchor": "center",
-        "size": CONFIG.label_size,
+        "size": REGISTER_CONFIG.label_size,
     }
 
 

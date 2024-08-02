@@ -41,17 +41,17 @@ IS_PYINSTALLER = getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS")
 
 def install_error_monitor() -> None:
     """Initialize the error monitor with sentry.io."""
-    from image2image.config import CONFIG
+    from image2image.config import APP_CONFIG
 
-    _install_error_monitor(CONFIG, pyinstaller=IS_PYINSTALLER)
+    _install_error_monitor(APP_CONFIG, pyinstaller=IS_PYINSTALLER)
     logger.debug("Installed sentry error monitor.")
 
 
 def ask_opt_in(parent):
     """Initialize the error monitor with sentry.io."""
-    from image2image.config import CONFIG
+    from image2image.config import APP_CONFIG
 
-    _ask_opt_in(settings=CONFIG, force=True, parent=parent)
+    _ask_opt_in(settings=APP_CONFIG, force=True, parent=parent)
 
 
 def send_feedback(parent):

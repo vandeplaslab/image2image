@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import typing as ty
-from functools import partial
 from pathlib import Path
 
 import numpy as np
@@ -19,7 +18,7 @@ from qtpy.QtWidgets import QDialog, QHBoxLayout, QMenuBar, QStatusBar, QVBoxLayo
 from superqt import ensure_main_thread
 
 from image2image import __version__
-from image2image.config import CONFIG
+from image2image.config import VIEWER_CONFIG
 from image2image.enums import ALLOWED_PROJECT_VIEWER_FORMATS
 from image2image.qt._dialogs._select import LoadWithTransformWidget
 from image2image.qt.dialog_base import Window
@@ -52,8 +51,9 @@ class ImageViewerWindow(Window):
         image_dir: PathLike | None = None,
         **_kwargs,
     ):
+        self.CONFIG = VIEWER_CONFIG
         super().__init__(parent, f"image2image: Viewer app (v{__version__})", run_check_version=run_check_version)
-        if CONFIG.first_time_viewer:
+        if self.CONFIG.first_time:
             hp.call_later(self, self.on_show_tutorial, 10_000)
         self._setup_config()
         self.on_open_images(image_dir, image_path)
@@ -212,7 +212,7 @@ class ImageViewerWindow(Window):
     def on_load_from_project(self, _evt=None):
         """Load a previous project."""
         path_ = hp.get_filename(
-            self, "Load i2v project", base_dir=CONFIG.output_dir, file_filter=ALLOWED_PROJECT_VIEWER_FORMATS
+            self, "Load i2v project", base_dir=self.CONFIG.output_dir, file_filter=ALLOWED_PROJECT_VIEWER_FORMATS
         )
         self._on_load_from_project(path_)
 
@@ -226,7 +226,7 @@ class ImageViewerWindow(Window):
                 self._image_widget.transform_dlg._on_add_transform(path)
                 return
 
-            CONFIG.output_dir = str(path.parent)
+            self.CONFIG.output_dir = str(path.parent)
 
             # load data from config file
             try:
@@ -274,14 +274,14 @@ class ImageViewerWindow(Window):
         path_ = hp.get_save_filename(
             self,
             "Save i2v project",
-            base_dir=CONFIG.output_dir,
+            base_dir=self.CONFIG.output_dir,
             file_filter=ALLOWED_PROJECT_VIEWER_FORMATS,
             base_filename=filename,
         )
         if path_:
             path = Path(path_)
             path = ensure_extension(path, "i2v")
-            CONFIG.output_dir = str(path.parent)
+            self.CONFIG.output_dir = str(path.parent)
             model.to_file(path)
             hp.long_toast(
                 self,
@@ -400,6 +400,7 @@ class ImageViewerWindow(Window):
         self._image_widget = LoadWithTransformWidget(
             self,
             self.view,
+            self.CONFIG,
             allow_geojson=True,
             project_extension=[".i2v.json", ".i2v.toml", ".i2r.json", ".i2r.toml"],
             allow_iterate=True,
@@ -494,9 +495,6 @@ class ImageViewerWindow(Window):
 
     def _make_statusbar(self) -> None:
         """Make statusbar."""
-        from qtextra.widgets.qt_image_button import QtThemeButton
-
-        from image2image.qt._dialogs._sentry import send_feedback
 
         self.statusbar = QStatusBar()
         self.statusbar.setSizeGripEnabled(False)
@@ -531,45 +529,11 @@ class ImageViewerWindow(Window):
         )
         self.statusbar.addPermanentWidget(self.scalebar_btn)
 
-        self.feedback_btn = hp.make_qta_btn(
-            self,
-            "feedback",
-            tooltip="Send feedback to the developers.",
-            func=partial(send_feedback, parent=self),
-            small=True,
-        )
-        self.statusbar.addPermanentWidget(self.feedback_btn)
-
-        self.theme_btn = QtThemeButton(self)
-        self.theme_btn.auto_connect()
-        with hp.qt_signals_blocked(self.theme_btn):
-            self.theme_btn.dark = CONFIG.theme == "dark"
-        self.theme_btn.clicked.connect(self.on_toggle_theme)
-        self.theme_btn.set_small()
-        self.statusbar.addPermanentWidget(self.theme_btn)
-
-        self.tutorial_btn = hp.make_qta_btn(
-            self, "help", tooltip="Give me a quick tutorial!", func=self.on_show_tutorial, small=True
-        )
-        self.statusbar.addPermanentWidget(self.tutorial_btn)
-        self.statusbar.addPermanentWidget(
-            hp.make_qta_btn(
-                self,
-                "ipython",
-                tooltip="Open IPython console",
-                small=True,
-                func=self.on_show_console,
-            )
-        )
-        self.update_status_btn = hp.make_btn(
-            self,
-            "Update available - click here to download!",
-            tooltip="Show information about available updates.",
-            func=self.on_show_update_info,
-        )
-        self.update_status_btn.setObjectName("update_btn")
-        self.update_status_btn.hide()
-        self.statusbar.addPermanentWidget(self.update_status_btn)
+        self._make_feedback_button()
+        self._make_theme_button()
+        self._make_tutorial_button()
+        self._make_ipython_button()
+        self._make_update_button()
         self.setStatusBar(self.statusbar)
 
     def _make_menu(self) -> None:
@@ -629,8 +593,8 @@ class ImageViewerWindow(Window):
         """Override to handle closing app or just the window."""
         if (
             not force
-            or not CONFIG.confirm_close_viewer
-            or QtConfirmCloseDialog(self, "confirm_close_viewer", self.on_save_to_project, CONFIG).exec_()  # type: ignore[attr-defined]
+            or not self.CONFIG.confirm_close
+            or QtConfirmCloseDialog(self, "confirm_close", self.on_save_to_project, self.CONFIG).exec_()  # type: ignore[attr-defined]
             == QDialog.DialogCode.Accepted
         ):
             return super().close()
@@ -640,9 +604,9 @@ class ImageViewerWindow(Window):
         """Close."""
         if (
             evt.spontaneous()
-            and CONFIG.confirm_close_viewer
+            and self.CONFIG.confirm_close
             and self.data_model.is_valid()
-            and QtConfirmCloseDialog(self, "confirm_close_viewer", self.on_save_to_project, CONFIG).exec_()  # type: ignore[attr-defined]
+            and QtConfirmCloseDialog(self, "confirm_close", self.on_save_to_project, self.CONFIG).exec_()  # type: ignore[attr-defined]
             != QDialog.DialogCode.Accepted
         ):
             evt.ignore()
@@ -650,7 +614,7 @@ class ImageViewerWindow(Window):
 
         if self._console:
             self._console.close()
-        CONFIG.save()
+        self.CONFIG.save()
         READER_CONFIG.save()
         evt.accept()
 
@@ -659,7 +623,7 @@ class ImageViewerWindow(Window):
         from image2image.qt._dialogs._tutorial import show_viewer_tutorial
 
         show_viewer_tutorial(self)
-        CONFIG.first_time_viewer = False
+        self.CONFIG.first_time = False
 
 
 def get_resolution_options(wrapper) -> dict[str, str]:

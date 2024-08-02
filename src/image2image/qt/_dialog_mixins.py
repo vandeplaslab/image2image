@@ -12,7 +12,6 @@ from loguru import logger
 from qtextra.widgets.qt_close_window import QtConfirmCloseDialog
 from qtpy.QtWidgets import QDialog, QMenuBar, QStatusBar
 
-from image2image.config import CONFIG
 from image2image.qt.dialog_base import Window
 
 if ty.TYPE_CHECKING:
@@ -29,27 +28,26 @@ class SingleViewerMixin(Window):
     view: NapariImageView
     _image_widget: LoadWidget
 
-    WINDOW_CONFIG_ATTR: str = ""
     WINDOW_CONSOLE_ARGS: tuple[str, ...] = ()
 
     def on_set_output_dir(self) -> None:
         """Set output directory."""
-        self.output_dir = hp.get_directory(self, "Select output directory", CONFIG.output_dir)
+        self.output_dir = hp.get_directory(self, "Select output directory", self.CONFIG.output_dir)
 
     @property
     def output_dir(self) -> Path:
         """Output directory."""
         if self._output_dir is None:
-            if CONFIG.output_dir is None:
+            if self.CONFIG.output_dir is None:
                 return Path.cwd()
-            return Path(CONFIG.output_dir)
+            return Path(self.CONFIG.output_dir)
         return Path(self._output_dir)
 
     @output_dir.setter
     def output_dir(self, directory: PathLike) -> None:
         if directory:
             self._output_dir = directory
-            CONFIG.output_dir = directory
+            self.CONFIG.output_dir = directory
             formatted_output_dir = f".{self.output_dir.parent}/{self.output_dir.name}"
             self.output_dir_label.setText(hp.hyper(self.output_dir, value=formatted_output_dir))
             logger.debug(f"Output directory set to {self._output_dir}")
@@ -121,9 +119,6 @@ class SingleViewerMixin(Window):
 
     def _make_statusbar(self) -> None:
         """Make statusbar."""
-        from qtextra.widgets.qt_image_button import QtThemeButton
-
-        from image2image.qt._dialogs._sentry import send_feedback
 
         self.statusbar = QStatusBar()
         self.statusbar.setSizeGripEnabled(False)
@@ -158,55 +153,24 @@ class SingleViewerMixin(Window):
         )
         self.statusbar.addPermanentWidget(self.scalebar_btn)
 
-        self.feedback_btn = hp.make_qta_btn(
-            self,
-            "feedback",
-            tooltip="Send feedback to the developers.",
-            func=partial(send_feedback, parent=self),
-            small=True,
-        )
-        self.statusbar.addPermanentWidget(self.feedback_btn)
-
-        self.theme_btn = QtThemeButton(self)
-        self.theme_btn.auto_connect()
-        with hp.qt_signals_blocked(self.theme_btn):
-            self.theme_btn.dark = CONFIG.theme == "dark"
-        self.theme_btn.clicked.connect(self.on_toggle_theme)
-        self.theme_btn.set_small()
-        self.statusbar.addPermanentWidget(self.theme_btn)
-
-        self.tutorial_btn = hp.make_qta_btn(
-            self, "help", tooltip="Give me a quick tutorial!", func=self.on_show_tutorial, small=True
-        )
-        self.statusbar.addPermanentWidget(self.tutorial_btn)
-        self.statusbar.addPermanentWidget(
-            hp.make_qta_btn(
-                self,
-                "ipython",
-                tooltip="Open IPython console",
-                small=True,
-                func=self.on_show_console,
-            )
-        )
-        self.update_status_btn = hp.make_btn(
-            self,
-            "Update available - click here to download!",
-            tooltip="Show information about available updates.",
-            func=self.on_show_update_info,
-        )
-        self.update_status_btn.setObjectName("update_btn")
-        self.update_status_btn.hide()
-        self.statusbar.addPermanentWidget(self.update_status_btn)
+        self._make_feedback_button()
+        self._make_theme_button()
+        self._make_tutorial_button()
+        self._make_ipython_button()
+        self._make_update_button()
         self.setStatusBar(self.statusbar)
 
     def close(self, force=False):
         """Override to handle closing app or just the window."""
-        if not self.WINDOW_CONFIG_ATTR:
-            return super().close()
         if (
             not force
-            or not getattr(CONFIG, self.WINDOW_CONFIG_ATTR)
-            or QtConfirmCloseDialog(self, self.WINDOW_CONFIG_ATTR, self.on_save_to_project, CONFIG).exec_()  # type: ignore[attr-defined]
+            or not self.CONFIG.confirm_close
+            or QtConfirmCloseDialog(
+                self,
+                "confirm_close",
+                self.on_save_to_project,
+                self.CONFIG,
+            ).exec_()  # type: ignore[attr-defined]
             == QDialog.DialogCode.Accepted
         ):
             return super().close()
@@ -214,18 +178,22 @@ class SingleViewerMixin(Window):
 
     def closeEvent(self, evt):
         """Close."""
-        if self.WINDOW_CONFIG_ATTR:
-            if (
-                evt.spontaneous()
-                and getattr(CONFIG, self.WINDOW_CONFIG_ATTR)
-                and QtConfirmCloseDialog(self, self.WINDOW_CONFIG_ATTR, self.on_save_to_project, CONFIG).exec_()  # type: ignore[attr-defined]
-                != QDialog.DialogCode.Accepted
-            ):
-                evt.ignore()
-                return
+        if (
+            evt.spontaneous()
+            and self.CONFIG.confirm_close
+            and QtConfirmCloseDialog(
+                self,
+                "confirm_close",
+                self.on_save_to_project,
+                self.CONFIG,
+            ).exec_()  # type: ignore[attr-defined]
+            != QDialog.DialogCode.Accepted
+        ):
+            evt.ignore()
+            return
         if self._console:
             self._console.close()
-        CONFIG.save()
+        self.CONFIG.save()
         evt.accept()
 
     def _get_console_variables(self) -> dict:

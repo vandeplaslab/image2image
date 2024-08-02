@@ -9,11 +9,11 @@ from loguru import logger
 from qtpy.QtCore import Signal
 from qtpy.QtWidgets import QWidget
 
-from image2image.config import CONFIG
+from image2image.config import WSIREG_CONFIG
 from image2image.enums import REGISTRATION_PATH_HELP
 
 if ty.TYPE_CHECKING:
-    from image2image_reg.workflows.iwsireg import IWsiReg
+    from image2image_reg.workflows.elastix import IWsiReg
 
 logger = logger.bind(src="RegistrationMap")
 
@@ -94,13 +94,13 @@ class RegistrationPaths(QWidget):
         """Add transformation to the list."""
         current = self._choice.currentText()
         self.transformations.append(current)
-        CONFIG.transformations = tuple(self.transformations)
+        WSIREG_CONFIG.transformations = tuple(self.transformations)
         self._update_transformation_path()
 
     def on_reset_transformation(self) -> None:
         """Reset transformation list."""
         self.transformations = []
-        CONFIG.transformations = tuple(self.transformations)
+        WSIREG_CONFIG.transformations = tuple(self.transformations)
         self._update_transformation_path()
 
     def _update_transformation_path(self) -> None:
@@ -166,7 +166,7 @@ class RegistrationMap(QWidget):
         )
 
         self._registration_path = RegistrationPaths(self)
-        self._registration_path.registration_paths = CONFIG.transformations
+        self._registration_path.registration_paths = WSIREG_CONFIG.transformations
         # self._warning_label = hp.make_label(self, "", color="warning", wrap=True)
         # self._warning_label.setVisible(False)
 

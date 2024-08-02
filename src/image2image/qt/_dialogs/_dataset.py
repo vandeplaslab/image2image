@@ -31,7 +31,7 @@ from qtpy.QtWidgets import (
 )
 from superqt.utils import create_worker
 
-from image2image.config import CONFIG, STATE
+from image2image.config import REGISTER_CONFIG, STATE, SingleAppConfig
 from image2image.enums import ALLOWED_IMAGE_FORMATS, ALLOWED_IMAGE_FORMATS_WITH_GEOJSON
 from image2image.exceptions import MultiSceneCziError, UnsupportedFileFormatError
 from image2image.models.transform import TransformData
@@ -297,7 +297,7 @@ class ExtractChannelsDialog(QtDialog):
         path = hp.get_filename(
             self,
             title="Select peak list...",
-            base_dir=CONFIG.fixed_dir,
+            base_dir=REGISTER_CONFIG.fixed_dir,
             file_filter="CSV files (*.csv);;",
             multiple=False,
         )
@@ -416,6 +416,7 @@ class SelectDataDialog(QtFramelessTool):
     evt_resolution = Signal(str)
     evt_project = Signal(str)
     evt_files = Signal(list)
+    evt_rejected_files = Signal(list)
     evt_swap = Signal(str, str)
 
     TABLE_CONFIG = (
@@ -436,6 +437,7 @@ class SelectDataDialog(QtFramelessTool):
         self,
         parent: QWidget,
         model: DataModel,
+        config: SingleAppConfig,
         is_fixed: bool = False,
         n_max: int = 0,
         allow_geojson: bool = False,
@@ -457,6 +459,7 @@ class SelectDataDialog(QtFramelessTool):
         super().__init__(parent)
         self.n_max = n_max
         self.model = model
+        self.CONFIG = config
 
         self.setMinimumWidth(600)
         self.setMinimumHeight(400)
@@ -485,6 +488,7 @@ class SelectDataDialog(QtFramelessTool):
 
                     # add name item
                     name_item = QTableWidgetItem(reader.key)
+                    name_item.setToolTip(str(reader.path))
                     name_item.setFlags(name_item.flags() & ~Qt.ItemIsEditable.ItemIsEditable)
                     name_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
                     self.table.setItem(index, self.TABLE_CONFIG.key, name_item)
@@ -590,16 +594,16 @@ class SelectDataDialog(QtFramelessTool):
         paths = hp.get_filename(
             self,
             title="Select data...",
-            base_dir=CONFIG.fixed_dir if self.is_fixed else CONFIG.moving_dir,
+            base_dir=REGISTER_CONFIG.fixed_dir if self.is_fixed else REGISTER_CONFIG.moving_dir,
             file_filter=self.available_formats_filter,
             multiple=True,
         )
         if paths:
             for path in paths:
                 if self.is_fixed:
-                    CONFIG.fixed_dir = str(Path(path).parent)
+                    REGISTER_CONFIG.fixed_dir = str(Path(path).parent)
                 else:
-                    CONFIG.moving_dir = str(Path(path).parent)
+                    REGISTER_CONFIG.moving_dir = str(Path(path).parent)
 
                 if self.n_max and self.model.n_paths >= self.n_max:
                     verb = "image" if self.n_max == 1 else "images"
@@ -658,19 +662,23 @@ class SelectDataDialog(QtFramelessTool):
                 filenames.append(url.toString())
         # clear filenames by removing those that might not be permitted
         filenames_ = []
+        other_files_ = []
         for filename in filenames:
             if self.project_extension and any(filename.endswith(ext) for ext in self.project_extension):
                 self.evt_project.emit(filename)
             elif filename.endswith(allowed_extensions):
                 filenames_.append(filename)
             else:
-                logger.warning(
-                    f"File '{filename}' is not in a supported format. Permitted: {', '.join(allowed_extensions)}"
-                )
+                other_files_.append(filename)
+                # logger.warning(
+                #     f"File '{filename}' is not in a supported format. Permitted: {', '.join(allowed_extensions)}"
+                # )
         if filenames_:
             logger.trace(f"Dropped {filenames_} file(s)...")
             self.evt_files.emit(filenames_)
             self._on_load_dataset(filenames_)
+        if other_files_:
+            self.evt_rejected_files.emit(other_files_)
 
     def on_close_dataset(self, force: bool = False) -> bool:
         """Close dataset."""
@@ -814,7 +822,7 @@ class SelectDataDialog(QtFramelessTool):
         """Save image as OME-TIFF."""
         from image2image.qt._dialogs._save import ExportImageDialog
 
-        dlg = ExportImageDialog(self, self.model, key)
+        dlg = ExportImageDialog(self, self.model, key, self.CONFIG)
         dlg.exec()
 
     def on_extract_channels(self, key: str) -> None:
@@ -948,16 +956,14 @@ class SelectDataDialog(QtFramelessTool):
         hp.style_form_layout(layout)
         layout.setContentsMargins(6, 6, 6, 6)
         layout.addRow(header_layout)
-        layout.addRow(
-            hp.make_h_layout(
-                hp.make_btn(self, "Add image...", func=self.on_select_dataset),
-                hp.make_btn(self, "Remove image...", func=self.on_close_dataset),
-                stretch_id=0,
-            )
-        )
-        layout.addRow(hp.make_h_line())
-        layout.addRow(self.table)
-        layout.addRow(hp.make_h_line())
+        # layout.addRow(
+        #     hp.make_h_layout(
+        #         hp.make_btn(self, "Add image...", func=self.on_select_dataset),
+        #         hp.make_btn(self, "Remove image...", func=self.on_close_dataset),
+        #         stretch_id=0,
+        #     )
+        # )
+        # layout.addRow(hp.make_h_line())
         layout.addRow(
             hp.make_h_layout(
                 hp.make_label(self, "Shapes display"),
@@ -973,6 +979,8 @@ class SelectDataDialog(QtFramelessTool):
                 stretch_after=True,
             )
         )
+        layout.addRow(hp.make_h_line())
+        layout.addRow(self.table)
         layout.addRow(hp.make_h_line())
         layout.addRow(
             hp.make_label(

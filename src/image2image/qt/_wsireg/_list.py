@@ -14,9 +14,9 @@ from qtextra.widgets.qt_image_button import QtLockButton, QtVisibleButton
 from qtextra.widgets.qt_list_widget import QtListItem, QtListWidget
 from qtpy.QtCore import QRegularExpression, Qt, Signal, Slot  # type: ignore[attr-defined]
 from qtpy.QtGui import QRegularExpressionValidator
-from qtpy.QtWidgets import QHBoxLayout, QListWidgetItem, QSizePolicy, QWidget
+from qtpy.QtWidgets import QDialog, QHBoxLayout, QListWidgetItem, QSizePolicy, QWidget
 
-from image2image.config import CONFIG
+from image2image.config import VALIS_CONFIG, WSIREG_CONFIG, SingleAppConfig
 from image2image.qt._wsireg._widgets import QtModalityLabel
 
 if ty.TYPE_CHECKING:
@@ -122,7 +122,7 @@ class QtModalityItem(QtListItem):
             "delete",
             tooltip="Remove modality from the list.",
             normal=True,
-            func=lambda: self.evt_delete.emit(self.item_model),
+            func=self.on_remove,
         )
         self.mask_btn = hp.make_qta_btn(
             self,
@@ -203,6 +203,19 @@ class QtModalityItem(QtListItem):
         if not self.valis:
             self.mask_btn.setVisible(self.item_model.preprocessing.is_masked())
             self.crop_btn.setVisible(self.item_model.preprocessing.is_cropped())
+        self.setToolTip(f"<b>Modality</b>: {self.item_model.name}<br><b>Path</b>: {self.item_model.path}")
+
+    def on_remove(self) -> None:
+        """Remove image/modality from the list."""
+        if hp.confirm(
+            self, f"Are you sure you want to remove <b>{self.item_model.name}</b> from the list?", "Please confirm."
+        ):
+            self.evt_delete.emit(self.item_model)
+
+    @property
+    def CONFIG(self) -> SingleAppConfig:
+        """Return instance of configuration."""
+        return VALIS_CONFIG if self.valis else WSIREG_CONFIG
 
     @property
     def registration_model(self) -> IWsiReg:
@@ -214,35 +227,103 @@ class QtModalityItem(QtListItem):
 
     def on_attach_image(self) -> None:
         """Attach Image file."""
-        path = hp.get_filename(
-            self, "Attach image file", file_filter="Image files (*.czi *.tiff)", base_dir=CONFIG.last_dir
+        paths = hp.get_filename(
+            self,
+            "Attach image file",
+            file_filter="Image files (*.czi *.tiff)",
+            base_dir=self.CONFIG.last_dir,
+            multiple=True,
         )
-        if path:
-            CONFIG.last_dir = Path(path).parent
-            name = Path(path).stem.replace(".ome", "")
-            self.registration_model.auto_add_attachment_images(self.item_model.name, name, path)
+        if paths:
+            self.CONFIG.last_dir = Path(paths[0]).parent
+            for path in paths:
+                name = Path(path).stem.replace(".ome", "")
+                self.registration_model.auto_add_attachment_images(self.item_model.name, name, path)
             self._set_from_model()
+
+    def _get_attachment_metadata(self) -> tuple[str | None, float | None]:
+        """Return attachment metadata."""
+        from image2image.qt._wsireg._attachment import AttachWidget
+
+        dlg = AttachWidget(self, pixel_sizes=(1.0, self.item_model.pixel_size))
+        if dlg.exec_() == QDialog.DialogCode.Accepted:  # type: ignore[attr-defined]
+            return dlg.attachment_name, dlg.source_pixel_size
+        return None, 1.0
+
+    def auto_add_attachments(self, filelist: list[str]):
+        """Add any attachment"""
+        shapes, points = [], []
+        for file in filelist:
+            file = Path(file)
+            if file.suffix in [".geojson"]:
+                shapes.append(file)
+            elif file.suffix in [".csv", ".txt", ".tsv"]:
+                points.append(file)
+        if shapes or points:
+            name, pixel_size = self._get_attachment_metadata()
+            if name is None and pixel_size is None:
+                hp.toast(self, "Error", "No attachment name or pixel size provided.", icon="warning")
+                return
+            if shapes:
+                self._attach_shapes(shapes, name, pixel_size)
+            if points:
+                self._attach_points(points, name, pixel_size)
+            self._set_from_model()
+
+    def _attach_shapes(self, filelist: list[str], name: str | None, pixel_size: float | None):
+        if name:
+            self.registration_model.add_attachment_geojson(self.item_model.name, name, filelist, pixel_size=pixel_size)
+        else:
+            for path in filelist:
+                name = Path(path).stem
+                self.registration_model.add_attachment_geojson(
+                    self.item_model.name, name, [path], pixel_size=pixel_size
+                )
+        logger.debug(f"Attached {len(filelist)} GeoJSON files to {self.item_model.name}.")
 
     def on_attach_geojson(self) -> None:
         """Attach GeoJSON file."""
-        path = hp.get_filename(
-            self, "Attach GeoJSON file", file_filter="GeoJSON files (*.geojson)", base_dir=CONFIG.last_dir
+        shapes = hp.get_filename(
+            self,
+            "Attach GeoJSON file",
+            file_filter="GeoJSON files (*.geojson)",
+            base_dir=self.CONFIG.last_dir,
+            multiple=True,
         )
-        if path:
-            CONFIG.last_dir = Path(path).parent
-            name = Path(path).stem
-            self.registration_model.add_attachment_geojson(self.item_model.name, name, [path])
+        if shapes:
+            self.CONFIG.last_dir = Path(shapes[0]).parent
+            name, pixel_size = self._get_attachment_metadata()
+            if name is None and pixel_size is None:
+                hp.toast(self, "Error", "No attachment name or pixel size provided.", icon="warning")
+                return
+            self._attach_shapes(shapes, name, pixel_size)
             self._set_from_model()
+
+    def _attach_points(self, filelist: list[str], name: str | None, pixel_size: float | None):
+        if name:
+            self.registration_model.add_attachment_points(self.item_model.name, name, filelist, pixel_size=pixel_size)
+        else:
+            for path in filelist:
+                name = Path(path).stem
+                self.registration_model.add_attachment_points(self.item_model.name, name, [path], pixel_size=pixel_size)
+        logger.debug(f"Attached {len(filelist)} point files to {self.item_model.name}.")
 
     def on_attach_points(self) -> None:
         """Attach points file."""
-        path = hp.get_filename(
-            self, "Attach points file", file_filter="Points files (*.csv *.txt *.tsv)", base_dir=CONFIG.last_dir
+        paths = hp.get_filename(
+            self,
+            "Attach points file",
+            file_filter="Points files (*.csv *.txt *.tsv)",
+            base_dir=self.CONFIG.last_dir,
+            multiple=True,
         )
-        if path:
-            CONFIG.last_dir = Path(path).parent
-            name = Path(path).stem
-            self.registration_model.add_attachment_points(self.item_model.name, name, [path])
+        if paths:
+            self.CONFIG.last_dir = Path(paths[0]).parent
+            name, pixel_size = self._get_attachment_metadata()
+            if name is None and pixel_size is None:
+                hp.toast(self, "Error", "No attachment name or pixel size provided.", icon="warning")
+                return
+            self._attach_points(paths, name, pixel_size)
             self._set_from_model()
 
     @property
@@ -414,7 +495,8 @@ class QtModalityList(QtListWidget):
             colors = [widget.hex_color.lower() for _, _, widget in self.item_model_widget_iter()]
         except AttributeError:
             colors = []
-        color = get_next_color(self.count(), other_colors=colors)
+            logger.trace("Failed to retrieve colors")
+        color = get_next_color(self.count() - 1, other_colors=colors)
 
         widget = QtModalityItem(item, parent=self, color=color, valis=self.valis)
         widget.evt_delete.connect(self.evt_delete.emit)
@@ -452,9 +534,9 @@ class QtModalityList(QtListWidget):
     def populate(self) -> None:
         """Create list of items."""
         registration_model = self.registration_model
-        for model in registration_model.modalities.values():
-            if registration_model.is_attachment(model.name):
-                continue
+        for modality in registration_model.get_image_modalities(with_attachment=False):
+            model = registration_model.modalities[modality]
+            print(modality)
             self.append_item(model)
         logger.debug("Populated modality list.")
 

@@ -24,7 +24,7 @@ from superqt import ensure_main_thread
 from superqt.utils import GeneratorWorker, create_worker
 
 from image2image import __version__
-from image2image.config import CONFIG
+from image2image.config import CROP_CONFIG
 from image2image.enums import ALLOWED_PROJECT_CROP_FORMATS
 from image2image.qt._dialogs._select import LoadWidget
 from image2image.qt.dialog_base import Window
@@ -66,12 +66,13 @@ class ImageCropWindow(Window):
     _editing = False
 
     def __init__(self, parent: QWidget | None = None, run_check_version: bool = True, **kwargs: ty.Any):
+        self.CONFIG = CROP_CONFIG
         super().__init__(
             parent,
             f"image2image: Crop images app (v{__version__})",
             run_check_version=run_check_version,
         )
-        if CONFIG.first_time_crop:
+        if self.CONFIG.first_time:
             hp.call_later(self, self.on_show_tutorial, 10_000)
 
     @staticmethod
@@ -136,7 +137,7 @@ class ImageCropWindow(Window):
     def on_load_from_project(self) -> None:
         """Load previous data."""
         path_ = hp.get_filename(
-            self, "Load i2c project", base_dir=CONFIG.output_dir, file_filter=ALLOWED_PROJECT_CROP_FORMATS
+            self, "Load i2c project", base_dir=self.CONFIG.output_dir, file_filter=ALLOWED_PROJECT_CROP_FORMATS
         )
         self._on_load_from_project(path_)
 
@@ -146,7 +147,7 @@ class ImageCropWindow(Window):
             from image2image.models.utilities import _remove_missing_from_dict
 
             path = Path(path_)
-            CONFIG.output_dir = str(path.parent)
+            self.CONFIG.output_dir = str(path.parent)
 
             # load data from config file
             try:
@@ -192,14 +193,14 @@ class ImageCropWindow(Window):
         path_ = hp.get_save_filename(
             self,
             "Save transformation",
-            base_dir=CONFIG.output_dir,
+            base_dir=self.CONFIG.output_dir,
             file_filter=ALLOWED_PROJECT_CROP_FORMATS,
             base_filename=filename,
         )
         if path_:
             path = Path(path_)
             path = ensure_extension(path, "i2c")
-            CONFIG.output_dir = str(path.parent)
+            self.CONFIG.output_dir = str(path.parent)
             regions = self.get_crop_areas()
             config = get_project_data(self.data_model, regions)
             write_project(path, config)
@@ -298,12 +299,12 @@ class ImageCropWindow(Window):
             hp.toast(self, "No regions", "No regions to crop.", icon="error")
             return
 
-        output_dir_ = hp.get_directory(self, "Select output directory", CONFIG.output_dir)
+        output_dir_ = hp.get_directory(self, "Select output directory", self.CONFIG.output_dir)
         if not output_dir_:
             hp.toast(self, "No output directory", "No output directory selected.", icon="error")
             return
 
-        CONFIG.output_dir = output_dir_
+        self.CONFIG.output_dir = output_dir_
         tile_size = int(self.tile_size.currentText())
         as_uint8 = self.as_uint8.isChecked()
         if regions:
@@ -458,6 +459,7 @@ class ImageCropWindow(Window):
         self._image_widget = LoadWidget(
             self,
             self.view,
+            self.CONFIG,
             project_extension=[".i2c.json", ".i2c.toml"],
         )
 
@@ -497,14 +499,14 @@ class ImageCropWindow(Window):
             ["256", "512", "1024", "2048", "4096"],
             tooltip="Specify size of the tile. Default is 512",
             default="512",
-            value=f"{CONFIG.tile_size}",
+            value=f"{self.CONFIG.tile_size}",
         )
         self.as_uint8 = hp.make_checkbox(
             self,
             "Reduce data size (uint8 - dynamic range 0-255)",
             tooltip="Convert to uint8 to reduce file size with minimal data loss.",
             checked=True,
-            value=CONFIG.as_uint8,
+            value=self.CONFIG.as_uint8,
         )
         self.crop_btn = hp.make_active_progress_btn(
             self,
@@ -637,12 +639,12 @@ class ImageCropWindow(Window):
         """Override to handle closing app or just the window."""
         if (
             not force
-            or not CONFIG.confirm_close_crop
+            or not self.CONFIG.confirm_close
             or QtConfirmCloseDialog(
                 self,
-                "confirm_close_crop",
+                "confirm_close",
                 self.on_save_to_project,
-                CONFIG,
+                self.CONFIG,
             ).exec_()  # type: ignore[attr-defined]
             == QDialog.DialogCode.Accepted
         ):
@@ -653,13 +655,13 @@ class ImageCropWindow(Window):
         """Close."""
         if (
             evt.spontaneous()
-            and CONFIG.confirm_close_crop
+            and self.CONFIG.confirm_close
             and self.data_model.is_valid()
             and QtConfirmCloseDialog(
                 self,
-                "confirm_close_crop",
+                "confirm_close",
                 self.on_save_to_project,
-                CONFIG,
+                self.CONFIG,
             ).exec_()  # type: ignore[attr-defined]
             != QDialog.DialogCode.Accepted
         ):
@@ -668,7 +670,7 @@ class ImageCropWindow(Window):
 
         if self._console:
             self._console.close()
-        CONFIG.save()
+        self.CONFIG.save()
         READER_CONFIG.save()
         evt.accept()
 
@@ -677,7 +679,7 @@ class ImageCropWindow(Window):
         from image2image.qt._dialogs._tutorial import show_crop_tutorial
 
         show_crop_tutorial(self)
-        CONFIG.first_time_crop = False
+        self.CONFIG.first_time = False
 
 
 def get_project_data(data_model: DataModel, regions: list[tuple[int, int, int, int] | np.ndarray]) -> dict:

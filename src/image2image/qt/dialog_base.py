@@ -19,7 +19,7 @@ from qtpy.QtCore import Qt, Signal  # type: ignore[attr-defined]
 from qtpy.QtWidgets import QMainWindow, QMenu, QProgressBar, QStatusBar, QWidget
 from superqt.utils import create_worker, ensure_main_thread
 
-from image2image.config import CONFIG
+from image2image.config import APP_CONFIG, SingleAppConfig
 from image2image.models.data import DataModel
 from image2image.qt._dialogs._update import check_version
 from image2image.utils._appdirs import USER_LOG_DIR
@@ -41,6 +41,8 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
 
     allow_drop: bool = True
     evt_dropped = Signal("QEvent")
+
+    CONFIG: SingleAppConfig
 
     def __init__(self, parent: QWidget | None, title: str, delay_events: bool = False, run_check_version: bool = True):
         super().__init__(parent)
@@ -77,11 +79,11 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
     def on_toggle_theme(self) -> None:
         """Toggle theme."""
         THEMES.theme = "dark" if self.theme_btn.dark else "light"
-        CONFIG.theme = THEMES.theme
+        APP_CONFIG.theme = THEMES.theme
 
     def on_changed_theme(self) -> None:
         """Update theme of the app."""
-        CONFIG.theme = THEMES.theme
+        APP_CONFIG.theme = THEMES.theme
         THEMES.set_theme_stylesheet(self)
         # update console
         if self._console:
@@ -374,7 +376,13 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
         """Get variables for the console."""
         import numpy as np
 
-        return {"window": self, "CONFIG": CONFIG, "READER_CONFIG": READER_CONFIG, "np": np}
+        return {
+            "window": self,
+            "APP_CONFIG": APP_CONFIG,
+            "CONFIG": self.CONFIG,
+            "READER_CONFIG": READER_CONFIG,
+            "np": np,
+        }
 
     def _make_icon(self) -> None:
         """Make icon."""
@@ -390,10 +398,11 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
         from image2image.utils._appdirs import USER_CONFIG_DIR, USER_LOG_DIR
 
         menu_config = hp.make_menu(self, "Config")
+        hp.make_menu_item(self, "Save config", menu=menu_config, icon="save", func=self.on_save_config)
         hp.make_menu_item(
-            self, "Open 'Config' directory", menu=menu_config, func=lambda: open_directory_alt(USER_CONFIG_DIR)
+            self, "Open Config directory", menu=menu_config, func=lambda: open_directory_alt(USER_CONFIG_DIR)
         )
-        hp.make_menu_item(self, "Open 'Log' directory", menu=menu_config, func=lambda: open_directory_alt(USER_LOG_DIR))
+        hp.make_menu_item(self, "Open Log directory", menu=menu_config, func=lambda: open_directory_alt(USER_LOG_DIR))
         return menu_config
 
     def _make_apps_menu(self) -> QMenu:
@@ -480,17 +489,52 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
         )
         return menu_help
 
-    def _make_statusbar(self) -> None:
-        """Make statusbar."""
+    def _make_theme_button(self) -> None:
+        self.theme_btn = QtThemeButton(self)
+        self.theme_btn.auto_connect()
+        with hp.qt_signals_blocked(self.theme_btn):
+            self.theme_btn.dark = APP_CONFIG.theme == "dark"
+        self.theme_btn.clicked.connect(self.on_toggle_theme)  # noqa
+        self.theme_btn.set_small()
+        self.statusbar.addPermanentWidget(self.theme_btn)
+
+    def _make_update_button(self) -> None:
+        self.update_status_btn = hp.make_btn(
+            self,
+            "Update available - click here to download!",
+            tooltip="Show information about available updates.",
+            func=self.on_show_update_info,
+        )
+        self.update_status_btn.setObjectName("update_btn")
+        self.update_status_btn.hide()
+        self.statusbar.addPermanentWidget(self.update_status_btn)
+
+    def _make_tutorial_button(self) -> None:
+        self.tutorial_btn = hp.make_qta_btn(
+            self, "help", tooltip="Give me a quick tutorial!", func=self.on_show_tutorial, small=True
+        )
+        self.statusbar.addPermanentWidget(self.tutorial_btn)
+
+    def _make_ipython_button(self) -> None:
+        self.statusbar.addPermanentWidget(
+            hp.make_qta_btn(
+                self,
+                "ipython",
+                tooltip="Open IPython console",
+                small=True,
+                func=self.on_show_console,
+            )
+        )
+
+    def _make_shortcut_button(self) -> None:
+        self.shortcuts_btn = hp.make_qta_btn(
+            self, "shortcut", tooltip="Show me shortcuts", func=self.on_show_shortcuts, small=True
+        )
+        self.statusbar.addPermanentWidget(self.shortcuts_btn)
+        self.shortcuts_btn.hide()
+
+    def _make_feedback_button(self) -> None:
         from image2image.qt._dialogs._sentry import send_feedback
-
-        self.statusbar = QStatusBar()  # noqa
-        self.statusbar.setSizeGripEnabled(False)
-
-        self.progress_bar = QProgressBar(self)
-        self.progress_bar.setMaximumWidth(200)
-        self.statusbar.addPermanentWidget(self.progress_bar)
-        self.progress_bar.hide()
 
         self.feedback_btn = hp.make_qta_btn(
             self,
@@ -501,42 +545,23 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
         )
         self.statusbar.addPermanentWidget(self.feedback_btn)
 
-        self.theme_btn = QtThemeButton(self)
-        self.theme_btn.auto_connect()
-        with hp.qt_signals_blocked(self.theme_btn):
-            self.theme_btn.dark = CONFIG.theme == "dark"
-        self.theme_btn.clicked.connect(self.on_toggle_theme)  # noqa
-        self.theme_btn.set_small()
-        self.statusbar.addPermanentWidget(self.theme_btn)
+    def _make_statusbar(self) -> None:
+        """Make statusbar."""
 
-        self.shortcuts_btn = hp.make_qta_btn(
-            self, "shortcut", tooltip="Show me shortcuts", func=self.on_show_shortcuts, small=True
-        )
-        self.statusbar.addPermanentWidget(self.shortcuts_btn)
-        self.shortcuts_btn.hide()
+        self.statusbar = QStatusBar()  # noqa
+        self.statusbar.setSizeGripEnabled(False)
 
-        self.tutorial_btn = hp.make_qta_btn(
-            self, "help", tooltip="Give me a quick tutorial!", func=self.on_show_tutorial, small=True
-        )
-        self.statusbar.addPermanentWidget(self.tutorial_btn)
-        self.statusbar.addPermanentWidget(
-            hp.make_qta_btn(
-                self,
-                "ipython",
-                tooltip="Open IPython console",
-                small=True,
-                func=self.on_show_console,
-            )
-        )
-        self.update_status_btn = hp.make_btn(
-            self,
-            "Update available - click here to download!",
-            tooltip="Show information about available updates.",
-            func=self.on_show_update_info,
-        )
-        self.update_status_btn.setObjectName("update_btn")
-        self.update_status_btn.hide()
-        self.statusbar.addPermanentWidget(self.update_status_btn)
+        self.progress_bar = QProgressBar(self)
+        self.progress_bar.setMaximumWidth(200)
+        self.statusbar.addPermanentWidget(self.progress_bar)
+        self.progress_bar.hide()
+
+        self._make_feedback_button()
+        self._make_theme_button()
+        self._make_shortcut_button()
+        self._make_tutorial_button()
+        self._make_ipython_button()
+        self._make_update_button()
         self.setStatusBar(self.statusbar)
 
     def on_show_shortcuts(self) -> None:
@@ -604,6 +629,10 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
             self.statusbar.showMessage(d["coordinates"])
         else:
             self.statusbar.showMessage("")
+
+    def on_save_config(self) -> None:
+        """Save configuration file."""
+        self.CONFIG.save()
 
     @staticmethod
     def on_open_convert(*args: str) -> None:

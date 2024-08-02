@@ -40,7 +40,7 @@ def run(
     from qtextra.utils.context import _maybe_allow_interrupt
 
     import image2image.assets  # noqa: F401
-    from image2image.config import CONFIG
+    from image2image.config import APP_CONFIG
     from image2image.qt._dialogs._sentry import install_error_monitor
     from image2image.qt.event_loop import get_app
     from image2image.utils._appdirs import USER_LOG_DIR
@@ -80,11 +80,10 @@ def run(
 
     # load config
     READER_CONFIG.load()
-    CONFIG.load()
     # setup theme
     for theme in THEMES.themes:
         THEMES[theme].font_size = "10pt"
-    THEMES.theme = CONFIG.theme
+    THEMES.theme = APP_CONFIG.theme
 
     # make app
     app = get_app()

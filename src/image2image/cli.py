@@ -147,7 +147,7 @@ if is_installed("image2image_reg"):
         write_not_registered_,
         write_registered_,
     )
-    from image2image_reg.cli.i2reg import register_runner
+    from image2image_reg.cli.elastix import register_runner
     from image2image_reg.enums import WriterMode
 
     @overwrite_

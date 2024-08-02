@@ -20,7 +20,7 @@ from qtpy.QtCore import Qt
 from qtpy.QtWidgets import QLayout
 from tqdm import tqdm
 
-from image2image.config import CONFIG
+from image2image.config import WSIREG3D_CONFIG
 from image2image.utils.utilities import format_group_info, get_groups, groups_to_group_id, init_shapes_layer
 
 if ty.TYPE_CHECKING:
@@ -363,7 +363,7 @@ class MaskDialog(WsiPrepMixin):
         if not group:
             return
         with self._editing_crop():
-            if CONFIG.view_mode == "group":
+            if WSIREG3D_CONFIG.view_mode == "group":
                 self.parent().groups_choice.setCurrentText(current)
             if group.mask_polygon is None and group.mask_bbox is None:
                 self.crop_layer.data = []
@@ -496,7 +496,7 @@ class ConfigDialog(WsiPrepMixin):
         super().__init__(parent)
         self.setMinimumWidth(400)
         self.setMinimumHeight(500)
-        self.transformations = list(CONFIG.transformations)
+        self.transformations = list(WSIREG3D_CONFIG.transformations)
         self._update_transformation_path()
         self._update_indexing_mode()
 
@@ -511,17 +511,17 @@ class ConfigDialog(WsiPrepMixin):
     def output_dir(self) -> Path:
         """Output directory."""
         if self._output_dir is None:
-            if CONFIG.output_dir is None:
+            if WSIREG3D_CONFIG.output_dir is None:
                 return Path.cwd()
-            return Path(CONFIG.output_dir)
+            return Path(WSIREG3D_CONFIG.output_dir)
         return Path(self._output_dir)
 
     def on_set_output_dir(self):
         """Set output directory."""
-        directory = hp.get_directory(self, "Select output directory", CONFIG.output_dir)
+        directory = hp.get_directory(self, "Select output directory", WSIREG3D_CONFIG.output_dir)
         if directory:
             self._output_dir = directory
-            CONFIG.output_dir = directory
+            WSIREG3D_CONFIG.output_dir = directory
             self.output_dir_label.setText(f"<b>Output directory</b>: {hp.hyper(self.output_dir)}")
             logger.debug(f"Output directory set to {self._output_dir}")
 
@@ -543,7 +543,7 @@ class ConfigDialog(WsiPrepMixin):
 
     def _get_project_name(self, group: RegistrationGroup | None) -> str:
         project_prefix, project_suffix = self._get_suffix_prefix()
-        CONFIG.project_tag = project_tag = self.project_tag.text() or "group"
+        WSIREG3D_CONFIG.project_tag = project_tag = self.project_tag.text() or "group"
         if group:
             return f"{project_prefix}{project_tag}={group.group_id}{project_suffix}.wsireg"
         return f"{project_prefix}{project_tag}{project_suffix}.wsireg"
@@ -563,9 +563,9 @@ class ConfigDialog(WsiPrepMixin):
             hp.toast(self, "No registration selected", "Please select at least one registration type", icon="warning")
             return
 
-        CONFIG.slide_tag = prefix = self.tag_prefix.text()
-        CONFIG.project_prefix_tag = self.project_prefix.text()
-        CONFIG.project_suffix_tag = self.project_suffix.text()
+        WSIREG3D_CONFIG.slide_tag = prefix = self.tag_prefix.text()
+        WSIREG3D_CONFIG.project_prefix_tag = self.project_prefix.text()
+        WSIREG3D_CONFIG.project_suffix_tag = self.project_suffix.text()
         index_mode = self.index_choice.currentText() or "auto"
         export_mode = self.export_type.currentText()
         first_only = self.first_channel_only.isChecked()
@@ -611,9 +611,9 @@ class ConfigDialog(WsiPrepMixin):
             return
         logger.trace(f"Generating configs for {n} groups...")
         preview = ""
-        CONFIG.slide_tag = prefix = self.tag_prefix.text()
-        CONFIG.project_prefix_tag = self.project_prefix.text()
-        CONFIG.project_suffix_tag = self.project_suffix.text()
+        WSIREG3D_CONFIG.slide_tag = prefix = self.tag_prefix.text()
+        WSIREG3D_CONFIG.project_prefix_tag = self.project_prefix.text()
+        WSIREG3D_CONFIG.project_suffix_tag = self.project_suffix.text()
         index_mode = self.index_choice.currentText() or "auto"
         target_mode = self.target_mode.currentText()
         for _group_id, group in tqdm(self.registration.groups.items(), desc="Previewing...", total=n):
@@ -633,13 +633,13 @@ class ConfigDialog(WsiPrepMixin):
         """Add transformation to the list."""
         current = self.transformation_choice.currentText()
         self.transformations.append(current)
-        CONFIG.transformations = tuple(self.transformations)
+        WSIREG3D_CONFIG.transformations = tuple(self.transformations)
         self._update_transformation_path()
 
     def on_reset_transformation(self) -> None:
         """Reset transformation list."""
         self.transformations = []
-        CONFIG.transformations = tuple(self.transformations)
+        WSIREG3D_CONFIG.transformations = tuple(self.transformations)
         self._update_transformation_path()
 
     def _update_transformation_path(self) -> None:
@@ -696,16 +696,16 @@ class ConfigDialog(WsiPrepMixin):
         self.index_choice = hp.make_combobox(self, ["auto"], func=self.on_preview)
         self.transformation_path = hp.make_label(self, "<please select transformations>", wrap=True)
         self.tag_prefix = hp.make_line_edit(
-            self, placeholder="Slide/section prefix", default=CONFIG.slide_tag, func_changed=self.on_preview
+            self, placeholder="Slide/section prefix", default=WSIREG3D_CONFIG.slide_tag, func_changed=self.on_preview
         )
         self.project_tag = hp.make_line_edit(
-            self, placeholder="Group/project tag", default=CONFIG.project_tag, func_changed=self.on_preview
+            self, placeholder="Group/project tag", default=WSIREG3D_CONFIG.project_tag, func_changed=self.on_preview
         )
         self.project_prefix = hp.make_line_edit(
-            self, placeholder="Project prefix", default=CONFIG.project_prefix_tag, func_changed=self.on_preview
+            self, placeholder="Project prefix", default=WSIREG3D_CONFIG.project_prefix_tag, func_changed=self.on_preview
         )
         self.project_suffix = hp.make_line_edit(
-            self, placeholder="Project suffix", default=CONFIG.project_suffix_tag, func_changed=self.on_preview
+            self, placeholder="Project suffix", default=WSIREG3D_CONFIG.project_suffix_tag, func_changed=self.on_preview
         )
         self.export_type = hp.make_combobox(
             self,

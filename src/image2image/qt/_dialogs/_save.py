@@ -9,7 +9,7 @@ from qtextra import helpers as hp
 from qtextra.widgets.qt_dialog import QtDialog
 from qtpy.QtWidgets import QFormLayout
 
-from image2image.config import CONFIG
+from image2image.config import SingleAppConfig
 
 if ty.TYPE_CHECKING:
     from image2image.models.data import DataModel
@@ -18,9 +18,10 @@ if ty.TYPE_CHECKING:
 class ExportImageDialog(QtDialog):
     """Dialog that lets you select what should be imported."""
 
-    def __init__(self, parent, model: DataModel, key: str):
+    def __init__(self, parent, model: DataModel, key: str, config: SingleAppConfig):
         self.model = model
         self.key = key
+        self.CONFIG = config
         super().__init__(parent)
 
     # noinspection PyAttributeOutsideInit
@@ -44,14 +45,14 @@ class ExportImageDialog(QtDialog):
             ["256", "512", "1024", "2048", "4096"],
             tooltip="Specify size of the tile. Default is 512",
             default="512",
-            value=f"{CONFIG.tile_size}",
+            value=f"{self.CONFIG.tile_size}",
         )
         self.as_uint8 = hp.make_checkbox(
             self,
             "Reduce data size (uint8 - dynamic range 0-255)",
             tooltip="Convert to uint8 to reduce file size with minimal data loss.",
             checked=True,
-            value=CONFIG.as_uint8,
+            value=self.CONFIG.as_uint8,
         )
 
         layout = hp.make_form_layout()
@@ -69,8 +70,8 @@ class ExportImageDialog(QtDialog):
 
     def accept(self):
         """Accept."""
-        CONFIG.tile_size = int(self.tile_size.currentText())
-        CONFIG.as_uint8 = self.as_uint8.isChecked()
+        self.CONFIG.tile_size = int(self.tile_size.currentText())
+        self.CONFIG.as_uint8 = self.as_uint8.isChecked()
         reader = self.model.get_reader_for_key(self.key)
         base_dir = reader.path.parent
         filename = f"{reader.path.stem}-exported".replace(".ome", "") + ".ome.tiff"
@@ -84,6 +85,6 @@ class ExportImageDialog(QtDialog):
         )
         if not filename or Path(filename).exists():
             return None
-        reader.to_ome_tiff(filename, as_uint8=CONFIG.as_uint8, tile_size=CONFIG.tile_size)
+        reader.to_ome_tiff(filename, as_uint8=self.CONFIG.as_uint8, tile_size=self.CONFIG.tile_size)
         hp.toast(self, "Image saved", f"Saved image {hp.hyper(Path(filename), self.key)} as OME-TIFF.", icon="info")
         return super().accept()

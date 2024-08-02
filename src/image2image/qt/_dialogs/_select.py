@@ -15,6 +15,7 @@ from qtextra.widgets.qt_icon_label import QtActiveIcon
 from qtpy.QtCore import Qt, Signal  # type: ignore[attr-defined]
 from qtpy.QtWidgets import QFormLayout, QWidget
 
+from image2image.config import SingleAppConfig
 from image2image.enums import VIEW_TYPE_TRANSLATIONS
 from image2image.models.data import DataModel
 from image2image.models.transform import TransformData, TransformModel
@@ -54,6 +55,7 @@ class LoadWidget(QWidget):
         self,
         parent: Window | None,
         view: NapariImageView | None,
+        config: SingleAppConfig,
         n_max: int = 0,
         allow_geojson: bool = False,
         select_channels: bool = True,
@@ -69,6 +71,7 @@ class LoadWidget(QWidget):
         self.allow_geojson = allow_geojson
         self.select_channels = select_channels
         self.import_project = import_project
+        self.CONFIG = config
         super().__init__(parent)
         self.view = view
         self.n_max = n_max
@@ -76,6 +79,7 @@ class LoadWidget(QWidget):
         self.dataset_dlg = SelectDataDialog(
             self,
             self.model,
+            self.CONFIG,
             self.IS_FIXED,
             self.n_max,
             allow_geojson=self.allow_geojson,
@@ -204,6 +208,7 @@ class FixedWidget(LoadWidget):
         self,
         parent: Window | None,
         view: NapariImageView,
+        config: SingleAppConfig,
         n_max: int = 0,
         allow_geojson: bool = False,
         select_channels: bool = True,
@@ -214,6 +219,7 @@ class FixedWidget(LoadWidget):
         super().__init__(
             parent,
             view,
+            config,
             n_max,
             allow_geojson,
             select_channels,
@@ -243,6 +249,7 @@ class MovingWidget(LoadWidget):
         self,
         parent: Window | None,
         view: NapariImageView,
+        config: SingleAppConfig,
         n_max: int = 0,
         allow_geojson: bool = False,
         select_channels: bool = True,
@@ -254,6 +261,7 @@ class MovingWidget(LoadWidget):
         super().__init__(
             parent,
             view,
+            config,
             n_max,
             allow_geojson,
             select_channels,
@@ -336,6 +344,7 @@ class LoadWithTransformWidget(LoadWidget):
         self,
         parent: Window | None,
         view: NapariImageView,
+        config: SingleAppConfig,
         n_max: int = 0,
         allow_geojson: bool = False,
         select_channels: bool = True,
@@ -348,6 +357,7 @@ class LoadWithTransformWidget(LoadWidget):
         super().__init__(
             parent,
             view,
+            config,
             n_max,
             allow_geojson,
             select_channels,

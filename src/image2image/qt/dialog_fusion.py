@@ -19,7 +19,7 @@ from superqt import ensure_main_thread
 from superqt.utils import GeneratorWorker, create_worker
 
 from image2image import __version__
-from image2image.config import CONFIG
+from image2image.config import FUSION_CONFIG
 from image2image.qt._dialogs._select import LoadWidget
 from image2image.qt.dialog_base import Window
 from image2image.utils.utilities import log_exception_or_error
@@ -44,12 +44,13 @@ class ImageFusionWindow(Window):
     )
 
     def __init__(self, parent: QWidget | None, run_check_version: bool = True, **kwargs: ty.Any):
+        self.CONFIG = FUSION_CONFIG
         super().__init__(
             parent,
             f"image2image: Export images for MATLAB fusion (v{__version__})",
             run_check_version=run_check_version,
         )
-        if CONFIG.first_time_fusion:
+        if self.CONFIG.first_time:
             hp.call_later(self, self.on_show_tutorial, 10_000)
         self.reader_metadata: dict[Path, dict[int, dict[str, list[bool | int | str]]]] = {}
 
@@ -90,9 +91,9 @@ class ImageFusionWindow(Window):
     def output_dir(self) -> Path:
         """Output directory."""
         if self._output_dir is None:
-            if CONFIG.output_dir is None:
+            if self.CONFIG.output_dir is None:
                 return Path.cwd()
-            return Path(CONFIG.output_dir)
+            return Path(self.CONFIG.output_dir)
         return Path(self._output_dir)
 
     def on_depopulate_table(self) -> None:
@@ -242,10 +243,10 @@ class ImageFusionWindow(Window):
 
     def on_set_output_dir(self):
         """Set output directory."""
-        directory = hp.get_directory(self, "Select output directory", CONFIG.output_dir)
+        directory = hp.get_directory(self, "Select output directory", self.CONFIG.output_dir)
         if directory:
             self._output_dir = directory
-            CONFIG.output_dir = directory
+            self.CONFIG.output_dir = directory
             self.output_dir_label.setText(f"<b>Output directory</b>: {hp.hyper(self.output_dir)}")
             logger.debug(f"Output directory set to {self._output_dir}")
 
@@ -277,7 +278,7 @@ class ImageFusionWindow(Window):
 
     def _setup_ui(self):
         """Create panel."""
-        self._image_widget = LoadWidget(self, None, select_channels=False)
+        self._image_widget = LoadWidget(self, None, self.CONFIG,select_channels=False)
         self._image_widget.info_text.setVisible(False)
 
         columns = self.TABLE_CONFIG.to_columns()
@@ -382,8 +383,8 @@ class ImageFusionWindow(Window):
         """Override to handle closing app or just the window."""
         if (
             not force
-            or not CONFIG.confirm_close_fusion
-            or QtConfirmCloseDialog(self, "confirm_close_fusion", config=CONFIG).exec_()  # type: ignore[attr-defined]
+            or not self.CONFIG.confirm_close
+            or QtConfirmCloseDialog(self, "confirm_close", config=self.CONFIG).exec_()  # type: ignore[attr-defined]
             == QDialog.DialogCode.Accepted
         ):
             return super().close()
@@ -393,16 +394,16 @@ class ImageFusionWindow(Window):
         """Close."""
         if (
             evt.spontaneous()
-            and CONFIG.confirm_close_fusion
+            and self.CONFIG.confirm_close
             and self.data_model.is_valid()
-            and QtConfirmCloseDialog(self, "confirm_close_fusion", config=CONFIG).exec_() != QDialog.DialogCode.Accepted
+            and QtConfirmCloseDialog(self, "confirm_close", config=self.CONFIG).exec_() != QDialog.DialogCode.Accepted
         ):
             evt.ignore()
             return
 
         if self._console:
             self._console.close()
-        CONFIG.save()
+        self.CONFIG.save()
         evt.accept()
 
     def on_show_tutorial(self) -> None:
@@ -410,7 +411,7 @@ class ImageFusionWindow(Window):
         from image2image.qt._dialogs._tutorial import show_fusion_tutorial
 
         show_fusion_tutorial(self)
-        CONFIG.first_time_fusion = False
+        self.CONFIG.first_time = False
 
     def dropEvent(self, event: QDropEvent) -> None:
         """Drop event."""

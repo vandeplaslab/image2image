@@ -17,11 +17,10 @@ from loguru import logger
 from qtextra.queue.queue_widget import QUEUE
 from qtextra.queue.task import Task
 from qtextra.utils.utilities import connect
-from qtpy.QtCore import Qt
 from qtpy.QtWidgets import QHBoxLayout, QVBoxLayout, QWidget
 
 from image2image import __version__
-from image2image.config import CONFIG
+from image2image.config import VALIS_CONFIG, ValisConfig
 from image2image.enums import ALLOWED_VALIS_FORMATS
 from image2image.qt._dialog_wsi import ImageWsiWindow
 from image2image.qt._dialogs._select import LoadWidget
@@ -40,6 +39,7 @@ def make_registration_task(
     project: ValisReg,
     write_not_registered: bool = False,
     write_transformed: bool = False,
+    write_attached: bool = False,
     write_merged: bool = False,
     remove_merged: bool = False,
     as_uint8: bool = False,
@@ -57,14 +57,11 @@ def make_registration_task(
     ]
     if any([write_transformed, write_not_registered, write_merged]):
         commands.append("--write")
-    if write_not_registered:
-        commands.append("--write_not_registered")
-    if write_transformed:
-        commands.append("--write_registered")
-    if write_merged:
-        commands.append("--write_merged")
-    if remove_merged:
-        commands.append("--remove_merged")
+    commands.append("--write_not_registered" if write_not_registered else "--no_write_not_registered")
+    commands.append("--write_registered" if write_transformed else "--no_write_registered")
+    commands.append("--write_attached" if write_attached else "--no_write_attached")
+    commands.append("--write_merged" if write_merged else "--no_write_merged")
+    commands.append("--remove_merged" if remove_merged else "--no_remove_merged")
     if as_uint8:
         commands.append("--as_uint8")
     return Task(
@@ -81,14 +78,18 @@ class ImageValisWindow(ImageWsiWindow):
     _registration_model: ValisReg | None = None
 
     WINDOW_TITLE = f"image2valis: Valis Registration app (v{__version__})"
-    WINDOW_CONFIG_ATTR = "confirm_close_valis"
     WINDOW_CONSOLE_ARGS = (("view", "viewer"), "data_model", ("data_model", "wrapper"), "registration_model")
     PROJECT_SUFFIX = ".valis"
+    RUN_DISABLED: bool = not HAS_VALIS
+    OTHER_PROJECT: str = "Elastix"
 
     def __init__(
         self, parent: QWidget | None, run_check_version: bool = True, project_dir: PathLike | None = None, **_kwargs
     ):
+        self.CONFIG: ValisConfig = VALIS_CONFIG
         super().__init__(parent, run_check_version=run_check_version, project_dir=project_dir)
+        if self.CONFIG.first_time:
+            hp.call_later(self, self.on_show_tutorial, 10_000)
 
     @staticmethod
     def _setup_config() -> None:
@@ -102,6 +103,7 @@ class ImageValisWindow(ImageWsiWindow):
         project: ValisReg,
         write_not_registered: bool = False,
         write_transformed: bool = False,
+        write_attached: bool = False,
         write_merged: bool = False,
         remove_merged: bool = False,
         as_uint8: bool = False,
@@ -110,6 +112,7 @@ class ImageValisWindow(ImageWsiWindow):
             project,
             write_not_registered=write_not_registered,
             write_transformed=write_transformed,
+            write_attached=write_attached,
             write_merged=write_merged,
             remove_merged=remove_merged,
             as_uint8=as_uint8,
@@ -121,7 +124,7 @@ class ImageValisWindow(ImageWsiWindow):
         if self._registration_model is None:
             name = self.name_label.text() or "project"
             name = ValisReg.format_project_name(name)
-            self._registration_model = ValisReg(name=name, output_dir=CONFIG.output_dir, init=False)
+            self._registration_model = ValisReg(name=name, output_dir=self.CONFIG.output_dir, init=False)
         return self._registration_model
 
     def setup_events(self, state: bool = True) -> None:
@@ -129,16 +132,18 @@ class ImageValisWindow(ImageWsiWindow):
         connect(self._image_widget.dataset_dlg.evt_loaded, self.on_load_image, state=state)
         connect(self._image_widget.dataset_dlg.evt_closing, self.on_remove_image, state=state)
         connect(self._image_widget.dataset_dlg.evt_project, self._on_load_from_project, state=state)
-        # connect(self.view.widget.canvas.events.key_press, self.keyPressEvent, state=state)
+        connect(self._image_widget.dataset_dlg.evt_files, self._on_pre_loading_images, state=state)
+        connect(self._image_widget.dataset_dlg.evt_rejected_files, self.on_maybe_add_attachment, state=state)
+
         connect(self.view.viewer.events.status, self._status_changed, state=state)
+        # connect(self.view.widget.canvas.events.key_press, self.keyPressEvent, state=state)
 
         connect(self.modality_list.evt_delete, self.on_remove_modality, state=state)
         connect(self.modality_list.evt_rename, self.on_rename_modality, state=state)
-        connect(self._image_widget.dataset_dlg.evt_files, self._on_pre_loading_images, state=state)
         connect(self.modality_list.evt_hide_others, self.on_hide_modalities, state=state)
         connect(self.modality_list.evt_preview_preprocessing, self.on_preview, state=state)
         connect(self.modality_list.evt_resolution, self.on_update_modality, state=state)
-        connect(self.modality_list.evt_show, self.on_show_modality, state=state)
+        connect(self.modality_list.evt_show, self.on_show_or_hide_modality, state=state)
         connect(self.modality_list.evt_set_preprocessing, self.on_update_modality, state=state)
         connect(self.modality_list.evt_color, self.on_update_colormap, state=state)
         connect(self.modality_list.evt_preprocessing_close, self.on_preview_close, state=state)
@@ -157,6 +162,7 @@ class ImageValisWindow(ImageWsiWindow):
         self._image_widget = LoadWidget(
             self,
             self.view,
+            self.CONFIG,
             select_channels=False,
             available_formats=ALLOWED_VALIS_FORMATS,
             project_extension=["valis.config.json", ".valis.json", ".valis"],
@@ -174,14 +180,14 @@ class ImageValisWindow(ImageWsiWindow):
             self,
             "Use preview image",
             tooltip="Use preview image for viewing instead of the first channel only.",
-            value=False,
+            value=self.CONFIG.use_preview,
             func=self.on_show_modalities,
         )
         self.hide_others_check = hp.make_checkbox(
             self,
             "Hide others when previewing",
             tooltip="When previewing, hide other images to reduce clutter.",
-            checked=False,
+            checked=self.CONFIG.hide_others,
             func=self.on_hide_not_previewed_modalities,
         )
 
@@ -196,46 +202,46 @@ class ImageValisWindow(ImageWsiWindow):
             self,
             ty.get_args(ValisDetectorMethod),
             tooltip="Feature detection method when performing feature matching between adjacent images.",
-            value="svgg",
+            value=self.CONFIG.feature_detector,
         )
         self.matcher_choice = hp.make_combobox(
             self,
             ty.get_args(ValisMatcherMethod),
             tooltip="Feature matching method when performing feature matching between adjacent images.",
-            value="ransac",
+            value=self.CONFIG.feature_matcher,
         )
         self.reflection_check = hp.make_checkbox(
             self,
             "",
             tooltip="Check for reflection during registration. Disabling this option can speed-up registration but"
             " make sure that images are not mirrored.",
-            value=True,
+            value=self.CONFIG.check_reflection,
         )
         self.non_rigid_check = hp.make_checkbox(
             self,
             "",
             tooltip="Perform non-rigid registration (using deformable field).",
-            value=True,
+            value=self.CONFIG.allow_non_rigid,
         )
         self.micro_check = hp.make_checkbox(
             self,
             "",
             tooltip="Perform micro registration (using deformable field). This performs additional (slower)"
             " registration using higher resolution images.",
-            value=True,
+            value=self.CONFIG.allow_micro,
         )
         self.micro_fraction = hp.make_double_spin_box(
-            self, 0, 1, 0.05, n_decimals=3, tooltip="Fraction of the image to use for micro registration.", value=0.125
+            self,
+            0,
+            1,
+            0.05,
+            n_decimals=3,
+            tooltip="Fraction of the image to use for micro registration.",
+            value=self.CONFIG.micro_fraction,
         )
 
         side_layout = hp.make_form_layout(side_widget)
         hp.style_form_layout(side_layout)
-        # side_layout.addRow(
-        #     hp.make_btn(
-        #         side_widget, "Import project...", tooltip="Load previous project", func=self.on_load_from_project
-        #     )
-        # )
-        # side_layout.addRow(hp.make_h_line_with_text("or"))
         side_layout.addRow(self._image_widget)
         # Modalities
         side_layout.addRow(self.modality_list)
@@ -251,9 +257,8 @@ class ImageValisWindow(ImageWsiWindow):
         side_layout.addRow(hp.make_label(self, "Fraction"), self.micro_fraction)
         # Project
         self._make_output_widgets(side_widget)
-        side_layout.addRow(hp.make_h_line_with_text("I2Reg project"))
+        side_layout.addRow(hp.make_h_line_with_text("Valis project"))
         side_layout.addRow(hp.make_label(side_widget, "Name"), self.name_label)
-        side_layout.addRow(hp.make_label(side_widget, "Output directory", alignment=Qt.AlignmentFlag.AlignLeft))
         side_layout.addRow(
             hp.make_h_layout(self.output_dir_label, self.output_dir_btn, stretch_id=(0,), spacing=1, margin=1),
         )
@@ -262,7 +267,7 @@ class ImageValisWindow(ImageWsiWindow):
         side_layout.addRow(hidden_settings)
         side_layout.addRow(hidden_settings)
 
-        self._make_run_widgets(side_widget, "I2Reg", disabled=not HAS_VALIS)
+        self._make_run_widgets(side_widget)
         # Execution buttons
         side_layout.addRow(
             hp.make_h_layout(self.save_btn, self.viewer_btn, self.close_btn, self.run_btn, stretch_id=(3,), spacing=2)
@@ -318,9 +323,9 @@ class ImageValisWindow(ImageWsiWindow):
                 hp.toast(
                     self, "Saved", f"Saved project to {hp.hyper(obj.project_dir)}.", icon="success", position="top_left"
                 )
-                logger.trace(f"Saved i2reg project to {obj.project_dir}")
+                logger.trace(f"Saved elastix project to {obj.project_dir}")
         except (ValueError, FileNotFoundError):
-            hp.toast(self, "Error", "Could not save project to I2Reg format.", icon="error", position="top_left")
+            hp.toast(self, "Error", "Could not save project to elastix format.", icon="error", position="top_left")
 
     def on_save_to_project(self) -> None:
         """Save project to i2reg."""
@@ -342,21 +347,24 @@ class ImageValisWindow(ImageWsiWindow):
     def _on_load_from_project(self, path_: PathLike) -> None:
         if path_:
             path_ = Path(path_)
-            project = ValisReg.from_path(path_.parent if path_.is_file() else path_)
-            if project:
-                self._registration_model = project
-                self.output_dir = project.output_dir
-                self.name_label.setText(project.name)
-                self.feature_choice.setCurrentText(project.feature_detector)
-                self.matcher_choice.setCurrentText(project.feature_matcher.lower())
-                self.reflection_check.setChecked(project.check_for_reflections)
-                self.non_rigid_check.setChecked(project.non_rigid_registration)
-                self.micro_check.setChecked(project.micro_registration)
-                self.micro_fraction.setValue(project.micro_registration_fraction)
-                self._image_widget.on_close_dataset()
-                paths = [modality.path for modality in project.modalities.values()]
-                if paths:
-                    self._image_widget.on_set_path(paths)
+            try:
+                project = ValisReg.from_path(path_.parent if path_.is_file() else path_)
+                if project:
+                    self._registration_model = project
+                    self.output_dir = project.output_dir
+                    self.name_label.setText(project.name)
+                    self.feature_choice.setCurrentText(project.feature_detector)
+                    self.matcher_choice.setCurrentText(project.feature_matcher.lower())
+                    self.reflection_check.setChecked(project.check_for_reflections)
+                    self.non_rigid_check.setChecked(project.non_rigid_registration)
+                    self.micro_check.setChecked(project.micro_registration)
+                    self.micro_fraction.setValue(project.micro_registration_fraction)
+                    self._image_widget.on_close_dataset()
+                    paths = [modality.path for modality in project.modalities.values()]
+                    if paths:
+                        self._image_widget.on_set_path(paths)
+            except ValueError:
+                logger.exception(f"Could not load project from {path_}")
 
     def _validate(self) -> None:
         """Validate project."""
@@ -418,9 +426,7 @@ class ImageValisWindow(ImageWsiWindow):
     def populate_reference_list(self) -> None:
         """Populate reference list."""
         modalities = list(self.registration_model.modalities.keys())
-        self.reference_choice.clear()
-        self.reference_choice.addItem("None")
-        self.reference_choice.addItems(modalities)
+        hp.combobox_setter(self.reference_choice, clear=True, items=["None"] + modalities)
 
         try:
             reference = self.registration_model.reference
@@ -462,10 +468,10 @@ class ImageValisWindow(ImageWsiWindow):
         logger.trace(f"Saved project to {self.registration_model.project_dir}")
         return path
 
-    def on_close(self) -> None:
+    def on_close(self, force: bool = False) -> None:
         """Close project."""
-        if self.registration_model and hp.confirm(
-            self, "Are you sure you want to close the project?", "Close project?"
+        if self.registration_model and (
+            force or hp.confirm(self, "Are you sure you want to close the project?", "Close project?")
         ):
             self.registration_model.set_reference(None)
             self.name_label.setText("")
@@ -501,6 +507,15 @@ class ImageValisWindow(ImageWsiWindow):
             layer.name = modality.name
         self.populate_reference_list()
         logger.trace(f"Updated modality name: {old_name} -> {modality.name}")
+
+    def on_show_or_hide_modality(self, modality: Modality, state: bool) -> None:
+        """Show or hide modality."""
+        layer = self.view.get_layer(modality.name)
+        if layer:
+            layer.visible = state
+        elif not layer and state:
+            self.on_show_modality(modality, state=state)
+        logger.trace(f"Show/hide modality: {modality.name} -> {state}")
 
     def on_show_modality(self, modality: Modality, state: bool = True, overwrite: bool = False) -> None:
         """Preview image."""

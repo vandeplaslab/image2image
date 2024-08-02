@@ -15,7 +15,7 @@ from qtextra.widgets.qt_tile import QtTileWidget, Tile
 from qtpy.QtWidgets import QGridLayout, QVBoxLayout, QWidget
 
 from image2image import __version__
-from image2image.config import CONFIG
+from image2image.config import APP_CONFIG
 from image2image.utils._appdirs import USER_LOG_DIR
 
 # to add apps: volume viewer, sync viewer,
@@ -117,7 +117,7 @@ class Launcher(QtDialog):
             from qtextra.dialogs.qt_console import QtConsoleDialog
 
             self.console = QtConsoleDialog(self)
-            self.console.push_variables({"window": self, "CONFIG": CONFIG, "READER_CONFIG": READER_CONFIG})
+            self.console.push_variables({"window": self, "APP_CONFIG": APP_CONFIG, "READER_CONFIG": READER_CONFIG})
         self.console.show()
 
 

@@ -15,7 +15,7 @@ from qtpy.QtCore import QModelIndex, Qt, Signal  # type: ignore[attr-defined]
 from qtpy.QtGui import QKeyEvent
 from qtpy.QtWidgets import QFormLayout
 
-from image2image.config import CONFIG
+from image2image.config import REGISTER_CONFIG
 
 if ty.TYPE_CHECKING:
     from image2image.qt.dialog_register import ImageRegistrationWindow
@@ -109,7 +109,7 @@ class FiducialsDialog(QtFramelessTool):
 
     def on_select_point(self, row: int):
         """Zoom in on point."""
-        CONFIG.zoom_factor = self.zoom_factor.value()
+        REGISTER_CONFIG.zoom_factor = self.zoom_factor.value()
 
         # zoom-in
         parent: ImageRegistrationWindow = self.parent()  # type: ignore[assignment]
@@ -125,7 +125,7 @@ class FiducialsDialog(QtFramelessTool):
                 view = parent.view_fixed
                 with view.viewer.camera.events.blocker():
                     view.viewer.camera.center = (0.0, y_fixed, x_fixed)
-                    view.viewer.camera.zoom = CONFIG.zoom_factor
+                    view.viewer.camera.zoom = REGISTER_CONFIG.zoom_factor
                 logger.debug(
                     f"Applied focus center=({y_fixed:.1f}, {x_fixed:.1f}) zoom={view.viewer.camera.zoom:.3f}"
                     " on fixed data"
@@ -142,7 +142,7 @@ class FiducialsDialog(QtFramelessTool):
                 view = parent.view_moving
                 with view.viewer.camera.events.blocker():
                     view.viewer.camera.center = (0.0, y_moving, x_moving)
-                    view.viewer.camera.zoom = CONFIG.zoom_factor * parent.transform_model.moving_to_fixed_ratio
+                    view.viewer.camera.zoom = REGISTER_CONFIG.zoom_factor * parent.transform_model.moving_to_fixed_ratio
                 logger.debug(
                     f"Applied focus center=({y_moving:.1f}, {x_moving:.1f}) zoom={view.viewer.camera.zoom:.3f}"
                     " on moving data"
@@ -197,7 +197,7 @@ class FiducialsDialog(QtFramelessTool):
             1,
             100,
             n_decimals=2,
-            default=CONFIG.zoom_factor,
+            default=REGISTER_CONFIG.zoom_factor,
             func=self.on_select_last_point,
             step_size=0.25,
         )

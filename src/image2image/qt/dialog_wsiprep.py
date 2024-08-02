@@ -38,7 +38,7 @@ from superqt.utils import qdebounced
 from tqdm import tqdm
 
 from image2image import __version__
-from image2image.config import CONFIG
+from image2image.config import WSIREG3D_CONFIG, WsiReg3dConfig
 from image2image.enums import ALLOWED_IMAGE_FORMATS_TIFF_ONLY, ALLOWED_PROJECT_WSIPREP_FORMATS
 from image2image.models.wsiprep import (
     Registration,
@@ -100,6 +100,7 @@ class ImageWsiPrepWindow(Window):
     )
 
     def __init__(self, parent: QWidget | None = None, run_check_version: bool = True, **kwargs: ty.Any):
+        self.CONFIG: WsiReg3dConfig = WSIREG3D_CONFIG
         super().__init__(
             parent,
             f"image2image: Prepare your microscopy data for co-registration (v{__version__})",
@@ -219,7 +220,7 @@ class ImageWsiPrepWindow(Window):
                         all_contrast_range.extend(contrast_range)
 
             # reset group mode in case the first reference is requested
-            single_ref = "per list" in CONFIG.project_mode
+            single_ref = "per list" in self.CONFIG.project_mode
             if single_ref:
                 group_id = None
 
@@ -491,10 +492,10 @@ class ImageWsiPrepWindow(Window):
 
     def _generate_group_options(self) -> None:
         """Update combo box with group options including None and All."""
-        CONFIG.view_mode = "group" if self.group_mode_btn.isChecked() else "slide"
+        self.CONFIG.view_mode = "group" if self.group_mode_btn.isChecked() else "slide"
 
         labels = []
-        if CONFIG.view_mode == "group":
+        if self.CONFIG.view_mode == "group":
             for model in self.registration.model_iter():
                 if f"Group '{model.group_id}'" not in labels:
                     labels.append(f"Group '{model.group_id}'")
@@ -511,7 +512,7 @@ class ImageWsiPrepWindow(Window):
             hp.set_combobox_text_data(self.groups_choice, labels, current)
             self.progress_bar.setRange(0, len(labels) - 2)
             self.progress_bar.setVisible(self.progress_bar.maximum() > 0)
-        if self.mask_dlg is not None and CONFIG.view_mode == "group":
+        if self.mask_dlg is not None and self.CONFIG.view_mode == "group":
             self.mask_dlg.on_update_group_options()
 
     def _get_for_group(self) -> tuple[list[str], list[bool]]:
@@ -662,7 +663,7 @@ class ImageWsiPrepWindow(Window):
 
     def on_project_mode(self) -> None:
         """Update project mode."""
-        prev_mode = CONFIG.project_mode
+        prev_mode = self.CONFIG.project_mode
         if (
             "per group" in prev_mode
             and "per group" not in self.project_mode.currentText()
@@ -677,7 +678,7 @@ class ImageWsiPrepWindow(Window):
             self.project_mode.setCurrentText(prev_mode)
             return
 
-        CONFIG.project_mode = self.project_mode.currentText()
+        self.CONFIG.project_mode = self.project_mode.currentText()
         self._generate_group_options()
 
     def on_open_group_by_popup(self) -> None:
@@ -711,7 +712,7 @@ class ImageWsiPrepWindow(Window):
 
         self._image_widget = LoadWidget(
             self,
-            self.view,
+            self.view,self.CONFIG,
             select_channels=False,
             available_formats=ALLOWED_IMAGE_FORMATS_TIFF_ONLY,
             project_extension=[".i2wsiprep.json", ".i2wsiprep.toml"],
@@ -802,7 +803,7 @@ class ImageWsiPrepWindow(Window):
             ],
             tooltip="Select project mode. This will determine how the images are grouped and registered.",
             func=self.on_project_mode,
-            value=CONFIG.project_mode,
+            value=self.CONFIG.project_mode,
         )
 
         # group-by options
@@ -1046,8 +1047,8 @@ class ImageWsiPrepWindow(Window):
 
     def on_set_config(self):
         """Update config."""
-        CONFIG.rotate_step_size = int(self.rotate_step_size.currentText().split(" ")[2].split("°")[0])
-        CONFIG.translate_step_size = int(self.translate_step_size.currentText().split(" ")[2])
+        self.CONFIG.rotate_step_size = int(self.rotate_step_size.currentText().split(" ")[2].split("°")[0])
+        self.CONFIG.translate_step_size = int(self.translate_step_size.currentText().split(" ")[2])
 
     def _make_statusbar(self) -> None:
         """Make statusbar."""
@@ -1084,7 +1085,7 @@ class ImageWsiPrepWindow(Window):
             "Common intensity",
             tooltip="Use common contrast limit for all images",
             func=self.on_contrast_limits,
-            value=CONFIG.common_intensity,
+            value=self.CONFIG.common_intensity,
         )
         hp.set_sizer_policy(self.common_contrast_limit, h_stretch=False)
         self.statusbar.addPermanentWidget(self.common_contrast_limit)
@@ -1113,7 +1114,7 @@ class ImageWsiPrepWindow(Window):
                 "Rotate in 90° steps",
             ],
             func=self.on_set_config,
-            value=f"Rotate in {CONFIG.rotate_step_size}° steps",
+            value=f"Rotate in {self.CONFIG.rotate_step_size}° steps",
         )
         self.rotate_step_size.setSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum)
         self.statusbar.addPermanentWidget(self.rotate_step_size)
@@ -1132,7 +1133,7 @@ class ImageWsiPrepWindow(Window):
                 "Move in 2500 µm steps",
             ],
             func=self.on_set_config,
-            value=f"Move in {CONFIG.translate_step_size:d} µm steps",
+            value=f"Move in {self.CONFIG.translate_step_size:d} µm steps",
         )
 
         self.translate_step_size.setSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum)
@@ -1191,7 +1192,7 @@ class ImageWsiPrepWindow(Window):
         self.theme_btn = QtThemeButton(self)
         self.theme_btn.auto_connect()
         with hp.qt_signals_blocked(self.theme_btn):
-            self.theme_btn.dark = CONFIG.theme == "dark"
+            self.theme_btn.dark = self.CONFIG.theme == "dark"
         self.theme_btn.clicked.connect(self.on_toggle_theme)  # noqa
         self.theme_btn.set_small()
 
@@ -1238,14 +1239,14 @@ class ImageWsiPrepWindow(Window):
         path_ = hp.get_save_filename(
             self,
             "Save transformation",
-            base_dir=CONFIG.output_dir,
+            base_dir=self.CONFIG.output_dir,
             file_filter=ALLOWED_PROJECT_WSIPREP_FORMATS,
             base_filename=filename,
         )
         if path_:
             path = Path(path_)
             path = ensure_extension(path, "i2wsiprep")
-            CONFIG.output_dir = str(path.parent)
+            self.CONFIG.output_dir = str(path.parent)
             config = self.registration.to_dict()
             write_project(path, config)
             hp.toast(
@@ -1259,7 +1260,7 @@ class ImageWsiPrepWindow(Window):
     def on_load_from_project(self) -> None:
         """Load previous data."""
         path_ = hp.get_filename(
-            self, "Load i2c project", base_dir=CONFIG.output_dir, file_filter=ALLOWED_PROJECT_WSIPREP_FORMATS
+            self, "Load i2c project", base_dir=self.CONFIG.output_dir, file_filter=ALLOWED_PROJECT_WSIPREP_FORMATS
         )
         self._on_load_from_project(path_)
 
@@ -1268,7 +1269,7 @@ class ImageWsiPrepWindow(Window):
             from image2image.qt._dialogs import LocateFilesDialog
 
             path = Path(path_)
-            CONFIG.output_dir = str(path.parent)
+            self.CONFIG.output_dir = str(path.parent)
             paths, missing_paths, config = load_from_file(path)
 
             # locate paths that are missing
@@ -1296,8 +1297,8 @@ class ImageWsiPrepWindow(Window):
         """Override to handle closing app or just the window."""
         if (
             not force
-            or not CONFIG.confirm_close_wsiprep
-            or QtConfirmCloseDialog(self, "confirm_close_wsiprep", self.on_save_to_project, CONFIG).exec_()  # type: ignore[attr-defined]
+            or not self.CONFIG.confirm_close
+            or QtConfirmCloseDialog(self, "confirm_close", self.on_save_to_project, self.CONFIG).exec_()  # type: ignore[attr-defined]
             == QDialog.DialogCode.Accepted
         ):
             return super().close()
@@ -1307,9 +1308,9 @@ class ImageWsiPrepWindow(Window):
         """Close."""
         if (
             evt.spontaneous()
-            and CONFIG.confirm_close_wsiprep
+            and self.CONFIG.confirm_close
             and (self.data_model.is_valid() or self.registration.is_valid())
-            and QtConfirmCloseDialog(self, "confirm_close_wsiprep", self.on_save_to_project, CONFIG).exec_()  # type: ignore[attr-defined]
+            and QtConfirmCloseDialog(self, "confirm_close", self.on_save_to_project, self.CONFIG).exec_()  # type: ignore[attr-defined]
             != QDialog.DialogCode.Accepted
         ):
             evt.ignore()
@@ -1317,7 +1318,7 @@ class ImageWsiPrepWindow(Window):
 
         if self._console:
             self._console.close()
-        CONFIG.save()
+        self.CONFIG.save()
         evt.accept()
 
 

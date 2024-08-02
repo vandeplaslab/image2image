@@ -7,7 +7,7 @@ from pathlib import Path
 
 import qtextra.helpers as hp
 import qtextra.queue.cli_queue as _q
-from image2image_reg.workflows.iwsireg import IWsiReg
+from image2image_reg.workflows.elastix import IWsiReg
 from koyo.secret import hash_obj
 from koyo.timer import MeasureTimer
 from koyo.typing import PathLike
@@ -19,7 +19,7 @@ from qtpy.QtCore import Qt
 from qtpy.QtWidgets import QHBoxLayout, QSizePolicy, QVBoxLayout, QWidget
 
 from image2image import __version__
-from image2image.config import CONFIG
+from image2image.config import WSIREG_CONFIG
 from image2image.enums import ALLOWED_PROJECT_WSIREG_FORMATS, ALLOWED_WSIREG_FORMATS
 from image2image.qt._dialog_wsi import ImageWsiWindow
 from image2image.qt._dialogs._select import LoadWidget
@@ -42,6 +42,7 @@ def make_registration_task(
     project: IWsiReg,
     write_not_registered: bool = False,
     write_transformed: bool = False,
+    write_attached: bool = False,
     write_merged: bool = False,
     remove_merged: bool = False,
     as_uint8: bool = False,
@@ -57,16 +58,13 @@ def make_registration_task(
         "--project_dir",
         f"{project.project_dir!s}",
     ]
-    if any([write_transformed, write_not_registered, write_merged]):
+    if any([write_attached, write_transformed, write_not_registered, write_merged]):
         commands.append("--write")
-    if write_not_registered:
-        commands.append("--write_not_registered")
-    if write_transformed:
-        commands.append("--write_registered")
-    if write_merged:
-        commands.append("--write_merged")
-    if remove_merged:
-        commands.append("--remove_merged")
+    commands.append("--write_not_registered" if write_not_registered else "--no_write_not_registered")
+    commands.append("--write_registered" if write_transformed else "--no_write_registered")
+    commands.append("--write_attached" if write_attached else "--no_write_attached")
+    commands.append("--write_merged" if write_merged else "--no_write_merged")
+    commands.append("--remove_merged" if remove_merged else "--no_remove_merged")
     if as_uint8:
         commands.append("--as_uint8")
     return Task(
@@ -85,13 +83,15 @@ class ImageWsiRegWindow(ImageWsiWindow):
     _crop_dlg: CropDialog | None = None
 
     WINDOW_TITLE = f"image2wsireg: WSI Registration app (v{__version__})"
-    WINDOW_CONFIG_ATTR = "confirm_close_wsireg"
     WINDOW_CONSOLE_ARGS = (("view", "viewer"), "data_model", ("data_model", "wrapper"), "registration_model")
     PROJECT_SUFFIX = ".wsireg"
+    RUN_DISABLED: bool = False
+    OTHER_PROJECT: str = "Valis"
 
     def __init__(
         self, parent: QWidget | None, run_check_version: bool = True, project_dir: PathLike | None = None, **_kwargs
     ):
+        self.CONFIG = WSIREG_CONFIG
         super().__init__(parent, run_check_version=run_check_version, project_dir=project_dir)
 
     @property
@@ -100,13 +100,14 @@ class ImageWsiRegWindow(ImageWsiWindow):
         if self._registration_model is None:
             name = self.name_label.text() or "project"
             name = IWsiReg.format_project_name(name)
-            self._registration_model = IWsiReg(name=name, output_dir=CONFIG.output_dir, init=False)
+            self._registration_model = IWsiReg(name=name, output_dir=self.CONFIG.output_dir, init=False)
         return self._registration_model
 
     def make_registration_task(
         self,
         project: IWsiReg,
         write_not_registered: bool = False,
+        write_attached: bool = False,
         write_transformed: bool = False,
         write_merged: bool = False,
         remove_merged: bool = False,
@@ -115,6 +116,7 @@ class ImageWsiRegWindow(ImageWsiWindow):
         return make_registration_task(
             project,
             write_not_registered=write_not_registered,
+            write_attached=write_attached,
             write_transformed=write_transformed,
             write_merged=write_merged,
             remove_merged=remove_merged,
@@ -127,8 +129,10 @@ class ImageWsiRegWindow(ImageWsiWindow):
         connect(self._image_widget.dataset_dlg.evt_closing, self.on_remove_image, state=state)
         connect(self._image_widget.dataset_dlg.evt_project, self._on_load_from_project, state=state)
         connect(self._image_widget.dataset_dlg.evt_files, self._on_pre_loading_images, state=state)
-        # connect(self.view.widget.canvas.events.key_press, self.keyPressEvent, state=state)
+        connect(self._image_widget.dataset_dlg.evt_rejected_files, self.on_maybe_add_attachment, state=state)
+
         connect(self.view.viewer.events.status, self._status_changed, state=state)
+        # connect(self.view.widget.canvas.events.key_press, self.keyPressEvent, state=state)
 
         connect(self.modality_list.evt_delete, self.on_remove_modality, state=state)
         connect(self.modality_list.evt_rename, self.on_rename_modality, state=state)
@@ -392,22 +396,25 @@ class ImageWsiRegWindow(ImageWsiWindow):
     def on_load_from_project(self, _evt=None):
         """Load a previous project."""
         path_ = hp.get_filename(
-            self, "Load I2Reg project", base_dir=CONFIG.output_dir, file_filter=ALLOWED_PROJECT_WSIREG_FORMATS
+            self, "Load I2Reg project", base_dir=self.CONFIG.output_dir, file_filter=ALLOWED_PROJECT_WSIREG_FORMATS
         )
         self._on_load_from_project(path_)
 
     def _on_load_from_project(self, path_: PathLike) -> None:
         if path_:
             path_ = Path(path_)
-            project = IWsiReg.from_path(path_.parent if path_.is_file() else path_)
-            if project:
-                self._registration_model = project
-                self.output_dir = project.output_dir
-                self.name_label.setText(project.name)
-                self._image_widget.on_close_dataset()
-                paths = [modality.path for modality in project.modalities.values()]
-                if paths:
-                    self._image_widget.on_set_path(paths)
+            try:
+                project = IWsiReg.from_path(path_.parent if path_.is_file() else path_)
+                if project:
+                    self._registration_model = project
+                    self.output_dir = project.output_dir
+                    self.name_label.setText(project.name)
+                    self._image_widget.on_close_dataset()
+                    paths = [modality.path for modality in project.modalities.values()]
+                    if paths:
+                        self._image_widget.on_set_path(paths)
+            except ValueError:
+                logger.exception(f"Could not load project from {path_}")
 
     def save_model(self) -> Path | None:
         """Save model in the current state."""
@@ -430,10 +437,10 @@ class ImageWsiRegWindow(ImageWsiWindow):
         logger.trace(f"Saved project to {self.registration_model.project_dir}")
         return path
 
-    def on_close(self) -> None:
+    def on_close(self, force: bool = False) -> None:
         """Close project."""
-        if self.registration_model and hp.confirm(
-            self, "Are you sure you want to close the project?", "Close project?"
+        if self.registration_model and (
+            force or hp.confirm(self, "Are you sure you want to close the project?", "Close project?")
         ):
             self.name_label.setText("")
             self._image_widget.on_close_dataset(force=True)
@@ -454,6 +461,7 @@ class ImageWsiRegWindow(ImageWsiWindow):
         self._image_widget = LoadWidget(
             self,
             self.view,
+            self.CONFIG,
             select_channels=False,
             available_formats=ALLOWED_WSIREG_FORMATS,
             project_extension=[".i2wsireg.json", ".i2wsireg.toml", ".config.json", ".wsireg", ".i2reg"],
@@ -529,7 +537,7 @@ class ImageWsiRegWindow(ImageWsiWindow):
         hidden_settings = self._make_hidden_widgets(side_widget)
         side_layout.addRow(hidden_settings)
 
-        self._make_run_widgets(side_widget, "Valis")
+        self._make_run_widgets(side_widget)
         # Execution buttons
         side_layout.addRow(
             hp.make_h_layout(self.save_btn, self.viewer_btn, self.close_btn, self.run_btn, stretch_id=(3,), spacing=2)

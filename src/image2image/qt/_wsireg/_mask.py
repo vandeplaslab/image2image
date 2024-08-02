@@ -78,7 +78,7 @@ class ShapesDialog(QtFramelessTool):
     def on_update_modality_options(self) -> None:
         """Update list of available modalities."""
         current = self.slide_choice.currentText()
-        options = self._parent.registration_model.modalities.keys()
+        options = self._parent.registration_model.get_image_modalities(False)
         hp.combobox_setter(self.slide_choice, items=options, set_item=current)
         current = self.copy_from_choice.currentText()
         hp.combobox_setter(self.copy_from_choice, items=options, set_item=current)

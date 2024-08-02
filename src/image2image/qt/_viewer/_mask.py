@@ -18,7 +18,7 @@ from qtpy.QtCore import Qt
 from qtpy.QtWidgets import QFormLayout
 from superqt.utils import GeneratorWorker, create_worker, ensure_main_thread
 
-from image2image.config import CONFIG
+from image2image.config import VIEWER_CONFIG
 from image2image.utils.utilities import log_exception_or_error
 
 if ty.TYPE_CHECKING:
@@ -296,7 +296,7 @@ class MasksDialog(QtFramelessTool):
 
         # export masks
         data_model, masks, display_names, images, mask_shape, mask_inv_pixel_size = data
-        output_dir_ = hp.get_directory(self, "Select output directory", base_dir=CONFIG.output_dir)
+        output_dir_ = hp.get_directory(self, "Select output directory", base_dir=VIEWER_CONFIG.output_dir)
         if output_dir_:
             output_dir = Path(output_dir_)
             if IS_MAC:

@@ -130,24 +130,24 @@ class SelectTransformDialog(QtFramelessTool):
 
     def on_add_transform(self):
         """Load transformation matrix."""
-        from image2image.config import CONFIG
+        from image2image.config import VIEWER_CONFIG
         from image2image.enums import ALLOWED_PROJECT_EXPORT_REGISTER_FORMATS
 
         path = hp.get_filename(
             self,
             "Load transformation",
-            base_dir=CONFIG.output_dir,
+            base_dir=VIEWER_CONFIG.output_dir,
             file_filter=ALLOWED_PROJECT_EXPORT_REGISTER_FORMATS,
         )
         self._on_add_transform(path)
 
     def _on_add_transform(self, path: PathLike) -> None:
-        from image2image.config import CONFIG
+        from image2image.config import VIEWER_CONFIG
 
         if path:
             # load transformation
             path_ = Path(path)
-            CONFIG.output_dir = str(path_.parent)
+            VIEWER_CONFIG.output_dir = str(path_.parent)
 
             # load data from config file
             try:

@@ -18,7 +18,7 @@ from superqt import ensure_main_thread
 from superqt.utils import GeneratorWorker, create_worker
 
 from image2image import __version__
-from image2image.config import CONFIG
+from image2image.config import MERGE_CONFIG
 from image2image.enums import ALLOWED_IMAGE_FORMATS_TIFF_ONLY
 from image2image.qt._dialogs._select import LoadWidget
 from image2image.qt.dialog_base import Window
@@ -71,12 +71,13 @@ class ImageMergeWindow(Window):
     )
 
     def __init__(self, parent: QWidget | None, run_check_version: bool = True, **kwargs: ty.Any):
+        self.CONFIG = MERGE_CONFIG
         super().__init__(
             parent,
             f"image2image: Merge images (v{__version__})",
             run_check_version=run_check_version,
         )
-        if CONFIG.first_time_merge:
+        if self.CONFIG.first_time:
             hp.call_later(self, self.on_show_tutorial, 10_000)
         self.reader_metadata: dict[Path, dict[int, dict[str, list[bool | int | str]]]] = {}
         self._setup_config()
@@ -117,9 +118,9 @@ class ImageMergeWindow(Window):
     def output_dir(self) -> Path:
         """Output directory."""
         if self._output_dir is None:
-            if CONFIG.output_dir is None:
+            if self.CONFIG.output_dir is None:
                 return Path.cwd()
-            return Path(CONFIG.output_dir)
+            return Path(self.CONFIG.output_dir)
         return Path(self._output_dir)
 
     def on_depopulate_table(self) -> None:
@@ -239,9 +240,9 @@ class ImageMergeWindow(Window):
             metadata[path]["name"] = name_for_path
 
         output_dir = self.output_dir
-        CONFIG.as_uint8 = self.as_uint8.isChecked()
-        CONFIG.overwrite = self.overwrite.isChecked()
-        CONFIG.tile_size = int(self.tile_size.currentText())
+        self.CONFIG.as_uint8 = self.as_uint8.isChecked()
+        self.CONFIG.overwrite = self.overwrite.isChecked()
+        self.CONFIG.tile_size = int(self.tile_size.currentText())
 
         if paths:
             self.worker = create_worker(
@@ -249,10 +250,10 @@ class ImageMergeWindow(Window):
                 name=name,
                 paths=paths,
                 output_dir=output_dir,
-                as_uint8=CONFIG.as_uint8,
-                tile_size=CONFIG.tile_size,
+                as_uint8=self.CONFIG.as_uint8,
+                tile_size=self.CONFIG.tile_size,
                 metadata=metadata,
-                overwrite=CONFIG.overwrite,
+                overwrite=self.CONFIG.overwrite,
                 _start_thread=True,
                 _connect={
                     "finished": self._on_export_finished,
@@ -289,10 +290,10 @@ class ImageMergeWindow(Window):
 
     def on_set_output_dir(self):
         """Set output directory."""
-        directory = hp.get_directory(self, "Select output directory", CONFIG.output_dir)
+        directory = hp.get_directory(self, "Select output directory", self.CONFIG.output_dir)
         if directory:
             self._output_dir = directory
-            CONFIG.output_dir = directory
+            self.CONFIG.output_dir = directory
             self.output_dir_label.setText(f"<b>Output directory</b>: {hp.hyper(self.output_dir)}")
             logger.debug(f"Output directory set to {self._output_dir}")
 
@@ -332,7 +333,7 @@ class ImageMergeWindow(Window):
     def _setup_ui(self):
         """Create panel."""
         self._image_widget = LoadWidget(
-            self, None, select_channels=False, available_formats=ALLOWED_IMAGE_FORMATS_TIFF_ONLY
+            self, None, self.CONFIG,select_channels=False, available_formats=ALLOWED_IMAGE_FORMATS_TIFF_ONLY
         )
         self._image_widget.info_text.setVisible(False)
 
@@ -361,21 +362,21 @@ class ImageMergeWindow(Window):
             ["256", "512", "1024", "2048", "4096"],
             tooltip="Specify size of the tile. Default is 512",
             default="512",
-            value=f"{CONFIG.tile_size}",
+            value=f"{self.CONFIG.tile_size}",
         )
         self.as_uint8 = hp.make_checkbox(
             self,
             "Reduce data size (uint8 - dynamic range 0-255)",
             tooltip="Convert to uint8 to reduce file size with minimal data loss.",
             checked=True,
-            value=CONFIG.as_uint8,
+            value=self.CONFIG.as_uint8,
         )
         self.overwrite = hp.make_checkbox(
             self,
             "Overwrite existing files",
             tooltip="Overwrite existing files without having to delete them (e.g. if adding merged channels).",
             checked=True,
-            value=CONFIG.overwrite,
+            value=self.CONFIG.overwrite,
         )
 
         self.directory_btn = hp.make_btn(
@@ -492,8 +493,8 @@ class ImageMergeWindow(Window):
         """Override to handle closing app or just the window."""
         if (
             not force
-            or not CONFIG.confirm_close_merge
-            or QtConfirmCloseDialog(self, "confirm_close_merge", config=CONFIG).exec_()  # type: ignore[attr-defined]
+            or not self.CONFIG.confirm_close
+            or QtConfirmCloseDialog(self, "confirm_close", config=self.CONFIG).exec_()  # type: ignore[attr-defined]
             == QDialog.DialogCode.Accepted
         ):
             return super().close()
@@ -503,16 +504,16 @@ class ImageMergeWindow(Window):
         """Close."""
         if (
             evt.spontaneous()
-            and CONFIG.confirm_close_merge
+            and self.CONFIG.confirm_close
             and self.data_model.is_valid()
-            and QtConfirmCloseDialog(self, "confirm_close_merge", config=CONFIG).exec_() != QDialog.DialogCode.Accepted
+            and QtConfirmCloseDialog(self, "confirm_close", config=self.CONFIG).exec_() != QDialog.DialogCode.Accepted
         ):
             evt.ignore()
             return
 
         if self._console:
             self._console.close()
-        CONFIG.save()
+        self.CONFIG.save()
         evt.accept()
 
     def on_show_tutorial(self) -> None:
@@ -520,7 +521,7 @@ class ImageMergeWindow(Window):
         from image2image.qt._dialogs._tutorial import show_merge_tutorial
 
         show_merge_tutorial(self)
-        CONFIG.first_time_merge = False
+        self.CONFIG.first_time = False
 
     def dropEvent(self, event: QDropEvent) -> None:
         """Drop event."""

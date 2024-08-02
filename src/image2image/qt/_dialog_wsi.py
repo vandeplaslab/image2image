@@ -33,6 +33,8 @@ class ImageWsiWindow(SingleViewerMixin):
 
     WINDOW_TITLE: str
     PROJECT_SUFFIX: str
+    RUN_DISABLED: bool
+    OTHER_PROJECT: str
 
     # Widgets
     name_label: Qw.QLabel
@@ -49,8 +51,6 @@ class ImageWsiWindow(SingleViewerMixin):
         self, parent: Qw.QWidget | None, run_check_version: bool = True, project_dir: PathLike | None = None, **_kwargs
     ):
         super().__init__(parent, self.WINDOW_TITLE, run_check_version=run_check_version)
-        # if CONFIG.first_time_wsireg:
-        #     hp.call_later(self, self.on_show_tutorial, 10_000)
         self._setup_config()
         self.queue_popup = QueuePopup(self)
         self.queue_btn.clicked.connect(self.queue_popup.show)  # noqa
@@ -81,7 +81,7 @@ class ImageWsiWindow(SingleViewerMixin):
         """Save model in the current state."""
         raise NotImplementedError("Must implement method")
 
-    def on_close(self) -> None:
+    def on_close(self, force: bool = False) -> None:
         """Close project."""
         raise NotImplementedError("Must implement method")
 
@@ -118,6 +118,7 @@ class ImageWsiWindow(SingleViewerMixin):
         task = self.make_registration_task(
             project=self.registration_model,
             write_transformed=self.write_registered_check.isChecked(),
+            write_attached=self.write_attached_check.isChecked(),
             write_not_registered=self.write_not_registered_check.isChecked(),
             write_merged=self.write_merged_check.isChecked(),
             as_uint8=self.as_uint8.isChecked(),
@@ -128,6 +129,9 @@ class ImageWsiWindow(SingleViewerMixin):
                     self, "Already queued", "This task is already in the queue.", icon="warning", position="top_left"
                 )
                 return False
+            if QUEUE.is_finished(task.task_id):
+                self.queue_popup.queue_list.on_remove_task(task.task_id)
+                logger.info(f"Removed finished task {task.task_id}.")
             QUEUE.add_task(task, add_delayed=add_delayed)
         return True
 
@@ -194,6 +198,25 @@ class ImageWsiWindow(SingleViewerMixin):
             self.output_dir = common_output_dir[0]
             self.output_dir_label.setText(hp.hyper(self.output_dir))
             logger.trace(f"Automatically set output directory to {self.output_dir}")
+
+    def on_maybe_add_attachment(self, filelist: list[str]) -> None:
+        """Add attachment modalities to the project."""
+        if not filelist:
+            return
+        # select where to attach the modalities
+        if not self.registration_model.modalities:
+            hp.toast(self, "Error", "Please load fixed image first.", icon="error", position="top_left")
+            return
+
+        options = {key: key for key in self.registration_model.modalities.keys()}
+        choice = hp.choose(self, options, "Select modality to attach to")
+        if not choice:
+            return
+
+        for widget in self.modality_list.widget_iter():
+            if widget and widget.item_model.name == choice:
+                widget.auto_add_attachments(filelist)
+                break
 
     @ensure_main_thread
     def on_load_image(self, model: DataModel, _channel_list: list[str]) -> None:
@@ -268,6 +291,11 @@ class ImageWsiWindow(SingleViewerMixin):
                 self.on_open_viewer("--image_dir", str(path))
                 logger.trace("Opening viewer.")
 
+    def on_open_in_viewer_and_close_project(self) -> None:
+        """Open registration in viewer and then close it."""
+        self.on_open_in_viewer()
+        self.on_close(force=True)
+
     def on_preview_close(self) -> None:
         """Preview was closed."""
         self.on_show_modalities()
@@ -317,6 +345,11 @@ class ImageWsiWindow(SingleViewerMixin):
         """Save as other project."""
         raise NotImplementedError("Must implement method")
 
+    def on_save_and_close_project(self) -> None:
+        """Save and close project."""
+        self.on_save_to_project()
+        self.on_close(force=True)
+
     def _make_output_widgets(self, side_widget: Qw.QWidget) -> None:
         self.name_label = hp.make_line_edit(
             side_widget,
@@ -339,8 +372,6 @@ class ImageWsiWindow(SingleViewerMixin):
         )
 
     def _make_hidden_widgets(self, side_widget: Qw.QWidget) -> Qw.QWidget:
-        from image2image.config import CONFIG
-
         self.write_not_registered_check = hp.make_checkbox(
             self,
             "",
@@ -370,7 +401,7 @@ class ImageWsiWindow(SingleViewerMixin):
             "",
             tooltip="Convert to uint8 to reduce file size with minimal data loss.",
             checked=True,
-            value=CONFIG.as_uint8,
+            value=self.CONFIG.as_uint8,
         )
         self.open_when_finished = hp.make_checkbox(
             self,
@@ -382,24 +413,117 @@ class ImageWsiWindow(SingleViewerMixin):
         hidden_settings = hp.make_advanced_collapsible(side_widget, "Export options", allow_checkbox=False)
         hidden_settings.addRow(hp.make_label(self, "Write registered images"), self.write_registered_check)
         hidden_settings.addRow(hp.make_label(self, "Write unregistered images"), self.write_not_registered_check)
-        hidden_settings.addRow(hp.make_label(self, "Merge attached modalities"), self.write_attached_check)
+        hidden_settings.addRow(hp.make_label(self, "Write attached modalities"), self.write_attached_check)
         hidden_settings.addRow(hp.make_label(self, "Merge merged images"), self.write_merged_check)
         hidden_settings.addRow(hp.make_label(self, "Reduce data size"), self.as_uint8)
         hidden_settings.addRow(hp.make_label(self, "Open when finished"), self.open_when_finished)
         return hidden_settings
 
-    def _make_run_widgets(
-        self,
-        side_widget: Qw.QWidget,
-        other_project: str,
-        disabled: bool = False,
-    ) -> Qw.QMenu:
+    def on_clear_project(self) -> None:
+        """Clear project."""
+        if hp.confirm(self, "Are you sure you wish to clear all project data?<br><b>This action cannot be undone.</b>"):
+            self.registration_model.clear(clear_all=True)
+
+    def on_save_menu(self) -> None:
+        """Save menu."""
+        menu = hp.make_menu(self.save_btn)
+        hp.make_menu_item(self, "Save", menu=menu, func=self.on_save_to_project, icon="save")
+        hp.make_menu_item(self, "Save and close", menu=menu, func=self.on_save_and_close_project, icon="delete")
+        hp.show_right_of_mouse(menu)
+
+    def on_view_menu(self) -> None:
+        """Save menu."""
+        menu = hp.make_menu(self.viewer_btn)
+        hp.make_menu_item(self, "Open in viewer", menu=menu, func=self.on_open_in_viewer, icon="viewer")
+        hp.make_menu_item(
+            self, "Open in viewer and close", menu=menu, func=self.on_open_in_viewer_and_close_project, icon="delete"
+        )
+        hp.show_right_of_mouse(menu)
+
+    def on_close_menu(self) -> None:
+        """Save menu."""
+        menu = hp.make_menu(self.close_btn)
+        hp.make_menu_item(self, "Close", menu=menu, func=self.on_close, icon="delete")
+        hp.make_menu_item(self, "Close (without confirmation)", menu=menu, func=lambda: self.on_close(True))
+        hp.show_right_of_mouse(menu)
+
+    def on_run_menu(self) -> None:
+        """Menu."""
+        menu = hp.make_menu(self.run_btn)
+        hp.make_menu_item(
+            self,
+            "Run registration",
+            menu=menu,
+            func=self.on_run,
+            icon="run",
+            tooltip="Perform registration. Images will open in the viewer when finished.",
+            disabled=self.RUN_DISABLED,
+        )
+        hp.make_menu_item(
+            self,
+            "Run registration (without saving, not recommended)",
+            menu=menu,
+            func=self.on_run_no_save,
+            icon="run",
+            tooltip="Perform registration. Images will open in the viewer when finished. Project will not be"
+            " saved before adding to the queue.",
+            disabled=self.RUN_DISABLED,
+        )
+        hp.make_menu_item(
+            self,
+            "Queue registration",
+            menu=menu,
+            func=self.on_queue,
+            icon="queue",
+            tooltip="Registration task will be added to the queue and you can start it manually.",
+            disabled=self.RUN_DISABLED,
+        )
+        hp.make_menu_item(
+            self,
+            "Queue registration (without saving, not recommended)",
+            menu=menu,
+            func=self.on_queue_no_save,
+            icon="queue",
+            tooltip="Registration task will be added to the queue and you can start it manually. Project will not be"
+            " saved before adding to the queue.",
+            disabled=self.RUN_DISABLED,
+        )
+        menu.addSeparator()
+        hp.make_menu_item(
+            self,
+            f"Save as {self.OTHER_PROJECT} project",
+            menu=menu,
+            func=self.on_save_as_other_project,
+            icon="save",
+            tooltip=f"Tries to save the project as {self.OTHER_PROJECT} project, without any guarantees.",
+        )
+        menu.addSeparator()
+        hp.make_menu_item(
+            self,
+            "Clear project (remove all data)",
+            menu=menu,
+            func=self.on_clear_project,
+            icon="save",
+            tooltip="Clears all data from the project, excluding the configuration file.",
+        )
+        hp.show_above_widget(menu, self.run_btn, y_offset=-100, x_offset=-150)
+
+    def _make_run_widgets(self, side_widget: Qw.QWidget) -> None:
         self.save_btn = hp.make_qta_btn(
             self,
             "save",
             normal=True,
             tooltip="Save Valis project to disk.",
             func=self.on_save_to_project,
+            func_menu=self.on_save_menu,
+            standout=True,
+        )
+        self.viewer_btn = hp.make_qta_btn(
+            side_widget,
+            "viewer",
+            func=self.on_open_in_viewer,
+            func_menu=self.on_view_menu,
+            tooltip="Open the project in the viewer. This only makes sense if registration is complete.",
             standout=True,
         )
         self.close_btn = hp.make_qta_btn(
@@ -407,65 +531,13 @@ class ImageWsiWindow(SingleViewerMixin):
             "delete",
             tooltip="Close project (without saving)",
             func=self.on_close,
-            standout=True,
-        )
-        self.viewer_btn = hp.make_qta_btn(
-            side_widget,
-            "viewer",
-            func=self.on_open_in_viewer,
-            tooltip="Open the project in the viewer. This only makes sense if registration is complete.",
+            func_menu=self.on_close_menu,
             standout=True,
         )
         self.run_btn = hp.make_btn(
-            side_widget, "Execute...", tooltip="Immediately execute registration", properties={"with_menu": True}
-        )
-        menu = hp.make_menu(self.run_btn)
-        hp.make_menu_item(
             side_widget,
-            "Run registration",
-            menu=menu,
-            func=self.on_run,
-            icon="run",
-            tooltip="Perform registration. Images will open in the viewer when finished.",
-            disabled=disabled,
+            "Execute...",
+            tooltip="Immediately execute registration",
+            properties={"with_menu": True},
+            func=self.on_run_menu,
         )
-        hp.make_menu_item(
-            side_widget,
-            "Run registration (without saving, not recommended)",
-            menu=menu,
-            func=self.on_run_no_save,
-            icon="run",
-            tooltip="Perform registration. Images will open in the viewer when finished. Project will not be"
-            " saved before adding to the queue.",
-            disabled=disabled,
-        )
-        hp.make_menu_item(
-            side_widget,
-            "Queue registration",
-            menu=menu,
-            func=self.on_queue,
-            icon="queue",
-            tooltip="Registration task will be added to the queue and you can start it manually.",
-            disabled=disabled,
-        )
-        hp.make_menu_item(
-            side_widget,
-            "Queue registration (without saving, not recommended)",
-            menu=menu,
-            func=self.on_queue_no_save,
-            icon="queue",
-            tooltip="Registration task will be added to the queue and you can start it manually. Project will not be"
-            " saved before adding to the queue.",
-            disabled=disabled,
-        )
-        menu.addSeparator()
-        hp.make_menu_item(
-            side_widget,
-            f"Save as {other_project} project",
-            menu=menu,
-            func=self.on_save_as_other_project,
-            icon="save",
-            tooltip=f"Tries to save the project as {other_project} project, without any guarantees.",
-        )
-        self.run_btn.setMenu(menu)
-        return menu

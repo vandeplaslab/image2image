@@ -10,7 +10,7 @@ from loguru import logger
 from natsort import natsorted
 from pydantic import Field, validator
 
-from image2image.config import CONFIG
+from image2image.config import WSIREG3D_CONFIG
 from image2image.models.base import BaseModel
 from image2image.models.utilities import _get_paths, _read_config_from_file
 from image2image.utils.transform import combined_transform
@@ -63,9 +63,9 @@ class RegistrationImage(BaseModel):
     def apply_rotate(self, which: str) -> None:
         """Apply rotation."""
         if which == "left":
-            self.rotate += CONFIG.rotate_step_size
+            self.rotate += WSIREG3D_CONFIG.rotate_step_size
         else:
-            self.rotate -= CONFIG.rotate_step_size
+            self.rotate -= WSIREG3D_CONFIG.rotate_step_size
         if self.rotate > 360:
             self.rotate -= 360
         elif self.rotate < 0:
@@ -76,13 +76,13 @@ class RegistrationImage(BaseModel):
     def apply_translate(self, which: str) -> None:
         """Apply rotation."""
         if which == "up":
-            self.translate_y -= CONFIG.translate_step_size
+            self.translate_y -= WSIREG3D_CONFIG.translate_step_size
         elif which == "down":
-            self.translate_y += CONFIG.translate_step_size
+            self.translate_y += WSIREG3D_CONFIG.translate_step_size
         elif which == "left":
-            self.translate_x -= CONFIG.translate_step_size
+            self.translate_x -= WSIREG3D_CONFIG.translate_step_size
         else:
-            self.translate_x += CONFIG.translate_step_size
+            self.translate_x += WSIREG3D_CONFIG.translate_step_size
 
     def affine(
         self, shape: tuple[int, int], scale: ty.Optional[tuple[float, float]] = None, only_translate: bool = False
