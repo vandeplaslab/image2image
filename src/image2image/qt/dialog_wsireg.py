@@ -46,6 +46,7 @@ def make_registration_task(
     write_merged: bool = False,
     remove_merged: bool = False,
     as_uint8: bool = False,
+    rename: bool = True,
 ) -> Task:
     """Make registration task."""
     task_id = hash_obj(project.project_dir)
@@ -67,10 +68,13 @@ def make_registration_task(
     commands.append("--remove_merged" if remove_merged else "--no_remove_merged")
     if as_uint8:
         commands.append("--as_uint8")
+    if not rename:
+        commands.append("--no_rename")
     return Task(
         task_id=task_id,
         task_name=f"{project.project_dir!s}",
         task_name_repr=hp.hyper(project.project_dir, value=project.project_dir.name),
+        task_name_tooltip=str(project.project_dir),
         commands=[commands],
     )
 
@@ -112,6 +116,7 @@ class ImageWsiRegWindow(ImageWsiWindow):
         write_merged: bool = False,
         remove_merged: bool = False,
         as_uint8: bool = False,
+        rename: bool = True,
     ) -> Task:
         return make_registration_task(
             project,
@@ -121,13 +126,14 @@ class ImageWsiRegWindow(ImageWsiWindow):
             write_merged=write_merged,
             remove_merged=remove_merged,
             as_uint8=as_uint8,
+            rename=rename,
         )
 
     def setup_events(self, state: bool = True) -> None:
         """Setup events."""
         connect(self._image_widget.dataset_dlg.evt_loaded, self.on_load_image, state=state)
         connect(self._image_widget.dataset_dlg.evt_closing, self.on_remove_image, state=state)
-        connect(self._image_widget.dataset_dlg.evt_project, self._on_load_from_project, state=state)
+        connect(self._image_widget.dataset_dlg.evt_import_project, self._on_load_from_project, state=state)
         connect(self._image_widget.dataset_dlg.evt_files, self._on_pre_loading_images, state=state)
         connect(self._image_widget.dataset_dlg.evt_rejected_files, self.on_maybe_add_attachment, state=state)
 
@@ -466,7 +472,7 @@ class ImageWsiRegWindow(ImageWsiWindow):
             available_formats=ALLOWED_WSIREG_FORMATS,
             project_extension=[".i2wsireg.json", ".i2wsireg.toml", ".config.json", ".wsireg", ".i2reg"],
             allow_geojson=True,
-            import_project=True,
+            allow_import_project=True,
         )
 
         side_widget = QWidget()

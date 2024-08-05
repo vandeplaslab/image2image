@@ -88,7 +88,8 @@ class ImageCropWindow(Window):
 
     def setup_events(self, state: bool = True) -> None:
         """Setup events."""
-        connect(self._image_widget.dataset_dlg.evt_project, self._on_load_from_project, state=state)
+        connect(self._image_widget.dataset_dlg.evt_import_project, self._on_load_from_project, state=state)
+        connect(self._image_widget.dataset_dlg.evt_export_project, self.on_save_to_project, state=state)
         connect(self._image_widget.dataset_dlg.evt_loaded, self.on_load_image, state=state)
         connect(self._image_widget.dataset_dlg.evt_closed, self.on_close_image, state=state)
         connect(self._image_widget.evt_toggle_channel, self.on_toggle_channel, state=state)
@@ -231,7 +232,13 @@ class ImageCropWindow(Window):
                 return False
         return True
 
-    def on_preview(self):
+    def on_preview_mask(self):
+        """Preview image cropping."""
+
+    def on_open_mask(self):
+        """Mask images."""
+
+    def on_preview_crop(self):
         """Preview image cropping."""
         regions = self.get_crop_areas()
         if not regions:
@@ -244,16 +251,16 @@ class ImageCropWindow(Window):
                 regions=regions,
                 _start_thread=True,
                 _connect={
-                    "aborted": partial(self._on_aborted, which="preview"),
-                    "finished": partial(self._on_finished, which="preview"),
-                    "yielded": self._on_preview_yield,
+                    "aborted": partial(self._on_aborted_crop, which="preview"),
+                    "finished": partial(self._on_finished_crop, which="preview"),
+                    "yielded": self._on_preview_crop_yield,
                 },
             )
-            hp.disable_widgets(self.preview_btn.active_btn, disabled=True)
-            self.preview_btn.active = True
+            hp.disable_widgets(self.preview_crop_btn.active_btn, disabled=True)
+            self.preview_crop_btn.active = True
 
     @ensure_main_thread()
-    def _on_aborted(self, which: str) -> None:
+    def _on_aborted_crop(self, which: str) -> None:
         """Update CSV."""
         if which == "preview":
             self.worker_preview = None
@@ -261,22 +268,22 @@ class ImageCropWindow(Window):
             self.worker_crop = None
 
     @ensure_main_thread()
-    def _on_preview_yield(self, args: tuple[str, np.ndarray, int, int]) -> None:
-        self.__on_preview_yield(args)
+    def _on_preview_crop_yield(self, args: tuple[str, np.ndarray, int, int]) -> None:
+        self.__on_preview_crop_yield(args)
 
-    def __on_preview_yield(self, args: tuple[str, np.ndarray, int, int]) -> None:
+    def __on_preview_crop_yield(self, args: tuple[str, np.ndarray, int, int]) -> None:
         name, array, current, total = args
-        self.preview_btn.setRange(0, total)
-        self.preview_btn.setValue(current)
+        self.preview_crop_btn.setRange(0, total)
+        self.preview_crop_btn.setValue(current)
         self.view.viewer.add_image(array, name=name)
         self._move_layer(self.view, self.crop_layer)
 
     @ensure_main_thread()
-    def _on_finished(self, which: str) -> None:
+    def _on_finished_crop(self, which: str) -> None:
         """Failed exporting of the CSV."""
         if which == "preview":
             self.worker_preview = None
-            btn = self.preview_btn
+            btn = self.preview_crop_btn
         else:
             self.worker_crop = None
             btn = self.crop_btn
@@ -318,24 +325,24 @@ class ImageCropWindow(Window):
                 as_uint8=as_uint8,
                 _start_thread=True,
                 _connect={
-                    "aborted": partial(self._on_aborted, which="crop"),
-                    "finished": partial(self._on_finished, which="crop"),
-                    "yielded": self._on_export_yield,
-                    "errored": self._on_export_error,
+                    "aborted": partial(self._on_aborted_crop, which="crop"),
+                    "finished": partial(self._on_finished_crop, which="crop"),
+                    "yielded": self._on_export_crop_yield,
+                    "errored": self._on_export_crop_error,
                 },
             )
             hp.disable_widgets(self.crop_btn.active_btn, disabled=True)
             self.crop_btn.active = True
 
     @ensure_main_thread()
-    def _on_export_yield(self, args: tuple[Path, int, int]) -> None:
+    def _on_export_crop_yield(self, args: tuple[Path, int, int]) -> None:
         filename, current, total = args
         self.crop_btn.setRange(0, total)
         self.crop_btn.setValue(current)
         logger.info(f"Exported {filename}")
         self.statusbar.showMessage(f"Exported {filename} {current}/{total}")
 
-    def _on_export_error(self, exc: Exception) -> None:
+    def _on_export_crop_error(self, exc: Exception) -> None:
         hp.toast(self, "Export failed", f"Failed to export: {exc}", icon="error")
         log_exception_or_error(exc)
 
@@ -353,12 +360,6 @@ class ImageCropWindow(Window):
                 left, right, top, bottom = data
                 regions.append((left, right, top, bottom))
         return regions
-
-    def _get_default_crop_area(self) -> tuple[int, int, int, int]:
-        (_, y, x) = self.view.viewer.camera.center
-        top, bottom = y - 256, y + 256
-        left, right = x - 256, x + 256
-        return max(0, left), max(0, right), max(0, top), max(0, bottom)
 
     def on_edit_crop(self):
         """Edit crop area."""
@@ -461,6 +462,8 @@ class ImageCropWindow(Window):
             self.view,
             self.CONFIG,
             project_extension=[".i2c.json", ".i2c.toml"],
+            allow_import_project=True,
+            allow_export_project=True,
         )
 
         self.index_choice = hp.make_int_spin_box(
@@ -486,14 +489,35 @@ class ImageCropWindow(Window):
             self, "Reset crop area", tooltip="Reset crop area to center of the image.", func=self.on_reset_crop
         )
 
-        self.preview_btn = hp.make_active_progress_btn(
+        self.preview_crop_btn = hp.make_active_progress_btn(
             self,
-            "Preview",
-            tooltip="Preview crop area.",
-            func=self.on_preview,
+            "Preview (crop)",
+            tooltip="Preview how cropped image would look like.",
+            func=self.on_preview_crop,
             cancel_func=partial(self.on_cancel, which="preview"),
         )
+        self.crop_btn = hp.make_active_progress_btn(
+            self,
+            "Export to OME-TIFF (crop)...",
+            tooltip="Crop images and save as OME-TIFF files.",
+            func=self.on_open_crop,
+            cancel_func=partial(self.on_cancel, which="crop"),
+        )
 
+        self.preview_mask_btn = hp.make_active_progress_btn(
+            self,
+            "Preview (crop)",
+            tooltip="Preview how masked image would look like.",
+            func=self.on_preview_mask,
+            cancel_func=partial(self.on_cancel, which="preview"),
+        )
+        self.mask_btn = hp.make_active_progress_btn(
+            self,
+            "Export to OME-TIFF (mask)...",
+            tooltip="Mask images and save as OME-TIFF files.",
+            func=self.on_open_mask,
+            cancel_func=partial(self.on_cancel, which="crop"),
+        )
         self.tile_size = hp.make_combobox(
             self,
             ["256", "512", "1024", "2048", "4096"],
@@ -508,39 +532,22 @@ class ImageCropWindow(Window):
             checked=True,
             value=self.CONFIG.as_uint8,
         )
-        self.crop_btn = hp.make_active_progress_btn(
-            self,
-            "Export to OME-TIFF...",
-            tooltip="Export cropped image to OME-TIFF file.",
-            func=self.on_open_crop,
-            cancel_func=partial(self.on_cancel, which="crop"),
-        )
-
-        self.import_project_btn = hp.make_btn(
-            self, "Import project...", tooltip="Load previous project", func=self.on_load_from_project
-        )
-        self.export_project_btn = hp.make_btn(
-            self,
-            "Export project...",
-            tooltip="Export configuration to a project file. Information such as image path and crop"
-            " information are saved. (This does not save the cropped image)",
-            func=self.on_save_to_project,
-        )
 
         side_layout = hp.make_form_layout(settings_widget)
         hp.style_form_layout(side_layout)
-        side_layout.addRow(self.import_project_btn)
-        side_layout.addRow(hp.make_h_line_with_text("or"))
         side_layout.addRow(self._image_widget)
         side_layout.addRow(hp.make_h_line_with_text("Image crop position"))
         side_layout.addRow(crop_layout)
         side_layout.addRow(hp.make_h_layout(self.init_btn, self.reset_btn))
-        side_layout.addRow(hp.make_h_line_with_text("Export"))
-        side_layout.addRow(self.preview_btn)
+        side_layout.addRow(hp.make_h_line_with_text("Crop"))
+        side_layout.addRow(self.preview_crop_btn)
         side_layout.addRow(self.crop_btn)
+        side_layout.addRow(hp.make_h_line_with_text("Mask"))
+        side_layout.addRow(self.preview_mask_btn)
+        side_layout.addRow(self.mask_btn)
+        side_layout.addRow(hp.make_h_line_with_text("Export options"))
         side_layout.addRow("Tile size", self.tile_size)
         side_layout.addRow(self.as_uint8)
-        side_layout.addRow(self.export_project_btn)
         side_layout.addRow(hp.make_h_line_with_text("Layer controls"))
         side_layout.addRow(self.view.widget.controls)
         side_layout.addRow(self.view.widget.layerButtons)

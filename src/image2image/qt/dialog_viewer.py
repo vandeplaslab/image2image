@@ -82,13 +82,14 @@ class ImageViewerWindow(Window):
         # wrapper
         connect(self._image_widget.dataset_dlg.evt_loaded, self.on_load_image, state=state)
         connect(self._image_widget.dataset_dlg.evt_closing, self.on_closing_image, state=state)
-        connect(self._image_widget.dataset_dlg.evt_project, self._on_load_from_project, state=state)
-        # connect(self._image_widget.dataset_dlg.evt_closed, self.on_close_image, state=state)
+        connect(self._image_widget.dataset_dlg.evt_import_project, self._on_load_from_project, state=state)
+        connect(self._image_widget.dataset_dlg.evt_export_project, self.on_save_to_project, state=state)
         connect(self._image_widget.dataset_dlg.evt_resolution, self.on_update_transform, state=state)
         connect(self._image_widget.dataset_dlg.evt_resolution, self.on_update_mask_reader, state=state)
         connect(self._image_widget.transform_dlg.evt_transform, self.on_update_transform, state=state)
         connect(self._image_widget.evt_toggle_channel, self.on_toggle_channel, state=state)
         connect(self._image_widget.evt_toggle_all_channels, self.on_toggle_all_channels, state=state)
+        # viewer
         connect(self.view.viewer.events.status, self._status_changed, state=state)
         # temporary images
         connect(self._image_widget.evt_update_temp, self.on_plot_temporary, state=state)
@@ -404,11 +405,10 @@ class ImageViewerWindow(Window):
             allow_geojson=True,
             project_extension=[".i2v.json", ".i2v.toml", ".i2r.json", ".i2r.toml"],
             allow_iterate=True,
+            allow_import_project=True,
+            allow_export_project=True,
         )
 
-        self.import_project_btn = hp.make_btn(
-            side_widget, "Import project...", tooltip="Load previous project", func=self.on_load_from_project
-        )
         self.create_mask_btn = hp.make_btn(
             side_widget,
             "Create mask",
@@ -421,24 +421,13 @@ class ImageViewerWindow(Window):
             tooltip="Export masks/regions in a AutoIMS compatible format",
             func=self.on_save_masks,
         )
-        self.export_project_btn = hp.make_btn(
-            side_widget,
-            "Export project...",
-            tooltip="Export configuration to a project file. Information such as image path and transformation"
-            " information are saved.",
-            func=self.on_save_to_project,
-        )
 
         side_layout = hp.make_form_layout(side_widget)
         hp.style_form_layout(side_layout)
-        side_layout.addRow(self.import_project_btn)
-        side_layout.addRow(hp.make_h_line_with_text("or"))
         side_layout.addRow(self._image_widget)
         side_layout.addRow(hp.make_h_line_with_text("Masks"))
         side_layout.addRow(self.create_mask_btn)
         side_layout.addRow(self.export_mask_btn)
-        side_layout.addRow(hp.make_h_line_with_text("Export"))
-        side_layout.addRow(self.export_project_btn)
         side_layout.addRow(hp.make_h_line_with_text("Layer controls"))
         side_layout.addRow(self.view.widget.controls)
         side_layout.addRow(self.view.widget.layerButtons)

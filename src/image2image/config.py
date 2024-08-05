@@ -97,6 +97,17 @@ class WsiRegConfig(SingleAppConfig):
     )
     use_preview: bool = Field(True, title="Use preview", description="Use preview.", in_app=True)
     hide_others: bool = Field(False, title="Hide others", description="Hide others.", in_app=True)
+    open_when_finished: bool = Field(True, title="Open when finished", description="Open when finished.", in_app=True)
+
+    # writing options
+    write_registered: bool = Field(True, title="Write registered", description="Write registered.", in_app=True)
+    write_not_registered: bool = Field(
+        True, title="Write not registered", description="Write not registered.", in_app=True
+    )
+    write_attached: bool = Field(True, title="Write attached", description="Write attached.", in_app=True)
+    write_merged: bool = Field(True, title="Write merged", description="Write merged.", in_app=True)
+    remove_merged: bool = Field(False, title="Remove merged", description="Remove merged.", in_app=True)
+    rename: bool = Field(True, title="Rename", description="Rename.", in_app=True)
 
 
 class ValisConfig(SingleAppConfig):
@@ -106,6 +117,9 @@ class ValisConfig(SingleAppConfig):
 
     use_preview: bool = Field(True, title="Use preview", description="Use preview.", in_app=True)
     hide_others: bool = Field(False, title="Hide others", description="Hide others.", in_app=True)
+    open_when_finished: bool = Field(True, title="Open when finished", description="Open when finished.", in_app=True)
+
+    # Valis options
     feature_detector: str = Field("sift", title="Feature detector", description="Feature detector.", in_app=True)
     feature_matcher: str = Field("flann", title="Feature matcher", description="Feature matcher.", in_app=True)
     check_reflection: bool = Field(True, title="Check reflections", description="Check reflections.", in_app=True)
@@ -121,6 +135,7 @@ class ValisConfig(SingleAppConfig):
     write_attached: bool = Field(True, title="Write attached", description="Write attached.", in_app=True)
     write_merged: bool = Field(True, title="Write merged", description="Write merged.", in_app=True)
     remove_merged: bool = Field(False, title="Remove merged", description="Remove merged.", in_app=True)
+    rename: bool = Field(True, title="Rename", description="Rename.", in_app=True)
 
 
 class ConvertConfig(SingleAppConfig):

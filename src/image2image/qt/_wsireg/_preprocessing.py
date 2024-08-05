@@ -91,8 +91,8 @@ class PreprocessingDialog(QtFramelessTool):
     TABLE_CONFIG = (
         TableConfig()  # type: ignore[no-untyped-call]
         .add("", "check", "bool", 25, no_sort=True, sizing="fixed")
-        .add("index", "channel_index", "int", 100)
-        .add("name", "channel_name", "str", 250)
+        .add("index", "channel_index", "int", 100, sizing="contents")
+        .add("name", "channel_name", "str", 250, sizing="stretch")
     )
 
     def __init__(

@@ -119,7 +119,7 @@ class ImageWsiPrepWindow(Window):
     def setup_events(self, state: bool = True) -> None:
         """Setup events."""
         connect(self._image_widget.dataset_dlg.evt_loaded, self.on_load_image, state=state)
-        connect(self._image_widget.dataset_dlg.evt_project, self._on_load_from_project, state=state)
+        connect(self._image_widget.dataset_dlg.evt_import_project, self._on_load_from_project, state=state)
         connect(self._image_widget.dataset_dlg.evt_closed, self.on_remove_image, state=state)
         connect(self.view.widget.canvas.events.key_press, self.keyPressEvent, state=state)
         connect(self.view.viewer.events.status, self._status_changed, state=state)

@@ -414,7 +414,8 @@ class SelectDataDialog(QtFramelessTool):
     evt_closing = Signal(object, list, list)
     evt_closed = Signal(object)
     evt_resolution = Signal(str)
-    evt_project = Signal(str)
+    evt_import_project = Signal(str)
+    evt_export_project = Signal()
     evt_files = Signal(list)
     evt_rejected_files = Signal(list)
     evt_swap = Signal(str, str)
@@ -585,9 +586,24 @@ class SelectDataDialog(QtFramelessTool):
         """Return list of available extensions based on the specified filter."""
         return extract_extension(self.available_formats_filter)
 
-    def on_select_project(self) -> None:
+    def on_import_project(self) -> None:
         """Open project."""
-        print("SELECT PROJECt")
+        if self.project_extension:
+            project_ext = " ".join(self.project_extension)
+            project_extensions = f"Project files ({project_ext});;"
+
+            path_ = hp.get_filename(
+                self,
+                "Select project...",
+                base_dir=self.CONFIG.output_dir,
+                file_filter=project_extensions,
+            )
+            if path_:
+                self.evt_import_project.emit(path_)
+
+    def on_export_project(self) -> None:
+        """Export project."""
+        self.evt_export_project.emit()
 
     def on_select_dataset(self) -> None:
         """Load path."""
@@ -665,7 +681,7 @@ class SelectDataDialog(QtFramelessTool):
         other_files_ = []
         for filename in filenames:
             if self.project_extension and any(filename.endswith(ext) for ext in self.project_extension):
-                self.evt_project.emit(filename)
+                self.evt_import_project.emit(filename)
             elif filename.endswith(allowed_extensions):
                 filenames_.append(filename)
             else:
@@ -974,6 +990,7 @@ class SelectDataDialog(QtFramelessTool):
                 hp.make_v_line(),
                 hp.make_label(self, "Split RGB"),
                 self.split_rgb_check,
+                hp.make_v_line(),
                 hp.make_label(self, "Split Bruker .d (recommended)"),
                 self.split_roi_check,
                 stretch_after=True,

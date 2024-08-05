@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import typing as ty
+from functools import partial
 
 import numpy as np
 from loguru import logger
@@ -66,14 +67,30 @@ class PreprocessMovingDialog(QtFramelessTool):
         self.initial_model = InitialTransformModel()
         self.on_update()
 
-    def on_rotate(self, which: str) -> None:
+    def on_rotate(self, value: int) -> None:
         """Rotate image."""
-        self.initial_model.apply_rotate(which)
+        self.initial_model.rotate = self.rotate_spin.value() + value
+        with hp.qt_signals_blocked(self.rotate_spin):
+            self.rotate_spin.setValue(self.initial_model.rotate)
+        self.on_update()
+
+    def on_set_rotate(self, value: int) -> None:
+        """Set rotation."""
+        self.initial_model.rotate = value
         self.on_update()
 
     def on_flip_lr(self) -> None:
         """Flip image."""
         self.initial_model.flip_lr = not self.initial_model.flip_lr
+        self.on_update()
+
+    def on_reset(self) -> None:
+        """Reset."""
+        self.initial_model.rotate = 0
+        self.initial_model.flip_lr = False
+        with hp.qt_signals_blocked(self.rotate_spin, self.flip_lr):
+            self.rotate_spin.setValue(0)
+            self.flip_lr.setChecked(False)
         self.on_update()
 
     def on_update(self):
@@ -119,18 +136,33 @@ class PreprocessMovingDialog(QtFramelessTool):
         """Make panel."""
         _, header_layout = self._make_close_handle(title="Initial transformation")
 
+        self.rotate_bck = hp.make_qta_btn(
+            self, "rotate_left", tooltip="Rotate (counter-clockwise)", func=partial(self.on_rotate, value=-90)
+        )
+        self.rotate_fwd = hp.make_qta_btn(
+            self, "rotate_right", tooltip="Rotate (clockwise)", func=partial(self.on_rotate, value=90)
+        )
+        self.rotate_spin = hp.make_double_spin_box(
+            self,
+            value=0,
+            minimum=-360,
+            maximum=360,
+            step_size=15,
+            suffix="°",
+            tooltip="Rotate",
+            func=self.on_set_rotate,
+        )
+        self.flip_lr = hp.make_checkbox(self, "", func=self.on_flip_lr)
+
         layout = hp.make_form_layout(self)
         hp.style_form_layout(layout)
         layout.setContentsMargins(6, 6, 6, 6)
         layout.addRow(header_layout)
         layout.addRow(
-            "Rotate",
-            hp.make_h_layout(
-                hp.make_qta_btn(self, "rotate_left", func=lambda: self.on_rotate("left")),
-                hp.make_qta_btn(self, "rotate_right", func=lambda: self.on_rotate("right")),
-            ),
+            "Rotate (counter-clockwise)",
+            hp.make_h_layout(self.rotate_spin, self.rotate_bck, self.rotate_fwd, spacing=1, margin=0, stretch_id=(0,)),
         )
-        layout.addRow("Flip left-right", hp.make_qta_btn(self, "flip_lr", func=self.on_flip_lr))
+        layout.addRow("Flip left-right", self.flip_lr)
         layout.addRow(
             hp.make_label(
                 self,
@@ -144,6 +176,7 @@ class PreprocessMovingDialog(QtFramelessTool):
         layout.addRow(
             hp.make_h_layout(
                 hp.make_btn(self, "OK", func=self.accept),
+                hp.make_btn(self, "Reset", func=self.on_reset),
                 hp.make_btn(self, "Cancel", func=self.reject),
             )
         )

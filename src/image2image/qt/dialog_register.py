@@ -199,7 +199,7 @@ class ImageRegistrationWindow(Window):
     def setup_events(self, state: bool = True) -> None:
         """Additional setup."""
         # fixed widget
-        connect(self._fixed_widget.dataset_dlg.evt_project, self._on_load_from_project, state=state)
+        connect(self._fixed_widget.dataset_dlg.evt_import_project, self._on_load_from_project, state=state)
         connect(self._fixed_widget.dataset_dlg.evt_loading, partial(self.on_indicator, which="fixed"), state=state)
         connect(self._fixed_widget.dataset_dlg.evt_loaded, self.on_load_fixed, state=state)
         connect(self._fixed_widget.dataset_dlg.evt_closed, self.on_close_fixed, state=state)
@@ -210,7 +210,7 @@ class ImageRegistrationWindow(Window):
         connect(self._fixed_widget.evt_swap, self.on_swap, state=state)
 
         # moving widget
-        connect(self._moving_widget.dataset_dlg.evt_project, self._on_load_from_project, state=state)
+        connect(self._moving_widget.dataset_dlg.evt_import_project, self._on_load_from_project, state=state)
         connect(self._moving_widget.dataset_dlg.evt_loading, partial(self.on_indicator, which="moving"), state=state)
         connect(self._moving_widget.dataset_dlg.evt_loaded, self.on_load_moving, state=state)
         connect(self._moving_widget.dataset_dlg.evt_closed, self.on_close_moving, state=state)
@@ -825,12 +825,13 @@ class ImageRegistrationWindow(Window):
                 opacity=self.CONFIG.opacity_moving / 100,
             )
 
+    @qdebounced(timeout=200)
     @ensure_main_thread
-    def on_predict(self, which: str, _evt: ty.Any = None) -> None:
+    def on_predict(self, which: str, evt: ty.Any = None) -> None:
         """Predict transformation from either image."""
-        self._on_predict(which)
+        self._on_predict(which, evt)
 
-    def _on_predict(self, which: str) -> None:
+    def _on_predict(self, which: str, _evt: ty.Any = None) -> None:
         if self.transform is None:
             logger.warning("Cannot predict - no transformation has been computed.")
             return
@@ -855,6 +856,7 @@ class ImageRegistrationWindow(Window):
             transformed_last_point = self.transform(transformed_last_point)
             logger.trace("Predicted fixed points based on moving points...")
 
+        print(">>", predict_for_layer.name)
         transformed_data = predict_for_layer.data
         transformed_data = np.append(transformed_data, transformed_last_point, axis=0)
         # don't predict positions if the number of points is lower than the number already present in the image
@@ -1058,13 +1060,15 @@ class ImageRegistrationWindow(Window):
 
         self._fixed_widget = FixedWidget(
             self,
-            self.view_fixed,self.CONFIG,
+            self.view_fixed,
+            self.CONFIG,
             allow_swap=False,
             project_extension=[".i2r.json", ".i2r.toml"],
         )
         self._moving_widget = MovingWidget(
             self,
-            self.view_moving,self.CONFIG,
+            self.view_moving,
+            self.CONFIG,
             allow_swap=False,
             project_extension=[".i2r.json", ".i2r.toml"],
             allow_iterate=True,
@@ -1093,6 +1097,14 @@ class ImageRegistrationWindow(Window):
             tooltip="Show fiducial markers table where you can view and edit the markers",
             func=self.on_show_fiducials,
         )
+        self.close_btn = hp.make_qta_btn(
+            side_widget,
+            "delete",
+            tooltip="Close project (without saving)",
+            func=self.on_close,
+            func_menu=self.on_close_menu,
+            standout=True,
+        )
         self.export_project_btn = hp.make_btn(
             side_widget,
             "Export project...",
@@ -1113,7 +1125,7 @@ class ImageRegistrationWindow(Window):
         side_layout.addRow(self.initial_btn)
         side_layout.addRow(self.fiducials_btn)
         side_layout.addRow(hp.make_btn(side_widget, "Compute transformation", func=self.on_run))
-        side_layout.addRow(self.export_project_btn)
+        side_layout.addRow(hp.make_h_layout(self.close_btn, self.export_project_btn, stretch_id=(1,), spacing=2))
         side_layout.addRow(hp.make_h_line_with_text("About transformation"))
         side_layout.addRow(hp.make_label(self, "Estimated error"), self.transform_error)
         side_layout.addRow(self.transform_info)
@@ -1136,6 +1148,24 @@ class ImageRegistrationWindow(Window):
         self._make_menu()
         self._make_icon()
         self._make_statusbar()
+
+    def on_close(self, force: bool = False) -> None:
+        """Close project and clear all data."""
+        if force or hp.confirm(self, "Are you sure you want to close the project?", "Close project?"):
+            self._moving_widget.on_close_dataset(force=True)
+            self.on_clear("moving", force=True)
+            self._fixed_widget.on_close_dataset(force=True)
+            self.on_clear("fixed", force=True)
+            self.transform_model.clear(clear_data=False, clear_model=False, clear_initial=True)
+
+    def on_close_menu(self) -> None:
+        """Save menu."""
+        menu = hp.make_menu(self.close_btn)
+        hp.make_menu_item(self, "Close", menu=menu, func=self.on_close, icon="delete")
+        hp.make_menu_item(
+            self, "Close (without confirmation)", menu=menu, func=lambda: self.on_close(True), icon="delete"
+        )
+        hp.show_right_of_mouse(menu)
 
     def _make_menu(self) -> None:
         """Make menu items."""

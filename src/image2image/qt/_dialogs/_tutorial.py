@@ -482,7 +482,7 @@ def show_crop_tutorial(widget: "ImageCropWindow") -> None:
                 title="Preview",
                 message="You can preview your selection by clicking here. This will extract each region of interest for"
                 " each of the loaded images.",
-                widget=widget.preview_btn,
+                widget=widget.preview_crop_btn,
                 position=Position.LEFT_TOP,
             ),
             TutorialStep(

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import typing as ty
+from functools import partial
 from pathlib import Path
 
 import numpy as np
@@ -65,12 +66,14 @@ class LoadWidget(QWidget):
         allow_iterate: bool = False,
         project_extension: list[str] | None = None,
         show_split_czi: bool = True,
-        import_project: bool = False,
+        allow_import_project: bool = False,
+        allow_export_project: bool = False,
     ):
         """Init."""
         self.allow_geojson = allow_geojson
         self.select_channels = select_channels
-        self.import_project = import_project
+        self.allow_import_project = allow_import_project
+        self.allow_export_project = allow_export_project
         self.CONFIG = config
         super().__init__(parent)
         self.view = view
@@ -119,10 +122,15 @@ class LoadWidget(QWidget):
         layout.addRow(self.info_text)  # noqa
         self.active_icon = QtActiveIcon()
         self.import_btn = hp.make_qta_btn(
-            self, "project", func=self.on_select_project, tooltip="Open project file.", standout=True, normal=True
+            self, "import", func=self.on_import_project, tooltip="Open project file.", standout=True, normal=True
         )
-        if not self.import_project:
+        if not self.allow_import_project:
             self.import_btn.setVisible(False)
+        self.export_btn = hp.make_qta_btn(
+            self, "export", func=self.on_export_project, tooltip="Save project file.", standout=True, normal=True
+        )
+        if not self.allow_export_project:
+            self.export_btn.setVisible(False)
         self.add_btn = hp.make_qta_btn(
             self, "add", func=self.on_select_dataset, tooltip="Add image(s) to the viewer.", standout=True, normal=True
         )
@@ -140,10 +148,12 @@ class LoadWidget(QWidget):
                     self,
                     "delete",
                     func=self.on_close_dataset,
+                    func_menu=self.on_clear_menu,
                     tooltip="Remove image(s) from the viewer.",
                     standout=True,
                     normal=True,
                 ),
+                self.export_btn,
                 self.more_btn,
                 self.active_icon,
                 stretch_id=2,
@@ -155,6 +165,19 @@ class LoadWidget(QWidget):
             layout.addRow(self.channel_btn)
         self.setLayout(layout)
         return layout
+
+    def on_clear_menu(self) -> None:
+        """Clear data."""
+        menu = hp.make_menu(self.add_btn)
+        hp.make_menu_item(self, "Close", menu=menu, func=self.on_close_dataset, icon="save")
+        hp.make_menu_item(
+            self,
+            "Close all (without confirmation)",
+            menu=menu,
+            func=partial(self.on_close_dataset, force=True),
+            icon="delete",
+        )
+        hp.show_below_widget(menu, self.add_btn)
 
     def _on_select_channels(self) -> None:
         """Select channels from the list."""
@@ -173,9 +196,13 @@ class LoadWidget(QWidget):
             paths = [paths]
         self.dataset_dlg._on_load_dataset(paths, transform_data, resolution, reader_kws)
 
-    def on_select_project(self) -> None:
+    def on_import_project(self) -> None:
         """Open project."""
-        self.dataset_dlg.on_select_project()
+        self.dataset_dlg.on_import_project()
+
+    def on_export_project(self) -> None:
+        """Save project."""
+        self.dataset_dlg.on_export_project()
 
     def on_select_dataset(self, _evt: ty.Any = None) -> None:
         """Load data."""
@@ -215,6 +242,8 @@ class FixedWidget(LoadWidget):
         allow_flip_rotation: bool = False,
         allow_swap: bool = False,
         project_extension: list[str] | None = None,
+        allow_import_project: bool = False,
+        allow_export_project: bool = False,
     ):
         super().__init__(
             parent,
@@ -226,6 +255,8 @@ class FixedWidget(LoadWidget):
             allow_flip_rotation=allow_flip_rotation,
             allow_swap=allow_swap,
             project_extension=project_extension,
+            allow_import_project=allow_import_project,
+            allow_export_project=allow_export_project,
         )
 
         if parent is not None and hasattr(parent, "evt_fixed_dropped"):
@@ -257,6 +288,8 @@ class MovingWidget(LoadWidget):
         allow_swap: bool = False,
         project_extension: list[str] | None = None,
         allow_iterate: bool = False,
+        allow_import_project: bool = False,
+        allow_export_project: bool = False,
     ):
         super().__init__(
             parent,
@@ -269,6 +302,8 @@ class MovingWidget(LoadWidget):
             allow_swap=allow_swap,
             project_extension=project_extension,
             allow_iterate=allow_iterate,
+            allow_import_project=allow_import_project,
+            allow_export_project=allow_export_project,
         )
 
         # extra events
@@ -352,6 +387,8 @@ class LoadWithTransformWidget(LoadWidget):
         allow_swap: bool = False,
         project_extension: list[str] | None = None,
         allow_iterate: bool = False,
+        allow_import_project: bool = False,
+        allow_export_project: bool = False,
     ):
         """Init."""
         super().__init__(
@@ -365,6 +402,8 @@ class LoadWithTransformWidget(LoadWidget):
             allow_swap=allow_swap,
             project_extension=project_extension,
             allow_iterate=allow_iterate,
+            allow_import_project=allow_import_project,
+            allow_export_project=allow_export_project,
         )
         self.transform_model = TransformModel()
         self.transform_model.add_transform("Identity matrix", TransformData.from_array(np.eye(3, dtype=np.float64)))

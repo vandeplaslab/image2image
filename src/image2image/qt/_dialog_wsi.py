@@ -23,6 +23,7 @@ from image2image.models.data import DataModel
 from image2image.qt._dialog_mixins import SingleViewerMixin
 
 if ty.TYPE_CHECKING:
+    from image2image.config import ValisConfig, WsiRegConfig
     from image2image.qt._wsireg._list import QtModalityList
 
 
@@ -35,6 +36,7 @@ class ImageWsiWindow(SingleViewerMixin):
     PROJECT_SUFFIX: str
     RUN_DISABLED: bool
     OTHER_PROJECT: str
+    CONFIG: ValisConfig | WsiRegConfig
 
     # Widgets
     name_label: Qw.QLabel
@@ -46,6 +48,7 @@ class ImageWsiWindow(SingleViewerMixin):
     hide_others_check: Qw.QCheckBox
     modality_list: QtModalityList
     open_when_finished: Qw.QCheckBox
+    pyramid_level: Qw.QSpinBox
 
     def __init__(
         self, parent: Qw.QWidget | None, run_check_version: bool = True, project_dir: PathLike | None = None, **_kwargs
@@ -107,7 +110,7 @@ class ImageWsiWindow(SingleViewerMixin):
             dlg.show()
         return is_valid
 
-    def _queue_registration_model(self, add_delayed: bool, save: bool = True) -> bool:
+    def _queue_registration_model(self, add_delayed: bool, save: bool = True, cli: bool = False) -> bool:
         """Queue registration model."""
         if not self.registration_model:
             return False
@@ -124,6 +127,11 @@ class ImageWsiWindow(SingleViewerMixin):
             as_uint8=self.as_uint8.isChecked(),
         )
         if task:
+            if cli:
+                commands = [" ".join(command) for command in task.command_iter()]
+                hp.copy_text_to_clipboard("; ".join(commands))
+                logger.trace(f"Copied command to clipboard: {commands}")
+                return True
             if QUEUE.is_queued(task.task_id):
                 hp.toast(
                     self, "Already queued", "This task is already in the queue.", icon="warning", position="top_left"
@@ -150,6 +158,10 @@ class ImageWsiWindow(SingleViewerMixin):
     def on_queue_no_save(self) -> None:
         """Queue registration."""
         self._queue_registration_model(add_delayed=True, save=False)
+
+    def on_copy_to_clipboard(self) -> None:
+        """Copy command to clipboard."""
+        self._queue_registration_model(add_delayed=False, save=False, cli=True)
 
     def on_validate_path(self, _: ty.Any = None) -> None:
         """Validate project path."""
@@ -376,38 +388,51 @@ class ImageWsiWindow(SingleViewerMixin):
             self,
             "",
             tooltip="Write original, not-registered images (those without any transformations such as target).",
-            value=True,
+            value=self.CONFIG.write_not_registered,
+            func=self.on_update_config,
         )
         self.write_registered_check = hp.make_checkbox(
             self,
             "",
             tooltip="Write registered images.",
-            value=True,
+            value=self.CONFIG.write_registered,
+            func=self.on_update_config,
         )
         self.write_attached_check = hp.make_checkbox(
             self,
             "",
             tooltip="Write attached modalities (images, shapes or points).",
-            value=True,
+            value=self.CONFIG.write_attached,
+            func=self.on_update_config,
         )
         self.write_merged_check = hp.make_checkbox(
             self,
             "",
             tooltip="Merge non- and transformed images into a single image.",
-            value=False,
+            value=self.CONFIG.write_merged,
+            func=self.on_update_config,
+        )
+        self.rename_check = hp.make_checkbox(
+            self,
+            "",
+            tooltip="Rename images during writing. By default names will be written as:"
+            " <source_name>_to_<target_name>.ome.tiff, however, they can also be named as <original_name>.ome.tiff",
+            value=self.CONFIG.rename,
+            func=self.on_update_config,
         )
         self.as_uint8 = hp.make_checkbox(
             self,
             "",
             tooltip="Convert to uint8 to reduce file size with minimal data loss.",
-            checked=True,
             value=self.CONFIG.as_uint8,
+            func=self.on_update_config,
         )
         self.open_when_finished = hp.make_checkbox(
             self,
             "",
             tooltip="Open images in the viewer when registration is finished.",
-            value=True,
+            value=self.CONFIG.open_when_finished,
+            func=self.on_update_config,
         )
 
         hidden_settings = hp.make_advanced_collapsible(side_widget, "Export options", allow_checkbox=False)
@@ -415,9 +440,20 @@ class ImageWsiWindow(SingleViewerMixin):
         hidden_settings.addRow(hp.make_label(self, "Write unregistered images"), self.write_not_registered_check)
         hidden_settings.addRow(hp.make_label(self, "Write attached modalities"), self.write_attached_check)
         hidden_settings.addRow(hp.make_label(self, "Merge merged images"), self.write_merged_check)
+        hidden_settings.addRow(hp.make_label(self, "Rename images"), self.rename_check)
         hidden_settings.addRow(hp.make_label(self, "Reduce data size"), self.as_uint8)
         hidden_settings.addRow(hp.make_label(self, "Open when finished"), self.open_when_finished)
         return hidden_settings
+
+    def on_update_config(self, _: ty.Any = None) -> None:
+        """Update values in config."""
+        self.CONFIG.write_not_registered = self.write_not_registered_check.isChecked()
+        self.CONFIG.write_registered = self.write_registered_check.isChecked()
+        self.CONFIG.write_attached = self.write_attached_check.isChecked()
+        self.CONFIG.write_merged = self.write_merged_check.isChecked()
+        self.CONFIG.rename = self.rename_check.isChecked()
+        self.CONFIG.as_uint8 = self.as_uint8.isChecked()
+        self.CONFIG.open_when_finished = self.open_when_finished.isChecked()
 
     def on_clear_project(self) -> None:
         """Clear project."""
@@ -428,7 +464,7 @@ class ImageWsiWindow(SingleViewerMixin):
         """Save menu."""
         menu = hp.make_menu(self.save_btn)
         hp.make_menu_item(self, "Save", menu=menu, func=self.on_save_to_project, icon="save")
-        hp.make_menu_item(self, "Save and close", menu=menu, func=self.on_save_and_close_project, icon="delete")
+        hp.make_menu_item(self, "Save and close", menu=menu, func=self.on_save_and_close_project, icon="save")
         hp.show_right_of_mouse(menu)
 
     def on_view_menu(self) -> None:
@@ -436,7 +472,7 @@ class ImageWsiWindow(SingleViewerMixin):
         menu = hp.make_menu(self.viewer_btn)
         hp.make_menu_item(self, "Open in viewer", menu=menu, func=self.on_open_in_viewer, icon="viewer")
         hp.make_menu_item(
-            self, "Open in viewer and close", menu=menu, func=self.on_open_in_viewer_and_close_project, icon="delete"
+            self, "Open in viewer and close", menu=menu, func=self.on_open_in_viewer_and_close_project, icon="viewer"
         )
         hp.show_right_of_mouse(menu)
 
@@ -444,7 +480,9 @@ class ImageWsiWindow(SingleViewerMixin):
         """Save menu."""
         menu = hp.make_menu(self.close_btn)
         hp.make_menu_item(self, "Close", menu=menu, func=self.on_close, icon="delete")
-        hp.make_menu_item(self, "Close (without confirmation)", menu=menu, func=lambda: self.on_close(True))
+        hp.make_menu_item(
+            self, "Close (without confirmation)", menu=menu, func=lambda: self.on_close(True), icon="delete"
+        )
         hp.show_right_of_mouse(menu)
 
     def on_run_menu(self) -> None:
@@ -488,6 +526,15 @@ class ImageWsiWindow(SingleViewerMixin):
             " saved before adding to the queue.",
             disabled=self.RUN_DISABLED,
         )
+        hp.make_menu_item(
+            self,
+            "Copy command to clipboard",
+            menu=menu,
+            func=self.on_copy_to_clipboard,
+            icon="cli",
+            tooltip="Copy the registration command to clipboard so it can be executed externally.",
+            disabled=self.RUN_DISABLED,
+        )
         menu.addSeparator()
         hp.make_menu_item(
             self,
@@ -503,7 +550,7 @@ class ImageWsiWindow(SingleViewerMixin):
             "Clear project (remove all data)",
             menu=menu,
             func=self.on_clear_project,
-            icon="save",
+            icon="delete",
             tooltip="Clears all data from the project, excluding the configuration file.",
         )
         hp.show_above_widget(menu, self.run_btn, y_offset=-100, x_offset=-150)
