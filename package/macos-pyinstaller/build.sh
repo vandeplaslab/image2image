@@ -12,6 +12,7 @@ update_deps=false
 update_just_reader=false
 update_just_register=false
 update_just_app=false
+update_pip=false
 no_docs=true
 help=false
 uv=false
@@ -152,7 +153,7 @@ then
     pip_install+=("napari==0.4.19")
     pip_install+=("pydantic<2")
     pip_install+=("PyQt6==6.5.3")
-    pip_install+=("pyinstaller")
+    pip_install+=("pyinstaller==6.7.0")
 fi
 
 # iterate over the list
