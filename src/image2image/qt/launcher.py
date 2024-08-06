@@ -27,7 +27,7 @@ MERGE_TEXT = "Merge multiple OME-TIFF images into a single file."
 FUSION_TEXT = "Export your data for Image Fusion in MATLAB compatible format."
 WSIREG_TEXT = "Register whole slide microscopy images<br>(<b>i2reg</b>)."
 VALIS_TEXT = "Register whole slide microscopy images<br>(<b>Valis</b>)."
-HAS_CONVERT = not IS_PYINSTALLER and not IS_MAC_ARM
+HAS_CONVERT = IS_PYINSTALLER and not IS_MAC_ARM
 CONVERT_WARNING = ""
 if not HAS_CONVERT:
     CONVERT_WARNING = "<i>Not available on Apple Silicon due to a bug I can't find...</i>"

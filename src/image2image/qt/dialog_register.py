@@ -1637,9 +1637,9 @@ class ImageRegistrationWindow(Window):
         """Key press event."""
         if hasattr(evt, "native"):
             evt = evt.native
-        key = evt.key()
-        ignore = self._handle_key_press(key)
         try:
+            key = evt.key()
+            ignore = self._handle_key_press(key)
             if ignore:
                 evt.ignore()
             if not evt.isAccepted():

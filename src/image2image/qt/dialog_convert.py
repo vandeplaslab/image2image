@@ -363,6 +363,7 @@ class ImageConvertWindow(Window):
         self._image_widget = LoadWidget(
             self,
             None,
+            self.CONFIG,
             select_channels=False,
             available_formats=ALLOWED_IMAGE_FORMATS_MICROSCOPY_ONLY,
             show_split_czi=False,
