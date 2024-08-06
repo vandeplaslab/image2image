@@ -1620,20 +1620,6 @@ class ImageRegistrationWindow(Window):
         self.statusbar.insertPermanentWidget(14, self.text_color)
         self.statusbar.insertPermanentWidget(15, hp.make_v_line(), stretch=1)
 
-    def keyPressEvent(self, evt: ty.Any) -> None:
-        """Key press event."""
-        if hasattr(evt, "native"):
-            evt = evt.native
-        self.on_handle_key_press(evt)
-        if not evt.isAccepted():
-            return None
-        return super().keyPressEvent(evt)
-
-    @qdebounced(timeout=100, leading=True)
-    def on_handle_key_press(self, evt: QKeyEvent) -> None:
-        """Handle key-press event"""
-        return self._handle_key_press(evt)
-
     def on_toggle_mode(self, which: str | ty.Literal["fixed", "moving", "both"], mode: str | Mode) -> None:
         """Toggle mode."""
         which = ["fixed", "moving"] if which == "both" else [which]
@@ -1646,50 +1632,70 @@ class ImageRegistrationWindow(Window):
             elif mode == Mode.SELECT:
                 self.on_move(w)
 
-    def _handle_key_press(self, evt: QKeyEvent) -> None:
+    def keyPressEvent(self, evt: QKeyEvent) -> None:
+        """Key press event."""
+        if hasattr(evt, "native"):
+            evt = evt.native
         key = evt.key()
+        ignore = self.on_handle_key_press(key)
+        try:
+            if ignore:
+                evt.ignore()
+            if not evt.isAccepted():
+                return None
+            return super().keyPressEvent(evt)
+        except RuntimeError:
+            return None
+
+    @qdebounced(timeout=100, leading=True)
+    def on_handle_key_press(self, key: int) -> bool:
+        """Handle key-press event"""
+        return self._handle_key_press(key)
+
+    def _handle_key_press(self, key: int) -> bool:
+        ignore = False
         if key == Qt.Key.Key_Escape:
-            evt.ignore()
+            ignore = True
         elif key == Qt.Key.Key_1:
             self.on_toggle_mode("both", mode=Mode.PAN_ZOOM)
-            evt.ignore()
+            ignore = True
         elif key == Qt.Key.Key_2:
             self.on_toggle_mode("both", mode=Mode.ADD)
-            evt.ignore()
+            ignore = True
         elif key == Qt.Key.Key_3:
             self.on_toggle_mode("both", mode=Mode.SELECT)
-            evt.ignore()
+            ignore = True
         elif key == Qt.Key.Key_Z:
             self.on_apply_focus()
-            evt.ignore()
+            ignore = True
         elif key == Qt.Key.Key_L:
             self.on_set_focus()
-            evt.ignore()
+            ignore = True
         elif key == Qt.Key.Key_T:
             self.on_toggle_transformed_image()  # type: ignore[call-arg]
-            evt.ignore()
+            ignore = True
         elif key == Qt.Key.Key_T:
             self.on_toggle_synchronization()  # type: ignore[call-arg]
-            evt.ignore()
+            ignore = True
         elif key == Qt.Key.Key_V:
             self.on_toggle_transformed_visibility()  # type: ignore[call-arg]
-            evt.ignore()
+            ignore = True
         elif key == Qt.Key.Key_A:
             self.on_zoom_on_point(-1)
-            evt.ignore()
+            ignore = True
         elif key == Qt.Key.Key_D:
             self.on_zoom_on_point(1)
-            evt.ignore()
+            ignore = True
         elif key == Qt.Key.Key_S:
             self.on_toggle_synchronization()
-            evt.ignore()
+            ignore = True
         elif key == Qt.Key.Key_E:  # increase opacity
             self.on_adjust_transformed_opacity(10)
-            evt.ignore()
+            ignore = True
         elif key == Qt.Key.Key_Q:  # decrease opacity
             self.on_adjust_transformed_opacity(-10)
-            evt.ignore()
-        return evt
+            ignore = True
+        return ignore
 
     def close(self, force=False):
         """Override to handle closing app or just the window."""

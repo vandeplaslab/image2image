@@ -3,6 +3,9 @@ param (
     [switch]$update = $false,
     [switch]$update_app = $false,
     [switch]$update_deps = $false,
+    [switch]$update_just_app = $false,
+    [switch]$update_just_reader = $false,
+    [switch]$update_just_register = $false,
     [switch]$update_pip = $false,
     [switch]$zip = $false,
     [switch]$run = $false,
@@ -17,6 +20,9 @@ if ($help) {
     -update: Update all modules. Default=False
     -update_app: Update all modules. Default=False
     -update_deps: Update all dependencies. Default=False
+    -update_just_app: Update just the app. Default=False
+    -update_just_reader: Update just the reader. Default=False
+    -update_just_register: Update just the register. Default=False
     -zip: Compress distribution. Default=False
     -run: Run application after it has been built.
     -help: Print this message.
@@ -57,9 +63,21 @@ if ($update_pip) {
 
 # only update app
 if ($update_app) {
-    $local_install.Add("image2image-io")
-    $local_install.Add("image2image-reg")
+    $update_just_app = $true
+    $update_just_reader = $true
+    $update_just_register = $true
+}
+
+if ($update_just_app) {
     $local_install.Add("image2image")
+}
+
+if ($update_just_reader) {
+    $local_install.Add("image2image-io")
+}
+
+if ($update_just_register) {
+    $local_install.Add("image2image-reg")
 }
 
 # only update dependencies
