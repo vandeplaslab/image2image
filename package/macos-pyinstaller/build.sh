@@ -155,7 +155,7 @@ then
     pip_install+=("napari==0.4.19")
     pip_install+=("pydantic<2")
     pip_install+=("PyQt6==6.5.3")
-    pip_install+=("pyinstaller==6.8.0")
+    pip_install+=("pyinstaller")
 fi
 
 # iterate over the list
