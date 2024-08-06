@@ -1632,12 +1632,13 @@ class ImageRegistrationWindow(Window):
             elif mode == Mode.SELECT:
                 self.on_move(w)
 
+    @qdebounced(timeout=100, leading=True)
     def keyPressEvent(self, evt: QKeyEvent) -> None:
         """Key press event."""
         if hasattr(evt, "native"):
             evt = evt.native
         key = evt.key()
-        ignore = self.on_handle_key_press(key)
+        ignore = self._handle_key_press(key)
         try:
             if ignore:
                 evt.ignore()
