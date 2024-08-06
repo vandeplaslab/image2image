@@ -21,16 +21,16 @@ class BaseModel(_BaseModel):
             if hasattr(self, key):
                 setattr(self, key, value)
 
-    def to_dict(self) -> ty.Dict:
+    def to_dict(self, **kwargs: ty.Any) -> ty.Dict:
         """Convert to dict."""
         raise NotImplementedError("Must implement method")
 
-    def to_json(self, path: PathLike) -> None:
+    def to_json(self, path: PathLike, **kwargs: ty.Any) -> None:
         """Export data as JSON."""
         from koyo.json import write_json_data
 
         path = Path(path)
-        write_json_data(path, self.to_dict())
+        write_json_data(path, self.to_dict(**kwargs))
 
     @classmethod
     def from_json(cls, path: PathLike) -> "BaseModel":
@@ -40,12 +40,12 @@ class BaseModel(_BaseModel):
         path = Path(path)
         return cls.from_dict(read_json_data(path))
 
-    def to_toml(self, path: PathLike) -> None:
+    def to_toml(self, path: PathLike, **kwargs: ty.Any) -> None:
         """Export data as TOML."""
         from koyo.toml import write_toml_data
 
         path = Path(path)
-        write_toml_data(path, self.to_dict())
+        write_toml_data(path, self.to_dict(**kwargs))
 
     @classmethod
     def from_toml(cls, path: PathLike) -> "BaseModel":

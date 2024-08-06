@@ -511,6 +511,7 @@ class ImageCropWindow(Window):
             func=self.on_preview_mask,
             cancel_func=partial(self.on_cancel, which="preview"),
         )
+        self.preview_mask_btn.hide()
         self.mask_btn = hp.make_active_progress_btn(
             self,
             "Export to OME-TIFF (mask)...",
@@ -518,6 +519,7 @@ class ImageCropWindow(Window):
             func=self.on_open_mask,
             cancel_func=partial(self.on_cancel, which="crop"),
         )
+        self.mask_btn.hide()
         self.tile_size = hp.make_combobox(
             self,
             ["256", "512", "1024", "2048", "4096"],
@@ -542,7 +544,7 @@ class ImageCropWindow(Window):
         side_layout.addRow(hp.make_h_line_with_text("Crop"))
         side_layout.addRow(self.preview_crop_btn)
         side_layout.addRow(self.crop_btn)
-        side_layout.addRow(hp.make_h_line_with_text("Mask"))
+        # side_layout.addRow(hp.make_h_line_with_text("Mask"))
         side_layout.addRow(self.preview_mask_btn)
         side_layout.addRow(self.mask_btn)
         side_layout.addRow(hp.make_h_line_with_text("Export options"))

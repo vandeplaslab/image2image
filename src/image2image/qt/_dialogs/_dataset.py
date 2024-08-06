@@ -784,9 +784,12 @@ class SelectDataDialog(QtFramelessTool):
             elif len(options) > 1:
                 from qtextra.widgets.qt_pick_option import QtScrollablePickOption
 
+                if not self.is_fixed:
+                    options = {"each image": "each image", **options}
+
                 dlg = QtScrollablePickOption(
                     self,
-                    "Please select which image would you like to register?",
+                    "Please select which image(s) would you like to register?",
                     options=options,
                     orientation="vertical",
                 )
@@ -797,8 +800,12 @@ class SelectDataDialog(QtFramelessTool):
                 logger.warning("No images to select from.")
                 which = None
 
-            remove_keys = [k for k in just_added if k != which]
-            just_added = [which] if which else None
+            if which == "each image":
+                remove_keys = []
+                just_added = [k for k in just_added if k not in remove_keys]
+            else:
+                remove_keys = [k for k in just_added if k != which]
+                just_added = [which] if which else None
             if wrapper and just_added:
                 model.just_added_keys = just_added
                 channel_list_ = list(wrapper.channel_names_for_names(just_added))

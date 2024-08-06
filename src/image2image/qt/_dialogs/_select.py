@@ -273,6 +273,7 @@ class MovingWidget(LoadWidget):
     INFO_VISIBLE = True
 
     # events
+    evt_toggle_dataset = Signal(str)
     evt_show_transformed = Signal(str)
     evt_view_type = Signal(object)
 
@@ -314,14 +315,24 @@ class MovingWidget(LoadWidget):
             self.dataset_dlg._on_loaded_dataset = self.dataset_dlg._on_loaded_dataset_with_preselection
             connect(parent.evt_moving_dropped, self.dataset_dlg.on_drop)
 
-    def _on_update_choice(self, _model: object, _channel_list: list[str]) -> None:
+    def _on_update_choice(self, _model: object | None = None, _channel_list: list[str] | None = None) -> None:
         """Update list of available options."""
-        hp.combobox_setter(self.transformed_choice, clear=True, items=["None", *self.model.channel_names()])
+        datasets = self.model.dataset_names("image")
+        hp.combobox_setter(self.dataset_choice, clear=True, items=datasets)
+        self._on_update_transformed_choice()
+
+    def _on_update_transformed_choice(self) -> None:
+        """Update list of available options."""
+        current = self.dataset_choice.currentText()
+        hp.combobox_setter(
+            self.transformed_choice, clear=True, items=["None", *self.model.get_channel_names_for_keys([current])]
+        )
         self._on_toggle_transformed(self.transformed_choice.currentText())
 
     def _on_clear_choice(self, _model: object) -> None:
         """Clear list of available options."""
-        hp.combobox_setter(self.transformed_choice, clear=True, items=["None"])
+        self._on_update_choice()
+        self._on_update_transformed_choice()
         self._on_toggle_transformed(self.transformed_choice.currentText())
 
     def _setup_ui(self) -> QFormLayout:
@@ -337,6 +348,13 @@ class MovingWidget(LoadWidget):
             " be overlaid with other images.<br><b>Random</b> will display single image with random intensity.",
         )
         layout.addRow(hp.make_label(self, "View type"), self.view_type_choice)
+
+        self.dataset_choice = hp.make_combobox(
+            self,
+            tooltip="Select which dataset should be used in registration process.",
+            func=self._on_toggle_dataset,
+        )
+        layout.addRow(hp.make_label(self, "Dataset"), self.dataset_choice)
 
         self.transformed_choice = hp.make_combobox(
             self,
@@ -361,6 +379,11 @@ class MovingWidget(LoadWidget):
         if index >= n:
             index = 0
         self.transformed_choice.setCurrentIndex(index)
+
+    def _on_toggle_dataset(self, value: str) -> None:
+        """Toggle visibility of dataset."""
+        self._on_update_transformed_choice()
+        self.evt_toggle_dataset.emit(value)
 
     def _on_toggle_transformed(self, value: str) -> None:
         """Toggle visibility of transformed."""

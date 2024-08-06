@@ -10,18 +10,20 @@ update=false
 update_app=false
 update_deps=false
 update_just_reader=false
+update_just_register=false
 update_just_app=false
 no_docs=true
 help=false
 uv=false
 package=false
 
-while getopts uadjirnrvph opt; do
+while getopts uadjirnrwvph opt; do
   case $opt in
     u) update=true;;
     a) update_app=true;;
     d) update_deps=true;;
     r) update_just_reader=true;;
+    w) update_just_register=true;;
     j) update_just_app=true;;
     i) update_pip=true;;
     n) no_docs=true;;
@@ -37,11 +39,12 @@ shift "$(( OPTIND - 1 ))"
 
 if $help
 then
-  echo "Usage: ./build.sh [-update] [-update_app] [-update_deps] [-update_just_reader] [-update_just_app] [-update_pip] [-no_docs] [-uv] [-package] [-help]"
+  echo "Usage: ./build.sh [-update] [-update_app] [-update_deps] [-update_just_reader] [-update_just_register] [-update_just_app] [-update_pip] [-no_docs] [-uv] [-package] [-help]"
   echo "  -u / update: update the i2i package before building"
   echo "  -a / update_app: update the i2i and i2i-io packages before building"
   echo "  -d / update_deps: update dependencies before building"
   echo "  -r / update_just_reader: update the i2i-io package to a specific commit before building"
+  echo "  -w / update_just_register: update the i2i-register package to a specific commit before building"
   echo "  -j / update_just_app: update the i2i package to a specific commit before building"
   echo "  -i / update_pip: update the pip packages before building"
   echo "  -n / no_docs: do not build the documentation"
@@ -104,6 +107,7 @@ if $update_app
 then
   update_just_reader=true
   update_just_app=true
+  update_just_register=true
 fi
 
 # inform user what's happening
@@ -113,6 +117,7 @@ echo "update_app: $update_app"
 echo "update_deps: $update_deps"
 echo "update_just_reader: $update_just_reader"
 echo "update_just_app: $update_just_app"
+echo "update_just_register: $update_just_register"
 echo "update_pip: $update_pip"
 echo "no_docs: $no_docs"
 echo "uv: $uv"
@@ -129,6 +134,11 @@ fi
 if $update_just_reader
 then
     local_install+=("image2image-io")
+fi
+
+if $update_just_register
+then
+    local_install+=("image2image-reg")
 fi
 
 if $update_deps

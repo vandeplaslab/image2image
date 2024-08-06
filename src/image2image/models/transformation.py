@@ -239,7 +239,7 @@ class Transformation(BaseModel):
                 info += f"{sep}no. moving: {len(self.moving_points)}"
         return info
 
-    def to_dict(self) -> dict:
+    def to_dict(self, moving_key: ty.Optional[str] = None) -> dict:
         """Convert to dict."""
         fixed_mdl = self.fixed_model
         if not fixed_mdl:
@@ -254,30 +254,35 @@ class Transformation(BaseModel):
         moving_pts = self.moving_points
         assert moving_pts is not None, "No moving points found."
         moving_pts = self.apply_moving_initial_transform(moving_pts)
+        fixed_paths = [
+            {
+                "path": str(path),
+                "pixel_size_um": resolution,
+                "image_shape": tuple(map(int, image_shape)),
+                "reader_kws": reader_kws,
+            }
+            for (_, path, resolution, image_shape, reader_kws) in fixed_mdl.path_resolution_shape_iter()
+        ]
+        moving_paths = []
+        for key, path, resolution, image_shape, reader_kws in moving_mdl.path_resolution_shape_iter():
+            if moving_key and key != moving_key:
+                continue
+            moving_paths.append(
+                {
+                    "path": str(path),
+                    "pixel_size_um": resolution,
+                    "image_shape": tuple(map(int, image_shape)),
+                    "reader_kws": reader_kws,
+                }
+            )
 
         return {
             "schema_version": SCHEMA_VERSION,
             "tool": "register",
             "time_created": self.time_created.strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
             "transformation_type": self.transformation_type,
-            "fixed_paths": [
-                {
-                    "path": str(path),
-                    "pixel_size_um": resolution,
-                    "image_shape": tuple(map(int, image_shape)),
-                    "reader_kws": reader_kws,
-                }
-                for (path, resolution, image_shape, reader_kws) in fixed_mdl.path_resolution_shape_iter()
-            ],
-            "moving_paths": [
-                {
-                    "path": str(path),
-                    "pixel_size_um": resolution,
-                    "image_shape": tuple(map(int, image_shape)),
-                    "reader_kws": reader_kws,
-                }
-                for (path, resolution, image_shape, reader_kws) in moving_mdl.path_resolution_shape_iter()
-            ],
+            "fixed_paths": fixed_paths,
+            "moving_paths": moving_paths,
             "initial_matrix_yx_um": self.moving_initial_affine.tolist()
             if self.moving_initial_affine is not None
             else [],
@@ -295,13 +300,13 @@ class Transformation(BaseModel):
             "matrix_xy_um_inv": self.compute(yx=False, px=False)._inv_matrix.tolist(),
         }
 
-    def to_file(self, path: PathLike) -> Path:
+    def to_file(self, path: PathLike, moving_key: ty.Optional[PathLike] = None) -> Path:
         """Export data as any supported format."""
         path = Path(path)
         if path.suffix == ".json":
-            self.to_json(path)
+            self.to_json(path, moving_key=moving_key)
         elif path.suffix == ".toml":
-            self.to_toml(path)
+            self.to_toml(path, moving_key=moving_key)
         elif path.suffix == ".xml":
             self.to_xml(path)
         else:

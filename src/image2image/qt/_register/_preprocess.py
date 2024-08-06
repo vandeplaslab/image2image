@@ -106,7 +106,7 @@ class PreprocessMovingDialog(QtFramelessTool):
                     f" {parent.transform_model.about('; ', transform=layer.affine.affine_matrix)}"
                 )
 
-    def accept(self):
+    def accept(self) -> None:
         """Accept changes."""
         parent: ImageRegistrationWindow = self.parent()  # type: ignore[assignment]
         if parent.moving_image_layer:
@@ -117,9 +117,10 @@ class PreprocessMovingDialog(QtFramelessTool):
                 logger.info(f"Initial affine set - {parent.transform_model.about('; ', transform=affine)}")
             else:
                 logger.info("Initial affine set - it was an identity matrix.")
+        hp.disable_widgets(parent.initial_btn, disabled=False)
         return super().accept()
 
-    def reject(self):
+    def reject(self) -> None:
         """Reject changes."""
         parent: ImageRegistrationWindow = self.parent()
         try:
@@ -128,6 +129,7 @@ class PreprocessMovingDialog(QtFramelessTool):
                 layer.affine = np.eye(3)
         except TypeError:
             pass
+        hp.disable_widgets(parent.initial_btn, disabled=False)
         logger.trace("Initial affine reset.")
         return super().reject()
 

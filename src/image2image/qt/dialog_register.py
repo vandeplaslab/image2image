@@ -23,6 +23,7 @@ from qtextra.utils.utilities import connect
 from qtextra.widgets.qt_close_window import QtConfirmCloseDialog
 from qtextra.widgets.qt_mini_toolbar import QtMiniToolbar
 from qtpy.QtCore import Qt, Signal  # type: ignore[attr-defined]
+from qtpy.QtGui import QKeyEvent
 from qtpy.QtWidgets import QDialog, QFormLayout, QHBoxLayout, QMenuBar, QSizePolicy, QVBoxLayout, QWidget
 from superqt.utils import ensure_main_thread, qdebounced
 
@@ -178,6 +179,22 @@ class ImageRegistrationWindow(Window):
         return self.view_fixed.layers["Fixed (points)"]
 
     @property
+    def temporary_fixed_points_layer(self) -> Points:
+        """Fixed points layer."""
+        if "Temporary fixed (points)" not in self.view_fixed.layers:
+            layer = self.view_fixed.viewer.add_points(  # noqa
+                None,
+                size=self.moving_point_size.value(),
+                name="Temporary fixed (points)",
+                face_color="green",
+                edge_color="white",
+                symbol="ring",
+            )
+            visual = self.view_fixed.widget.layer_to_visual[layer]
+            init_points_layer(layer, visual, True)
+        return self.view_fixed.layers["Temporary fixed (points)"]
+
+    @property
     def moving_points_layer(self) -> Points:
         """Fixed points layer."""
         if "Moving (points)" not in self.view_moving.layers:
@@ -195,6 +212,22 @@ class ImageRegistrationWindow(Window):
             connect(layer.events.data, self.fiducials_dlg.on_load, state=True)
             connect(layer.events.add_point, partial(self.on_predict, "moving"), state=True)
         return self.view_moving.layers["Moving (points)"]
+
+    @property
+    def temporary_moving_points_layer(self) -> Points:
+        """Fixed points layer."""
+        if "Temporary moving (points)" not in self.view_moving.layers:
+            layer = self.view_moving.viewer.add_points(  # noqa
+                None,
+                size=self.moving_point_size.value(),
+                name="Temporary moving (points)",
+                face_color="green",
+                edge_color="white",
+                symbol="ring",
+            )
+            visual = self.view_moving.widget.layer_to_visual[layer]
+            init_points_layer(layer, visual, True)
+        return self.view_moving.layers["Temporary moving (points)"]
 
     def setup_events(self, state: bool = True) -> None:
         """Additional setup."""
@@ -216,6 +249,7 @@ class ImageRegistrationWindow(Window):
         connect(self._moving_widget.dataset_dlg.evt_closed, self.on_close_moving, state=state)
         connect(self._moving_widget.evt_toggle_channel, partial(self.on_toggle_channel, which="moving"), state=state)
         connect(self._moving_widget.evt_show_transformed, self.on_toggle_transformed_moving, state=state)
+        connect(self._moving_widget.evt_toggle_dataset, self.on_toggle_dataset, state=state)
         connect(
             self._moving_widget.evt_toggle_all_channels,
             partial(self.on_toggle_all_channels, which="moving"),
@@ -365,6 +399,14 @@ class ImageRegistrationWindow(Window):
         else:
             logger.warning(f"Failed to load moving data - model={model}")
         self.on_indicator("moving", False)
+        self._ensure_consistent_moving_dataset()
+
+    def _ensure_consistent_moving_dataset(self) -> None:
+        datasets = self._get_currently_visible_moving_datasets()
+        current = self._moving_widget.dataset_choice.currentText()
+        if current not in datasets:
+            with hp.qt_signals_blocked(self._moving_widget):
+                self._moving_widget.dataset_choice.setCurrentText(datasets[0])
 
     def _on_load_moving(self, model: DataModel, channel_list: list[str] | None = None) -> None:
         with MeasureTimer() as timer:
@@ -435,6 +477,29 @@ class ImageRegistrationWindow(Window):
         #         return
         #     wrapper = wrapper.pop
 
+    def on_toggle_dataset(self, value: str) -> None:
+        """Toggle dataset."""
+        if value:
+            layers = self.view_moving.get_layers_of_type(Image)
+            if layers:
+                layer_names = [layer.name for layer in layers]
+                self.view_moving.remove_layers(layer_names)
+            channel_names = self.moving_model.get_channel_names_for_keys([value])
+            if channel_names:
+                self._plot_moving_layers([channel_names[0]])
+                self.view_moving.viewer.reset_view()
+
+    def get_current_moving_reader(self) -> ty.Any:
+        """Get current reader."""
+        current = self._moving_widget.dataset_choice.currentText()
+        reader = self.moving_model.get_reader_for_key(current)
+        return reader
+
+    def get_current_fixed_reader(self) -> ty.Any:
+        """Get current reader."""
+        reader = next(self.fixed_model.wrapper.reader_iter())
+        return reader
+
     def on_toggle_transformed_moving(self, value: str) -> None:
         """Toggle visibility of transformed moving image."""
         self.on_apply(update_data=True, name=value)
@@ -468,12 +533,21 @@ class ImageRegistrationWindow(Window):
         widget = self._get_mode_button(which, mode or evt.mode)
         if widget:
             widget.setChecked(True)
+            logger.trace(f"Set mode to '{mode}' for '{which}'.")
+
+    def _get_layer(self, which: str | ty.Literal["fixed", "moving", "both"]) -> list[Points]:
+        """Get layer."""
+        if which == "fixed":
+            return [self.fixed_points_layer]
+        if which == "moving":
+            return [self.moving_points_layer]
+        return [self.fixed_points_layer, self.moving_points_layer]
 
     def on_panzoom(self, which: str, _evt: ty.Any = None) -> None:
         """Switch to `panzoom` tool."""
         self._select_layer(which)
-        layer = self.fixed_points_layer if which == "fixed" else self.moving_points_layer
-        layer.mode = "pan_zoom"
+        for layer in self._get_layer(which):
+            layer.mode = "pan_zoom"
 
     def on_add(self, which: str, _evt: ty.Any = None) -> None:
         """Add point to the image."""
@@ -494,7 +568,7 @@ class ImageRegistrationWindow(Window):
 
     def on_activate_initial(self):
         """Activate initial button."""
-        hp.disable_widgets(self.initial_btn, disabled=has_any_points(self.moving_points_layer))
+        hp.disable_widgets(self.initial_btn, self.guess_btn, disabled=has_any_points(self.moving_points_layer))
 
     def on_remove(self, which: str, _evt: ty.Any = None) -> None:
         """Remove point to the image."""
@@ -522,14 +596,20 @@ class ImageRegistrationWindow(Window):
     def on_clear(self, which: str, force: bool = True) -> None:
         """Remove point to the image."""
         layer = self.fixed_points_layer if which == "fixed" else self.moving_points_layer
-        if (
-            # (layer and len(layer.data) > 0) and (
-            force or hp.confirm(self, "Are you sure you want to remove all data points from the points layer?")
-        ):
+        if force or hp.confirm(self, "Are you sure you want to remove all data points from the points layer?"):
             layer.data = np.zeros((0, 2))
             self.evt_predicted.emit()  # noqa
             self.on_clear_transformation()
             self.on_run()
+
+    def on_clear_modality(self, which: str) -> None:
+        """Clear specified modality."""
+        if hp.confirm(self, f"Are you sure you want to clear the <b>{which}</b> modality data?"):
+            self.on_clear(which, force=True)
+            if which == "fixed":
+                self._fixed_widget.on_close_dataset(force=True)
+            else:
+                self._moving_widget.on_close_dataset(force=True)
 
     def on_clear_transformation(self) -> None:
         """Clear transformation and remove image."""
@@ -601,8 +681,31 @@ class ImageRegistrationWindow(Window):
         ):
             return
 
+        # get currently select dataset
+        visible_datasets = self._get_currently_visible_moving_datasets()
+        moving_key = self._moving_widget.dataset_choice.currentText()
+        if not visible_datasets and not moving_key:
+            hp.warn_pretty(
+                self,
+                "No visible datasets in the moving view. Please select from the list of available options.",
+                "No visible datasets",
+            )
+            return
+        if moving_key and moving_key not in visible_datasets:
+            visible_datasets.append(moving_key)
+
+        if moving_key in visible_datasets and len(visible_datasets) > 1:
+            moving_key = hp.choose(
+                self, visible_datasets, "Please select a single dataset from the list.", orientation="vertical"
+            )
+        if not moving_key:
+            hp.warn_pretty(
+                self, "No dataset selected. Please select a dataset to save configuration file.", "No dataset selected"
+            )
+            return
+
         # get filename which is based on the moving dataset
-        filename = self.moving_model.get_filename() + "_transform.i2r.json"
+        filename = self.moving_model.get_filename(moving_key) + "_transform.i2r.json"
         path_ = hp.get_save_filename(
             self,
             "Save transformation",
@@ -614,7 +717,7 @@ class ImageRegistrationWindow(Window):
             path = Path(path_)
             path = ensure_extension(path, "i2r")
             self.CONFIG.output_dir = str(path.parent)
-            transform.to_file(path)
+            transform.to_file(path, moving_key=moving_key)
             hp.long_toast(
                 self,
                 "Exported transformation",
@@ -622,6 +725,16 @@ class ImageRegistrationWindow(Window):
                 icon="success",
                 position="top_left",
             )
+
+    def _get_currently_visible_moving_datasets(self) -> list[str]:
+        """Get currently visible datasets from the moving view."""
+        datasets = []
+        for layer in self.view_moving.get_layers_of_type(Image):
+            name = layer.name
+            if " | " in name:
+                channel_name, dataset = name.split(" | ")
+                datasets.append(dataset)
+        return datasets
 
     def on_load_from_project(self, _evt: ty.Any = None) -> None:
         """Import transformation."""
@@ -728,15 +841,21 @@ class ImageRegistrationWindow(Window):
         """View fiducials table."""
         self.fiducials_dlg.show()
 
-    def on_show_initial(self):
+    def on_show_initial(self) -> None:
         """Show initial transform dialog."""
         from image2image.qt._register._preprocess import PreprocessMovingDialog
 
-        # add image
-        #     self.on_add_transformed_moving()
-        # open dialog
         initial = PreprocessMovingDialog(self)
-        initial.show_above_widget(self.initial_btn, x_offset=20)
+        initial.show_above_widget(self.initial_btn, x_offset=-100)
+        hp.disable_widgets(self.initial_btn, disabled=True)
+
+    def on_show_generate(self) -> None:
+        """Show initial transform dialog."""
+        from image2image.qt._register._guess import GuessDialog
+
+        initial = GuessDialog(self)
+        initial.show_above_widget(self.guess_btn, x_offset=-100)
+        hp.disable_widgets(self.guess_btn, disabled=True)
 
     def on_show_shortcuts(self) -> None:
         """View shortcuts table."""
@@ -856,7 +975,6 @@ class ImageRegistrationWindow(Window):
             transformed_last_point = self.transform(transformed_last_point)
             logger.trace("Predicted fixed points based on moving points...")
 
-        print(">>", predict_for_layer.name)
         transformed_data = predict_for_layer.data
         transformed_data = np.append(transformed_data, transformed_last_point, axis=0)
         # don't predict positions if the number of points is lower than the number already present in the image
@@ -1091,6 +1209,13 @@ class ImageRegistrationWindow(Window):
             tooltip="You can optionally rotate or flip the moving image so that it's easier to align with the fixed"
             " image. This button will be disabled if there are ANY points in the moving image.",
         )
+        self.guess_btn = hp.make_btn(
+            side_widget,
+            "Generate fiducials...",
+            func=self.on_show_generate,
+            tooltip="You can generate fiducial markers based on the image. This will use the 'outline' of the image to "
+            " determine the contour.",
+        )
         self.fiducials_btn = hp.make_btn(
             side_widget,
             "Show fiducials table...",
@@ -1123,6 +1248,7 @@ class ImageRegistrationWindow(Window):
         side_layout.addRow(self._make_focus_layout())
         side_layout.addRow(hp.make_h_line_with_text("Transformation"))
         side_layout.addRow(self.initial_btn)
+        side_layout.addRow(self.guess_btn)
         side_layout.addRow(self.fiducials_btn)
         side_layout.addRow(hp.make_btn(side_widget, "Compute transformation", func=self.on_run))
         side_layout.addRow(hp.make_h_layout(self.close_btn, self.export_project_btn, stretch_id=(1,), spacing=2))
@@ -1161,9 +1287,12 @@ class ImageRegistrationWindow(Window):
     def on_close_menu(self) -> None:
         """Save menu."""
         menu = hp.make_menu(self.close_btn)
-        hp.make_menu_item(self, "Close", menu=menu, func=self.on_close, icon="delete")
+        hp.make_menu_item(self, "Clear fixed modality", menu=menu, func=lambda: self.on_clear_modality("fixed"))
+        hp.make_menu_item(self, "Clear moving modality", menu=menu, func=lambda: self.on_clear_modality("moving"))
+        menu.addSeparator()
+        hp.make_menu_item(self, "Close project", menu=menu, func=self.on_close, icon="delete")
         hp.make_menu_item(
-            self, "Close (without confirmation)", menu=menu, func=lambda: self.on_close(True), icon="delete"
+            self, "Close project (without confirmation)", menu=menu, func=lambda: self.on_close(True), icon="delete"
         )
         hp.show_right_of_mouse(menu)
 
@@ -1377,7 +1506,7 @@ class ImageRegistrationWindow(Window):
             func=self.view_fixed.widget.on_open_controls_dialog,
             tooltip="Open layers control panel.",
         )
-        self.fixed_indicator, _ = hp.make_loading_gif(self, "square", size=(24, 24))
+        self.fixed_indicator, _ = hp.make_loading_gif(self, "oval", size=(24, 24))
         self.fixed_indicator.hide()
         toolbar.insert_widget(self.fixed_indicator)
         self.fixed_toolbar = toolbar
@@ -1443,7 +1572,7 @@ class ImageRegistrationWindow(Window):
             func=self.view_moving.widget.on_open_controls_dialog,
             tooltip="Open layers control panel.",
         )
-        self.moving_indicator, _ = hp.make_loading_gif(self, "square", size=(24, 24))
+        self.moving_indicator, _ = hp.make_loading_gif(self, "oval", size=(24, 24))
         self.moving_indicator.hide()
         toolbar.insert_widget(self.moving_indicator)
         self.moving_toolbar = toolbar
@@ -1540,26 +1669,40 @@ class ImageRegistrationWindow(Window):
         """Key press event."""
         if hasattr(evt, "native"):
             evt = evt.native
+        self.on_handle_key_press(evt)
+        if not evt.isAccepted():
+            return None
+        return super().keyPressEvent(evt)
+
+    @qdebounced(timeout=100, leading=True)
+    def on_handle_key_press(self, evt: QKeyEvent) -> None:
+        """Handle key-press event"""
+        return self._handle_key_press(evt)
+
+    def on_toggle_mode(self, which: str | ty.Literal["fixed", "moving", "both"], mode: str | Mode) -> None:
+        """Toggle mode."""
+        which = ["fixed", "moving"] if which == "both" else [which]
+        for w in which:
+            self.on_mode(w, mode=mode)
+            if mode == Mode.PAN_ZOOM:
+                self.on_panzoom(w)
+            elif mode == Mode.ADD:
+                self.on_add(w)
+            elif mode == Mode.SELECT:
+                self.on_move(w)
+
+    def _handle_key_press(self, evt: QKeyEvent) -> None:
         key = evt.key()
         if key == Qt.Key.Key_Escape:
             evt.ignore()
         elif key == Qt.Key.Key_1:
-            self.on_mode("fixed", mode=Mode.PAN_ZOOM)
-            self.on_panzoom("fixed")
-            self.on_mode("moving", mode=Mode.PAN_ZOOM)
-            self.on_panzoom("moving")
+            self.on_toggle_mode("both", mode=Mode.PAN_ZOOM)
             evt.ignore()
         elif key == Qt.Key.Key_2:
-            self.on_mode("fixed", mode=Mode.ADD)
-            self.on_add("fixed")
-            self.on_mode("moving", mode=Mode.ADD)
-            self.on_add("moving")
+            self.on_toggle_mode("both", mode=Mode.ADD)
             evt.ignore()
         elif key == Qt.Key.Key_3:
-            self.on_mode("fixed", mode=Mode.SELECT)
-            self.on_move("fixed")
-            self.on_mode("moving", mode=Mode.SELECT)
-            self.on_move("moving")
+            self.on_toggle_mode("both", mode=Mode.SELECT)
             evt.ignore()
         elif key == Qt.Key.Key_Z:
             self.on_apply_focus()
@@ -1591,8 +1734,7 @@ class ImageRegistrationWindow(Window):
         elif key == Qt.Key.Key_Q:  # decrease opacity
             self.on_adjust_transformed_opacity(-10)
             evt.ignore()
-        else:
-            super().keyPressEvent(evt)
+        return evt
 
     def close(self, force=False):
         """Override to handle closing app or just the window."""

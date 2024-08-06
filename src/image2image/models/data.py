@@ -43,8 +43,10 @@ class DataModel(BaseModel):
         assert all(p.exists() for p in value_), "Path does not exist."
         return value_
 
-    def get_filename(self) -> str:
+    def get_filename(self, reader_key: ty.Optional[PathLike] = None) -> str:
         """Get representative filename."""
+        if reader_key:
+            return reader_key.split(".")[0]
         if self.n_paths == 0:
             return "no_files"
         elif self.n_paths == 1:
@@ -266,12 +268,12 @@ class DataModel(BaseModel):
 
     def path_resolution_shape_iter(
         self,
-    ) -> ty.Generator[tuple[Path, float, tuple[int, int], dict[str, ty.Any]], None, None]:
+    ) -> ty.Generator[tuple[str, Path, float, tuple[int, int], dict[str, ty.Any]], None, None]:
         """Iterator of path and pixel size."""
         wrapper = self.wrapper
         if wrapper:
             for reader in wrapper.reader_iter():
-                yield reader.path, reader.resolution, reader.image_shape, reader.reader_kws
+                yield reader.key, reader.path, reader.resolution, reader.image_shape, reader.reader_kws
 
     def export_iter(self) -> ty.Generator[dict[str, ty.Union[Path, float, str, tuple[int, int], dict]], None, None]:
         """Export iterator."""

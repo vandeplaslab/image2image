@@ -2,7 +2,7 @@
 
 from loguru import logger
 
-__version__ = "0.1.6a4"
+__version__ = "0.1.6a5"
 __author__ = "Lukasz G. Migas"
 __email__ = "lukas.migas@yahoo.com"
 
