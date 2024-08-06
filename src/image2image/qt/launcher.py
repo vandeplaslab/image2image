@@ -29,7 +29,7 @@ WSIREG_TEXT = "Register whole slide microscopy images<br>(<b>i2reg</b>)."
 VALIS_TEXT = "Register whole slide microscopy images<br>(<b>Valis</b>)."
 HAS_CONVERT = not IS_PYINSTALLER and not IS_MAC_ARM
 CONVERT_WARNING = ""
-if HAS_CONVERT:
+if not HAS_CONVERT:
     CONVERT_WARNING = "<i>Not available on Apple Silicon due to a bug I can't find...</i>"
 HAS_VALIS = is_installed("valis") and is_installed("pyvips")
 VALIS_WARNING = ""
