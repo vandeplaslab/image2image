@@ -12,7 +12,7 @@ from qtextra.config import THEMES
 from qtextra.widgets.qt_dialog import QtDialog
 from qtextra.widgets.qt_logger import QtLoggerDialog
 from qtextra.widgets.qt_tile import QtTileWidget, Tile
-from qtpy.QtWidgets import QGridLayout, QVBoxLayout, QWidget
+from qtpy.QtWidgets import QVBoxLayout, QWidget
 
 from image2image import __version__
 from image2image.config import APP_CONFIG
@@ -37,9 +37,19 @@ if not HAS_VALIS:
     VALIS_WARNING = "<br><br><i>Valis or pyvips is not installed.</i>"
 
 
-def _make_tile(parent: QWidget, title: str, description: str, icon: str, func: ty.Callable, **icon_kws) -> QtTileWidget:
+def _make_tile(
+    parent: QWidget,
+    title: str,
+    description: str,
+    icon: str,
+    func: ty.Callable,
+    warning: str = "",
+    icon_kws: dict | None = None,
+) -> QtTileWidget:
     """Make tile."""
-    return QtTileWidget(parent, Tile(title=title, description=description, icon=icon, func=func, icon_kws=icon_kws))
+    return QtTileWidget(
+        parent, Tile(title=title, description=description, icon=icon, func=func, warning=warning, icon_kws=icon_kws)
+    )
 
 
 class Launcher(QtDialog):
@@ -64,7 +74,7 @@ class Launcher(QtDialog):
 
         # register apps
         layout.addRow(hp.make_h_line_with_text("Registration", self, position="left", bold=True))
-        tile_reg = _make_tile(self, "Registration<br>App", REGISTER_TEXT, "register", Window.on_open_register())
+        tile_reg = _make_tile(self, "Registration<br>App", REGISTER_TEXT, "register", Window.on_open_register)
         tile_wsireg = _make_tile(self, "WsiReg<br>App", WSIREG_TEXT, "wsireg", Window.on_open_wsireg)
         tile_valis = _make_tile(
             self,
@@ -81,9 +91,7 @@ class Launcher(QtDialog):
 
         # utility apps
         layout.addRow(hp.make_h_line_with_text("Utilities", self, position="left", bold=True))
-        tile_crop = _make_tile(
-            self, "Image Crop<br>App", CROP_TEXT, "crop", Window.on_open_crop, icon_kws={"color": "#ff0000"}
-        )
+        tile_crop = _make_tile(self, "Image Crop<br>App", CROP_TEXT, "crop", Window.on_open_crop)
         tile_convert = _make_tile(
             self,
             "Image to OME-TIFF<br>App",

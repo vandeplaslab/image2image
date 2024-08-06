@@ -1324,22 +1324,32 @@ class ImageRegistrationWindow(Window):
         hp.make_menu_item(self, "Quit", menu=menu_file, func=self.close)
 
         # Tools menu
-        menu_tools = hp.make_menu(self, "Tools")
+        menu_tools = self._make_tools_menu()
         hp.make_menu_item(
-            self, "Select fixed channels...", menu=menu_tools, func=self._fixed_widget._on_select_channels
+            self,
+            "Show fiducials table...",
+            "Ctrl+F",
+            menu=menu_tools,
+            func=self.on_show_fiducials,
+            icon="fiducial",
+            insert=True,
         )
         hp.make_menu_item(
-            self, "Select moving channels...", menu=menu_tools, func=self._moving_widget._on_select_channels
+            self,
+            "Select moving channels...",
+            menu=menu_tools,
+            func=self._moving_widget._on_select_channels,
+            icon="moving",
+            insert=True,
         )
         hp.make_menu_item(
-            self, "Show fiducials table...", "Ctrl+F", menu=menu_tools, func=self.on_show_fiducials, icon="fiducial"
+            self,
+            "Select fixed channels...",
+            menu=menu_tools,
+            func=self._fixed_widget._on_select_channels,
+            icon="fixed",
+            insert=True,
         )
-        hp.make_menu_item(
-            self, "Show shortcuts...", "Ctrl+S", menu=menu_tools, func=self.on_show_shortcuts, icon="shortcut"
-        )
-        menu_tools.addSeparator()
-        hp.make_menu_item(self, "Show Logger...", "Ctrl+L", menu=menu_tools, func=self.on_show_logger)
-        hp.make_menu_item(self, "Show IPython console...", "Ctrl+T", menu=menu_tools, func=self.on_show_console)
 
         # set actions
         self.menubar = QMenuBar(self)
@@ -1379,61 +1389,6 @@ class ImageRegistrationWindow(Window):
         layout.addRow(hp.make_label(self, "Zoom"), self.zoom)
         layout.addRow(hp.make_h_layout(self.lock_btn, self.use_focus_btn, stretch_id=1))
         return layout
-
-    # def _make_settings_layout(self) -> QFormLayout:
-    #     self.synchronize_zoom = hp.make_checkbox(
-    #         self,
-    #         "",
-    #         "Synchronize zoom between views. It only starts taking effect once transformation model has been"
-    #         " calculated.",
-    #         value=CONFIG.sync_views,
-    #         func=self.on_toggle_synchronization,
-    #     )
-    #     self.fixed_point_size = hp.make_int_spin_box(
-    #         self, value=CONFIG.size_fixed, tooltip="Size of the points shown in the fixed image."
-    #     )
-    #     self.fixed_point_size.valueChanged.connect(partial(self.on_update_layer, "fixed"))  # noqa
-    #
-    #     self.moving_point_size = hp.make_int_spin_box(
-    #         self, value=CONFIG.size_moving, tooltip="Size of the points shown in the moving image."
-    #     )
-    #     self.moving_point_size.valueChanged.connect(partial(self.on_update_layer, "moving"))  # noqa
-    #
-    #     self.fixed_opacity = hp.make_int_spin_box(
-    #         self, value=CONFIG.opacity_fixed, step_size=10, tooltip="Opacity of the fixed image"
-    #     )
-    #     self.fixed_opacity.valueChanged.connect(partial(self.on_update_layer, "fixed"))  # noqa
-    #
-    #     self.moving_opacity = hp.make_int_spin_box(
-    #         self,
-    #         value=CONFIG.opacity_moving,
-    #         step_size=10,
-    #         tooltip="Opacity of the moving image in the fixed view",
-    #     )
-    #     self.moving_opacity.valueChanged.connect(partial(self.on_update_layer, "moving"))  # noqa
-    #
-    #     self.text_size = hp.make_int_spin_box(
-    #         self, value=CONFIG.label_size, minimum=4, maximum=60, tooltip="Size of the text associated with
-    #         each label."
-    #     )
-    #     self.text_size.valueChanged.connect(self.on_update_text)  # noqa
-    #
-    #     self.text_color = hp.make_swatch(
-    #         self, default=CONFIG.label_color, tooltip="Color of the text associated with each label."
-    #     )
-    #     self.text_color.setSizePolicy(QSizePolicy.Policy.MinimumExpanding, QSizePolicy.Policy.Minimum)
-    #     self.text_color.evt_color_changed.connect(self.on_update_text)  # noqa
-    #
-    #     layout = hp.make_form_layout()
-    #     hp.style_form_layout(layout)
-    #     layout.addRow(hp.make_label(self, "Synchronize views"), self.synchronize_zoom)
-    #     layout.addRow(hp.make_label(self, "Marker size (fixed)"), self.fixed_point_size)
-    #     layout.addRow(hp.make_label(self, "Marker size (moving)"), self.moving_point_size)
-    #     layout.addRow(hp.make_label(self, "Image opacity (fixed)"), self.fixed_opacity)
-    #     layout.addRow(hp.make_label(self, "Image opacity (moving)"), self.moving_opacity)
-    #     layout.addRow(hp.make_label(self, "Label size"), self.text_size)
-    #     layout.addRow(hp.make_label(self, "Label color"), self.text_color)
-    #     return layout
 
     def _make_image_layout(self) -> QVBoxLayout:
         info = hp.make_h_line_with_text(

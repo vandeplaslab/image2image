@@ -412,8 +412,14 @@ def get_cli_path(name: str) -> str:
     if running_as_pyinstaller_app():
         if IS_WIN:
             script_path = base_path / f"{name}.exe"
+            if script_path.exists():
+                return str(script_path)
+            script_path = base_path / "image2image.exe"
         elif IS_MAC or IS_LINUX:
             script_path = base_path / name
+            if script_path.exists():
+                return str(script_path)
+            return str(script_path / "image2image")
         else:
             raise NotImplementedError(f"Unsupported OS: {sys.platform}")
         if script_path.exists():

@@ -392,6 +392,28 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
         if icon:
             self.setWindowIcon(icon)
 
+    def _make_tools_menu(self, scalebar: bool = False, shortcut: bool = False) -> QMenu:
+        """Make tools menu."""
+        menu_tools = hp.make_menu(self, "Tools")
+        if scalebar:
+            hp.make_menu_item(
+                self,
+                "Show scale bar controls...",
+                "Ctrl+S",
+                menu=menu_tools,
+                icon="ruler",
+                func=self.on_show_scalebar,  # noqa
+            )
+        if shortcut:
+            hp.make_menu_item(
+                self, "Show shortcuts...", "Ctrl+Y", menu=menu_tools, func=self.on_show_shortcuts, icon="shortcut"
+            )
+        hp.make_menu_item(self, "Show Log window...", "Ctrl+L", menu=menu_tools, func=self.on_show_logger, icon="log")
+        hp.make_menu_item(
+            self, "Show IPython console...", "Ctrl+T", menu=menu_tools, func=self.on_show_console, icon="ipython"
+        )
+        return menu_tools
+
     def _make_config_menu(self) -> QMenu:
         from koyo.path import open_directory_alt
 

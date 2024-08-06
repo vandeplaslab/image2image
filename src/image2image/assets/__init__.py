@@ -46,6 +46,9 @@ update_icon_mapping(
         "image": "mdi6.image",
         "geojson": "msc.json",
         "points": "mdi6.scatter-plot",
+        # register app
+        "fixed": "fa5s.anchor",
+        "moving": "ri.drag-move-2-line",
         # app icons
         "viewer": "fa5.eye",
         "wsireg": "fa5.images",

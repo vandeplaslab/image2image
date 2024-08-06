@@ -104,10 +104,10 @@ def get_system_info(as_html=False):
         text += f"  - failed to load screen information {e}"
 
     text += "<br><b>Settings path:</b><br>"
-    text += f"  - {hyper(USER_CONFIG_DIR)}"
+    text += f"  - {hyper(USER_CONFIG_DIR) if as_html else USER_LOG_DIR:!r}"
 
     text += "<br><b>Logs path:</b><br>"
-    text += f"  - {hyper(USER_LOG_DIR)}"
+    text += f"  - {hyper(USER_LOG_DIR) if as_html else USER_LOG_DIR:!r}"
 
     if not as_html:
         text = text.replace("<br>", "\n").replace("<b>", "").replace("</b>", "")
