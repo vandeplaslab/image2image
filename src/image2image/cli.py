@@ -112,13 +112,15 @@ def cli(
 
     \b
     Available tools:
-    launcher - opens dialog where you can launch any of the tools.
-    register - opens dialog where you can co-register images.
-    viewer - opens dialog where you can view images.
-    convert - opens dialog where you can convert images
-    merge - opens dialog where you can merge images
-    crop - opens dialog where you can crop images
-    fusion - opens dialog where you can fuse images
+    launcher - opens a dialog where you can launch any of the tools.
+    viewer - opens a dialog where you can view images, shapes and points data
+    register - opens a dialog where you can co-register images using affine transformation
+    wsireg - opens a dialog where you can co-register whole slide images using i2reg-elastix
+    valis - opens a dialog where you can co-register whole-slide images using i2reg-valis
+    convert - opens a dialog where you can convert images to OME-TIFF
+    merge - opens a dialog where you can merge multiple image channels and images together
+    crop - opens a dialog where you can crop (and mask) images
+    fusion - opens a dialog where you can prepare data for image fusion
     """
     import os
     import sys

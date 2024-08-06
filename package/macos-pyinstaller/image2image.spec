@@ -20,9 +20,7 @@ import debugpy._vendored
 import imagecodecs
 from koyo.timer import MeasureTimer
 
-
 block_cipher = None
-
 
 def _make_analysis(path: str):
     return Analysis(
@@ -39,6 +37,7 @@ def _make_analysis(path: str):
         + collect_data_files("image2image")
         + collect_data_files("freetype")
         + collect_data_files("xmlschema")
+
         + [(os.path.dirname(debugpy._vendored.__file__), "debugpy/_vendored")],
         hiddenimports=[]
         + [

@@ -132,4 +132,4 @@ class Launcher(QtDialog):
 if __name__ == "__main__":  # pragma: no cover
     from image2image.main import run
 
-    run(tool="launcher", level=0)
+    run(tool="launcher", level=0, dev=True)

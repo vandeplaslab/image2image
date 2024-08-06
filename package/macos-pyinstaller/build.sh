@@ -145,15 +145,17 @@ fi
 if $update_deps
 then
   local_install+=("qtextra")
-  local_install+=("koyo")
 fi
+
+# always install latest version of koyo
+local_install+=("koyo")
 
 if $update_pip
 then
     pip_install+=("napari==0.4.19")
     pip_install+=("pydantic<2")
     pip_install+=("PyQt6==6.5.3")
-    pip_install+=("pyinstaller==6.7.0")
+    pip_install+=("pyinstaller==6.8.0")
 fi
 
 # iterate over the list
