@@ -6,9 +6,6 @@ import typing as ty
 
 import qtextra.helpers as hp
 from image2image_io.config import CONFIG as READER_CONFIG
-
-# from koyo.system import IS_MAC_ARM, IS_PYINSTALLER
-from koyo.utilities import is_installed
 from qtextra.config import THEMES
 from qtextra.widgets.qt_dialog import QtDialog
 from qtextra.widgets.qt_logger import QtLoggerDialog
@@ -16,7 +13,7 @@ from qtextra.widgets.qt_tile import QtTileWidget, Tile
 from qtpy.QtWidgets import QVBoxLayout, QWidget
 
 from image2image import __version__
-from image2image.config import APP_CONFIG
+from image2image.config import APP_CONFIG, STATE
 from image2image.utils._appdirs import USER_LOG_DIR
 
 # to add apps: volume viewer, sync viewer,
@@ -28,13 +25,11 @@ MERGE_TEXT = "Merge multiple OME-TIFF images into a single file."
 FUSION_TEXT = "Export your data for Image Fusion in MATLAB compatible format."
 ELASTIX_TEXT = "Register whole slide microscopy images<br>(<b>Elastix</b>)."
 VALIS_TEXT = "Register whole slide microscopy images<br>(<b>Valis</b>)."
-HAS_CONVERT = True  # IS_PYINSTALLER and not IS_MAC_ARM
 CONVERT_WARNING = ""
-if not HAS_CONVERT:
+if not STATE.allow_convert:
     CONVERT_WARNING = "<i>Not available on Apple Silicon due to a bug I can't find...</i>"
-HAS_VALIS = is_installed("valis") and is_installed("pyvips")
 VALIS_WARNING = ""
-if not HAS_VALIS:
+if not STATE.allow_valis:
     VALIS_WARNING = "<br><br><i>Valis or pyvips is not installed.</i>"
 
 
@@ -85,7 +80,7 @@ class Launcher(QtDialog):
             Window.on_open_valis,
             # if HAS_VALIS
             # else lambda: hp.warn_pretty(self, "Valis or pyvips is not installed on this machine."),
-            icon_kws=None if HAS_VALIS else {"color": THEMES.get_hex_color("warning")},
+            icon_kws=None if STATE.allow_valis else {"color": THEMES.get_hex_color("warning")},
             warning=VALIS_WARNING,
         )
         layout.addRow(hp.make_h_layout(tile_reg, tile_wsireg, tile_valis, stretch_after=True, spacing=2, margin=2))
@@ -98,8 +93,10 @@ class Launcher(QtDialog):
             "Image to OME-TIFF<br>App",
             CONVERT_TEXT,
             "convert",
-            Window.on_open_convert if HAS_CONVERT else lambda: hp.warn_pretty(self, "Not available on Apple Silicon."),
-            icon_kws=None if HAS_CONVERT else {"color": THEMES.get_hex_color("warning")},
+            Window.on_open_convert
+            if STATE.allow_convert
+            else lambda: hp.warn_pretty(self, "Not available on Apple Silicon."),
+            icon_kws=None if STATE.allow_convert else {"color": THEMES.get_hex_color("warning")},
             warning=CONVERT_WARNING,
         )
         tile_merge = _make_tile(self, "Merge OME-TIFFs<br>App", MERGE_TEXT, "merge", Window.on_open_merge)

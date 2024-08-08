@@ -19,7 +19,7 @@ from qtpy.QtCore import Qt, Signal  # type: ignore[attr-defined]
 from qtpy.QtWidgets import QMainWindow, QMenu, QProgressBar, QStatusBar, QWidget
 from superqt.utils import create_worker, ensure_main_thread
 
-from image2image.config import APP_CONFIG, SingleAppConfig
+from image2image.config import APP_CONFIG, STATE, SingleAppConfig
 from image2image.models.data import DataModel
 from image2image.qt._dialogs._update import check_version
 from image2image.utils._appdirs import USER_LOG_DIR
@@ -428,7 +428,7 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
         return menu_config
 
     def _make_apps_menu(self) -> QMenu:
-        from koyo.system import IS_MAC_ARM, IS_PYINSTALLER
+        # from koyo.system import IS_MAC_ARM, IS_PYINSTALLER
 
         menu_apps = hp.make_menu(self, "Apps")
         menu_apps.addSection("Viewers")
@@ -444,7 +444,7 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
             "Open Convert App",
             menu=menu_apps,
             func=self.on_open_convert,
-            disabled=IS_MAC_ARM and IS_PYINSTALLER,
+            # disabled=STATE.allow_convert,
             icon="convert",
         )
         hp.make_menu_item(self, "Open Merge App", menu=menu_apps, func=self.on_open_merge, icon="merge")
@@ -659,15 +659,13 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
     @staticmethod
     def on_open_convert(*args: str) -> None:
         """Open convert application."""
-        from koyo.system import IS_MAC_ARM, IS_PYINSTALLER
-
-        if IS_PYINSTALLER and IS_MAC_ARM:
-            hp.warn_pretty(
-                None,
-                "Not available on Apple Silicon - there is a bug that I can't find nor fix - sorry!",
-                "App not available on this platform.",
-            )
-            return
+        # if STATE.allow_convert:
+        #     hp.warn_pretty(
+        #         None,
+        #         "Not available on Apple Silicon - there is a bug that I can't find nor fix - sorry!",
+        #         "App not available on this platform.",
+        #     )
+        #     return
         create_new_window("convert", *args)
 
     @staticmethod
@@ -705,11 +703,10 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
         """Open elastix application."""
         create_new_window("elastix", *args)
 
+    @staticmethod
     def on_open_valis(*args: str) -> None:
         """Open valis application."""
-        from koyo.utilities import is_installed
-
-        if not is_installed("valis") or not is_installed("pyvips"):
+        if not STATE.allow_valis:
             logger.error("Valis and/or pyvips is not installed on this machine.")
         #     hp.warn_pretty(
         #     None,

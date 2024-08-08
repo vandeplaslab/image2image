@@ -19,6 +19,21 @@ class State:
         return True
         # return is_envvar("IMAGE2IMAGE_NO_FILTER", "0") or (not IS_PYINSTALLER and not IS_MAC)
 
+    @property
+    def allow_convert(self) -> bool:
+        """Allow Convert app."""
+        return True
+        # from koyo.system import IS_MAC_ARM, IS_PYINSTALLER
+
+        # return IS_PYINSTALLER and IS_MAC_ARM
+
+    @property
+    def allow_valis(self) -> bool:
+        """Allow Valis app."""
+        from koyo.utilities import is_installed
+
+        return is_installed("valis") and is_installed("pyvips")
+
 
 class Config(BaseConfig):
     """Configuration of few parameters."""
