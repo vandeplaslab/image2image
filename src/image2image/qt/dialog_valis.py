@@ -31,7 +31,6 @@ from image2image.utils.valis import guess_preprocessing, hash_preprocessing
 if ty.TYPE_CHECKING:
     from image2image_reg.models import Modality, Preprocessing
 
-
 HAS_VALIS = is_installed("valis") and is_installed("pyvips")
 
 

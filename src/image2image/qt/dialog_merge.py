@@ -378,8 +378,9 @@ class ImageMergeWindow(Window):
         )
         self.as_uint8 = hp.make_checkbox(
             self,
-            "Reduce data size (uint8 - dynamic range 0-255)",
-            tooltip="Convert to uint8 to reduce file size with minimal data loss.",
+            "Reduce data size",
+            tooltip="Convert to uint8 to reduce file size with minimal data loss. This will result in change of the"
+                    " dynamic range of the image to between 0-255.",
             checked=True,
             value=self.CONFIG.as_uint8,
         )

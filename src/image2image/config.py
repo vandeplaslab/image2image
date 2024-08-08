@@ -14,6 +14,13 @@ class State:
     """State of the application."""
 
     @property
+    def is_mac_arm_pyinstaller(self) -> bool:
+        """Check if running on Mac ARM with PyInstaller."""
+        from koyo.system import IS_MAC_ARM, IS_PYINSTALLER
+
+        return IS_PYINSTALLER and IS_MAC_ARM
+
+    @property
     def allow_filters(self) -> bool:
         """Allow filters."""
         return True

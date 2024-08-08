@@ -139,7 +139,7 @@ def run(
         dlg = ImageWsiPrepWindow(None, run_check_version=run_check_version, **kwargs)  # type: ignore[assignment]
         dlg.setMinimumSize(1200, 800)
     elif tool == "elastix":
-        from image2image.qt.dialog_wsireg import ImageElastixWindow
+        from image2image.qt.dialog_elastix import ImageElastixWindow
 
         dlg = ImageElastixWindow(None, run_check_version=run_check_version, **kwargs)  # type: ignore[assignment]
         dlg.setMinimumSize(1200, 800)

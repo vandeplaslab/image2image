@@ -15,7 +15,7 @@ from qtextra.config import THEMES
 from qtextra.mixins import IndicatorMixin
 from qtextra.widgets.qt_image_button import QtThemeButton
 from qtextra.widgets.qt_logger import QtLoggerDialog
-from qtpy.QtCore import Qt, Signal  # type: ignore[attr-defined]
+from qtpy.QtCore import QProcess, Qt, Signal  # type: ignore[attr-defined]
 from qtpy.QtWidgets import QMainWindow, QMenu, QProgressBar, QStatusBar, QWidget
 from superqt.utils import create_worker, ensure_main_thread
 
@@ -38,9 +38,12 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
     """Base class window for all apps."""
 
     _console = None
+    view: NapariImageView | None = None
+    data_model: DataModel
 
     allow_drop: bool = True
     evt_dropped = Signal("QEvent")
+    evt_initialized = Signal("QEvent")
 
     CONFIG: SingleAppConfig
 
@@ -68,7 +71,7 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
         THEMES.evt_theme_changed.connect(self.on_changed_theme)
 
         # add logger
-        self.logger = QtLoggerDialog(self, USER_LOG_DIR)
+        self.logger_dlg = QtLoggerDialog(self, USER_LOG_DIR)
         self.temporary_layers = {}
         self._setup_config()
 
@@ -355,7 +358,7 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
 
     def on_show_logger(self) -> None:
         """View console."""
-        self.logger.show()
+        self.logger_dlg.show()
 
     def on_show_console(self) -> None:
         """View console."""
@@ -402,7 +405,7 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
                 "Ctrl+S",
                 menu=menu_tools,
                 icon="ruler",
-                func=self.on_show_scalebar,  # noqa
+                func=self.on_show_scalebar,
             )
         if shortcut:
             hp.make_menu_item(
@@ -511,7 +514,7 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
         )
         return menu_help
 
-    def _make_theme_button(self) -> None:
+    def _make_theme_statusbar(self) -> None:
         self.theme_btn = QtThemeButton(self)
         self.theme_btn.auto_connect()
         with hp.qt_signals_blocked(self.theme_btn):
@@ -520,7 +523,7 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
         self.theme_btn.set_small()
         self.statusbar.addPermanentWidget(self.theme_btn)
 
-    def _make_update_button(self) -> None:
+    def _make_update_statusbar(self) -> None:
         self.update_status_btn = hp.make_btn(
             self,
             "Update available - click here to download!",
@@ -531,13 +534,13 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
         self.update_status_btn.hide()
         self.statusbar.addPermanentWidget(self.update_status_btn)
 
-    def _make_tutorial_button(self) -> None:
+    def _make_tutorial_statusbar(self) -> None:
         self.tutorial_btn = hp.make_qta_btn(
             self, "help", tooltip="Give me a quick tutorial!", func=self.on_show_tutorial, small=True
         )
         self.statusbar.addPermanentWidget(self.tutorial_btn)
 
-    def _make_ipython_button(self) -> None:
+    def _make_ipython_statusbar(self) -> None:
         self.statusbar.addPermanentWidget(
             hp.make_qta_btn(
                 self,
@@ -548,14 +551,14 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
             )
         )
 
-    def _make_shortcut_button(self) -> None:
+    def _make_shortcut_statusbar(self) -> None:
         self.shortcuts_btn = hp.make_qta_btn(
             self, "shortcut", tooltip="Show me shortcuts", func=self.on_show_shortcuts, small=True
         )
         self.statusbar.addPermanentWidget(self.shortcuts_btn)
         self.shortcuts_btn.hide()
 
-    def _make_feedback_button(self) -> None:
+    def _make_feedback_statusbar(self) -> None:
         from image2image.qt._dialogs._sentry import send_feedback
 
         self.feedback_btn = hp.make_qta_btn(
@@ -567,27 +570,99 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
         )
         self.statusbar.addPermanentWidget(self.feedback_btn)
 
+    def _make_logger_statusbar(self) -> None:
+        self.logger_btn = hp.make_qta_btn(
+            self,
+            "log",
+            tooltip="Open log window.",
+            func=self.on_show_logger,
+            small=True,
+        )
+        self.statusbar.addPermanentWidget(self.logger_btn)
+
+    def _make_scalebar_statusbar(self) -> None:
+        self.scalebar_btn = hp.make_qta_btn(
+            self,
+            "ruler",
+            tooltip="Show scalebar.",
+            func=self.on_activate_scalebar,
+            func_menu=self.on_show_scalebar,
+            small=True,
+        )
+        self.statusbar.insertPermanentWidget(0, self.scalebar_btn)
+
+    def _make_export_statusbar(self) -> None:
+        if self.view is None:
+            raise ValueError("View is not initialized.")
+
+        self.clipboard_btn = hp.make_qta_btn(
+            self,
+            "screenshot",
+            tooltip="Take a snapshot of the canvas and copy it into your clipboard. Right-click to show dialog with"
+            " more options.",
+            func=self.view.widget.clipboard,
+            func_menu=self.on_show_save_figure,
+            small=True,
+        )
+        self.statusbar.insertPermanentWidget(0, self.clipboard_btn)
+
+        self.screenshot_btn = hp.make_qta_btn(
+            self,
+            "save",
+            tooltip="Save snapshot of the canvas to file. Right-click to show dialog with more options.",
+            func=self.view.widget.on_save_figure,
+            func_menu=self.on_show_save_figure,
+            small=True,
+        )
+        self.statusbar.insertPermanentWidget(0, self.screenshot_btn)
+
     def _make_statusbar(self) -> None:
         """Make statusbar."""
-
         self.statusbar = QStatusBar()  # noqa
-        self.statusbar.setSizeGripEnabled(False)
 
         self.progress_bar = QProgressBar(self)
         self.progress_bar.setMaximumWidth(200)
         self.statusbar.addPermanentWidget(self.progress_bar)
         self.progress_bar.hide()
 
-        self._make_feedback_button()
-        self._make_theme_button()
-        self._make_shortcut_button()
-        self._make_tutorial_button()
-        self._make_ipython_button()
-        self._make_update_button()
+        self._make_feedback_statusbar()
+        self._make_theme_statusbar()
+        self._make_shortcut_statusbar()
+        self._make_tutorial_statusbar()
+        self._make_logger_statusbar()
+        self._make_ipython_statusbar()
+        self._make_update_statusbar()
         self.setStatusBar(self.statusbar)
 
     def on_show_shortcuts(self) -> None:
         """Show shortcuts."""
+
+    def on_activate_scalebar(self) -> None:
+        """Activate scalebar."""
+        if self.view is None:
+            raise ValueError("View is not initialized.")
+        self.view.viewer.scale_bar.visible = not self.view.viewer.scale_bar.visible
+
+    def on_show_scalebar(self) -> None:
+        """Show scale bar controls for the viewer."""
+        from image2image.qt._dialogs._scalebar import QtScaleBarControls
+
+        if self.view is None:
+            raise ValueError("View is not initialized.")
+
+        dlg = QtScaleBarControls(self.view.viewer, self.view.widget)
+        dlg.set_px_size(self.data_model.min_resolution)
+        dlg.show_above_widget(self.scalebar_btn)
+
+    def on_show_save_figure(self) -> None:
+        """Show scale bar controls for the viewer."""
+        from qtextra._napari.common.widgets.screenshot_dialog import QtScreenshotDialog
+
+        if self.view is None:
+            raise ValueError("View is not initialized.")
+
+        dlg = QtScreenshotDialog(self.view, self)
+        dlg.show_above_widget(self.clipboard_btn)
 
     def on_show_update_info(self) -> None:
         """Show information about available updates."""
@@ -657,26 +732,26 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
         self.CONFIG.save()
 
     @staticmethod
+    def on_open_launcher(*args: str) -> None:
+        """Open launcher application."""
+        create_new_window("", *args)
+
+    @staticmethod
     def on_open_convert(*args: str) -> None:
         """Open convert application."""
-        # if STATE.allow_convert:
-        #     hp.warn_pretty(
-        #         None,
-        #         "Not available on Apple Silicon - there is a bug that I can't find nor fix - sorry!",
-        #         "App not available on this platform.",
-        #     )
-        #     return
+        if not STATE.allow_convert:
+            hp.warn_pretty(
+                None,
+                "Not available on Apple Silicon - there is a bug that I can't find nor fix - sorry!",
+                "App not available on this platform.",
+            )
+            return
         create_new_window("convert", *args)
 
     @staticmethod
     def on_open_fusion(*args: str) -> None:
         """Open fusion application."""
         create_new_window("fusion", *args)
-
-    @staticmethod
-    def on_open_launcher(*args: str) -> None:
-        """Open launcher application."""
-        create_new_window("", *args)
 
     @staticmethod
     def on_open_merge(*args: str) -> None:
@@ -718,13 +793,12 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
         create_new_window("valis", *args)
 
 
-def create_new_window(plugin: str, *extra_args) -> None:
+def create_new_window(plugin: str, *extra_args: ty.Any) -> None:
     """Create new window."""
     import os
     import sys
 
     from koyo.system import IS_WIN
-    from qtpy.QtCore import QProcess
 
     program = os.environ.get("IMAGE2IMAGE_PROGRAM", None)
 

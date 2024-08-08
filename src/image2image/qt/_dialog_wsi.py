@@ -23,6 +23,8 @@ from image2image.models.data import DataModel
 from image2image.qt._dialog_mixins import SingleViewerMixin
 
 if ty.TYPE_CHECKING:
+    from qtextra._napari.image import NapariImageView
+
     from image2image.config import ElastixConfig, ValisConfig
     from image2image.qt._wsi._list import QtModalityList
 
@@ -39,6 +41,7 @@ class ImageWsiWindow(SingleViewerMixin):
     CONFIG: ValisConfig | ElastixConfig
 
     # Widgets
+    view: NapariImageView
     name_label: Qw.QLabel
     write_registered_check: Qw.QCheckBox
     write_not_registered_check: Qw.QCheckBox
@@ -425,7 +428,8 @@ class ImageWsiWindow(SingleViewerMixin):
         self.as_uint8 = hp.make_checkbox(
             self,
             "",
-            tooltip="Convert to uint8 to reduce file size with minimal data loss.",
+            tooltip="Convert to uint8 to reduce file size with minimal data loss. This will result in change of the"
+            " dynamic range of the image to between 0-255.",
             value=self.CONFIG.as_uint8,
             func=self.on_update_config,
         )

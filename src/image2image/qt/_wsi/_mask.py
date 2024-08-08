@@ -25,7 +25,7 @@ if ty.TYPE_CHECKING:
     from image2image_reg.models import Modality, Preprocessing
     from qtextra._napari.image.wrapper import NapariImageView
 
-    from image2image.qt.dialog_wsireg import ImageElastixWindow
+    from image2image.qt.dialog_elastix import ImageElastixWindow
 
 
 logger = logger.bind(src="MaskDialog")

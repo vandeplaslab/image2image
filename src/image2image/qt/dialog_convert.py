@@ -19,7 +19,7 @@ from superqt import ensure_main_thread
 from superqt.utils import GeneratorWorker, create_worker
 
 from image2image import __version__
-from image2image.config import CONVERT_CONFIG
+from image2image.config import CONVERT_CONFIG, STATE
 from image2image.enums import ALLOWED_IMAGE_FORMATS_MICROSCOPY_ONLY
 from image2image.qt._dialogs._select import LoadWidget
 from image2image.qt.dialog_base import Window
@@ -71,7 +71,7 @@ class ImageConvertWindow(Window):
     worker: GeneratorWorker | None = None
 
     TABLE_CONFIG = (
-        TableConfig()  # type: ignore[no-untyped-call]
+        TableConfig()
         .add("name", "name", "str", 0)
         .add("pixel size (um)", "resolution", "str", 0)
         .add("scenes & channels", "metadata", "str", 0)
@@ -263,25 +263,36 @@ class ImageConvertWindow(Window):
         READER_CONFIG.split_czi = self.split_czi.isChecked()
 
         if paths:
-            self.worker = create_worker(
-                images_to_ome_tiff,
-                paths=paths,
-                output_dir=output_dir,
-                as_uint8=self.CONFIG.as_uint8,
-                tile_size=self.CONFIG.tile_size,
-                metadata=get_metadata(self.reader_metadata),
-                overwrite=self.CONFIG.overwrite,
-                _start_thread=True,
-                _connect={
-                    "aborted": self._on_export_aborted,
-                    "yielded": self._on_export_yield,
-                    "finished": self._on_export_finished,
-                    "errored": self._on_export_error,
-                },
-                _worker_class=GeneratorWorker,
-            )
-            hp.disable_widgets(self.export_btn.active_btn, disabled=True)
-            self.export_btn.active = True
+            if STATE.is_mac_arm_pyinstaller:
+                for args in images_to_ome_tiff(
+                    paths=paths,
+                    output_dir=output_dir,
+                    as_uint8=self.CONFIG.as_uint8,
+                    tile_size=self.CONFIG.tile_size,
+                    metadata=get_metadata(self.reader_metadata),
+                    overwrite=self.CONFIG.overwrite,
+                ):
+                    self.__on_export_yield(args)
+            else:
+                self.worker = create_worker(
+                    images_to_ome_tiff,
+                    paths=paths,
+                    output_dir=output_dir,
+                    as_uint8=self.CONFIG.as_uint8,
+                    tile_size=self.CONFIG.tile_size,
+                    metadata=get_metadata(self.reader_metadata),
+                    overwrite=self.CONFIG.overwrite,
+                    _start_thread=True,
+                    _connect={
+                        "aborted": self._on_export_aborted,
+                        "yielded": self._on_export_yield,
+                        "finished": self._on_export_finished,
+                        "errored": self._on_export_error,
+                    },
+                    _worker_class=GeneratorWorker,
+                )
+                hp.disable_widgets(self.export_btn.active_btn, disabled=True)
+                self.export_btn.active = True
 
     def on_cancel(self):
         """Cancel processing."""
@@ -406,7 +417,8 @@ class ImageConvertWindow(Window):
         self.as_uint8 = hp.make_checkbox(
             self,
             "",
-            tooltip="Convert to uint8 to reduce file size with minimal data loss.",
+            tooltip="Convert to uint8 to reduce file size with minimal data loss. This will result in change of the"
+            " dynamic range of the image to between 0-255.",
             checked=True,
             value=self.CONFIG.as_uint8,
         )
@@ -437,6 +449,20 @@ class ImageConvertWindow(Window):
                 wrap=True,
             )
         )
+        if STATE.is_mac_arm_pyinstaller:
+            side_layout.addRow(
+                hp.make_h_layout(
+                    hp.make_warning_label(self, "", average=True),
+                    hp.make_label(
+                        self,
+                        "Warning: On Apple Silicon, the conversion process happens in the UI thread, meaning that the app"
+                        " freezes!",
+                        warp=True,
+                        object_name="warning_label",
+                    ),
+                    stretch_id=(1,),
+                )
+            )
         side_layout.addRow(hp.make_h_line())
         side_layout.addRow(self._image_widget)
         side_layout.addRow(hp.make_h_line())
@@ -459,7 +485,7 @@ class ImageConvertWindow(Window):
         side_layout.addRow("Tile size", self.tile_size)
         side_layout.addRow("Reduce file size", self.as_uint8)
         side_layout.addRow("Overwrite", self.overwrite)
-        side_layout.addWidget(self.export_btn)
+        side_layout.addRow(self.export_btn)
 
         widget = QWidget()
         self.setCentralWidget(widget)

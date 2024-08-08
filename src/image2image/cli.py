@@ -7,7 +7,7 @@ import typing as ty
 import click
 from click_groups import GroupedGroup
 from koyo.click import cli_parse_paths_sort
-from koyo.system import IS_MAC, IS_MAC_ARM, IS_PYINSTALLER
+from koyo.system import IS_MAC, IS_PYINSTALLER
 from koyo.utilities import is_installed
 
 from image2image import __version__
@@ -24,8 +24,8 @@ AVAILABLE_TOOLS = [
     "convert",
     "merge",
 ]
-if IS_MAC_ARM and IS_PYINSTALLER:
-    AVAILABLE_TOOLS.pop(AVAILABLE_TOOLS.index("convert"))
+# if IS_MAC_ARM and IS_PYINSTALLER:
+#     AVAILABLE_TOOLS.pop(AVAILABLE_TOOLS.index("convert"))
 
 
 def dev_options(func: ty.Callable) -> ty.Callable:

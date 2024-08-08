@@ -569,7 +569,6 @@ class ImageElastixWindow(ImageWsiWindow):
 
     def _make_statusbar(self) -> None:
         super()._make_statusbar()
-
         self.pyramid_level = hp.make_int_spin_box(
             self,
             value=-1,
