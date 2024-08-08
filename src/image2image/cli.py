@@ -12,7 +12,18 @@ from koyo.utilities import is_installed
 
 from image2image import __version__
 
-AVAILABLE_TOOLS = ["launcher", "register", "viewer", "crop", "wsiprep", "wsireg", "valis", "fusion", "convert", "merge"]
+AVAILABLE_TOOLS = [
+    "launcher",
+    "register",
+    "viewer",
+    "crop",
+    "wsiprep",
+    "elastix",
+    "valis",
+    "fusion",
+    "convert",
+    "merge",
+]
 if IS_MAC_ARM and IS_PYINSTALLER:
     AVAILABLE_TOOLS.pop(AVAILABLE_TOOLS.index("convert"))
 
@@ -70,7 +81,7 @@ def dev_options(func: ty.Callable) -> ty.Callable:
 @click.option(
     "-p",
     "--project_dir",
-    help="Path to the WsiReg project directory. It usually ends in .i2reg extension (for 'wsireg' tool).",
+    help="Path to the Elastix/Valis project directory. It usually ends in .i2reg extension (for 'elastix' or 'valis' tool).",
     type=click.Path(exists=True, resolve_path=True, file_okay=False, dir_okay=True),
     show_default=True,
 )
@@ -115,7 +126,7 @@ def cli(
     launcher - opens a dialog where you can launch any of the tools.
     viewer - opens a dialog where you can view images, shapes and points data
     register - opens a dialog where you can co-register images using affine transformation
-    wsireg - opens a dialog where you can co-register whole slide images using i2reg-elastix
+    elastix - opens a dialog where you can co-register whole slide images using i2reg-elastix
     valis - opens a dialog where you can co-register whole-slide images using i2reg-valis
     convert - opens a dialog where you can convert images to OME-TIFF
     merge - opens a dialog where you can merge multiple image channels and images together
@@ -153,6 +164,8 @@ def cli(
             image_dir=image_dir,
             project_dir=project_dir,
         )
+        return None
+    return None
 
 
 if is_installed("image2image_reg"):

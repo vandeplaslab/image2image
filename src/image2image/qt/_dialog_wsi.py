@@ -23,8 +23,8 @@ from image2image.models.data import DataModel
 from image2image.qt._dialog_mixins import SingleViewerMixin
 
 if ty.TYPE_CHECKING:
-    from image2image.config import ValisConfig, WsiRegConfig
-    from image2image.qt._wsireg._list import QtModalityList
+    from image2image.config import ElastixConfig, ValisConfig
+    from image2image.qt._wsi._list import QtModalityList
 
 
 class ImageWsiWindow(SingleViewerMixin):
@@ -36,7 +36,7 @@ class ImageWsiWindow(SingleViewerMixin):
     PROJECT_SUFFIX: str
     RUN_DISABLED: bool
     OTHER_PROJECT: str
-    CONFIG: ValisConfig | WsiRegConfig
+    CONFIG: ValisConfig | ElastixConfig
 
     # Widgets
     name_label: Qw.QLabel
@@ -65,7 +65,6 @@ class ImageWsiWindow(SingleViewerMixin):
         READER_CONFIG.only_last_pyramid = True
         READER_CONFIG.init_pyramid = False
         READER_CONFIG.split_czi = False
-        logger.trace("Setup config for image2wsireg.")
 
     @staticmethod
     def make_registration_task(**kwargs) -> Task:
@@ -220,7 +219,7 @@ class ImageWsiWindow(SingleViewerMixin):
             hp.toast(self, "Error", "Please load fixed image first.", icon="error", position="top_left")
             return
 
-        options = {key: key for key in self.registration_model.modalities.keys()}
+        options = {key: key for key in self.registration_model.modalities}
         choice = hp.choose(self, options, "Select modality to attach to")
         if not choice:
             return
@@ -266,7 +265,9 @@ class ImageWsiWindow(SingleViewerMixin):
         self._on_show_modalities()
 
     def _on_show_modalities(self) -> None:
-        self.modality_list.toggle_preview(self.use_preview_check.isChecked())
+        """Show modality images."""
+        self.CONFIG.update(use_preview=self.use_preview_check.isChecked())
+        self.modality_list.toggle_preview(self.CONFIG.use_preview)
         for _, modality, widget in self.modality_list.item_model_widget_iter():
             self.on_show_modality(modality, state=widget.visible_btn.visible, overwrite=True)
 
@@ -283,6 +284,7 @@ class ImageWsiWindow(SingleViewerMixin):
         """Hide other modalities."""
         if hide is None:
             hide = self.hide_others_check.isChecked()
+        self.CONFIG.update(hide_others=hide)
         if not hide:
             return
         if not isinstance(modality, list):

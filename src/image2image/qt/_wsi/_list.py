@@ -16,13 +16,13 @@ from qtpy.QtCore import QRegularExpression, Qt, Signal, Slot  # type: ignore[att
 from qtpy.QtGui import QRegularExpressionValidator
 from qtpy.QtWidgets import QDialog, QHBoxLayout, QListWidgetItem, QSizePolicy, QWidget
 
-from image2image.config import VALIS_CONFIG, WSIREG_CONFIG, SingleAppConfig
-from image2image.qt._wsireg._widgets import QtModalityLabel
+from image2image.config import ELASTIX_CONFIG, VALIS_CONFIG, SingleAppConfig
+from image2image.qt._wsi._widgets import QtModalityLabel
 
 if ty.TYPE_CHECKING:
     from image2image_reg.workflows import IWsiReg, ValisReg
 
-    from image2image.qt._wsireg._preprocessing import PreprocessingDialog
+    from image2image.qt._wsi._preprocessing import PreprocessingDialog
 
 
 logger = logger.bind(src="QtModalityList")
@@ -215,7 +215,7 @@ class QtModalityItem(QtListItem):
     @property
     def CONFIG(self) -> SingleAppConfig:
         """Return instance of configuration."""
-        return VALIS_CONFIG if self.valis else WSIREG_CONFIG
+        return VALIS_CONFIG if self.valis else ELASTIX_CONFIG
 
     @property
     def registration_model(self) -> IWsiReg:
@@ -243,7 +243,7 @@ class QtModalityItem(QtListItem):
 
     def _get_attachment_metadata(self) -> tuple[str | None, float | None]:
         """Return attachment metadata."""
-        from image2image.qt._wsireg._attachment import AttachWidget
+        from image2image.qt._wsi._attachment import AttachWidget
 
         dlg = AttachWidget(self, pixel_sizes=(1.0, self.item_model.pixel_size))
         if dlg.exec_() == QDialog.DialogCode.Accepted:  # type: ignore[attr-defined]

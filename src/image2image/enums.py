@@ -28,7 +28,7 @@ ALLOWED_PROJECT_WSIPREP_FORMATS = (
     "JSON project (*.i2wsiprep.json);; "
     "TOML project (*.i2wsiprep.toml);;"
 )
-ALLOWED_PROJECT_WSIREG_FORMATS = (
+ALLOWED_PROJECT_ELASTIX_FORMATS = (
     "Any projects (*.i2wsireg.json *.i2wsireg.toml *.wsireg *.i2reg *.config.json);; "
     "JSON project (*.i2reg.json);; "
     "TOML project (*.i2reg.toml);;"
@@ -82,7 +82,7 @@ ALLOWED_IMAGE_FORMATS_CZI_ONLY = "Any Zeiss CZI (*.czi);;"
 ALLOWED_IMAGE_FORMATS_TIFF_ONLY = (
     "Any OME-TIFF (*.ome.tiff *.tiff *.scn *.tif *.svs *.ndpi *.qptiff *.qptiff.raw *.qptiff.intermediate);; "
 )
-ALLOWED_WSIREG_FORMATS = (
+ALLOWED_ELASTIX_FORMATS = (
     "Any imaging (*.czi *.ome.tiff *.tiff *.scn *.tif *.qptiff *.qptiff.raw *.qptiff.intermediate *.svs *.ndpi);; "
     "CZI (*.czi);; "
     "TIFF (*.ome.tiff *.tiff *.scn *.tif *.svs *.ndpi *.qptiff *.qptiff.raw *.qptiff.intermediate);; "

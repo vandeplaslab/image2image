@@ -1,4 +1,6 @@
+"""Valis hook."""
 from koyo.utilities import is_installed
+from PyInstaller.utils.hooks import collect_data_files
 
 HAS_VALIS = is_installed("valis") and is_installed("pyvips")
 

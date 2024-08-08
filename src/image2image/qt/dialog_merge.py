@@ -22,7 +22,7 @@ from image2image.config import MERGE_CONFIG
 from image2image.enums import ALLOWED_IMAGE_FORMATS_TIFF_ONLY
 from image2image.qt._dialogs._select import LoadWidget
 from image2image.qt.dialog_base import Window
-from image2image.utils.utilities import format_shape, log_exception_or_error
+from image2image.utils.utilities import format_reader_metadata, format_shape, log_exception_or_error
 
 if ty.TYPE_CHECKING:
     from image2image.models.data import DataModel
@@ -89,7 +89,6 @@ class ImageMergeWindow(Window):
         READER_CONFIG.split_czi = False
         READER_CONFIG.split_rgb = True
         READER_CONFIG.only_last_pyramid = False
-        logger.trace("Setup reader config for image2merge.")
 
     def setup_events(self, state: bool = True) -> None:
         """Setup events."""
@@ -150,19 +149,20 @@ class ImageMergeWindow(Window):
 
                 # add name item
                 table_item = QTableWidgetItem(reader.key)
-                table_item.setFlags(table_item.flags() & ~Qt.ItemIsEditable)  # type: ignore[attr-defined]
-                table_item.setTextAlignment(Qt.AlignCenter)  # type: ignore[attr-defined]
+                table_item.setFlags(table_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+                table_item.setTextAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignHCenter)
                 self.table.setItem(index, self.TABLE_CONFIG.key, table_item)
 
                 # add name item
                 table_item = QTableWidgetItem(reader.clean_name)
-                table_item.setFlags(table_item.flags() & ~Qt.ItemIsEditable)  # type: ignore[attr-defined]
-                table_item.setTextAlignment(Qt.AlignCenter)  # type: ignore[attr-defined]
+                table_item.setFlags(table_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+                table_item.setTextAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignHCenter)
                 self.table.setItem(index, self.TABLE_CONFIG.name, table_item)
 
                 # add resolution item
                 table_item = QTableWidgetItem(f"{reader.resolution:.2f}")
                 table_item.setFlags(table_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+                table_item.setTextAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignHCenter)
                 self.table.setItem(index, self.TABLE_CONFIG.resolution, table_item)
 
                 # add type item
@@ -172,8 +172,8 @@ class ImageMergeWindow(Window):
                 else:
                     image_size = "N/A"
                 type_item = QTableWidgetItem(image_size)
-                type_item.setFlags(type_item.flags() & ~Qt.ItemIsEditable)  # type: ignore[attr-defined]
-                type_item.setTextAlignment(Qt.AlignCenter)  # type: ignore[attr-defined]
+                type_item.setFlags(type_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+                type_item.setTextAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignHCenter)
                 self.table.setItem(index, self.TABLE_CONFIG.image_size, type_item)
 
                 table_item = QTableWidgetItem("")
@@ -233,6 +233,7 @@ class ImageMergeWindow(Window):
 
         # get metadata and add extra information such as the new tag/name
         metadata = get_metadata(self.reader_metadata)
+        # update metadata with the name
         for path in metadata:
             reader = self.data_model.get_reader(path)
             row = hp.find_in_table(self.table, self.TABLE_CONFIG.key, reader.key)
@@ -240,9 +241,11 @@ class ImageMergeWindow(Window):
             metadata[path]["name"] = name_for_path
 
         output_dir = self.output_dir
-        self.CONFIG.as_uint8 = self.as_uint8.isChecked()
-        self.CONFIG.overwrite = self.overwrite.isChecked()
-        self.CONFIG.tile_size = int(self.tile_size.currentText())
+        self.CONFIG.update(
+            as_uint8=self.as_uint8.isChecked(),
+            overwrite=self.overwrite.isChecked(),
+            tile_size=int(self.tile_size.currentText()),
+        )
 
         if paths:
             self.worker = create_worker(
@@ -293,7 +296,7 @@ class ImageMergeWindow(Window):
         directory = hp.get_directory(self, "Select output directory", self.CONFIG.output_dir)
         if directory:
             self._output_dir = directory
-            self.CONFIG.output_dir = directory
+            self.CONFIG.update(output_dir=directory)
             self.output_dir_label.setText(f"<b>Output directory</b>: {hp.hyper(self.output_dir)}")
             logger.debug(f"Output directory set to {self._output_dir}")
 
@@ -317,23 +320,28 @@ class ImageMergeWindow(Window):
             if new_name and new_name != name:
                 self.table.item(row, self.TABLE_CONFIG.name).setText(new_name)
 
-    def on_update_reader_metadata(self):
+    def on_update_reader_metadata(self) -> None:
         """Update reader metadata."""
-        for path, reader_metadata in self.reader_metadata.items():
+        reader_metadata = get_metadata(self.reader_metadata)
+        for path, reader_metadata_ in reader_metadata.items():
             key = path.name
             row = hp.find_in_table(self.table, self.TABLE_CONFIG.key, key)
             if row is None:
                 continue
-            metadata = []
-            for scene_index, scene_metadata in reader_metadata.items():
-                channel_ids = [x for x, keep in zip(scene_metadata["channel_ids"], scene_metadata["keep"]) if keep]
-                metadata.append(f"{scene_index}: {channel_ids}")
-            self.table.item(row, self.TABLE_CONFIG.metadata).setText("\n".join(metadata))
+            self.table.item(row, self.TABLE_CONFIG.metadata).setText(format_reader_metadata(reader_metadata_))
+
+    def on_check_file(self) -> None:
+        """Check whether file already exists."""
+        if self.output_dir:
+            name = self.name_edit.text().strip()
+            name = name.replace(".ome", "").replace(".tiff", "").replace(".tif", "")
+            filename = self.output_dir / f"{name}.ome.tiff"
+            hp.update_widget_style(self.name_edit, "warning" if filename.exists() else "")
 
     def _setup_ui(self):
         """Create panel."""
         self._image_widget = LoadWidget(
-            self, None, self.CONFIG,select_channels=False, available_formats=ALLOWED_IMAGE_FORMATS_TIFF_ONLY
+            self, None, self.CONFIG, select_channels=False, available_formats=ALLOWED_IMAGE_FORMATS_TIFF_ONLY
         )
         self._image_widget.info_text.setVisible(False)
 
@@ -355,7 +363,11 @@ class ImageMergeWindow(Window):
         vertical_header.setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
 
         self.name_edit = hp.make_line_edit(
-            self, "", placeholder="Name to be used for merged images.", tooltip="Name of the merged image."
+            self,
+            "",
+            placeholder="Name to be used for merged images.",
+            tooltip="Name of the merged image.",
+            func_changed=self.on_check_file,
         )
         self.tile_size = hp.make_combobox(
             self,
@@ -516,7 +528,7 @@ class ImageMergeWindow(Window):
         from image2image.qt._dialogs._tutorial import show_merge_tutorial
 
         show_merge_tutorial(self)
-        self.CONFIG.first_time = False
+        self.CONFIG.update(first_time=False)
 
     def dropEvent(self, event: QDropEvent) -> None:
         """Drop event."""

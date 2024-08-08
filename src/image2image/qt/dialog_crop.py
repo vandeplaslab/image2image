@@ -84,7 +84,6 @@ class ImageCropWindow(Window):
         READER_CONFIG.split_roi = True
         READER_CONFIG.split_rgb = False
         READER_CONFIG.only_last_pyramid = False
-        logger.trace("Setup reader config for image2crop.")
 
     def setup_events(self, state: bool = True) -> None:
         """Setup events."""
@@ -148,7 +147,7 @@ class ImageCropWindow(Window):
             from image2image.models.utilities import _remove_missing_from_dict
 
             path = Path(path_)
-            self.CONFIG.output_dir = str(path.parent)
+            self.CONFIG.update(output_dir=str(path.parent))
 
             # load data from config file
             try:
@@ -201,7 +200,7 @@ class ImageCropWindow(Window):
         if path_:
             path = Path(path_)
             path = ensure_extension(path, "i2c")
-            self.CONFIG.output_dir = str(path.parent)
+            self.CONFIG.update(output_dir=str(path.parent))
             regions = self.get_crop_areas()
             config = get_project_data(self.data_model, regions)
             write_project(path, config)
@@ -311,9 +310,9 @@ class ImageCropWindow(Window):
             hp.toast(self, "No output directory", "No output directory selected.", icon="error")
             return
 
-        self.CONFIG.output_dir = output_dir_
-        tile_size = int(self.tile_size.currentText())
-        as_uint8 = self.as_uint8.isChecked()
+        self.CONFIG.update(
+            output_dir=output_dir_, tile_size=int(self.tile_size.currentText()), as_uint8=self.as_uint8.isChecked()
+        )
         if regions:
             # list(crop_regions(self.data_model, Path(output_dir_), regions, tile_size=tile_size, as_uint8=as_uint8))
             self.worker_crop = create_worker(
@@ -321,8 +320,8 @@ class ImageCropWindow(Window):
                 data_model=self.data_model,
                 output_dir=Path(output_dir_),
                 regions=regions,
-                tile_size=tile_size,
-                as_uint8=as_uint8,
+                tile_size=self.CONFIG.tile_size,
+                as_uint8=self.CONFIG.as_uint8,
                 _start_thread=True,
                 _connect={
                     "aborted": partial(self._on_aborted_crop, which="crop"),
@@ -681,7 +680,7 @@ class ImageCropWindow(Window):
         from image2image.qt._dialogs._tutorial import show_crop_tutorial
 
         show_crop_tutorial(self)
-        self.CONFIG.first_time = False
+        self.CONFIG.update(first_time=False)
 
 
 def get_project_data(data_model: DataModel, regions: list[tuple[int, int, int, int] | np.ndarray]) -> dict:

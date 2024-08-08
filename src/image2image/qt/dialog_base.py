@@ -435,7 +435,7 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
         hp.make_menu_item(self, "Open Viewer App", menu=menu_apps, func=self.on_open_viewer, icon="viewer")
         menu_apps.addSection("Register")
         hp.make_menu_item(self, "Open Register App", menu=menu_apps, func=self.on_open_register, icon="register")
-        hp.make_menu_item(self, "Open WsiReg App", menu=menu_apps, func=self.on_open_wsireg, icon="wsireg")
+        hp.make_menu_item(self, "Open Elastix App", menu=menu_apps, func=self.on_open_elastix, icon="elastix")
         hp.make_menu_item(self, "Open Valis App", menu=menu_apps, func=self.on_open_valis, icon="valis")
         menu_apps.addSection("Utilities")
         hp.make_menu_item(self, "Open Crop App", menu=menu_apps, func=self.on_open_crop, icon="crop")
@@ -701,12 +701,12 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
         create_new_window("crop", *args)
 
     @staticmethod
-    def on_open_wsireg(*args: str) -> None:
-        """Open wsireg application."""
-        create_new_window("wsireg", *args)
+    def on_open_elastix(*args: str) -> None:
+        """Open elastix application."""
+        create_new_window("elastix", *args)
 
     def on_open_valis(*args: str) -> None:
-        """Open wsireg application."""
+        """Open valis application."""
         from koyo.utilities import is_installed
 
         if not is_installed("valis") or not is_installed("pyvips"):

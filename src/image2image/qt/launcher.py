@@ -6,7 +6,8 @@ import typing as ty
 
 import qtextra.helpers as hp
 from image2image_io.config import CONFIG as READER_CONFIG
-from koyo.system import IS_MAC_ARM, IS_PYINSTALLER
+
+# from koyo.system import IS_MAC_ARM, IS_PYINSTALLER
 from koyo.utilities import is_installed
 from qtextra.config import THEMES
 from qtextra.widgets.qt_dialog import QtDialog
@@ -25,9 +26,9 @@ CROP_TEXT = "Crop your microscopy data to reduce it's size (handy for Image Fusi
 CONVERT_TEXT = "Convert multi-scene CZI images or other formats to OME-TIFF."
 MERGE_TEXT = "Merge multiple OME-TIFF images into a single file."
 FUSION_TEXT = "Export your data for Image Fusion in MATLAB compatible format."
-WSIREG_TEXT = "Register whole slide microscopy images<br>(<b>i2reg</b>)."
+ELASTIX_TEXT = "Register whole slide microscopy images<br>(<b>Elastix</b>)."
 VALIS_TEXT = "Register whole slide microscopy images<br>(<b>Valis</b>)."
-HAS_CONVERT = IS_PYINSTALLER and not IS_MAC_ARM
+HAS_CONVERT = True  # IS_PYINSTALLER and not IS_MAC_ARM
 CONVERT_WARNING = ""
 if not HAS_CONVERT:
     CONVERT_WARNING = "<i>Not available on Apple Silicon due to a bug I can't find...</i>"
@@ -75,7 +76,7 @@ class Launcher(QtDialog):
         # register apps
         layout.addRow(hp.make_h_line_with_text("Registration", self, position="left", bold=True))
         tile_reg = _make_tile(self, "Registration<br>App", REGISTER_TEXT, "register", Window.on_open_register)
-        tile_wsireg = _make_tile(self, "WsiReg<br>App", WSIREG_TEXT, "wsireg", Window.on_open_wsireg)
+        tile_wsireg = _make_tile(self, "Elastix<br>App", ELASTIX_TEXT, "elastix", Window.on_open_elastix)
         tile_valis = _make_tile(
             self,
             "Valis<br>App",

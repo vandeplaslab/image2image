@@ -25,7 +25,7 @@ if ty.TYPE_CHECKING:
     from image2image_reg.models import Modality, Preprocessing
     from qtextra._napari.image.wrapper import NapariImageView
 
-    from image2image.qt.dialog_wsireg import ImageWsiRegWindow
+    from image2image.qt.dialog_wsireg import ImageElastixWindow
 
 
 logger = logger.bind(src="MaskDialog")
@@ -68,7 +68,7 @@ class ShapesDialog(QtFramelessTool):
 
     evt_mask = Signal(object)
 
-    def __init__(self, parent: ImageWsiRegWindow | None):
+    def __init__(self, parent: ImageElastixWindow | None):
         super().__init__(parent)
         self._parent = parent
         self.setMinimumWidth(400)

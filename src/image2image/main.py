@@ -18,7 +18,7 @@ COLOR_LOG_FMT = (
 )
 
 AvailableTools = ty.Literal[
-    "launcher", "register", "viewer", "crop", "fusion", "convert", "merge", "wsiprep", "wsireg", "valis"
+    "launcher", "register", "viewer", "crop", "fusion", "convert", "merge", "wsiprep", "elastix", "valis"
 ]
 
 
@@ -138,10 +138,10 @@ def run(
 
         dlg = ImageWsiPrepWindow(None, run_check_version=run_check_version, **kwargs)  # type: ignore[assignment]
         dlg.setMinimumSize(1200, 800)
-    elif tool == "wsireg":
-        from image2image.qt.dialog_wsireg import ImageWsiRegWindow
+    elif tool == "elastix":
+        from image2image.qt.dialog_wsireg import ImageElastixWindow
 
-        dlg = ImageWsiRegWindow(None, run_check_version=run_check_version, **kwargs)  # type: ignore[assignment]
+        dlg = ImageElastixWindow(None, run_check_version=run_check_version, **kwargs)  # type: ignore[assignment]
         dlg.setMinimumSize(1200, 800)
     elif tool == "valis":
         from image2image.qt.dialog_valis import ImageValisWindow

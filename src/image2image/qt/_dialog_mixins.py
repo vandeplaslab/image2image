@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import typing as ty
-from functools import partial
 from pathlib import Path
 
 import qtextra.helpers as hp

@@ -75,7 +75,6 @@ class ImageViewerWindow(Window):
         READER_CONFIG.split_rgb = False
         READER_CONFIG.only_last_pyramid = False
         READER_CONFIG.init_pyramid = True
-        logger.trace("Setup config for image2viewer.")
 
     def setup_events(self, state: bool = True) -> None:
         """Setup events."""
@@ -227,7 +226,7 @@ class ImageViewerWindow(Window):
                 self._image_widget.transform_dlg._on_add_transform(path)
                 return
 
-            self.CONFIG.output_dir = str(path.parent)
+            self.CONFIG.update(output_dir=str(path.parent))
 
             # load data from config file
             try:
@@ -282,7 +281,7 @@ class ImageViewerWindow(Window):
         if path_:
             path = Path(path_)
             path = ensure_extension(path, "i2v")
-            self.CONFIG.output_dir = str(path.parent)
+            self.CONFIG.update(output_dir=str(path.parent))
             model.to_file(path)
             hp.long_toast(
                 self,
@@ -546,7 +545,6 @@ class ImageViewerWindow(Window):
         menu_file.addSeparator()
         hp.make_menu_item(self, "Quit", menu=menu_file, func=self.close)
 
-
         # set actions
         self.menubar = QMenuBar(self)
         self.menubar.addAction(menu_file.menuAction())
@@ -602,7 +600,7 @@ class ImageViewerWindow(Window):
         from image2image.qt._dialogs._tutorial import show_viewer_tutorial
 
         show_viewer_tutorial(self)
-        self.CONFIG.first_time = False
+        self.CONFIG.update(first_time=False)
 
 
 def get_resolution_options(wrapper) -> dict[str, str]:

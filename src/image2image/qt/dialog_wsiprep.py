@@ -38,7 +38,7 @@ from superqt.utils import qdebounced
 from tqdm import tqdm
 
 from image2image import __version__
-from image2image.config import WSIREG3D_CONFIG, WsiReg3dConfig
+from image2image.config import ELASTIX3D_CONFIG, Elastix3dConfig
 from image2image.enums import ALLOWED_IMAGE_FORMATS_TIFF_ONLY, ALLOWED_PROJECT_WSIPREP_FORMATS
 from image2image.models.wsiprep import (
     Registration,
@@ -100,7 +100,7 @@ class ImageWsiPrepWindow(Window):
     )
 
     def __init__(self, parent: QWidget | None = None, run_check_version: bool = True, **kwargs: ty.Any):
-        self.CONFIG: WsiReg3dConfig = WSIREG3D_CONFIG
+        self.CONFIG: Elastix3dConfig = ELASTIX3D_CONFIG
         super().__init__(
             parent,
             f"image2image: Prepare your microscopy data for co-registration (v{__version__})",
@@ -114,7 +114,6 @@ class ImageWsiPrepWindow(Window):
         READER_CONFIG.only_last_pyramid = True
         READER_CONFIG.init_pyramid = False
         READER_CONFIG.split_czi = False
-        logger.trace("Setup config for image2wsiprep.")
 
     def setup_events(self, state: bool = True) -> None:
         """Setup events."""
@@ -937,7 +936,6 @@ class ImageWsiPrepWindow(Window):
         )
         menu_file.addSeparator()
         hp.make_menu_item(self, "Quit", menu=menu_file, func=self.close)
-
 
         # set actions
         self.menubar = QMenuBar(self)
