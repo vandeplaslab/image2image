@@ -19,19 +19,19 @@ from qtpy.QtCore import Qt
 from qtpy.QtWidgets import QHBoxLayout, QSizePolicy, QVBoxLayout, QWidget
 
 from image2image import __version__
-from image2image.config import WSIREG_CONFIG
-from image2image.enums import ALLOWED_PROJECT_WSIREG_FORMATS, ALLOWED_WSIREG_FORMATS
+from image2image.config import ELASTIX_CONFIG
+from image2image.enums import ALLOWED_ELASTIX_FORMATS, ALLOWED_PROJECT_ELASTIX_FORMATS
 from image2image.qt._dialog_wsi import ImageWsiWindow
 from image2image.qt._dialogs._select import LoadWidget
-from image2image.qt._wsireg._list import QtModalityList
-from image2image.qt._wsireg._paths import RegistrationMap
+from image2image.qt._wsi._list import QtModalityList
+from image2image.qt._wsi._paths import RegistrationMap
 from image2image.utils.utilities import get_i2reg_path
 from image2image.utils.valis import guess_preprocessing, hash_preprocessing
 
 if ty.TYPE_CHECKING:
     from image2image_reg.models import Modality, Preprocessing
 
-    from image2image.qt._wsireg._mask import CropDialog, MaskDialog
+    from image2image.qt._wsi._mask import CropDialog, MaskDialog
 
 logger.enable("qtextra")
 
@@ -79,7 +79,7 @@ def make_registration_task(
     )
 
 
-class ImageWsiRegWindow(ImageWsiWindow):
+class ImageElastixWindow(ImageWsiWindow):
     """Image viewer dialog."""
 
     _registration_model: IWsiReg | None = None
@@ -95,7 +95,7 @@ class ImageWsiRegWindow(ImageWsiWindow):
     def __init__(
         self, parent: QWidget | None, run_check_version: bool = True, project_dir: PathLike | None = None, **_kwargs
     ):
-        self.CONFIG = WSIREG_CONFIG
+        self.CONFIG = ELASTIX_CONFIG
         super().__init__(parent, run_check_version=run_check_version, project_dir=project_dir)
 
     @property
@@ -327,7 +327,7 @@ class ImageWsiRegWindow(ImageWsiWindow):
     def on_open_mask_dialog(self) -> None:
         """Open mask dialog."""
         if self._mask_dlg is None:
-            from image2image.qt._wsireg._mask import MaskDialog
+            from image2image.qt._wsi._mask import MaskDialog
 
             self._mask_dlg = MaskDialog(self)
             self._mask_dlg.evt_mask.connect(self.modality_list.toggle_mask)
@@ -337,7 +337,7 @@ class ImageWsiRegWindow(ImageWsiWindow):
     def on_open_crop_dialog(self) -> None:
         """Open crop dialog."""
         if self._crop_dlg is None:
-            from image2image.qt._wsireg._mask import CropDialog
+            from image2image.qt._wsi._mask import CropDialog
 
             self._crop_dlg = CropDialog(self)
             self._crop_dlg.evt_mask.connect(self.modality_list.toggle_crop)
@@ -402,7 +402,7 @@ class ImageWsiRegWindow(ImageWsiWindow):
     def on_load_from_project(self, _evt=None):
         """Load a previous project."""
         path_ = hp.get_filename(
-            self, "Load I2Reg project", base_dir=self.CONFIG.output_dir, file_filter=ALLOWED_PROJECT_WSIREG_FORMATS
+            self, "Load I2Reg project", base_dir=self.CONFIG.output_dir, file_filter=ALLOWED_PROJECT_ELASTIX_FORMATS
         )
         self._on_load_from_project(path_)
 
@@ -469,7 +469,7 @@ class ImageWsiRegWindow(ImageWsiWindow):
             self.view,
             self.CONFIG,
             select_channels=False,
-            available_formats=ALLOWED_WSIREG_FORMATS,
+            available_formats=ALLOWED_ELASTIX_FORMATS,
             project_extension=[".i2wsireg.json", ".i2wsireg.toml", ".config.json", ".wsireg", ".i2reg"],
             allow_geojson=True,
             allow_import_project=True,
@@ -569,7 +569,6 @@ class ImageWsiRegWindow(ImageWsiWindow):
 
     def _make_statusbar(self) -> None:
         super()._make_statusbar()
-
         self.pyramid_level = hp.make_int_spin_box(
             self,
             value=-1,
@@ -594,4 +593,4 @@ class ImageWsiRegWindow(ImageWsiWindow):
 if __name__ == "__main__":  # pragma: no cover
     from image2image.main import run
 
-    run(dev=True, tool="wsireg", level=0)
+    run(dev=True, tool="elastix", level=0)

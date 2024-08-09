@@ -24,13 +24,12 @@ from image2image.config import VALIS_CONFIG, ValisConfig
 from image2image.enums import ALLOWED_VALIS_FORMATS
 from image2image.qt._dialog_wsi import ImageWsiWindow
 from image2image.qt._dialogs._select import LoadWidget
-from image2image.qt._wsireg._list import QtModalityList
+from image2image.qt._wsi._list import QtModalityList
 from image2image.utils.utilities import get_i2reg_path
 from image2image.utils.valis import guess_preprocessing, hash_preprocessing
 
 if ty.TYPE_CHECKING:
     from image2image_reg.models import Modality, Preprocessing
-
 
 HAS_VALIS = is_installed("valis") and is_installed("pyvips")
 
@@ -100,7 +99,6 @@ class ImageValisWindow(ImageWsiWindow):
         READER_CONFIG.only_last_pyramid = True
         READER_CONFIG.init_pyramid = False
         READER_CONFIG.split_czi = False
-        logger.trace("Setup config for image2wsireg.")
 
     def make_registration_task(
         self,
@@ -455,16 +453,26 @@ class ImageValisWindow(ImageWsiWindow):
         self.registration_model.merge_images = self.write_merged_check.isChecked()
         self.registration_model.name = name
         self.registration_model.output_dir = output_dir
-        self.registration_model.check_for_reflections = self.reflection_check.isChecked()
-        self.registration_model.micro_registration = self.micro_check.isChecked()
-        self.registration_model.micro_registration_fraction = self.micro_fraction.value()
-        self.registration_model.non_rigid_registration = self.non_rigid_check.isChecked()
+
+        self.CONFIG.update(
+            feature_detector=self.feature_choice.currentText(),
+            feature_matcher=self.matcher_choice.currentText(),
+            check_reflection=self.reflection_check.isChecked(),
+            allow_micro=self.micro_check.isChecked(),
+            micro_fraction=self.micro_fraction.value(),
+            allow_non_rigid=self.non_rigid_check.isChecked(),
+        )
+        self.registration_model.check_for_reflections = self.CONFIG.check_reflection
+        self.registration_model.micro_registration = self.CONFIG.allow_micro
+        self.registration_model.micro_registration_fraction = self.CONFIG.micro_fraction
+        self.registration_model.non_rigid_registration = self.CONFIG.allow_non_rigid
+        # set detector and matcher method
+        self.registration_model.feature_detector = self.CONFIG.feature_detector
+        self.registration_model.feature_matcher = self.CONFIG.feature_matcher.upper()
+
         # set reference
         reference = self.reference_choice.currentText()
         self.registration_model.set_reference(reference if reference != "None" else None)
-        # set detector and matcher method
-        self.registration_model.feature_detector = self.feature_choice.currentText()
-        self.registration_model.feature_matcher = self.matcher_choice.currentText().upper()
 
         if self.registration_model.project_dir.exists() and not hp.confirm(
             self, f"Project <b>{self.registration_model.name}</b> already exists.<br><b>Overwrite?</b>"

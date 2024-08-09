@@ -135,7 +135,6 @@ class ImageRegistrationWindow(Window):
         READER_CONFIG.split_roi = True
         READER_CONFIG.split_rgb = False
         READER_CONFIG.only_last_pyramid = False
-        logger.trace("Setup config for image2register.")
 
     @contextmanager
     def zooming(self) -> ty.Generator[None, None, None]:
@@ -716,7 +715,7 @@ class ImageRegistrationWindow(Window):
         if path_:
             path = Path(path_)
             path = ensure_extension(path, "i2r")
-            self.CONFIG.output_dir = str(path.parent)
+            self.CONFIG.update(output_dir=str(path.parent))
             transform.to_file(path, moving_key=moving_key)
             hp.long_toast(
                 self,
@@ -754,7 +753,7 @@ class ImageRegistrationWindow(Window):
 
             # load transformation
             path = Path(path_)
-            self.CONFIG.output_dir = str(path.parent)
+            self.CONFIG.update(output_dir=str(path.parent))
 
             # get info on which settings should be imported
             dlg = ImportSelectDialog(self)
@@ -999,10 +998,12 @@ class ImageRegistrationWindow(Window):
 
     def on_update_layer(self, which: str, _value: ty.Any = None) -> None:
         """Update points layer."""
-        self.CONFIG.size_fixed = self.fixed_point_size.value()
-        self.CONFIG.size_moving = self.moving_point_size.value()
-        self.CONFIG.opacity_fixed = self.fixed_opacity.value()
-        self.CONFIG.opacity_moving = self.moving_opacity.value()
+        self.CONFIG.update(
+            size_fixed=self.fixed_point_size.value(),
+            size_moving=self.moving_point_size.value(),
+            opacity_fixed=self.fixed_opacity.value(),
+            opacity_moving=self.moving_opacity.value(),
+        )
 
         # update point size
         if self.fixed_points_layer and which == "fixed":
@@ -1020,8 +1021,7 @@ class ImageRegistrationWindow(Window):
 
     def on_update_text(self, _: ty.Any = None, block: bool = False) -> None:
         """Update text data in each layer."""
-        self.CONFIG.label_color = self.text_color.hex_color
-        self.CONFIG.label_size = self.text_size.value()
+        self.CONFIG.update(label_color=self.text_color.hex_color, label_size=self.text_size.value())
 
         # update text information
         for layer in [self.fixed_points_layer, self.moving_points_layer]:
@@ -1077,7 +1077,7 @@ class ImageRegistrationWindow(Window):
     @qdebounced(timeout=50)
     def on_toggle_synchronization(self, _=None) -> None:
         """Toggle synchronization of views."""
-        self.CONFIG.sync_views = not self.CONFIG.sync_views
+        self.CONFIG.update(sync_views=not self.CONFIG.sync_views)
         with hp.qt_signals_blocked(self.synchronize_zoom):
             self.synchronize_zoom.setChecked(self.CONFIG.sync_views)
         logger.trace(f"Synchronization of views is {'enabled' if self.CONFIG.sync_views else 'disabled'}.")
@@ -1102,7 +1102,7 @@ class ImageRegistrationWindow(Window):
 
     def on_update_settings(self):
         """Update config."""
-        self.CONFIG.sync_views = self.synchronize_zoom.isChecked()
+        self.CONFIG.update(sync_views=self.synchronize_zoom.isChecked())
         self.on_sync_views_fixed()
 
     @qdebounced(timeout=100, leading=False)
@@ -1755,7 +1755,7 @@ class ImageRegistrationWindow(Window):
         from image2image.qt._dialogs._tutorial import show_register_tutorial
 
         show_register_tutorial(self)
-        self.CONFIG.first_time = False
+        self.CONFIG.update(first_time=False)
 
 
 if __name__ == "__main__":  # pragma: no cover

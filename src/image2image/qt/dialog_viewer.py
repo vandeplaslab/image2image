@@ -14,7 +14,7 @@ from loguru import logger
 from napari.layers import Image, Points, Shapes
 from qtextra.utils.utilities import connect
 from qtextra.widgets.qt_close_window import QtConfirmCloseDialog
-from qtpy.QtWidgets import QDialog, QHBoxLayout, QMenuBar, QStatusBar, QVBoxLayout, QWidget
+from qtpy.QtWidgets import QDialog, QHBoxLayout, QMenuBar, QVBoxLayout, QWidget
 from superqt import ensure_main_thread
 
 from image2image import __version__
@@ -26,10 +26,10 @@ from image2image.utils.utilities import ensure_extension
 
 if ty.TYPE_CHECKING:
     from image2image_io.readers import ShapesReader
+    from qtextra._napari.image.wrapper import NapariImageView
 
     from image2image.models.data import DataModel
     from image2image.models.transform import TransformModel
-
 
 MASK_LAYER_NAME = "Mask"
 MASK_FILENAME = "mask.tmp"
@@ -42,6 +42,7 @@ class ImageViewerWindow(Window):
     shape_layer: list[Shapes] | None = None
     points_layer: list[Points] | None = None
     _console = None
+    view: NapariImageView
 
     def __init__(
         self,
@@ -49,7 +50,7 @@ class ImageViewerWindow(Window):
         run_check_version: bool = True,
         image_path: PathLike | list[PathLike] | None = None,
         image_dir: PathLike | None = None,
-        **_kwargs,
+        **_kwargs: ty.Any,
     ):
         self.CONFIG = VIEWER_CONFIG
         super().__init__(parent, f"image2image: Viewer app (v{__version__})", run_check_version=run_check_version)
@@ -58,7 +59,9 @@ class ImageViewerWindow(Window):
         self._setup_config()
         self.on_open_images(image_dir, image_path)
 
-    def on_open_images(self, image_dir: PathLike | None = None, image_path: PathLike | list[PathLike] | None = None):
+    def on_open_images(
+        self, image_dir: PathLike | None = None, image_path: PathLike | list[PathLike] | None = None
+    ) -> None:
         """Open images."""
         if image_path:
             if not isinstance(image_path, list):
@@ -75,7 +78,6 @@ class ImageViewerWindow(Window):
         READER_CONFIG.split_rgb = False
         READER_CONFIG.only_last_pyramid = False
         READER_CONFIG.init_pyramid = True
-        logger.trace("Setup config for image2viewer.")
 
     def setup_events(self, state: bool = True) -> None:
         """Setup events."""
@@ -191,25 +193,6 @@ class ImageViewerWindow(Window):
                 layer.affine = wrapper.get_affine(reader, reader.resolution)
                 logger.trace(f"Updated affine for '{name}' with resolution={reader.resolution}.")
 
-    def on_activate_scalebar(self) -> None:
-        """Activate scalebar."""
-        self.view.viewer.scale_bar.visible = not self.view.viewer.scale_bar.visible
-
-    def on_show_scalebar(self) -> None:
-        """Show scale bar controls for the viewer."""
-        from image2image.qt._dialogs._scalebar import QtScaleBarControls
-
-        dlg = QtScaleBarControls(self.view.viewer, self.view.widget)
-        dlg.set_px_size(self.data_model.min_resolution)
-        dlg.show_above_widget(self.scalebar_btn)
-
-    def on_show_save_figure(self) -> None:
-        """Show scale bar controls for the viewer."""
-        from qtextra._napari.common.widgets.screenshot_dialog import QtScreenshotDialog
-
-        dlg = QtScreenshotDialog(self.view, self)
-        dlg.show_above_widget(self.clipboard_btn)
-
     def on_load_from_project(self, _evt=None):
         """Load a previous project."""
         path_ = hp.get_filename(
@@ -227,7 +210,7 @@ class ImageViewerWindow(Window):
                 self._image_widget.transform_dlg._on_add_transform(path)
                 return
 
-            self.CONFIG.output_dir = str(path.parent)
+            self.CONFIG.update(output_dir=str(path.parent))
 
             # load data from config file
             try:
@@ -282,7 +265,7 @@ class ImageViewerWindow(Window):
         if path_:
             path = Path(path_)
             path = ensure_extension(path, "i2v")
-            self.CONFIG.output_dir = str(path.parent)
+            self.CONFIG.update(output_dir=str(path.parent))
             model.to_file(path)
             hp.long_toast(
                 self,
@@ -484,46 +467,9 @@ class ImageViewerWindow(Window):
 
     def _make_statusbar(self) -> None:
         """Make statusbar."""
-
-        self.statusbar = QStatusBar()
-        self.statusbar.setSizeGripEnabled(False)
-
-        self.screenshot_btn = hp.make_qta_btn(
-            self,
-            "save",
-            tooltip="Save snapshot of the canvas to file. Right-click to show dialog with more options.",
-            func=self.view.widget.on_save_figure,
-            func_menu=self.on_show_save_figure,
-            small=True,
-        )
-        self.statusbar.addPermanentWidget(self.screenshot_btn)
-
-        self.clipboard_btn = hp.make_qta_btn(
-            self,
-            "screenshot",
-            tooltip="Take a snapshot of the canvas and copy it into your clipboard. Right-click to show dialog with"
-            " more options.",
-            func=self.view.widget.clipboard,
-            func_menu=self.on_show_save_figure,
-            small=True,
-        )
-        self.statusbar.addPermanentWidget(self.clipboard_btn)
-        self.scalebar_btn = hp.make_qta_btn(
-            self,
-            "ruler",
-            tooltip="Show scalebar.",
-            func=self.on_activate_scalebar,
-            func_menu=self.on_show_scalebar,
-            small=True,
-        )
-        self.statusbar.addPermanentWidget(self.scalebar_btn)
-
-        self._make_feedback_button()
-        self._make_theme_button()
-        self._make_tutorial_button()
-        self._make_ipython_button()
-        self._make_update_button()
-        self.setStatusBar(self.statusbar)
+        super()._make_statusbar()
+        self._make_scalebar_statusbar()
+        self._make_export_statusbar()
 
     def _make_menu(self) -> None:
         """Make menu items."""
@@ -601,7 +547,7 @@ class ImageViewerWindow(Window):
         from image2image.qt._dialogs._tutorial import show_viewer_tutorial
 
         show_viewer_tutorial(self)
-        self.CONFIG.first_time = False
+        self.CONFIG.update(first_time=False)
 
 
 def get_resolution_options(wrapper) -> dict[str, str]:

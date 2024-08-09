@@ -22,6 +22,9 @@ from koyo.timer import MeasureTimer
 
 block_cipher = None
 
+DEBUG_MODE = os.getenv("PYINSTALLER_DEBUG", "all")
+
+
 def _make_analysis(path: str):
     return Analysis(
         [path],
@@ -69,7 +72,7 @@ def _make_exe(pyz: PYZ, analysis: Analysis, name: str):
         analysis.scripts,
         exclude_binaries=True,
         name=name,
-        debug="all",
+        debug=DEBUG_MODE,
         strip=False,
         upx=True,
         console=False,
@@ -100,7 +103,7 @@ with MeasureTimer() as timer:
         launcher_analysis.zipfiles,
         launcher_analysis.datas,
         strip=False,
-        debug="all",
+        debug=DEBUG_MODE,
         upx=True,
         name="image2image",
     )

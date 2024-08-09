@@ -3,11 +3,10 @@
 from __future__ import annotations
 
 import typing as ty
+from functools import partial
 
 import qtextra.helpers as hp
 from image2image_io.config import CONFIG as READER_CONFIG
-from koyo.system import IS_MAC_ARM, IS_PYINSTALLER
-from koyo.utilities import is_installed
 from qtextra.config import THEMES
 from qtextra.widgets.qt_dialog import QtDialog
 from qtextra.widgets.qt_logger import QtLoggerDialog
@@ -15,7 +14,7 @@ from qtextra.widgets.qt_tile import QtTileWidget, Tile
 from qtpy.QtWidgets import QVBoxLayout, QWidget
 
 from image2image import __version__
-from image2image.config import APP_CONFIG
+from image2image.config import APP_CONFIG, STATE
 from image2image.utils._appdirs import USER_LOG_DIR
 
 # to add apps: volume viewer, sync viewer,
@@ -25,15 +24,13 @@ CROP_TEXT = "Crop your microscopy data to reduce it's size (handy for Image Fusi
 CONVERT_TEXT = "Convert multi-scene CZI images or other formats to OME-TIFF."
 MERGE_TEXT = "Merge multiple OME-TIFF images into a single file."
 FUSION_TEXT = "Export your data for Image Fusion in MATLAB compatible format."
-WSIREG_TEXT = "Register whole slide microscopy images<br>(<b>i2reg</b>)."
+ELASTIX_TEXT = "Register whole slide microscopy images<br>(<b>Elastix</b>)."
 VALIS_TEXT = "Register whole slide microscopy images<br>(<b>Valis</b>)."
-HAS_CONVERT = IS_PYINSTALLER and not IS_MAC_ARM
 CONVERT_WARNING = ""
-if not HAS_CONVERT:
+if not STATE.allow_convert:
     CONVERT_WARNING = "<i>Not available on Apple Silicon due to a bug I can't find...</i>"
-HAS_VALIS = is_installed("valis") and is_installed("pyvips")
 VALIS_WARNING = ""
-if not HAS_VALIS:
+if not STATE.allow_valis:
     VALIS_WARNING = "<br><br><i>Valis or pyvips is not installed.</i>"
 
 
@@ -58,9 +55,10 @@ class Launcher(QtDialog):
     def __init__(self, parent=None):
         super().__init__(parent, title=f"image2image Launcher (v{__version__})")
         self.console = None
-        self.logger = QtLoggerDialog(self, USER_LOG_DIR)
+        self.logger_dlg = QtLoggerDialog(self, USER_LOG_DIR)
         self.setFixedSize(self.sizeHint())
 
+    # noinspection PyAttributeOutsideInit
     def make_panel(self) -> QVBoxLayout:
         """Make panel."""
         from image2image.qt.dialog_base import Window
@@ -69,55 +67,105 @@ class Launcher(QtDialog):
         layout.setContentsMargins(2, 2, 2, 2)
         layout.addRow(hp.make_h_line_with_text("Viewers", self, position="left", bold=True))
         # viewer apps
-        tile = _make_tile(self, "Viewer<br>App", VIEWER_TEXT, "viewer", Window.on_open_viewer)
+        tile = _make_tile(
+            self,
+            "Viewer<br>App",
+            VIEWER_TEXT,
+            "viewer",
+            partial(self.on_open_app, Window.on_open_viewer),
+        )
         layout.addRow(hp.make_h_layout(tile, stretch_after=True, spacing=2, margin=2))
 
         # register apps
         layout.addRow(hp.make_h_line_with_text("Registration", self, position="left", bold=True))
-        tile_reg = _make_tile(self, "Registration<br>App", REGISTER_TEXT, "register", Window.on_open_register)
-        tile_wsireg = _make_tile(self, "WsiReg<br>App", WSIREG_TEXT, "wsireg", Window.on_open_wsireg)
+        tile_reg = _make_tile(
+            self,
+            "Registration<br>App",
+            REGISTER_TEXT,
+            "register",
+            partial(self.on_open_app, Window.on_open_register),
+        )
+        tile_wsireg = _make_tile(
+            self,
+            "Elastix<br>App",
+            ELASTIX_TEXT,
+            "elastix",
+            partial(self.on_open_app, Window.on_open_elastix),
+        )
         tile_valis = _make_tile(
             self,
             "Valis<br>App",
             VALIS_TEXT,
             "valis",
-            Window.on_open_valis,
-            # if HAS_VALIS
-            # else lambda: hp.warn_pretty(self, "Valis or pyvips is not installed on this machine."),
-            icon_kws=None if HAS_VALIS else {"color": THEMES.get_hex_color("warning")},
+            partial(self.on_open_app, Window.on_open_valis),
+            icon_kws=None if STATE.allow_valis else {"color": THEMES.get_hex_color("warning")},
             warning=VALIS_WARNING,
         )
         layout.addRow(hp.make_h_layout(tile_reg, tile_wsireg, tile_valis, stretch_after=True, spacing=2, margin=2))
 
         # utility apps
         layout.addRow(hp.make_h_line_with_text("Utilities", self, position="left", bold=True))
-        tile_crop = _make_tile(self, "Image Crop<br>App", CROP_TEXT, "crop", Window.on_open_crop)
+        tile_crop = _make_tile(
+            self,
+            "Image Crop<br>App",
+            CROP_TEXT,
+            "crop",
+            partial(self.on_open_app, Window.on_open_crop),
+        )
         tile_convert = _make_tile(
             self,
             "Image to OME-TIFF<br>App",
             CONVERT_TEXT,
             "convert",
-            Window.on_open_convert if HAS_CONVERT else lambda: hp.warn_pretty(self, "Not available on Apple Silicon."),
-            icon_kws=None if HAS_CONVERT else {"color": THEMES.get_hex_color("warning")},
+            partial(self.on_open_app, Window.on_open_convert),
+            icon_kws=None if STATE.allow_convert else {"color": THEMES.get_hex_color("warning")},
             warning=CONVERT_WARNING,
         )
-        tile_merge = _make_tile(self, "Merge OME-TIFFs<br>App", MERGE_TEXT, "merge", Window.on_open_merge)
-        tile_fusion = _make_tile(self, "Fusion Preparation<br>App", FUSION_TEXT, "fusion", Window.on_open_fusion)
+        tile_merge = _make_tile(
+            self,
+            "Merge OME-TIFFs<br>App",
+            MERGE_TEXT,
+            "merge",
+            partial(self.on_open_app, Window.on_open_merge),
+        )
+        tile_fusion = _make_tile(
+            self,
+            "Fusion Preparation<br>App",
+            FUSION_TEXT,
+            "fusion",
+            partial(self.on_open_app, Window.on_open_fusion),
+        )
         layout.addRow(
             hp.make_h_layout(tile_crop, tile_convert, tile_merge, tile_fusion, stretch_after=True, spacing=2, margin=2)
         )
+
+        self.progress_label = hp.make_label(self, "")
+        self.spinner, _ = hp.make_loading_gif(self, which="infinity", size=(40, 40), retain_size=False, hide=True)
 
         main_layout = QVBoxLayout()
         main_layout.addLayout(layout, stretch=1)
         main_layout.addWidget(hp.make_h_line())
         main_layout.addWidget(hp.make_btn(self, "Show logger...", func=self.on_show_logger))
         main_layout.addWidget(hp.make_btn(self, "Show IPython console...", func=self.on_show_console))
+        main_layout.addLayout(hp.make_h_layout(self.spinner, self.progress_label, stretch_id=(1,), spacing=2))
         main_layout.addStretch(1)
         return main_layout
 
+    def on_open_app(self, func: ty.Callable) -> None:
+        """Open app."""
+        self.spinner.show()
+        self.progress_label.setText("Opening application...")
+        func()
+        hp.call_later(self, self._open_finished, 5000)
+
+    def _open_finished(self) -> None:
+        """Open app."""
+        self.spinner.hide()
+        self.progress_label.setText("")
+
     def on_show_logger(self) -> None:
         """View console."""
-        self.logger.show()
+        self.logger_dlg.show()
 
     def on_show_console(self) -> None:
         """View console."""

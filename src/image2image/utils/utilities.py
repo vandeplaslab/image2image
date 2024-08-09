@@ -41,6 +41,20 @@ PREFERRED_COLORMAPS = [
 ]
 
 
+def format_reader_metadata(reader_metadata: dict) -> str:
+    """Format metadata."""
+    metadata = []
+    has_scenes = len(reader_metadata) > 1
+    for _index, (scene_index, scene_metadata) in enumerate(reader_metadata.items()):
+        channel_ids = scene_metadata["channel_ids"]
+        channel_names = scene_metadata["channel_names"]
+        if has_scenes and channel_ids:
+            metadata.append(f"scene {scene_index}")
+        for channel_index, channel_name in zip(channel_ids, channel_names):
+            metadata.append(f"- {channel_name}: {channel_index}")
+    return "\n".join(metadata)
+
+
 def format_shape(shape: tuple[int, ...]) -> str:
     """Format shape."""
     return " x ".join(str(x) for x in shape)

@@ -51,7 +51,7 @@ update_icon_mapping(
         "moving": "ri.drag-move-2-line",
         # app icons
         "viewer": "fa5.eye",
-        "wsireg": "fa5.images",
+        "elastix": "fa5.images",
         "register": "fa5s.layer-group",
         "convert": "fa5s.arrow-alt-circle-right",
         "sync": "fa5s.sync-alt",

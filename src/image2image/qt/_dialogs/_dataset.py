@@ -490,7 +490,7 @@ class SelectDataDialog(QtFramelessTool):
                     # add name item
                     name_item = QTableWidgetItem(reader.key)
                     name_item.setToolTip(str(reader.path))
-                    name_item.setFlags(name_item.flags() & ~Qt.ItemIsEditable.ItemIsEditable)
+                    name_item.setFlags(name_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
                     name_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
                     self.table.setItem(index, self.TABLE_CONFIG.key, name_item)
 
@@ -498,13 +498,13 @@ class SelectDataDialog(QtFramelessTool):
                     image_size = format_shape(reader.shape)
 
                     type_item = QTableWidgetItem(image_size)
-                    type_item.setFlags(type_item.flags() & ~Qt.ItemIsEditable.ItemIsEditable)
+                    type_item.setFlags(type_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
                     type_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
                     self.table.setItem(index, self.TABLE_CONFIG.image_size, type_item)
 
                     # add type item
                     type_item = QTableWidgetItem(reader.reader_type)
-                    type_item.setFlags(type_item.flags() & ~Qt.ItemIsEditable.ItemIsEditable)
+                    type_item.setFlags(type_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
                     type_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
                     self.table.setItem(index, self.TABLE_CONFIG.type, type_item)
 
@@ -530,7 +530,7 @@ class SelectDataDialog(QtFramelessTool):
                         )
                     else:
                         item = QTableWidgetItem("N/A")
-                        item.setFlags(item.flags() & ~Qt.ItemIsEditable.ItemIsEditable)
+                        item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
                         item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
                         self.table.setItem(index, self.TABLE_CONFIG.extract, item)
 
@@ -552,7 +552,7 @@ class SelectDataDialog(QtFramelessTool):
                         )
                     else:
                         item = QTableWidgetItem("N/A")
-                        item.setFlags(item.flags() & ~Qt.ItemIsEditable.ItemIsEditable)
+                        item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
                         item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
                         self.table.setItem(index, self.TABLE_CONFIG.save, item)
 

@@ -7,14 +7,25 @@ import typing as ty
 import click
 from click_groups import GroupedGroup
 from koyo.click import cli_parse_paths_sort
-from koyo.system import IS_MAC, IS_MAC_ARM, IS_PYINSTALLER
+from koyo.system import IS_MAC, IS_PYINSTALLER
 from koyo.utilities import is_installed
 
 from image2image import __version__
 
-AVAILABLE_TOOLS = ["launcher", "register", "viewer", "crop", "wsiprep", "wsireg", "valis", "fusion", "convert", "merge"]
-if IS_MAC_ARM and IS_PYINSTALLER:
-    AVAILABLE_TOOLS.pop(AVAILABLE_TOOLS.index("convert"))
+AVAILABLE_TOOLS = [
+    "launcher",
+    "register",
+    "viewer",
+    "crop",
+    "wsiprep",
+    "elastix",
+    "valis",
+    "fusion",
+    "convert",
+    "merge",
+]
+# if IS_MAC_ARM and IS_PYINSTALLER:
+#     AVAILABLE_TOOLS.pop(AVAILABLE_TOOLS.index("convert"))
 
 
 def dev_options(func: ty.Callable) -> ty.Callable:
@@ -70,7 +81,7 @@ def dev_options(func: ty.Callable) -> ty.Callable:
 @click.option(
     "-p",
     "--project_dir",
-    help="Path to the WsiReg project directory. It usually ends in .i2reg extension (for 'wsireg' tool).",
+    help="Path to the Elastix/Valis project directory. It usually ends in .i2reg extension (for 'elastix' or 'valis' tool).",
     type=click.Path(exists=True, resolve_path=True, file_okay=False, dir_okay=True),
     show_default=True,
 )
@@ -115,7 +126,7 @@ def cli(
     launcher - opens a dialog where you can launch any of the tools.
     viewer - opens a dialog where you can view images, shapes and points data
     register - opens a dialog where you can co-register images using affine transformation
-    wsireg - opens a dialog where you can co-register whole slide images using i2reg-elastix
+    elastix - opens a dialog where you can co-register whole slide images using i2reg-elastix
     valis - opens a dialog where you can co-register whole-slide images using i2reg-valis
     convert - opens a dialog where you can convert images to OME-TIFF
     merge - opens a dialog where you can merge multiple image channels and images together
@@ -153,87 +164,21 @@ def cli(
             image_dir=image_dir,
             project_dir=project_dir,
         )
+        return None
+    return None
 
 
 if is_installed("image2image_reg"):
-    from image2image_reg.cli.elastix import elastix
-    from image2image_reg.cli.valis import valis
+    from image2image_io.cli import thumbnail, transform
+    from image2image_reg.cli import convert, elastix, merge, valis
 
-    cli.add_command(elastix, help_group="Registration")  # type: ignore
+    # registration
+    cli.add_command(elastix, help_group="Registration")
     if valis:
-        cli.add_command(valis, help_group="Registration")  # type: ignore
+        cli.add_command(valis, help_group="Registration")
 
-    # from image2image_reg.cli._common import (
-    #     as_uint8_,
-    #     fmt_,
-    #     n_parallel_,
-    #     original_size_,
-    #     overwrite_,
-    #     parallel_mode_,
-    #     project_path_multi_,
-    #     remove_merged_,
-    #     write_merged_,
-    #     write_not_registered_,
-    #     write_registered_,
-    # )
-    # from image2image_reg.cli.elastix import register_runner
-    # from image2image_reg.enums import WriterMode
-    #
-    # @overwrite_
-    # @parallel_mode_
-    # @n_parallel_
-    # @as_uint8_
-    # @original_size_
-    # @remove_merged_
-    # @write_merged_
-    # @write_not_registered_
-    # @write_registered_
-    # @fmt_
-    # @click.option(
-    #     "-w/-W",
-    #     "--write/--no_write",
-    #     help="Write images to disk.",
-    #     is_flag=True,
-    #     default=True,
-    #     show_default=True,
-    # )
-    # @click.option(
-    #     "--histogram_match/--no_histogram_match",
-    #     help="Match image histograms before co-registering - this might improve co-registration.",
-    #     is_flag=True,
-    #     default=False,
-    #     show_default=True,
-    # )
-    # @project_path_multi_
-    # @cli.command("i2reg")
-    # def register_cmd(
-    #     project_dir: ty.Sequence[str],
-    #     histogram_match: bool,
-    #     write: bool,
-    #     fmt: WriterMode,
-    #     write_registered: bool,
-    #     write_not_registered: bool,
-    #     write_merged: bool,
-    #     remove_merged: bool,
-    #     original_size: bool,
-    #     as_uint8: bool | None,
-    #     n_parallel: int,
-    #     parallel_mode: str,
-    #     overwrite: bool,
-    # ) -> None:
-    #     """Register images."""
-    #     register_runner(
-    #         project_dir,
-    #         histogram_match=histogram_match,
-    #         write_images=write,
-    #         fmt=fmt,
-    #         write_registered=write_registered,
-    #         write_merged=write_merged,
-    #         remove_merged=remove_merged,
-    #         write_not_registered=write_not_registered,
-    #         original_size=original_size,
-    #         as_uint8=as_uint8,
-    #         n_parallel=n_parallel,
-    #         parallel_mode=parallel_mode,
-    #         overwrite=overwrite,
-    #     )
+    # utilities
+    cli.add_command(convert, help_group="Utility")
+    cli.add_command(merge, help_group="Utility")
+    cli.add_command(thumbnail, help_group="Utility")
+    cli.add_command(transform, help_group="Utility")

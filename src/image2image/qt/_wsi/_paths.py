@@ -9,7 +9,7 @@ from loguru import logger
 from qtpy.QtCore import Signal
 from qtpy.QtWidgets import QWidget
 
-from image2image.config import WSIREG_CONFIG
+from image2image.config import ELASTIX_CONFIG
 from image2image.enums import REGISTRATION_PATH_HELP
 
 if ty.TYPE_CHECKING:
@@ -94,13 +94,13 @@ class RegistrationPaths(QWidget):
         """Add transformation to the list."""
         current = self._choice.currentText()
         self.transformations.append(current)
-        WSIREG_CONFIG.transformations = tuple(self.transformations)
+        ELASTIX_CONFIG.transformations = tuple(self.transformations)
         self._update_transformation_path()
 
     def on_reset_transformation(self) -> None:
         """Reset transformation list."""
         self.transformations = []
-        WSIREG_CONFIG.transformations = tuple(self.transformations)
+        ELASTIX_CONFIG.transformations = tuple(self.transformations)
         self._update_transformation_path()
 
     def _update_transformation_path(self) -> None:
@@ -166,7 +166,7 @@ class RegistrationMap(QWidget):
         )
 
         self._registration_path = RegistrationPaths(self)
-        self._registration_path.registration_paths = WSIREG_CONFIG.transformations
+        self._registration_path.registration_paths = ELASTIX_CONFIG.transformations
         # self._warning_label = hp.make_label(self, "", color="warning", wrap=True)
         # self._warning_label.setVisible(False)
 
@@ -212,7 +212,7 @@ class RegistrationMap(QWidget):
 
     def on_preview(self) -> None:
         """Preview paths as network."""
-        from image2image.qt._wsireg._network import NetworkViewer
+        from image2image.qt._wsi._network import NetworkViewer
 
         dlg = NetworkViewer(self._parent)
         dlg.show()

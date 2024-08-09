@@ -246,7 +246,7 @@ class ImageFusionWindow(Window):
         directory = hp.get_directory(self, "Select output directory", self.CONFIG.output_dir)
         if directory:
             self._output_dir = directory
-            self.CONFIG.output_dir = directory
+            self.CONFIG.update(output_dir=directory)
             self.output_dir_label.setText(f"<b>Output directory</b>: {hp.hyper(self.output_dir)}")
             logger.debug(f"Output directory set to {self._output_dir}")
 
@@ -406,7 +406,7 @@ class ImageFusionWindow(Window):
         from image2image.qt._dialogs._tutorial import show_fusion_tutorial
 
         show_fusion_tutorial(self)
-        self.CONFIG.first_time = False
+        self.CONFIG.update(first_time=False)
 
     def dropEvent(self, event: QDropEvent) -> None:
         """Drop event."""

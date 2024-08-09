@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import typing as ty
-from functools import partial
 from pathlib import Path
 
 import qtextra.helpers as hp
@@ -47,7 +46,7 @@ class SingleViewerMixin(Window):
     def output_dir(self, directory: PathLike) -> None:
         if directory:
             self._output_dir = directory
-            self.CONFIG.output_dir = directory
+            self.CONFIG.update(output_dir=directory)
             formatted_output_dir = f".{self.output_dir.parent}/{self.output_dir.name}"
             self.output_dir_label.setText(hp.hyper(self.output_dir, value=formatted_output_dir))
             logger.debug(f"Output directory set to {self._output_dir}")
@@ -56,25 +55,6 @@ class SingleViewerMixin(Window):
     def data_model(self) -> DataModel:
         """Return transform model."""
         return self._image_widget.model
-
-    def on_activate_scalebar(self) -> None:
-        """Activate scalebar."""
-        self.view.viewer.scale_bar.visible = not self.view.viewer.scale_bar.visible
-
-    def on_show_scalebar(self) -> None:
-        """Show scale bar controls for the viewer."""
-        from image2image.qt._dialogs._scalebar import QtScaleBarControls
-
-        dlg = QtScaleBarControls(self.view.viewer, self.view.widget)
-        dlg.set_px_size(self.data_model.min_resolution)
-        dlg.show_above_widget(self.scalebar_btn)
-
-    def on_show_save_figure(self) -> None:
-        """Show scale bar controls for the viewer."""
-        from qtextra._napari.common.widgets.screenshot_dialog import QtScreenshotDialog
-
-        dlg = QtScreenshotDialog(self.view, self)
-        dlg.show_above_widget(self.clipboard_btn)
 
     def _make_menu(self) -> None:
         """Make menu items."""
@@ -108,46 +88,9 @@ class SingleViewerMixin(Window):
 
     def _make_statusbar(self) -> None:
         """Make statusbar."""
-
-        self.statusbar = QStatusBar()
-        self.statusbar.setSizeGripEnabled(False)
-
-        self.screenshot_btn = hp.make_qta_btn(
-            self,
-            "save",
-            tooltip="Save snapshot of the canvas to file. Right-click to show dialog with more options.",
-            func=self.view.widget.on_save_figure,
-            func_menu=self.on_show_save_figure,
-            small=True,
-        )
-        self.statusbar.addPermanentWidget(self.screenshot_btn)
-
-        self.clipboard_btn = hp.make_qta_btn(
-            self,
-            "screenshot",
-            tooltip="Take a snapshot of the canvas and copy it into your clipboard. Right-click to show dialog with"
-            " more options.",
-            func=self.view.widget.clipboard,
-            func_menu=self.on_show_save_figure,
-            small=True,
-        )
-        self.statusbar.addPermanentWidget(self.clipboard_btn)
-        self.scalebar_btn = hp.make_qta_btn(
-            self,
-            "ruler",
-            tooltip="Show scalebar.",
-            func=self.on_activate_scalebar,
-            func_menu=self.on_show_scalebar,
-            small=True,
-        )
-        self.statusbar.addPermanentWidget(self.scalebar_btn)
-
-        self._make_feedback_button()
-        self._make_theme_button()
-        self._make_tutorial_button()
-        self._make_ipython_button()
-        self._make_update_button()
-        self.setStatusBar(self.statusbar)
+        super()._make_statusbar()
+        self._make_scalebar_statusbar()
+        self._make_export_statusbar()
 
     def close(self, force=False):
         """Override to handle closing app or just the window."""

@@ -31,6 +31,8 @@ from image2image.qt.dialog_base import Window
 from image2image.utils.utilities import ensure_extension, init_shapes_layer, log_exception_or_error, write_project
 
 if ty.TYPE_CHECKING:
+    from qtextra._napari.image.wrapper import NapariImageView
+
     from image2image.models.data import DataModel
 
 
@@ -57,8 +59,12 @@ def parse_crop_info(data: tuple[int, int, int, int] | np.ndarray | None = None) 
 class ImageCropWindow(Window):
     """Image viewer dialog."""
 
+    view: NapariImageView
+
     worker_crop: GeneratorWorker | None = None
-    worker_preview: GeneratorWorker | None = None
+    worker_preview_crop: GeneratorWorker | None = None
+    worker_mask: GeneratorWorker | None = None
+    worker_preview_mask: GeneratorWorker | None = None
 
     image_layer: list[Image] | None = None
     shape_layer: list[Shapes] | None = None
@@ -84,7 +90,6 @@ class ImageCropWindow(Window):
         READER_CONFIG.split_roi = True
         READER_CONFIG.split_rgb = False
         READER_CONFIG.only_last_pyramid = False
-        logger.trace("Setup reader config for image2crop.")
 
     def setup_events(self, state: bool = True) -> None:
         """Setup events."""
@@ -148,7 +153,7 @@ class ImageCropWindow(Window):
             from image2image.models.utilities import _remove_missing_from_dict
 
             path = Path(path_)
-            self.CONFIG.output_dir = str(path.parent)
+            self.CONFIG.update(output_dir=str(path.parent))
 
             # load data from config file
             try:
@@ -201,7 +206,7 @@ class ImageCropWindow(Window):
         if path_:
             path = Path(path_)
             path = ensure_extension(path, "i2c")
-            self.CONFIG.output_dir = str(path.parent)
+            self.CONFIG.update(output_dir=str(path.parent))
             regions = self.get_crop_areas()
             config = get_project_data(self.data_model, regions)
             write_project(path, config)
@@ -245,7 +250,7 @@ class ImageCropWindow(Window):
             return
 
         if regions:
-            self.worker_preview = create_worker(
+            self.worker_preview_crop = create_worker(
                 preview_regions,
                 data_model=self.data_model,
                 regions=regions,
@@ -263,7 +268,7 @@ class ImageCropWindow(Window):
     def _on_aborted_crop(self, which: str) -> None:
         """Update CSV."""
         if which == "preview":
-            self.worker_preview = None
+            self.worker_preview_crop = None
         else:
             self.worker_crop = None
 
@@ -282,7 +287,7 @@ class ImageCropWindow(Window):
     def _on_finished_crop(self, which: str) -> None:
         """Failed exporting of the CSV."""
         if which == "preview":
-            self.worker_preview = None
+            self.worker_preview_crop = None
             btn = self.preview_crop_btn
         else:
             self.worker_crop = None
@@ -292,8 +297,8 @@ class ImageCropWindow(Window):
 
     def on_cancel(self, which: str) -> None:
         """Cancel cropping."""
-        if which == "preview" and self.worker_preview:
-            self.worker_preview.quit()
+        if which == "preview" and self.worker_preview_crop:
+            self.worker_preview_crop.quit()
             logger.trace("Requested aborting of the preview process.")
         elif which == "crop" and self.worker_crop:
             self.worker_crop.quit()
@@ -311,9 +316,9 @@ class ImageCropWindow(Window):
             hp.toast(self, "No output directory", "No output directory selected.", icon="error")
             return
 
-        self.CONFIG.output_dir = output_dir_
-        tile_size = int(self.tile_size.currentText())
-        as_uint8 = self.as_uint8.isChecked()
+        self.CONFIG.update(
+            output_dir=output_dir_, tile_size=int(self.tile_size.currentText()), as_uint8=self.as_uint8.isChecked()
+        )
         if regions:
             # list(crop_regions(self.data_model, Path(output_dir_), regions, tile_size=tile_size, as_uint8=as_uint8))
             self.worker_crop = create_worker(
@@ -321,8 +326,8 @@ class ImageCropWindow(Window):
                 data_model=self.data_model,
                 output_dir=Path(output_dir_),
                 regions=regions,
-                tile_size=tile_size,
-                as_uint8=as_uint8,
+                tile_size=self.CONFIG.tile_size,
+                as_uint8=self.CONFIG.as_uint8,
                 _start_thread=True,
                 _connect={
                     "aborted": partial(self._on_aborted_crop, which="crop"),
@@ -529,8 +534,9 @@ class ImageCropWindow(Window):
         )
         self.as_uint8 = hp.make_checkbox(
             self,
-            "Reduce data size (uint8 - dynamic range 0-255)",
-            tooltip="Convert to uint8 to reduce file size with minimal data loss.",
+            "Reduce file size",
+            tooltip="Convert to uint8 to reduce file size with minimal data loss. This will result in change of the"
+            " dynamic range of the image to between 0-255.",
             checked=True,
             value=self.CONFIG.as_uint8,
         )
@@ -599,27 +605,7 @@ class ImageCropWindow(Window):
     def _make_statusbar(self) -> None:
         """Make statusbar."""
         super()._make_statusbar()
-        self.scalebar_btn = hp.make_qta_btn(
-            self,
-            "ruler",
-            tooltip="Show scalebar.",
-            func=self.on_activate_scalebar,
-            func_menu=self.on_show_scalebar,
-            small=True,
-        )
-        self.statusbar.insertPermanentWidget(1, self.scalebar_btn)
-
-    def on_activate_scalebar(self) -> None:
-        """Activate scalebar."""
-        self.view.viewer.scale_bar.visible = not self.view.viewer.scale_bar.visible
-
-    def on_show_scalebar(self) -> None:
-        """Show scale bar controls for the viewer."""
-        from image2image.qt._dialogs._scalebar import QtScaleBarControls
-
-        dlg = QtScaleBarControls(self.view.viewer, self.view.widget)
-        dlg.set_px_size(self.data_model.min_resolution)
-        dlg.show_below_widget(self._image_widget)
+        self._make_scalebar_statusbar()
 
     @property
     def data_model(self) -> DataModel:
@@ -681,7 +667,7 @@ class ImageCropWindow(Window):
         from image2image.qt._dialogs._tutorial import show_crop_tutorial
 
         show_crop_tutorial(self)
-        self.CONFIG.first_time = False
+        self.CONFIG.update(first_time=False)
 
 
 def get_project_data(data_model: DataModel, regions: list[tuple[int, int, int, int] | np.ndarray]) -> dict:

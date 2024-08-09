@@ -17,8 +17,9 @@ no_docs=true
 help=false
 uv=false
 package=false
+debug=false
 
-while getopts uadjirnrwvph opt; do
+while getopts uadjirnrwvgph opt; do
   case $opt in
     u) update=true;;
     a) update_app=true;;
@@ -29,6 +30,7 @@ while getopts uadjirnrwvph opt; do
     i) update_pip=true;;
     n) no_docs=true;;
     v) uv=true;;
+    g) debug=true;;
     p) package=true;;
     h) help=true;;
     *) echo "Invalid option: -$OPTARG" >&2
@@ -50,6 +52,7 @@ then
   echo "  -i / update_pip: update the pip packages before building"
   echo "  -n / no_docs: do not build the documentation"
   echo "  -v / uv: use uv for updates"
+  echo "  -g / debug: enable debug mode"
   echo "  -p / package: package the application"
   echo "  -h / help: show this help message"
   exit 0
@@ -65,6 +68,13 @@ then
   exit 1
 fi
 
+if $debug
+then
+  echo "Debug mode enabled"
+  export PYINSTALLER_DEBUG="all"
+else
+  export PYINSTALLER_DEBUG="imports"
+fi
 
 
 start_dir=$PWD

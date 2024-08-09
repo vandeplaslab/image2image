@@ -19,11 +19,11 @@ from superqt import ensure_main_thread
 from superqt.utils import GeneratorWorker, create_worker
 
 from image2image import __version__
-from image2image.config import CONVERT_CONFIG
+from image2image.config import CONVERT_CONFIG, STATE
 from image2image.enums import ALLOWED_IMAGE_FORMATS_MICROSCOPY_ONLY
 from image2image.qt._dialogs._select import LoadWidget
 from image2image.qt.dialog_base import Window
-from image2image.utils.utilities import log_exception_or_error
+from image2image.utils.utilities import format_reader_metadata, log_exception_or_error
 
 if ty.TYPE_CHECKING:
     from image2image.models.data import DataModel
@@ -71,7 +71,7 @@ class ImageConvertWindow(Window):
     worker: GeneratorWorker | None = None
 
     TABLE_CONFIG = (
-        TableConfig()  # type: ignore[no-untyped-call]
+        TableConfig()
         .add("name", "name", "str", 0)
         .add("pixel size (um)", "resolution", "str", 0)
         .add("scenes & channels", "metadata", "str", 0)
@@ -97,7 +97,6 @@ class ImageConvertWindow(Window):
         READER_CONFIG.split_czi = True
         READER_CONFIG.split_rgb = True
         READER_CONFIG.only_last_pyramid = False
-        logger.trace("Setup reader config for image2tiff.")
 
     def setup_events(self, state: bool = True) -> None:
         """Setup events."""
@@ -158,19 +157,22 @@ class ImageConvertWindow(Window):
                 # add name item
                 table_item = QTableWidgetItem(reader.key)
                 table_item.setFlags(table_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
-                table_item.setTextAlignment(Qt.AlignCenter)  # type: ignore[attr-defined]
+                table_item.setTextAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignHCenter)
                 self.table.setItem(index, self.TABLE_CONFIG.name, table_item)
 
                 table_item = QTableWidgetItem(f"{reader.resolution:.2f}")
                 table_item.setFlags(table_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+                table_item.setTextAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignHCenter)
                 self.table.setItem(index, self.TABLE_CONFIG.resolution, table_item)
 
                 table_item = QTableWidgetItem("")
                 table_item.setFlags(table_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+                table_item.setTextAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignHCenter)
                 self.table.setItem(index, self.TABLE_CONFIG.metadata, table_item)
 
                 table_item = QTableWidgetItem("Ready!")
                 table_item.setFlags(table_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+                table_item.setTextAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignHCenter)
                 self.table.setItem(index, self.TABLE_CONFIG.progress, table_item)
                 reader_metadata = self.reader_metadata.get(reader.path, {})
                 if reader_metadata:
@@ -224,7 +226,7 @@ class ImageConvertWindow(Window):
         #         reader.resolution = new_resolution
         #         self.table.item(row, self.TABLE_CONFIG.resolution).setText(f"{new_resolution:.2f}")
 
-    def on_update_reader_metadata(self):
+    def on_update_reader_metadata(self) -> None:
         """Update reader metadata."""
         reader_metadata = get_metadata(self.reader_metadata)
         for path, reader_metadata_ in reader_metadata.items():
@@ -232,16 +234,7 @@ class ImageConvertWindow(Window):
             row = hp.find_in_table(self.table, self.TABLE_CONFIG.name, key)
             if row is None:
                 continue
-            metadata = []
-            has_scenes = len(reader_metadata_) > 1
-            for _index, (scene_index, scene_metadata) in enumerate(reader_metadata_.items()):
-                channel_ids = scene_metadata["channel_ids"]
-                channel_names = scene_metadata["channel_names"]
-                if has_scenes and channel_ids:
-                    metadata.append(f"scene {scene_index}")
-                for channel_index, channel_name in zip(channel_ids, channel_names):
-                    metadata.append(f"- {channel_name}: {channel_index}")
-            self.table.item(row, self.TABLE_CONFIG.metadata).setText("\n".join(metadata))
+            self.table.item(row, self.TABLE_CONFIG.metadata).setText(format_reader_metadata(reader_metadata_))
 
     def on_open_convert(self):
         """Process data."""
@@ -262,31 +255,44 @@ class ImageConvertWindow(Window):
                 paths.append(reader.path)
 
         output_dir = self.output_dir
-        self.CONFIG.as_uint8 = self.as_uint8.isChecked()
-        self.CONFIG.overwrite = self.overwrite.isChecked()
-        self.CONFIG.tile_size = int(self.tile_size.currentText())
+        self.CONFIG.update(
+            as_uint8=self.as_uint8.isChecked(),
+            overwrite=self.overwrite.isChecked(),
+            tile_size=int(self.tile_size.currentText()),
+        )
         READER_CONFIG.split_czi = self.split_czi.isChecked()
 
         if paths:
-            self.worker = create_worker(
-                images_to_ome_tiff,
-                paths=paths,
-                output_dir=output_dir,
-                as_uint8=self.CONFIG.as_uint8,
-                tile_size=self.CONFIG.tile_size,
-                metadata=get_metadata(self.reader_metadata),
-                overwrite=self.CONFIG.overwrite,
-                _start_thread=True,
-                _connect={
-                    "aborted": self._on_export_aborted,
-                    "yielded": self._on_export_yield,
-                    "finished": self._on_export_finished,
-                    "errored": self._on_export_error,
-                },
-                _worker_class=GeneratorWorker,
-            )
-            hp.disable_widgets(self.export_btn.active_btn, disabled=True)
-            self.export_btn.active = True
+            if STATE.is_mac_arm_pyinstaller:
+                for args in images_to_ome_tiff(
+                    paths=paths,
+                    output_dir=output_dir,
+                    as_uint8=self.CONFIG.as_uint8,
+                    tile_size=self.CONFIG.tile_size,
+                    metadata=get_metadata(self.reader_metadata),
+                    overwrite=self.CONFIG.overwrite,
+                ):
+                    self.__on_export_yield(args)
+            else:
+                self.worker = create_worker(
+                    images_to_ome_tiff,
+                    paths=paths,
+                    output_dir=output_dir,
+                    as_uint8=self.CONFIG.as_uint8,
+                    tile_size=self.CONFIG.tile_size,
+                    metadata=get_metadata(self.reader_metadata),
+                    overwrite=self.CONFIG.overwrite,
+                    _start_thread=True,
+                    _connect={
+                        "aborted": self._on_export_aborted,
+                        "yielded": self._on_export_yield,
+                        "finished": self._on_export_finished,
+                        "errored": self._on_export_error,
+                    },
+                    _worker_class=GeneratorWorker,
+                )
+                hp.disable_widgets(self.export_btn.active_btn, disabled=True)
+                self.export_btn.active = True
 
     def on_cancel(self):
         """Cancel processing."""
@@ -352,7 +358,7 @@ class ImageConvertWindow(Window):
         directory = hp.get_directory(self, "Select output directory", self.CONFIG.output_dir)
         if directory:
             self._output_dir = directory
-            self.CONFIG.output_dir = directory
+            self.CONFIG.update(output_dir=directory)
             self.output_dir_label.setText(hp.hyper(self.output_dir))
             logger.debug(f"Output directory set to {self._output_dir}")
 
@@ -411,7 +417,8 @@ class ImageConvertWindow(Window):
         self.as_uint8 = hp.make_checkbox(
             self,
             "",
-            tooltip="Convert to uint8 to reduce file size with minimal data loss.",
+            tooltip="Convert to uint8 to reduce file size with minimal data loss. This will result in change of the"
+            " dynamic range of the image to between 0-255.",
             checked=True,
             value=self.CONFIG.as_uint8,
         )
@@ -442,6 +449,20 @@ class ImageConvertWindow(Window):
                 wrap=True,
             )
         )
+        if STATE.is_mac_arm_pyinstaller:
+            side_layout.addRow(
+                hp.make_h_layout(
+                    hp.make_warning_label(self, "", average=True),
+                    hp.make_label(
+                        self,
+                        "Warning: On Apple Silicon, the conversion process happens in the UI thread, meaning that the app"
+                        " freezes!",
+                        warp=True,
+                        object_name="warning_label",
+                    ),
+                    stretch_id=(1,),
+                )
+            )
         side_layout.addRow(hp.make_h_line())
         side_layout.addRow(self._image_widget)
         side_layout.addRow(hp.make_h_line())
@@ -464,7 +485,7 @@ class ImageConvertWindow(Window):
         side_layout.addRow("Tile size", self.tile_size)
         side_layout.addRow("Reduce file size", self.as_uint8)
         side_layout.addRow("Overwrite", self.overwrite)
-        side_layout.addWidget(self.export_btn)
+        side_layout.addRow(self.export_btn)
 
         widget = QWidget()
         self.setCentralWidget(widget)
@@ -519,7 +540,7 @@ class ImageConvertWindow(Window):
         from image2image.qt._dialogs._tutorial import show_convert_tutorial
 
         show_convert_tutorial(self)
-        self.CONFIG.first_time = False
+        self.CONFIG.update(first_time=False)
 
     def close(self, force=False):
         """Override to handle closing app or just the window."""

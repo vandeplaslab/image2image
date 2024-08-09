@@ -14,10 +14,32 @@ class State:
     """State of the application."""
 
     @property
+    def is_mac_arm_pyinstaller(self) -> bool:
+        """Check if running on Mac ARM with PyInstaller."""
+        from koyo.system import IS_MAC_ARM, IS_PYINSTALLER
+
+        return IS_PYINSTALLER and IS_MAC_ARM
+
+    @property
     def allow_filters(self) -> bool:
         """Allow filters."""
         return True
         # return is_envvar("IMAGE2IMAGE_NO_FILTER", "0") or (not IS_PYINSTALLER and not IS_MAC)
+
+    @property
+    def allow_convert(self) -> bool:
+        """Allow Convert app."""
+        return True
+        # from koyo.system import IS_MAC_ARM, IS_PYINSTALLER
+
+        # return IS_PYINSTALLER and IS_MAC_ARM
+
+    @property
+    def allow_valis(self) -> bool:
+        """Allow Valis app."""
+        from koyo.utilities import is_installed
+
+        return is_installed("valis") and is_installed("pyvips")
 
 
 class Config(BaseConfig):
@@ -87,10 +109,10 @@ class FusionConfig(SingleAppConfig):
     USER_CONFIG_FILENAME = "config.fusion.json"
 
 
-class WsiRegConfig(SingleAppConfig):
+class ElastixConfig(SingleAppConfig):
     """Configuration for the viewer app."""
 
-    USER_CONFIG_FILENAME = "config.wsireg.json"
+    USER_CONFIG_FILENAME = "config.elastix.json"
 
     transformations: tuple[str] = Field(
         ("rigid", "affine"), title="Transformations", description="Transformations.", in_app=True
@@ -120,8 +142,8 @@ class ValisConfig(SingleAppConfig):
     open_when_finished: bool = Field(True, title="Open when finished", description="Open when finished.", in_app=True)
 
     # Valis options
-    feature_detector: str = Field("sift", title="Feature detector", description="Feature detector.", in_app=True)
-    feature_matcher: str = Field("flann", title="Feature matcher", description="Feature matcher.", in_app=True)
+    feature_detector: str = Field("vsgg", title="Feature detector", description="Feature detector.", in_app=True)
+    feature_matcher: str = Field("ransac", title="Feature matcher", description="Feature matcher.", in_app=True)
     check_reflection: bool = Field(True, title="Check reflections", description="Check reflections.", in_app=True)
     allow_non_rigid: bool = Field(False, title="Allow non-rigid", description="Allow non-rigid.", in_app=True)
     allow_micro: bool = Field(False, title="Allow micro", description="Allow micro.", in_app=True)
@@ -144,10 +166,10 @@ class ConvertConfig(SingleAppConfig):
     USER_CONFIG_FILENAME = "config.convert.json"
 
 
-class WsiReg3dConfig(SingleAppConfig):
+class Elastix3dConfig(SingleAppConfig):
     """Configuration for the viewer app."""
 
-    USER_CONFIG_FILENAME = "config.wsireg3d.json"
+    USER_CONFIG_FILENAME = "config.elastix3d.json"
 
     rotate_step_size: int = Field(15, title="Rotate by", description="Rotate by.", in_app=True)
     translate_step_size: int = Field(250, title="Translate by", description="Translate by.", in_app=True)
@@ -237,6 +259,6 @@ MERGE_CONFIG: MergeConfig = MergeConfig(_auto_load=True)  # type: ignore[call-ar
 FUSION_CONFIG: FusionConfig = FusionConfig(_auto_load=True)  # type: ignore[call-arg]
 VALIS_CONFIG: ValisConfig = ValisConfig(_auto_load=True)  # type: ignore[call-arg]
 CONVERT_CONFIG: ConvertConfig = ConvertConfig(_auto_load=True)  # type: ignore[call-arg]
-WSIREG_CONFIG: WsiRegConfig = WsiRegConfig(_auto_load=True)  # type: ignore[call-arg]
-WSIREG3D_CONFIG: WsiReg3dConfig = WsiReg3dConfig(_auto_load=True)  # type: ignore[call-arg]
+ELASTIX_CONFIG: ElastixConfig = ElastixConfig(_auto_load=True)  # type: ignore[call-arg]
+ELASTIX3D_CONFIG: Elastix3dConfig = Elastix3dConfig(_auto_load=True)  # type: ignore[call-arg]
 REGISTER_CONFIG: RegisterConfig = RegisterConfig(_auto_load=True)  # type: ignore[call-arg]
