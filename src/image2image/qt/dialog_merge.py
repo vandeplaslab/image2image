@@ -333,7 +333,7 @@ class ImageMergeWindow(Window):
     def _setup_ui(self):
         """Create panel."""
         self._image_widget = LoadWidget(
-            self, None, self.CONFIG,select_channels=False, available_formats=ALLOWED_IMAGE_FORMATS_TIFF_ONLY
+            self, None, self.CONFIG, select_channels=False, available_formats=ALLOWED_IMAGE_FORMATS_TIFF_ONLY
         )
         self._image_widget.info_text.setVisible(False)
 

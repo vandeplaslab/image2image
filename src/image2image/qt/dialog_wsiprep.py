@@ -938,7 +938,6 @@ class ImageWsiPrepWindow(Window):
         menu_file.addSeparator()
         hp.make_menu_item(self, "Quit", menu=menu_file, func=self.close)
 
-
         # set actions
         self.menubar = QMenuBar(self)
         self.menubar.addAction(menu_file.menuAction())
