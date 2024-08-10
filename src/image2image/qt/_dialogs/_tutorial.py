@@ -5,6 +5,7 @@ import typing as ty
 if ty.TYPE_CHECKING:
     from image2image.qt.dialog_convert import ImageConvertWindow
     from image2image.qt.dialog_crop import ImageCropWindow
+    from image2image.qt.dialog_elastix import ImageElastixWindow
     from image2image.qt.dialog_fusion import ImageFusionWindow
     from image2image.qt.dialog_merge import ImageMergeWindow
     from image2image.qt.dialog_register import ImageRegistrationWindow
@@ -517,7 +518,7 @@ def show_crop_tutorial(widget: "ImageCropWindow") -> None:
     tut.show()
 
 
-def show_elastix_tutorial(widget: "ImageCropWindow") -> None:
+def show_elastix_tutorial(widget: "ImageElastixWindow") -> None:
     """Show tutorial."""
     from qtextra.widgets.qt_tutorial import Position, QtTutorial, TutorialStep
 
@@ -525,11 +526,11 @@ def show_elastix_tutorial(widget: "ImageCropWindow") -> None:
     tut.set_steps(
         [
             TutorialStep(
-                title="Welcome to image2crop!",
-                message="We would like to show you around before you get started!<br>This app let's you carve out"
-                " regions of interest in images. This can be useful when you want to reduce the size of the microscopy"
-                " images for e.g. image fusion. You can draw any shape on the canvas but we will use the bounding box"
-                " to cut region out.",
+                title="Welcome to the <b>Elastix</b> app!",
+                message="We would like to show you around before you get started!<br>This app let's you register whole"
+                "slide images using the <b>Elastix</b> framework. This app is heavily inspired by <b>napari-wsireg</b>"
+                " that we've all been using, but it offers a couple of nice additions such as making it easier to"
+                " initialize the registration process, improved image pre-processing, easier masking and much more!",
                 widget=widget.view.widget,
                 position=Position.RIGHT,
             ),
@@ -540,51 +541,15 @@ def show_elastix_tutorial(widget: "ImageCropWindow") -> None:
                 position=Position.BOTTOM_RIGHT,
             ),
             TutorialStep(
-                title="Control what should be shown",
-                message="You can control what images should be loaded, which image channels should be displayed and how"
-                " they should be spatially transformed.",
-                widget=widget._image_widget,
-                position=Position.LEFT_TOP,
-            ),
-            TutorialStep(
                 title="Add or remove image",
                 message="Add or remove images.",
                 widget=widget._image_widget.add_btn,
                 position=Position.LEFT_TOP,
             ),
             TutorialStep(
-                title="More options",
-                message="You can change the spatial pixel size or optionally extract ion images here.",
-                widget=widget._image_widget.more_btn,
-                position=Position.LEFT_TOP,
-            ),
-            TutorialStep(
-                title="Channel selection",
-                message="Control which image channels should be shown or hidden. You can also use the layer list"
-                " below which offers more options such as adjusting image contrast, changing opacity or colormap.",
-                widget=widget._image_widget.channel_btn,
-                position=Position.LEFT_TOP,
-            ),
-            TutorialStep(
-                title="Image crop",
-                message="You can specify as many regions of interest as you wish. These are accessible by changing the"
-                " `crop area` selection. Each time a new region is added, the list of available options updates."
-                " The displayed values correspond to the bounding box around the region of interest.",
-                widget=widget.index_choice,
-                position=Position.LEFT_TOP,
-            ),
-            TutorialStep(
-                title="Preview",
-                message="You can preview your selection by clicking here. This will extract each region of interest for"
-                " each of the loaded images.",
-                widget=widget.preview_crop_btn,
-                position=Position.LEFT_TOP,
-            ),
-            TutorialStep(
-                title="Export to OME-TIFF",
-                message="You can export each region of interest to specified directory. You will be prompted to select"
-                " one.",
-                widget=widget.crop_btn,
+                title="Add or remove image",
+                message="Add or remove images.",
+                widget=widget._image_widget.add_btn,
                 position=Position.LEFT_TOP,
             ),
             TutorialStep(

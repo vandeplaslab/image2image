@@ -213,26 +213,25 @@ class GuessDialog(QtFramelessTool):
             hp.warn(self, "No contour selected...")
             return None
         parent: ImageRegistrationWindow = self.parent()  # type: ignore[assignment]
-        parent.view_moving.remove_layer(parent.temporary_moving_points_layer.name)
-        parent.view_fixed.remove_layer(parent.temporary_fixed_points_layer.name)
+        parent.view_moving.remove_layers([parent.temporary_moving_points_layer.name, parent.moving_points_layer.name])
+        parent.view_fixed.remove_layers([parent.temporary_fixed_points_layer.name, parent.fixed_points_layer.name])
         parent._update_layer_points(parent.moving_points_layer, self.current_contour, block=False)
         parent._update_layer_points(parent.fixed_points_layer, self.current_transformed_contour, block=False)
-        parent.on_update_text(block=True)
+        parent.on_update_text(block=False)
         hp.disable_widgets(parent.guess_btn, disabled=False)
         return super().accept()
 
     def reject(self) -> None:
         """Reject changes."""
         parent: ImageRegistrationWindow = self.parent()  # type: ignore[assignment]
-        parent.view_moving.remove_layer(parent.temporary_moving_points_layer.name)
-        parent.view_fixed.remove_layer(parent.temporary_fixed_points_layer.name)
+        parent.view_moving.remove_layers([parent.temporary_moving_points_layer.name, parent.moving_points_layer.name])
+        parent.view_fixed.remove_layers([parent.temporary_fixed_points_layer.name, parent.fixed_points_layer.name])
         hp.disable_widgets(parent.guess_btn, disabled=False)
         return super().reject()
 
     # noinspection PyAttributeOutsideInit
     def make_panel(self) -> QFormLayout:
         """Make panel."""
-
         _, header_layout = self._make_close_handle(title="Find fiducials...")
 
         self.detect_btn = hp.make_btn(
@@ -240,9 +239,9 @@ class GuessDialog(QtFramelessTool):
         )
         self.distance = hp.make_double_spin_box(
             self,
-            minimum=0.1,
+            minimum=0.0,
             maximum=10,
-            value=2,
+            value=2.25,
             step_size=0.25,
             n_decimals=2,
             tooltip="Distance to simplify contours.",

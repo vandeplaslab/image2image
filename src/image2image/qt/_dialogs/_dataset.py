@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import typing as ty
 from collections import Counter
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
 from functools import partial
 from pathlib import Path
 
@@ -468,7 +468,7 @@ class SelectDataDialog(QtFramelessTool):
 
     def _clear_table(self) -> None:
         """Remove all rows."""
-        with self._editing_table():
+        with self._editing_table(), suppress(RuntimeError):
             while self.table.rowCount() > 0:
                 self.table.removeRow(0)
 

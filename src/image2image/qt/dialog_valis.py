@@ -429,7 +429,7 @@ class ImageValisWindow(ImageWsiWindow):
 
     def populate_reference_list(self) -> None:
         """Populate reference list."""
-        modalities = list(self.registration_model.modalities.keys())
+        modalities = self.registration_model.get_image_modalities(with_attachment=False)
         hp.combobox_setter(self.reference_choice, clear=True, items=["None"] + modalities)
 
         try:
