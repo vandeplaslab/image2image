@@ -44,13 +44,16 @@ class RegisterShortcutsDialog(ShortcutsDialog):
     <br><b>3</b> - Activate move-points mode in both images.
     <br><b>A</b> - Zoom-in on previous point in both images (useful if trying to refine registration).
     <br><b>D</b> - Zoom-in on next point in both images (useful if trying to refine registration).
-    <br><b>L</b> - Use currently shown area in the 'Fixed' image as the 'Area of interest'.
+    <br><b>L</b> - Use currently shown area in the <b>fixed</b> image as the 'Area of interest'.
     <br><b>Z</b> - Zoom-in on the currently set 'Area of interest'.
-    <br><b>T</b> - Toggle between each of the transformed 'moving' images.
+    <br><b>T</b> - Toggle between each of the transformed <b>moving</b> images.
+    <br><b>R</b> - Toggle between <b>overlay</b> and <b>random</b> view types.
+    <br><b>N</b> - Increment the <b>dataset</b> in the <b>moving</b> image.
+    <br><b>P</b> - Decrement the <b>dataset</b> in the <b>moving</b> image.
     <br><b>S</b> - Quickly enable/disable image synchronization.
-    <br><b>V</b> - Toggle visibility of the transformed 'moving' image.
-    <br><b>Q</b> - Decrease opacity of the transformed 'moving' image.
-    <br><b>E</b> - Increase opacity of the transformed 'moving' image.
+    <br><b>V</b> - Toggle visibility of the transformed <b>moving</b> image.
+    <br><b>Q</b> - Decrease opacity of the transformed <b>moving</b> image.
+    <br><b>E</b> - Increase opacity of the transformed <b>moving</b> image.
     """
 
 

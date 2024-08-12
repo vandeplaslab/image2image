@@ -25,7 +25,7 @@ from image2image.qt._dialog_wsi import ImageWsiWindow
 from image2image.qt._dialogs._select import LoadWidget
 from image2image.qt._wsi._list import QtModalityList
 from image2image.qt._wsi._paths import RegistrationMap
-from image2image.utils.utilities import get_i2reg_path
+from image2image.utils.utilities import get_i2reg_path, pad_str
 from image2image.utils.valis import guess_preprocessing, hash_preprocessing
 
 if ty.TYPE_CHECKING:
@@ -57,7 +57,7 @@ def make_registration_task(
         "elastix",
         "register",
         "--project_dir",
-        f'"{project.project_dir!s}"',
+        pad_str(project.project_dir),
     ]
     if any([write_attached, write_transformed, write_not_registered, write_merged]):
         commands.append("--write")
@@ -541,8 +541,8 @@ class ImageElastixWindow(ImageWsiWindow):
             hp.make_h_layout(self.output_dir_label, self.output_dir_btn, stretch_id=(0,), spacing=1, margin=1),
         )
         # Advanced options
-        hidden_settings = self._make_hidden_widgets(side_widget)
-        side_layout.addRow(hidden_settings)
+        self.hidden_settings = self._make_hidden_widgets(side_widget)
+        side_layout.addRow(self.hidden_settings)
 
         self._make_run_widgets(side_widget)
         # Execution buttons
@@ -589,6 +589,13 @@ class ImageElastixWindow(ImageWsiWindow):
 
         self.queue_btn = hp.make_qta_btn(self, "queue", tooltip="Open queue popup.", small=True)
         self.statusbar.insertPermanentWidget(4, self.queue_btn)
+
+    def on_show_tutorial(self) -> None:
+        """Quick tutorial."""
+        from image2image.qt._dialogs._tutorial import show_elastix_tutorial
+
+        show_elastix_tutorial(self)
+        self.CONFIG.update(first_time=False)
 
 
 if __name__ == "__main__":  # pragma: no cover

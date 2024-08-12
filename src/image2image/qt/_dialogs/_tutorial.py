@@ -1,18 +1,43 @@
 """Tutorial dialog."""
 
+from __future__ import annotations
+
 import typing as ty
 
 if ty.TYPE_CHECKING:
+    from qtextra.widgets.qt_tutorial import TutorialStep
+
     from image2image.qt.dialog_convert import ImageConvertWindow
     from image2image.qt.dialog_crop import ImageCropWindow
     from image2image.qt.dialog_elastix import ImageElastixWindow
     from image2image.qt.dialog_fusion import ImageFusionWindow
     from image2image.qt.dialog_merge import ImageMergeWindow
     from image2image.qt.dialog_register import ImageRegistrationWindow
+    from image2image.qt.dialog_valis import ImageValisWindow
     from image2image.qt.dialog_viewer import ImageViewerWindow
 
 
-def show_merge_tutorial(widget: "ImageMergeWindow") -> None:
+OPEN_PROJECT = "If you've previously saved a project, you can open it here."
+ADD_IMAGES = (
+    "Click here to select images to open in the app. You can also drag-and-drop images into the app and they will be"
+    " opened if the file format is supported.."
+)
+MANAGE_SELECTION = "You can control what images should be loaded, which image channels should be displayed"
+MORE_OPTIONS = "You can change the spatial pixel size or optionally extract ion images here."
+CLIPBOARD = (
+    "You can take a screenshot of the canvas and copy it to the clipboard by clicking here! If you right-click"
+    " on the button, a few extra options will be shown."
+)
+SCREENSHOT = (
+    "You can save screenshot of the canvas by clicking here!. If you right-click on the button, a few extra options"
+    " will be shown."
+)
+SCALE_BAR = "You can show/hide scalebar on the canvas by clicking here. Make sure to set the right pixel size!."
+TUTORIAL = "If you wish to see this tutorial again at a future date, you can click here to show it."
+FEEDBACK = "If you have some feedback, don't hesitate to send! You can do it directly in the app!"
+
+
+def show_merge_tutorial(widget: ImageMergeWindow) -> None:
     """Show tutorial."""
     from qtextra.widgets.qt_tutorial import Position, QtTutorial, TutorialStep
 
@@ -80,7 +105,7 @@ def show_merge_tutorial(widget: "ImageMergeWindow") -> None:
     tut.show()
 
 
-def show_convert_tutorial(widget: "ImageConvertWindow") -> None:
+def show_convert_tutorial(widget: ImageConvertWindow) -> None:
     """Show tutorial."""
     from qtextra.widgets.qt_tutorial import Position, QtTutorial, TutorialStep
 
@@ -149,7 +174,7 @@ def show_convert_tutorial(widget: "ImageConvertWindow") -> None:
     tut.show()
 
 
-def show_fusion_tutorial(widget: "ImageFusionWindow") -> None:
+def show_fusion_tutorial(widget: ImageFusionWindow) -> None:
     """Show tutorial."""
     from qtextra.widgets.qt_tutorial import Position, QtTutorial, TutorialStep
 
@@ -209,7 +234,46 @@ def show_fusion_tutorial(widget: "ImageFusionWindow") -> None:
     tut.show()
 
 
-def show_register_tutorial(widget: "ImageRegistrationWindow") -> None:
+def _generic_statusbar(
+    widget: ImageViewerWindow | ImageCropWindow | ImageElastixWindow | ImageValisWindow,
+) -> list[TutorialStep]:
+    from qtextra.widgets.qt_tutorial import Position, TutorialStep
+
+    return [
+        TutorialStep(
+            title="Screenshot to clipboard",
+            message=CLIPBOARD,
+            widget=widget.clipboard_btn,
+            position=Position.TOP_RIGHT,
+        ),
+        TutorialStep(
+            title="Save screenshot",
+            message=SCREENSHOT,
+            widget=widget.screenshot_btn,
+            position=Position.TOP_RIGHT,
+        ),
+        TutorialStep(
+            title="Show scalebar",
+            message=SCALE_BAR,
+            widget=widget.scalebar_btn,
+            position=Position.TOP_RIGHT,
+        ),
+        TutorialStep(
+            title="Tutorial",
+            message=TUTORIAL,
+            widget=widget.tutorial_btn,
+            position=Position.TOP_RIGHT,
+        ),
+        TutorialStep(
+            title="Feedback",
+            message=FEEDBACK,
+            widget=widget.feedback_btn,
+            position=Position.TOP_RIGHT,
+        ),
+    ]
+
+
+def show_register_tutorial(widget: ImageRegistrationWindow) -> None:
     """Show tutorial."""
     from qtextra.widgets.qt_tutorial import Position, QtTutorial, TutorialStep
 
@@ -250,13 +314,13 @@ def show_register_tutorial(widget: "ImageRegistrationWindow") -> None:
             ),
             TutorialStep(
                 title="Add or remove image",
-                message="Add or remove images.",
+                message=ADD_IMAGES,
                 widget=widget._fixed_widget.add_btn,
                 position=Position.LEFT_TOP,
             ),
             TutorialStep(
                 title="More options",
-                message="You can change the spatial pixel size or optionally extra ion images here.",
+                message=MORE_OPTIONS,
                 widget=widget._fixed_widget.more_btn,
                 position=Position.LEFT_TOP,
             ),
@@ -298,13 +362,13 @@ def show_register_tutorial(widget: "ImageRegistrationWindow") -> None:
             ),
             TutorialStep(
                 title="Tutorial",
-                message="If you wish to see this tutorial again at a future date, you can click here to show it.",
+                message=TUTORIAL,
                 widget=widget.tutorial_btn,
                 position=Position.TOP_RIGHT,
             ),
             TutorialStep(
                 title="Feedback",
-                message="If you have some feedback, don't hesitate to send! You can do it directly in the app!",
+                message=FEEDBACK,
                 widget=widget.feedback_btn,
                 position=Position.TOP_RIGHT,
             ),
@@ -314,7 +378,7 @@ def show_register_tutorial(widget: "ImageRegistrationWindow") -> None:
     tut.show()
 
 
-def show_viewer_tutorial(widget: "ImageViewerWindow") -> None:
+def show_viewer_tutorial(widget: ImageViewerWindow) -> None:
     """Show tutorial."""
     from qtextra.widgets.qt_tutorial import Position, QtTutorial, TutorialStep
 
@@ -331,34 +395,33 @@ def show_viewer_tutorial(widget: "ImageViewerWindow") -> None:
             ),
             TutorialStep(
                 title="Open previous project",
-                message="If you've previously saved a project, you can open it here.",
+                message=OPEN_PROJECT,
                 widget=widget._image_widget.import_btn,
                 position=Position.BOTTOM_RIGHT,
             ),
             TutorialStep(
                 title="Control what should be shown",
-                message="You can control what images should be loaded, which image channels should be displayed and how"
-                " they should be spatially transformed.",
+                message=MANAGE_SELECTION,
                 widget=widget._image_widget,
                 position=Position.LEFT_TOP,
             ),
             TutorialStep(
                 title="Add or remove image",
-                message="Add or remove images.",
+                message=ADD_IMAGES,
                 widget=widget._image_widget.add_btn,
                 position=Position.LEFT_TOP,
             ),
             TutorialStep(
-                title="More options",
-                message="You can change the spatial pixel size or optionally extract ion images here.",
-                widget=widget._image_widget.more_btn,
+                title="Save project",
+                message="You can save the current state of the viewer (loaded images, pixel size and transformation"
+                " information) and reload it in the future without all that faffing about!",
+                widget=widget._image_widget.export_btn,
                 position=Position.LEFT_TOP,
             ),
             TutorialStep(
-                title="Channel selection",
-                message="Control which image channels should be shown or hidden. You can also use the layer list"
-                " below which offers more options such as adjusting image contrast, changing opacity or colormap.",
-                widget=widget._image_widget.channel_btn,
+                title="More options",
+                message=MORE_OPTIONS,
+                widget=widget._image_widget.more_btn,
                 position=Position.LEFT_TOP,
             ),
             TutorialStep(
@@ -378,52 +441,20 @@ def show_viewer_tutorial(widget: "ImageViewerWindow") -> None:
                 position=Position.LEFT_TOP,
             ),
             TutorialStep(
-                title="Save project",
-                message="You can save the current state of the viewer (loaded images, pixel size and transformation"
-                " information) and reload it in the future without all that faffing about!",
-                widget=widget._image_widget.export_btn,
+                title="Create mask",
+                message="You can also create a mask withing image2image. These masks can be then used in"
+                " <b>AutoIMS</b> or other software such as <b>QuPath</b>.",
+                widget=widget.create_mask_btn,
                 position=Position.LEFT_TOP,
             ),
-            TutorialStep(
-                title="Screenshot to clipboard",
-                message="You can take a screenshot of the canvas by clicking here! If you right-click on the button,"
-                " a few extra options will be shown.",
-                widget=widget.clipboard_btn,
-                position=Position.TOP_RIGHT,
-            ),
-            TutorialStep(
-                title="Save screenshot",
-                message="You can save screenshot of the canvas by clicking here!. If you right-click on the button, "
-                " a few extra options will be shown.",
-                widget=widget.screenshot_btn,
-                position=Position.TOP_RIGHT,
-            ),
-            TutorialStep(
-                title="Show scalebar",
-                message="You can show/hide scalebar on the canvas by clicking here. Make sure to set the right pixel"
-                " size!.",
-                widget=widget.scalebar_btn,
-                position=Position.TOP_RIGHT,
-            ),
-            TutorialStep(
-                title="Tutorial",
-                message="If you wish to see this tutorial again at a future date, you can click here to show it.",
-                widget=widget.tutorial_btn,
-                position=Position.TOP_RIGHT,
-            ),
-            TutorialStep(
-                title="Feedback",
-                message="If you have some feedback, don't hesitate to send! You can do it directly in the app!",
-                widget=widget.feedback_btn,
-                position=Position.TOP_RIGHT,
-            ),
+            *_generic_statusbar(widget),
         ]
     )
     tut.setFocus()
     tut.show()
 
 
-def show_crop_tutorial(widget: "ImageCropWindow") -> None:
+def show_crop_tutorial(widget: ImageCropWindow) -> None:
     """Show tutorial."""
     from qtextra.widgets.qt_tutorial import Position, QtTutorial, TutorialStep
 
@@ -441,34 +472,26 @@ def show_crop_tutorial(widget: "ImageCropWindow") -> None:
             ),
             TutorialStep(
                 title="Open previous project",
-                message="If you've previously saved a project, you can open it here.",
+                message=OPEN_PROJECT,
                 widget=widget._image_widget.import_btn,
                 position=Position.BOTTOM_RIGHT,
             ),
             TutorialStep(
                 title="Control what should be shown",
-                message="You can control what images should be loaded, which image channels should be displayed and how"
-                " they should be spatially transformed.",
-                widget=widget._image_widget,
+                message=MANAGE_SELECTION,
+                widget=widget._image_widget.channel_btn,
                 position=Position.LEFT_TOP,
             ),
             TutorialStep(
                 title="Add or remove image",
-                message="Add or remove images.",
+                message=ADD_IMAGES,
                 widget=widget._image_widget.add_btn,
                 position=Position.LEFT_TOP,
             ),
             TutorialStep(
                 title="More options",
-                message="You can change the spatial pixel size or optionally extract ion images here.",
+                message=MORE_OPTIONS,
                 widget=widget._image_widget.more_btn,
-                position=Position.LEFT_TOP,
-            ),
-            TutorialStep(
-                title="Channel selection",
-                message="Control which image channels should be shown or hidden. You can also use the layer list"
-                " below which offers more options such as adjusting image contrast, changing opacity or colormap.",
-                widget=widget._image_widget.channel_btn,
                 position=Position.LEFT_TOP,
             ),
             TutorialStep(
@@ -500,25 +523,14 @@ def show_crop_tutorial(widget: "ImageCropWindow") -> None:
                 widget=widget._image_widget.export_btn,
                 position=Position.LEFT_TOP,
             ),
-            TutorialStep(
-                title="Tutorial",
-                message="If you wish to see this tutorial again at a future date, you can click here to show it.",
-                widget=widget.tutorial_btn,
-                position=Position.TOP_RIGHT,
-            ),
-            TutorialStep(
-                title="Feedback",
-                message="If you have some feedback, don't hesitate to send! You can do it directly in the app!",
-                widget=widget.feedback_btn,
-                position=Position.TOP_RIGHT,
-            ),
+            *_generic_statusbar(widget),
         ]
     )
     tut.setFocus()
     tut.show()
 
 
-def show_elastix_tutorial(widget: "ImageElastixWindow") -> None:
+def show_elastix_tutorial(widget: ImageElastixWindow) -> None:
     """Show tutorial."""
     from qtextra.widgets.qt_tutorial import Position, QtTutorial, TutorialStep
 
@@ -530,47 +542,217 @@ def show_elastix_tutorial(widget: "ImageElastixWindow") -> None:
                 message="We would like to show you around before you get started!<br>This app let's you register whole"
                 "slide images using the <b>Elastix</b> framework. This app is heavily inspired by <b>napari-wsireg</b>"
                 " that we've all been using, but it offers a couple of nice additions such as making it easier to"
-                " initialize the registration process, improved image pre-processing, easier masking and much more!",
+                " initialize the registration process, improved image pre-processing, easier masking, better data"
+                " organization and much more!",
                 widget=widget.view.widget,
                 position=Position.RIGHT,
             ),
             TutorialStep(
                 title="Open previous project",
-                message="If you've previously saved a project, you can open it here.",
+                message=OPEN_PROJECT,
                 widget=widget._image_widget.import_btn,
                 position=Position.BOTTOM_RIGHT,
             ),
             TutorialStep(
-                title="Add or remove image",
-                message="Add or remove images.",
+                title="Add images",
+                message=ADD_IMAGES,
                 widget=widget._image_widget.add_btn,
                 position=Position.LEFT_TOP,
             ),
             TutorialStep(
-                title="Add or remove image",
-                message="Add or remove images.",
+                title="More options",
+                message=MORE_OPTIONS,
+                widget=widget._image_widget.more_btn,
+                position=Position.LEFT_TOP,
+            ),
+            TutorialStep(
+                title="Image list",
+                message="Images that are to be registered will appear in this list. You can change the <b>modality</b>"
+                " name, pixel size as well as adjust the pre-processing parameters that will govern how the"
+                " registration is performed.",
+                widget=widget.modality_list,
+                position=Position.LEFT_BOTTOM,
+            ),
+            TutorialStep(
+                title="Change display type",
+                message="You can toggle between viewing the <b>first</b> or <b>pre-processed</b> imaged by changing"
+                " the value of this checkbox. Pre-processing can take a few seconds, depending on the pyramid"
+                " level option.",
+                widget=widget.use_preview_check,
+                position=Position.BOTTOM_RIGHT,
+            ),
+            TutorialStep(
+                title="Masking and cropping",
+                message="If the registration is tricky, you can optionally mask or crop the image. Masking will ensure"
+                " that only part of the image is used in registration (but the entire image will be exported)"
+                " whereas cropping will crop the image first, and subsequently perform the registration.",
+                widget=widget.mask_btn,
+                position=Position.BOTTOM_RIGHT,
+            ),
+            TutorialStep(
+                title="Registration path",
+                message="Similar to how napari-wsireg operates, you must define the <b>source</b> and <b>target</b>"
+                " images. You can also optionally specify the <b>through</b> modality. The <b>source modality will be"
+                " moved and therefore changed. The through modality can he helpful in aiding difficult registrations"
+                " where the source and target modalities are not similar.",
+                widget=widget.registration_map,
+                position=Position.LEFT,
+            ),
+            TutorialStep(
+                title="Project name",
+                message="You can specify the name of the project here. This will be used when saving the project.",
+                widget=widget.name_label,
+                position=Position.LEFT,
+            ),
+            TutorialStep(
+                title="Export options",
+                message="You can control how the data is exported by adjusting a few options hidden here.",
+                widget=widget.hidden_settings,
+                position=Position.LEFT_BOTTOM,
+                func=(widget.hidden_settings.expand,),
+            ),
+            TutorialStep(
+                title="Save",
+                message="Click here to save the Elastix project to file.",
+                widget=widget.save_btn,
+                position=Position.TOP_RIGHT,
+                func=(
+                    widget.hidden_settings.collapse,
+                    # widget.save_btn.on_right_click,
+                ),
+            ),
+            TutorialStep(
+                title="Open in viewer",
+                message="Click here to open the <b>registered</b> project in the Viewer app (nothing will happen if the"
+                " registration has not been performed).",
+                widget=widget.viewer_btn,
+                position=Position.TOP_RIGHT,
+                # func=(widget.viewer_btn.on_right_click,),
+            ),
+            TutorialStep(
+                title="Register images",
+                message="Click here to perform the image registration. There are a number of options available.",
+                widget=widget.run_btn,
+                position=Position.TOP_RIGHT,
+                # func=(widget.run_btn.click,),
+            ),
+            TutorialStep(
+                title="Queue",
+                message="You can see registrations tasks in the queue. Click here to open the queue view.",
+                widget=widget.queue_btn,
+                position=Position.TOP_RIGHT,
+            ),
+            *_generic_statusbar(widget),
+        ]
+    )
+    tut.setFocus()
+    tut.show()
+
+
+def show_valis_tutorial(widget: ImageValisWindow) -> None:
+    """Show tutorial."""
+    from qtextra.helpers import hyper
+    from qtextra.widgets.qt_tutorial import Position, QtTutorial, TutorialStep
+
+    valis_ref = hyper("https://www.nature.com/articles/s41467-023-40218-9", value="Valis", prefix="")
+    tut = QtTutorial(widget)
+    tut.set_steps(
+        [
+            TutorialStep(
+                title="Welcome to the <b>Valis</b> app!",
+                message="We would like to show you around before you get started!<br>This app let's you register whole"
+                "slide images using the <b>Valis</b> framework. Valis is a relatively new registration framework that"
+                "performs multi-step registration using linear and non-linear transformations. Please see here for"
+                f" more information {valis_ref}.",
+                widget=widget.view.widget,
+                position=Position.RIGHT,
+            ),
+            TutorialStep(
+                title="Open previous project",
+                message=OPEN_PROJECT,
+                widget=widget._image_widget.import_btn,
+                position=Position.BOTTOM_RIGHT,
+            ),
+            TutorialStep(
+                title="Add images",
+                message=ADD_IMAGES,
                 widget=widget._image_widget.add_btn,
                 position=Position.LEFT_TOP,
             ),
             TutorialStep(
-                title="Save project",
-                message="You can save the current state of the viewer (loaded images, pixel size and transformation"
-                " information) and reload it in the future without all that faffing about!",
-                widget=widget._image_widget.export_btn,
+                title="More options",
+                message=MORE_OPTIONS,
+                widget=widget._image_widget.more_btn,
                 position=Position.LEFT_TOP,
             ),
             TutorialStep(
-                title="Tutorial",
-                message="If you wish to see this tutorial again at a future date, you can click here to show it.",
-                widget=widget.tutorial_btn,
-                position=Position.TOP_RIGHT,
+                title="Image list",
+                message="Images that are to be registered will appear in this list. You can change the <b>modality</b>"
+                " name, pixel size as well as adjust the pre-processing parameters that will govern how the"
+                " registration is performed.",
+                widget=widget.modality_list,
+                position=Position.LEFT_BOTTOM,
             ),
             TutorialStep(
-                title="Feedback",
-                message="If you have some feedback, don't hesitate to send! You can do it directly in the app!",
-                widget=widget.feedback_btn,
+                title="Change display type",
+                message="You can toggle between viewing the <b>first</b> or <b>pre-processed</b> imaged by changing"
+                " the value of this checkbox. Pre-processing can take a few seconds, depending on the pyramid"
+                " level option.",
+                widget=widget.use_preview_check,
+                position=Position.BOTTOM_RIGHT,
+            ),
+            TutorialStep(
+                title="Reference",
+                message="You can optionally specify the reference image that will be used in the registration process. "
+                " If one is not specified, it will be automatically determined based on similarity to other images.",
+                widget=widget.reference_choice,
+                position=Position.BOTTOM_RIGHT,
+            ),
+            TutorialStep(
+                title="Project name",
+                message="You can specify the name of the project here. This will be used when saving the project.",
+                widget=widget.name_label,
+                position=Position.LEFT,
+            ),
+            TutorialStep(
+                title="Export options",
+                message="You can control how the data is exported by adjusting a few options hidden here.",
+                widget=widget.hidden_settings,
+                position=Position.LEFT_BOTTOM,
+                func=(widget.hidden_settings.expand,),
+            ),
+            TutorialStep(
+                title="Save",
+                message="Click here to save the Elastix project to file.",
+                widget=widget.save_btn,
+                position=Position.TOP_RIGHT,
+                func=(
+                    widget.hidden_settings.collapse,
+                    # widget.save_btn.on_right_click,
+                ),
+            ),
+            TutorialStep(
+                title="Open in viewer",
+                message="Click here to open the <b>registered</b> project in the Viewer app (nothing will happen if the"
+                " registration has not been performed).",
+                widget=widget.viewer_btn,
+                position=Position.TOP_RIGHT,
+                # func=(widget.viewer_btn.on_right_click,),
+            ),
+            TutorialStep(
+                title="Register images",
+                message="Click here to perform the image registration. There are a number of options available.",
+                widget=widget.run_btn,
+                position=Position.TOP_RIGHT,
+                # func=(widget.run_btn.click,),
+            ),
+            TutorialStep(
+                title="Queue",
+                message="You can see registrations tasks in the queue. Click here to open the queue view.",
+                widget=widget.queue_btn,
                 position=Position.TOP_RIGHT,
             ),
+            *_generic_statusbar(widget),
         ]
     )
     tut.setFocus()

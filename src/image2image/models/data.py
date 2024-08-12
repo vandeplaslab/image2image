@@ -9,6 +9,7 @@ from image2image_io.readers._base_reader import BaseReader
 from image2image_io.wrapper import ImageWrapper
 from koyo.timer import MeasureTimer
 from koyo.typing import PathLike
+from koyo.utilities import clean_path
 from loguru import logger
 from pydantic import Field, validator
 
@@ -382,9 +383,9 @@ def load_viewer_setup_from_file(path: PathLike) -> I2V_METADATA:
 
 def _read_image2viewer_latest_config(config: dict) -> I2V_METADATA:
     """Read config file."""
-    paths = [temp["path"] for temp in config["images"]]
+    paths = [clean_path(temp["path"]) for temp in config["images"]]
     transform_data = {
-        Path(temp["path"]).name: TransformData(
+        Path(clean_path(temp["path"])).name: TransformData(
             fixed_points=np.asarray(temp["fixed_points"]),
             moving_points=np.asarray(temp["moving_points"]),
             fixed_resolution=temp["fixed_pixel_size_um"],
@@ -393,8 +394,8 @@ def _read_image2viewer_latest_config(config: dict) -> I2V_METADATA:
         )
         for temp in config["images"]
     }
-    resolution = {Path(temp["path"]).name: temp["pixel_size_um"] for temp in config["images"]}
-    reader_kws = {Path(temp["path"]).name: temp.get("reader_kws", None) for temp in config["images"]}
+    resolution = {Path(clean_path(temp["path"])).name: temp["pixel_size_um"] for temp in config["images"]}
+    reader_kws = {Path(clean_path(temp["path"])).name: temp.get("reader_kws", None) for temp in config["images"]}
     paths, paths_missing = _get_paths(paths)
     if not paths:
         paths = []
@@ -405,13 +406,14 @@ def _read_image2viewer_latest_config(config: dict) -> I2V_METADATA:
 
 def _read_image2viewer_v1_0_config(config: dict) -> I2V_METADATA:
     # read important fields
-    paths = [temp["path"] for temp in config["images"]]
+    paths_ = [clean_path(temp["path"]) for temp in config["images"]]
     transform_data = {
-        Path(temp["path"]).name: TransformData(affine=np.asarray(temp["matrix_yx_px"])) for temp in config["images"]
+        Path(clean_path(temp["path"])).name: TransformData(affine=np.asarray(temp["matrix_yx_px"]))
+        for temp in config["images"]
     }
-    resolution = {Path(temp["path"]).name: temp["pixel_size_um"] for temp in config["images"]}
-    reader_kws = {Path(temp["path"]).name: temp.get("reader_kws", None) for temp in config["images"]}
-    paths, paths_missing = _get_paths(paths)
+    resolution = {Path(clean_path(temp["path"])).name: temp["pixel_size_um"] for temp in config["images"]}
+    reader_kws = {Path(clean_path(temp["path"])).name: temp.get("reader_kws", None) for temp in config["images"]}
+    paths, paths_missing = _get_paths(paths_)
     if not paths:
         paths = []
     if not paths_missing:
@@ -430,9 +432,9 @@ def load_crop_setup_from_file(path: PathLike) -> I2C_METADATA:
 
 def _read_image2crop_latest_config(config: dict) -> I2C_METADATA:
     """Read config file."""
-    paths = [temp["path"] for temp in config["images"]]
+    paths = [clean_path(temp["path"]) for temp in config["images"]]
     transform_data = {
-        Path(temp["path"]).name: TransformData(
+        Path(clean_path(temp["path"])).name: TransformData(
             fixed_points=np.asarray(temp["fixed_points"]),
             moving_points=np.asarray(temp["moving_points"]),
             fixed_resolution=temp["fixed_pixel_size_um"],
@@ -441,7 +443,7 @@ def _read_image2crop_latest_config(config: dict) -> I2C_METADATA:
         )
         for temp in config["images"]
     }
-    resolution = {Path(temp["path"]).name: temp["pixel_size_um"] for temp in config["images"]}
+    resolution = {Path(clean_path(temp["path"])).name: temp["pixel_size_um"] for temp in config["images"]}
     paths, paths_missing = _get_paths(paths)
     regions = config["crop"]
     if not paths:

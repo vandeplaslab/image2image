@@ -120,9 +120,9 @@ class LocateFilesDialog(QtDialog):
                 new_path = Path(directory) / name
                 if new_path.exists():
                     paths["new_path"] = new_path
+                    logger.info(f"Located file - '{paths['new_path']!r}'")
             else:
                 paths["new_path"] = Path(directory)
-            logger.info(f"Located file - '{paths['new_path']!r}'")
         self.on_update_data_list()
 
     def on_update_data_list(self, _evt: ty.Any = None) -> None:

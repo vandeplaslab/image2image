@@ -4,6 +4,7 @@ import typing as ty
 from pathlib import Path
 
 from koyo.typing import PathLike
+from koyo.utilities import clean_path
 from loguru import logger
 
 
@@ -37,6 +38,7 @@ def _remove_missing_from_dict(data_dict: ty.Dict[str, ty.Any], paths: ty.List[Pa
 def _get_paths(paths: ty.List[PathLike]) -> ty.Tuple[ty.Optional[ty.List[Path]], ty.Optional[ty.List[Path]]]:
     _paths_exist, _paths_missing = [], []
     for path in paths:
+        path = clean_path(path)
         path = Path(path)
         try:
             if path.exists():

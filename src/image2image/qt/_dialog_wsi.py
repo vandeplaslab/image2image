@@ -24,6 +24,7 @@ from image2image.qt._dialog_mixins import SingleViewerMixin
 
 if ty.TYPE_CHECKING:
     from qtextra._napari.image import NapariImageView
+    from qtextra.widgets.qt_collapsible import QtCheckCollapsible
 
     from image2image.config import ElastixConfig, ValisConfig
     from image2image.qt._wsi._list import QtModalityList
@@ -388,7 +389,7 @@ class ImageWsiWindow(SingleViewerMixin):
             standout=True,
         )
 
-    def _make_hidden_widgets(self, side_widget: Qw.QWidget) -> Qw.QWidget:
+    def _make_hidden_widgets(self, side_widget: Qw.QWidget) -> QtCheckCollapsible:
         self.write_not_registered_check = hp.make_checkbox(
             self,
             "",

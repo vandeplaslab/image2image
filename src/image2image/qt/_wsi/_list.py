@@ -581,7 +581,6 @@ class QtModalityList(QtListWidget):
         registration_model = self.registration_model
         for modality in registration_model.get_image_modalities(with_attachment=False):
             model = registration_model.modalities[modality]
-            print(modality)
             self.append_item(model)
         logger.debug("Populated modality list.")
 

@@ -25,7 +25,7 @@ from image2image.enums import ALLOWED_VALIS_FORMATS
 from image2image.qt._dialog_wsi import ImageWsiWindow
 from image2image.qt._dialogs._select import LoadWidget
 from image2image.qt._wsi._list import QtModalityList
-from image2image.utils.utilities import get_i2reg_path
+from image2image.utils.utilities import get_i2reg_path, pad_str
 from image2image.utils.valis import guess_preprocessing, hash_preprocessing
 
 if ty.TYPE_CHECKING:
@@ -53,7 +53,7 @@ def make_registration_task(
         "valis",
         "register",
         "--project_dir",
-        f'"{project.project_dir!s}"',
+        pad_str(project.project_dir),
     ]
     if any([write_transformed, write_not_registered, write_merged]):
         commands.append("--write")
@@ -230,7 +230,7 @@ class ImageValisWindow(ImageWsiWindow):
         self.micro_check = hp.make_checkbox(
             self,
             "",
-            tooltip="Perform micro registration (using deformable field). This performs additional (slower)"
+            tooltip="Perform refinement registration (using deformable field). This performs additional (slower)"
             " registration using higher resolution images.",
             value=self.CONFIG.allow_micro,
         )
@@ -240,7 +240,7 @@ class ImageValisWindow(ImageWsiWindow):
             1,
             0.05,
             n_decimals=3,
-            tooltip="Fraction of the image to use for micro registration.",
+            tooltip="Fraction of the image to use for registration refinement.",
             value=self.CONFIG.micro_fraction,
         )
 
@@ -257,7 +257,7 @@ class ImageValisWindow(ImageWsiWindow):
         side_layout.addRow(hp.make_label(self, "Feature matcher"), self.matcher_choice)
         side_layout.addRow(hp.make_label(self, "Check for reflection"), self.reflection_check)
         side_layout.addRow(hp.make_label(self, "Non-rigid registration"), self.non_rigid_check)
-        side_layout.addRow(hp.make_label(self, "Micro registration"), self.micro_check)
+        side_layout.addRow(hp.make_label(self, "Refine registration"), self.micro_check)
         side_layout.addRow(hp.make_label(self, "Fraction"), self.micro_fraction)
         # Project
         self._make_output_widgets(side_widget)
@@ -267,9 +267,8 @@ class ImageValisWindow(ImageWsiWindow):
             hp.make_h_layout(self.output_dir_label, self.output_dir_btn, stretch_id=(0,), spacing=1, margin=1),
         )
         # Advanced options
-        hidden_settings = self._make_hidden_widgets(side_widget)
-        side_layout.addRow(hidden_settings)
-        side_layout.addRow(hidden_settings)
+        self.hidden_settings = self._make_hidden_widgets(side_widget)
+        side_layout.addRow(self.hidden_settings)
 
         self._make_run_widgets(side_widget)
         # Execution buttons
@@ -611,6 +610,13 @@ class ImageValisWindow(ImageWsiWindow):
             logger.trace(
                 f"Processed image {modality.name} for preview in {timer()} at {pyramid} pyramid level ({image.shape})"
             )
+
+    def on_show_tutorial(self) -> None:
+        """Quick tutorial."""
+        from image2image.qt._dialogs._tutorial import show_valis_tutorial
+
+        show_valis_tutorial(self)
+        self.CONFIG.update(first_time=False)
 
 
 if __name__ == "__main__":  # pragma: no cover

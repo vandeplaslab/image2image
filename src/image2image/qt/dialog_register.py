@@ -755,7 +755,7 @@ class ImageRegistrationWindow(Window):
 
             # load transformation
             path = Path(path_)
-            self.CONFIG.update(output_dir=str(path.parent))
+            self.CONFIG.update(output_dir=str(path.parent), last_dir=str(path.parent))
 
             # get info on which settings should be imported
             dlg = ImportSelectDialog(self)
@@ -1681,13 +1681,12 @@ class ImageRegistrationWindow(Window):
             self.on_set_focus()
             ignore = True
         elif key == Qt.Key.Key_T:
-            self.on_toggle_transformed_image()  # type: ignore[call-arg]
-            ignore = True
-        elif key == Qt.Key.Key_T:
-            self.on_toggle_synchronization()  # type: ignore[call-arg]
+            self.on_toggle_transformed_image()
             ignore = True
         elif key == Qt.Key.Key_V:
-            self.on_toggle_transformed_visibility()  # type: ignore[call-arg]
+            self.on_toggle_transformed_visibility()
+        elif key == Qt.Key.Key_R:
+            self.on_toggle_transformed_view_type()
             ignore = True
         elif key == Qt.Key.Key_A:
             self.on_zoom_on_point(-1)
@@ -1697,6 +1696,10 @@ class ImageRegistrationWindow(Window):
             ignore = True
         elif key == Qt.Key.Key_S:
             self.on_toggle_synchronization()
+        elif key == Qt.Key.Key_N:
+            self.on_increment_dataset(1)
+        elif key == Qt.Key.Key_P:
+            self.on_increment_dataset(-1)
             ignore = True
         elif key == Qt.Key.Key_E:  # increase opacity
             self.on_adjust_transformed_opacity(10)
@@ -1705,6 +1708,14 @@ class ImageRegistrationWindow(Window):
             self.on_adjust_transformed_opacity(-10)
             ignore = True
         return ignore
+
+    def on_increment_dataset(self, increment: int) -> None:
+        """Increase the dataset index."""
+        hp.increment_combobox(self._moving_widget.dataset_choice, increment)
+
+    def on_toggle_transformed_view_type(self) -> None:
+        """Toggle between image and random."""
+        hp.increment_combobox(self._moving_widget.view_type_choice, 1)
 
     def close(self, force=False):
         """Override to handle closing app or just the window."""

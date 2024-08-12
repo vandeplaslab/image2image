@@ -7,6 +7,7 @@ from pathlib import Path
 
 import numpy as np
 from koyo.typing import PathLike
+from koyo.utilities import clean_path
 from loguru import logger
 from skimage.transform import AffineTransform, ProjectiveTransform
 
@@ -403,16 +404,20 @@ def _read_image2register_latest_config(config: dict, validate_paths: bool = True
     # read important fields
     fixed_paths, fixed_missing_paths, fixed_reader_kws = [], [], {}
     if validate_paths:
-        paths = [temp["path"] for temp in config["fixed_paths"]]
-        fixed_reader_kws = {Path(temp["path"]).name: temp.get("reader_kws", None) for temp in config["fixed_paths"]}
+        paths = [clean_path(temp["path"]) for temp in config["fixed_paths"]]
+        fixed_reader_kws = {
+            Path(clean_path(temp["path"])).name: temp.get("reader_kws", None) for temp in config["fixed_paths"]
+        }
         fixed_paths, fixed_missing_paths = _get_paths(paths)
     fixed_res = [temp["pixel_size_um"] for temp in config["fixed_paths"]]
     fixed_resolution = float(np.min(fixed_res)) if fixed_res else 0.0
 
     moving_paths, moving_missing_paths, moving_reader_kws = [], [], {}
     if validate_paths:
-        paths = [temp["path"] for temp in config["moving_paths"]]
-        moving_reader_kws = {Path(temp["path"]).name: temp.get("reader_kws", None) for temp in config["moving_paths"]}
+        paths = [clean_path(temp["path"]) for temp in config["moving_paths"]]
+        moving_reader_kws = {
+            Path(clean_path(temp["path"])).name: temp.get("reader_kws", None) for temp in config["moving_paths"]
+        }
         moving_paths, moving_missing_paths = _get_paths(paths)
     moving_res = [temp["pixel_size_um"] for temp in config["moving_paths"]]
     moving_resolution = float(np.min(moving_res)) if moving_res else 0.0

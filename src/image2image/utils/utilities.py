@@ -11,16 +11,15 @@ from pathlib import Path
 import numpy as np
 from koyo.typing import PathLike
 from loguru import logger
-from napari._vispy.layers.points import VispyPointsLayer
-from napari._vispy.layers.shapes import VispyShapesLayer
-from napari.layers import Image, Layer, Points, Shapes
 from napari.layers.points._points_mouse_bindings import select as _select
 from napari.layers.points.points import Mode as PointsMode
-from napari.utils.colormaps.colormap_utils import convert_vispy_colormap
-from napari.utils.colormaps.standardize_color import transform_color
 from napari.utils.events import Event
-from natsort import natsorted
-from vispy.color import Colormap as VispyColormap
+
+if ty.TYPE_CHECKING:
+    from napari._vispy.layers.points import VispyPointsLayer
+    from napari._vispy.layers.shapes import VispyShapesLayer
+    from napari.layers import Image, Layer, Points, Shapes
+    from vispy.color import Colormap as VispyColormap
 
 DRAG_DIST_THRESHOLD = 5
 
@@ -39,6 +38,15 @@ PREFERRED_COLORMAPS = [
     "#42d4f4",
     "#800000",
 ]
+
+
+def pad_str(value: ty.Any) -> str:
+    """Pad string with quotes around out."""
+    from koyo.system import IS_MAC
+
+    if IS_MAC:
+        return str(value)
+    return f'"{value!s}"'
 
 
 def format_reader_metadata(reader_metadata: dict) -> str:
@@ -81,6 +89,8 @@ def get_groups(filenames: list[str], keyword: str, by_slide: bool = False) -> di
 
 def groups_to_group_id(groups: dict[str, list[str]]) -> dict[str, int]:
     """Convert groups to group ID."""
+    from natsort import natsorted
+
     dataset_to_group_map = {}
     for i, group in enumerate(natsorted(groups)):
         try:
@@ -201,6 +211,8 @@ def get_random_hex_color() -> str:
 
 def get_used_colormaps(layer_list: list[Layer]) -> list[str]:
     """Return list of used colormaps based on their name."""
+    from napari.layers import Image
+
     used = []
     for layer in layer_list:
         if isinstance(layer, Image):
@@ -263,6 +275,10 @@ def get_contrast_limits(array: list[np.ndarray]) -> tuple[tuple[float, float] | 
 
 def vispy_colormap(color: str | np.ndarray) -> VispyColormap:
     """Return vispy colormap."""
+    from napari.utils.colormaps.colormap_utils import convert_vispy_colormap
+    from napari.utils.colormaps.standardize_color import transform_color
+    from vispy.color import Colormap as VispyColormap
+
     return convert_vispy_colormap(
         VispyColormap([np.asarray([0.0, 0.0, 0.0, 1.0]), transform_color(color)[0]]), name=str(color)
     )

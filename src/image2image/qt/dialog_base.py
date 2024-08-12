@@ -800,6 +800,8 @@ def create_new_window(plugin: str, *extra_args: ty.Any) -> None:
 
     from koyo.system import IS_WIN
 
+    from image2image.utils.utilities import pad_str
+
     program = os.environ.get("IMAGE2IMAGE_PROGRAM", None)
 
     process = QProcess()
@@ -812,11 +814,11 @@ def create_new_window(plugin: str, *extra_args: ty.Any) -> None:
         arguments.append("--dev")
     if plugin:
         arguments.append("--tool")
-        arguments.append(plugin)
+        arguments.append(pad_str(plugin))
     if extra_args:
         for arg in extra_args:
             if isinstance(arg, str):
-                arguments.append(arg)
+                arguments.append(pad_str(arg))
     logger.trace(f"Executing {program} {' '.join(arguments)}...")
     if IS_WIN and hasattr(process, "setNativeArguments"):
         process.setNativeArguments(" ".join(arguments))

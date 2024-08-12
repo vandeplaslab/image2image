@@ -448,8 +448,8 @@ class SelectDataDialog(QtFramelessTool):
         show_split_czi: bool = True,
     ):
         self.is_fixed = is_fixed
-        self.TABLE_CONFIG["rotation"]["hidden"] = not allow_flip_rotation
-        self.TABLE_CONFIG["flip"]["hidden"] = not allow_swap
+        self.TABLE_CONFIG.update_attribute("rotation", "hidden", not allow_flip_rotation)
+        self.TABLE_CONFIG.update_attribute("flip", "hidden", not allow_swap)
         self.allow_geojson = allow_geojson
         self.select_channels = select_channels
         self.available_formats = available_formats
