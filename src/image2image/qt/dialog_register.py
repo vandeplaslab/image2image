@@ -403,7 +403,7 @@ class ImageRegistrationWindow(Window):
     def _ensure_consistent_moving_dataset(self) -> None:
         datasets = self._get_currently_visible_moving_datasets()
         current = self._moving_widget.dataset_choice.currentText()
-        if current not in datasets:
+        if current not in datasets and datasets:
             with hp.qt_signals_blocked(self._moving_widget):
                 self._moving_widget.dataset_choice.setCurrentText(datasets[0])
 
@@ -595,11 +595,13 @@ class ImageRegistrationWindow(Window):
     def on_clear(self, which: str, force: bool = True) -> None:
         """Remove point to the image."""
         layer = self.fixed_points_layer if which == "fixed" else self.moving_points_layer
+        view = self.view_fixed if which == "fixed" else self.view_moving
         if force or hp.confirm(self, "Are you sure you want to remove all data points from the points layer?"):
             layer.data = np.zeros((0, 2))
             self.evt_predicted.emit()  # noqa
             self.on_clear_transformation()
             self.on_run()
+            view.remove_layer(layer)
 
     def on_clear_modality(self, which: str) -> None:
         """Clear specified modality."""
@@ -906,7 +908,10 @@ class ImageRegistrationWindow(Window):
         affine = self.transform.params  # if self.transform is not None else self.transform_model.moving_initial_affine
 
         # add image and apply transformation
-        colormap = get_colormap(0, self.view_moving.layers, moving_image_layer.colormap)
+        if READER_CONFIG.view_type == ViewType.OVERLAY:
+            colormap = get_colormap(0, self.view_moving.layers, moving_image_layer.colormap)
+        else:
+            colormap = moving_image_layer.colormap
         if self.transformed_moving_image_layer:
             self.transformed_moving_image_layer.affine = affine
             if update_data:
@@ -1019,7 +1024,7 @@ class ImageRegistrationWindow(Window):
         if self.transformed_moving_image_layer and which == "moving":
             self.transformed_moving_image_layer.opacity = self.CONFIG.opacity_moving / 100
 
-    def on_update_text(self, _: ty.Any = None, block: bool = False) -> None:
+    def on_update_text(self, _: ty.Any = None, block: bool = False, refresh: bool = False) -> None:
         """Update text data in each layer."""
         self.CONFIG.update(label_color=self.text_color.hex_color, label_size=self.text_size.value())
 
@@ -1033,6 +1038,8 @@ class ImageRegistrationWindow(Window):
                     layer.text = _get_text_format()
             else:
                 layer.text = _get_text_format()
+            if refresh:
+                layer.refresh_text()
 
     def on_lock(self) -> None:
         """Lock transformation."""
@@ -1225,7 +1232,7 @@ class ImageRegistrationWindow(Window):
         self.close_btn = hp.make_qta_btn(
             side_widget,
             "delete",
-            tooltip="Close project (without saving)",
+            tooltip="Close project.<br>Right-click to open menu.",
             func=self.on_close,
             func_menu=self.on_close_menu,
             standout=True,
@@ -1632,7 +1639,7 @@ class ImageRegistrationWindow(Window):
             elif mode == Mode.SELECT:
                 self.on_move(w)
 
-    @qdebounced(timeout=100, leading=True)
+    @qdebounced(timeout=50, leading=True)
     def keyPressEvent(self, evt: QKeyEvent) -> None:
         """Key press event."""
         if hasattr(evt, "native"):

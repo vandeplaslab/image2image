@@ -149,7 +149,7 @@ class LoadWidget(QWidget):
                     "delete",
                     func=self.on_close_dataset,
                     func_menu=self.on_clear_menu,
-                    tooltip="Remove image(s) from the viewer.",
+                    tooltip="Remove image(s) from the viewer.<br>Right-click to open menu.",
                     standout=True,
                     normal=True,
                 ),

@@ -9,6 +9,7 @@ from pathlib import Path
 import numpy as np
 import qtextra.helpers as hp
 from image2image_reg.models import Modality, Preprocessing
+from koyo.typing import PathLike
 from loguru import logger
 from qtextra.widgets.qt_image_button import QtLockButton, QtVisibleButton
 from qtextra.widgets.qt_list_widget import QtListItem, QtListWidget
@@ -89,25 +90,28 @@ class QtModalityItem(QtListItem):
         self.attach_image_btn = hp.make_qta_btn(
             self,
             "image",
-            tooltip="Click here to attach Image file. (.czi, .tiff)",
+            tooltip="Click here to attach Image file. (.czi, .tiff)<br>Right-click to remove images.",
             normal=True,
             func=self.on_attach_image,
+            func_menu=self.on_edit_attach_image,
             properties={"with_count": True},
         )
         self.attach_geojson_btn = hp.make_qta_btn(
             self,
             "shapes",
-            tooltip="Click here to attach GeoJSON file (.geojson).",
+            tooltip="Click here to attach GeoJSON file (.geojson).<br>Right-click to remove shapes.",
             normal=True,
             func=self.on_attach_geojson,
+            func_menu=self.on_edit_attach_geojson,
             properties={"with_count": True},
         )
         self.attach_points_btn = hp.make_qta_btn(
             self,
             "points",
-            tooltip="Click here to attach points file (.csv, .txt).",
+            tooltip="Click here to attach points file (.csv, .txt).<br>Right-click to remove points.",
             normal=True,
             func=self.on_attach_points,
+            func_menu=self.on_edit_attach_points,
             properties={"with_count": True},
         )
 
@@ -235,10 +239,51 @@ class QtModalityItem(QtListItem):
             multiple=True,
         )
         if paths:
-            self.CONFIG.last_dir = Path(paths[0]).parent
+            self.CONFIG.update(last_dir=Path(paths[0]).parent)
             for path in paths:
                 name = Path(path).stem.replace(".ome", "")
                 self.registration_model.auto_add_attachment_images(self.item_model.name, name, path)
+            self._set_from_model()
+
+    def _remove_modality(self, options: list[str], kind: str) -> list[str]:
+        """Select options from a list to remove."""
+        to_remove = hp.choose_from_list(self, options, text=f"Please choose <b>{kind}</b> attachment from the list.")
+        return to_remove
+
+    def on_edit_attach_image(self) -> None:
+        """Remove Image file."""
+        options = self.registration_model.get_attachment_list(self.item_model.name, "image")
+        if not options:
+            hp.toast(hp.get_parent(), "Error", "No image attachments found.", icon="warning")
+            return
+        to_remove = self._remove_modality(options, "Image")
+        if to_remove:
+            for name in to_remove:
+                self.registration_model.remove_attachment_image(name)
+            self._set_from_model()
+
+    def on_edit_attach_geojson(self) -> None:
+        """Remove Image file."""
+        options = self.registration_model.get_attachment_list(self.item_model.name, "geojson")
+        if not options:
+            hp.toast(hp.get_parent(), "Error", "No GeoJSON attachments found.", icon="warning")
+            return
+        to_remove = self._remove_modality(options, "Shapes")
+        if to_remove:
+            for name in to_remove:
+                self.registration_model.remove_attachment_geojson(name)
+            self._set_from_model()
+
+    def on_edit_attach_points(self) -> None:
+        """Remove Image file."""
+        options = self.registration_model.get_attachment_list(self.item_model.name, "points")
+        if not options:
+            hp.toast(hp.get_parent(), "Error", "No point attachments found.", icon="warning")
+            return
+        to_remove = self._remove_modality(options, "Points")
+        if to_remove:
+            for name in to_remove:
+                self.registration_model.remove_attachment_points(name)
             self._set_from_model()
 
     def _get_attachment_metadata(self) -> tuple[str | None, float | None]:
@@ -291,7 +336,7 @@ class QtModalityItem(QtListItem):
             multiple=True,
         )
         if shapes:
-            self.CONFIG.last_dir = Path(shapes[0]).parent
+            self.CONFIG.update(last_dir=Path(shapes[0]).parent)
             name, pixel_size = self._get_attachment_metadata()
             if name is None and pixel_size is None:
                 hp.toast(self, "Error", "No attachment name or pixel size provided.", icon="warning")
@@ -299,7 +344,7 @@ class QtModalityItem(QtListItem):
             self._attach_shapes(shapes, name, pixel_size)
             self._set_from_model()
 
-    def _attach_points(self, filelist: list[str], name: str | None, pixel_size: float | None):
+    def _attach_points(self, filelist: list[PathLike], name: str | None, pixel_size: float | None):
         if name:
             self.registration_model.add_attachment_points(self.item_model.name, name, filelist, pixel_size=pixel_size)
         else:
@@ -318,7 +363,7 @@ class QtModalityItem(QtListItem):
             multiple=True,
         )
         if paths:
-            self.CONFIG.last_dir = Path(paths[0]).parent
+            self.CONFIG.update(last_dir=Path(paths[0]).parent)
             name, pixel_size = self._get_attachment_metadata()
             if name is None and pixel_size is None:
                 hp.toast(self, "Error", "No attachment name or pixel size provided.", icon="warning")
