@@ -53,7 +53,7 @@ def make_registration_task(
         "valis",
         "register",
         "--project_dir",
-        f"{project.project_dir!s}",
+        f'"{project.project_dir!s}"',
     ]
     if any([write_transformed, write_not_registered, write_merged]):
         commands.append("--write")
@@ -487,7 +487,8 @@ class ImageValisWindow(ImageWsiWindow):
         if self.registration_model and (
             force or hp.confirm(self, "Are you sure you want to close the project?", "Close project?")
         ):
-            self.registration_model.set_reference(None)
+            self._registration_model = None
+            # self.registration_model.set_reference(None)
             self.name_label.setText("")
             self._image_widget.on_close_dataset(force=True)
             self.view.clear()

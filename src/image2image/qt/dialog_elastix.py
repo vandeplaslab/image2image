@@ -57,7 +57,7 @@ def make_registration_task(
         "elastix",
         "register",
         "--project_dir",
-        f"{project.project_dir!s}",
+        f'"{project.project_dir!s}"',
     ]
     if any([write_attached, write_transformed, write_not_registered, write_merged]):
         commands.append("--write")
@@ -450,7 +450,8 @@ class ImageElastixWindow(ImageWsiWindow):
         ):
             self.name_label.setText("")
             self._image_widget.on_close_dataset(force=True)
-            self.registration_model.reset_registration_paths()
+            self._registration_model = None
+            # self.registration_model.reset_registration_paths()
             self.view.clear()
             self.modality_list.populate()
             self.registration_map.populate()
