@@ -167,7 +167,7 @@ class ImageCropWindow(Window):
             if paths_missing:
                 from image2image.qt._dialogs import LocateFilesDialog
 
-                locate_dlg = LocateFilesDialog(self, paths_missing)
+                locate_dlg = LocateFilesDialog(self, self.CONFIG, paths_missing)
                 if locate_dlg.exec_():  # type: ignore[attr-defined]
                     paths = locate_dlg.fix_missing_paths(paths_missing, paths)
 

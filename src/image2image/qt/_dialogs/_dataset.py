@@ -22,9 +22,7 @@ from qtpy.QtGui import QDoubleValidator, QDropEvent
 from qtpy.QtWidgets import (
     QDialog,
     QFormLayout,
-    QHeaderView,
     QLineEdit,
-    QTableWidget,
     QTableWidgetItem,
     QVBoxLayout,
     QWidget,
@@ -422,16 +420,16 @@ class SelectDataDialog(QtFramelessTool):
 
     TABLE_CONFIG = (
         TableConfig()  # type: ignore
-        .add("name", "key", "str", 0)
-        .add("pixel size (um)", "resolution", "str", 0)
-        .add("shape", "image_size", "str", 0)
-        .add("type", "type", "str", 0)
-        .add("rotation", "rotation", "str", 0)
-        .add("flip", "flip", "button", 0)
-        .add("swap", "swap", "button", 0)
-        .add("", "extract", "button", 0)
-        .add("", "save", "button", 0)
-        .add("", "remove", "button", 0)
+        .add("name", "key", "str", 0, sizing="stretch")
+        .add("pixel size (um)", "resolution", "str", 0, sizing="contents")
+        .add("shape", "image_size", "str", 0, sizing="contents")
+        .add("type", "type", "str", 0, sizing="contents")
+        .add("rotation", "rotation", "str", 0, hidden=True, sizing="contents")
+        .add("flip", "flip", "button", 0, sizing="contents")
+        .add("swap", "swap", "button", 0, hidden=True, sizing="contents")
+        .add("", "extract", "button", 0, sizing="contents")
+        .add("", "save", "button", 0, sizing="contents")
+        .add("", "remove", "button", 0, sizing="contents")
     )
 
     def __init__(
@@ -450,8 +448,8 @@ class SelectDataDialog(QtFramelessTool):
         show_split_czi: bool = True,
     ):
         self.is_fixed = is_fixed
-        self.allow_flip_rotation = allow_flip_rotation
-        self.allow_swap = allow_swap
+        self.TABLE_CONFIG["rotation"]["hidden"] = not allow_flip_rotation
+        self.TABLE_CONFIG["flip"]["hidden"] = not allow_swap
         self.allow_geojson = allow_geojson
         self.select_channels = select_channels
         self.available_formats = available_formats
@@ -495,9 +493,7 @@ class SelectDataDialog(QtFramelessTool):
                     self.table.setItem(index, self.TABLE_CONFIG.key, name_item)
 
                     # add type item
-                    image_size = format_shape(reader.shape)
-
-                    type_item = QTableWidgetItem(image_size)
+                    type_item = QTableWidgetItem(format_shape(reader.shape))
                     type_item.setFlags(type_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
                     type_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
                     self.table.setItem(index, self.TABLE_CONFIG.image_size, type_item)
@@ -896,53 +892,8 @@ class SelectDataDialog(QtFramelessTool):
     def make_panel(self) -> QFormLayout:
         """Make panel."""
         _, header_layout = self._make_hide_handle(title="Images")
-        column_names = self.TABLE_CONFIG.to_columns()
-        self.table = QTableWidget(self)
-        self.table.setColumnCount(len(column_names))  # name, resolution, layer type, extract, key
-        self.table.setHorizontalHeaderLabels(column_names)
-        self.table.setCornerButtonEnabled(False)
 
-        header = self.table.horizontalHeader()
-        header.setSectionResizeMode(self.TABLE_CONFIG.key, QHeaderView.Stretch)  # type: ignore[attr-defined]
-        header.setSectionResizeMode(
-            self.TABLE_CONFIG.resolution,
-            QHeaderView.ResizeToContents,  # type: ignore[attr-defined]
-        )
-        header.setSectionResizeMode(
-            self.TABLE_CONFIG.image_size,
-            QHeaderView.ResizeToContents,  # type: ignore[attr-defined]
-        )
-        header.setSectionResizeMode(
-            self.TABLE_CONFIG.rotation,
-            QHeaderView.ResizeToContents,  # type: ignore[attr-defined]
-        )
-        header.setSectionHidden(self.TABLE_CONFIG.rotation, not self.allow_flip_rotation)
-        header.setSectionResizeMode(
-            self.TABLE_CONFIG.flip,
-            QHeaderView.ResizeToContents,  # type: ignore[attr-defined]
-        )
-        header.setSectionHidden(self.TABLE_CONFIG.flip, not self.allow_flip_rotation)
-        header.setSectionResizeMode(
-            self.TABLE_CONFIG.type,
-            QHeaderView.ResizeToContents,  # type: ignore[attr-defined]
-        )
-        header.setSectionResizeMode(
-            self.TABLE_CONFIG.swap,
-            QHeaderView.ResizeToContents,  # type: ignore[attr-defined]
-        )
-        header.setSectionHidden(self.TABLE_CONFIG.swap, not self.allow_swap)
-        header.setSectionResizeMode(
-            self.TABLE_CONFIG.extract,
-            QHeaderView.ResizeToContents,  # type: ignore[attr-defined]
-        )
-        header.setSectionResizeMode(
-            self.TABLE_CONFIG.save,
-            QHeaderView.ResizeToContents,  # type: ignore[attr-defined]
-        )
-        header.setSectionResizeMode(
-            self.TABLE_CONFIG.remove,
-            QHeaderView.ResizeToContents,  # type: ignore[attr-defined]
-        )
+        self.table = hp.make_table(self, self.TABLE_CONFIG)
 
         self.shapes_combo = hp.make_combobox(
             self,

@@ -1267,7 +1267,7 @@ class ImageWsiPrepWindow(Window):
 
             # locate paths that are missing
             if missing_paths:
-                locate_dlg = LocateFilesDialog(self, missing_paths)
+                locate_dlg = LocateFilesDialog(self, self.CONFIG, missing_paths)
                 if locate_dlg.exec_():  # type: ignore[attr-defined]
                     paths = locate_dlg.fix_missing_paths(missing_paths, paths)
 

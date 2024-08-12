@@ -793,8 +793,8 @@ class ImageRegistrationWindow(Window):
                 if fixed_paths_missing or moving_paths_missing:
                     locate_dlg = LocateFilesDialog(
                         self,
-                        fixed_paths_missing,  # type: ignore[arg-type]
-                        moving_paths_missing,
+                        self.CONFIG,
+                        fixed_paths_missing + moving_paths_missing or [],  # type: ignore[arg-type]
                     )
                     if locate_dlg.exec_():  # type: ignore[attr-defined]
                         if fixed_paths_missing:
@@ -1373,6 +1373,7 @@ class ImageRegistrationWindow(Window):
             func=self.on_lock,
             normal=True,
             tooltip="Lock the area of interest. Press <b>L</b> on your keyboard to lock.",
+            standout=True,
         )
         # self.set_current_focus_btn = hp.make_btn(self, "Set current range", func=self.on_set_focus)
         self.x_center = hp.make_double_spin_box(
@@ -1394,7 +1395,7 @@ class ImageRegistrationWindow(Window):
         layout.addRow(hp.make_label(self, "Center (x)"), self.x_center)
         layout.addRow(hp.make_label(self, "Center (y)"), self.y_center)
         layout.addRow(hp.make_label(self, "Zoom"), self.zoom)
-        layout.addRow(hp.make_h_layout(self.lock_btn, self.use_focus_btn, stretch_id=1))
+        layout.addRow(hp.make_h_layout(self.lock_btn, self.use_focus_btn, stretch_id=1, spacing=2))
         return layout
 
     def _make_image_layout(self) -> QVBoxLayout:
