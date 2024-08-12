@@ -1,29 +1,33 @@
 """PyInstaller setup script."""
 import os
 from pathlib import Path
+
+import debugpy._vendored
+import image2image
+import imagecodecs
+import napari
+import qtpy
 from image2image.assets import ICON_ICO
-from PyInstaller.building.build_main import Analysis, PYZ, EXE, COLLECT, TOC, MERGE
+from koyo.timer import MeasureTimer
+from PyInstaller.building.build_main import COLLECT, EXE, MERGE, PYZ, TOC, Analysis
 from PyInstaller.utils.hooks import (
+    PY_IGNORE_EXTENSIONS,
+    collect_all,
+    collect_data_files,
+    collect_dynamic_libs,
+    collect_submodules,
+    copy_metadata,
     get_package_paths,
     remove_prefix,
-    PY_IGNORE_EXTENSIONS,
-    collect_data_files,
-    collect_submodules,
-    collect_dynamic_libs,
-    collect_all,
-    copy_metadata,
 )
-import qtpy
-import napari
-import image2image
-import debugpy._vendored
-import imagecodecs
-from koyo.timer import MeasureTimer
 
 block_cipher = None
 
+<<<<<<< Updated upstream
 DEBUG_MODE = os.getenv("PYINSTALLER_DEBUG", "all")
 
+=======
+>>>>>>> Stashed changes
 
 def _make_analysis(path: str):
     return Analysis(
@@ -40,7 +44,6 @@ def _make_analysis(path: str):
         + collect_data_files("image2image")
         + collect_data_files("freetype")
         + collect_data_files("xmlschema")
-
         + [(os.path.dirname(debugpy._vendored.__file__), "debugpy/_vendored")],
         hiddenimports=[]
         + [
