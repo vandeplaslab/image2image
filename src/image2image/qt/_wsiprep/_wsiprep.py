@@ -702,10 +702,16 @@ class ConfigDialog(WsiPrepMixin):
             self, placeholder="Group/project tag", default=ELASTIX3D_CONFIG.project_tag, func_changed=self.on_preview
         )
         self.project_prefix = hp.make_line_edit(
-            self, placeholder="Project prefix", default=ELASTIX3D_CONFIG.project_prefix_tag, func_changed=self.on_preview
+            self,
+            placeholder="Project prefix",
+            default=ELASTIX3D_CONFIG.project_prefix_tag,
+            func_changed=self.on_preview,
         )
         self.project_suffix = hp.make_line_edit(
-            self, placeholder="Project suffix", default=ELASTIX3D_CONFIG.project_suffix_tag, func_changed=self.on_preview
+            self,
+            placeholder="Project suffix",
+            default=ELASTIX3D_CONFIG.project_suffix_tag,
+            func_changed=self.on_preview,
         )
         self.export_type = hp.make_combobox(
             self,
