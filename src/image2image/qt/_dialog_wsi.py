@@ -212,6 +212,7 @@ class ImageWsiWindow(SingleViewerMixin):
         if len(set(common_output_dir)) == 1:
             self.output_dir = common_output_dir[0]
             self.output_dir_label.setText(hp.hyper(self.output_dir))
+            self.output_dir_label.setToolTip(str(self.output_dir))
             logger.trace(f"Automatically set output directory to {self.output_dir}")
 
     def on_maybe_add_attachment(self, filelist: list[str]) -> None:
@@ -377,9 +378,7 @@ class ImageWsiWindow(SingleViewerMixin):
             func=self.on_validate_path,
             func_changed=self.on_validate_path,
         )
-        self.output_dir_label = hp.make_label(
-            side_widget, hp.hyper(self.output_dir), tooltip="Output directory", enable_url=True
-        )
+        self.output_dir_label = hp.make_label(side_widget, "", tooltip="Output directory", enable_url=True)
         self.output_dir_btn = hp.make_qta_btn(
             side_widget,
             "folder",
@@ -389,19 +388,34 @@ class ImageWsiWindow(SingleViewerMixin):
             standout=True,
         )
 
+    def on_toggle_write(self) -> None:
+        """Toggle between write/no-write of images."""
+        write = self.write_check.isChecked()
+        self.write_registered_check.setChecked(write)
+        self.write_not_registered_check.setChecked(write)
+        self.write_attached_check.setChecked(write)
+        self.write_merged_check.setChecked(write)
+
     def _make_hidden_widgets(self, side_widget: Qw.QWidget) -> QtCheckCollapsible:
-        self.write_not_registered_check = hp.make_checkbox(
+        self.write_check = hp.make_checkbox(
             self,
             "",
-            tooltip="Write original, not-registered images (those without any transformations such as target).",
-            value=self.CONFIG.write_not_registered,
-            func=self.on_update_config,
+            tooltip="Quickly toggle between writing or not writing of images.",
+            value=False,
+            func=self.on_toggle_write,
         )
         self.write_registered_check = hp.make_checkbox(
             self,
             "",
             tooltip="Write registered images.",
             value=self.CONFIG.write_registered,
+            func=self.on_update_config,
+        )
+        self.write_not_registered_check = hp.make_checkbox(
+            self,
+            "",
+            tooltip="Write original, not-registered images (those without any transformations such as target).",
+            value=self.CONFIG.write_not_registered,
             func=self.on_update_config,
         )
         self.write_attached_check = hp.make_checkbox(
@@ -443,6 +457,7 @@ class ImageWsiWindow(SingleViewerMixin):
         )
 
         hidden_settings = hp.make_advanced_collapsible(side_widget, "Export options", allow_checkbox=False)
+        hidden_settings.addRow(hp.make_label(self, "Write/don't write"), self.write_check)
         hidden_settings.addRow(hp.make_label(self, "Write registered images"), self.write_registered_check)
         hidden_settings.addRow(hp.make_label(self, "Write unregistered images"), self.write_not_registered_check)
         hidden_settings.addRow(hp.make_label(self, "Write attached modalities"), self.write_attached_check)

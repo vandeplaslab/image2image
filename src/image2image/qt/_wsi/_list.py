@@ -566,7 +566,7 @@ class QtModalityList(QtListWidget):
         # except AttributeError:
         #     colors = []
         #     logger.trace("Failed to retrieve colors")
-        color = get_next_color(self.count() - 1, other_colors=self.used_colors)
+        color = get_next_color(self.count(), other_colors=self.used_colors)
         self.used_colors.append(color)
 
         widget = QtModalityItem(item, parent=self, color=color, valis=self.valis)
@@ -651,7 +651,7 @@ def get_next_color(n: int, other_colors: list[str] | None = None) -> str:
     colors = ["#ff0000", "#00ff00", "#0000ff", "#ffff00", "#f00ff", "#00ffff"]
     if n < len(colors):
         color = colors[n]
-        if color in other_colors:
+        if other_colors and color in other_colors:
             n += 1
             return get_next_color(n, other_colors=other_colors)
         return color.lower()

@@ -93,6 +93,7 @@ class RegistrationPaths(QWidget):
     def on_add_transformation(self) -> None:
         """Add transformation to the list."""
         current = self._choice.currentText()
+        self.transformations = list(self.transformations)  # ensure it's a list
         self.transformations.append(current)
         ELASTIX_CONFIG.transformations = tuple(self.transformations)
         self._update_transformation_path()
@@ -121,7 +122,7 @@ class RegistrationPaths(QWidget):
     def registration_paths(self, value: str | list[str]):
         if isinstance(value, str):
             value = [value]
-        self.transformations = value
+        self.transformations = list(value)
         self._update_transformation_path()
 
 
@@ -304,9 +305,10 @@ class RegistrationMap(QWidget):
         registration_model: IWsiReg = self.registration_model
         registration_model.reset_registration_paths()
         self.populate_paths()
+        self.toggle_name()
         self._log_message("Reset all registration paths.")
 
-    def toggle_name(self):
+    def toggle_name(self) -> None:
         """Toggle name."""
         self._parent.modality_list.toggle_name(self.registration_model.n_registrations > 0)
 

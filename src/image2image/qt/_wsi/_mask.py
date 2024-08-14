@@ -416,7 +416,7 @@ class CropDialog(ShapesDialog):
         modality = self._parent.registration_model.modalities[name]
         yx, bbox = self._transform_to_preprocessing(modality)
         if yx is not None and bbox is not None:
-            hp.warn("Cannot have both polygon and bbox for crop")
+            hp.warn(self, "Cannot have both polygon and bbox for crop")
             return
         if yx is not None:
             modality.preprocessing.use_crop = True
@@ -428,7 +428,7 @@ class CropDialog(ShapesDialog):
             modality.preprocessing.crop_polygon = None
         else:
             modality.preprocessing.use_crop = False
-        modality.transform_mask = False
+        modality.preprocessing.transform_mask = False
         kind = "polygon" if yx is not None else "bbox"
         logger.trace(f"Added crop for modality {name} to {kind}")
         self.evt_mask.emit(modality)
