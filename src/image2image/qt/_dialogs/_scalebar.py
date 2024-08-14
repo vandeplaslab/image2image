@@ -18,7 +18,7 @@ class QtScaleBarControls(_QtScaleBarControls):
 
         close_btn = hp.make_qta_btn(self, "cross", tooltip="Click here to close the popup window", normal=True)
         close_btn.clicked.connect(self.close)
-        self._title_layout.insertWidget(3, close_btn)
+        self._title_layout.addWidget(close_btn)
 
     def set_px_size(self, px_size: float):
         """Set pixel size based on the smallest resolution."""

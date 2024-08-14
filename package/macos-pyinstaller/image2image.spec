@@ -22,12 +22,8 @@ from PyInstaller.utils.hooks import (
 )
 
 block_cipher = None
-
-<<<<<<< Updated upstream
 DEBUG_MODE = os.getenv("PYINSTALLER_DEBUG", "all")
 
-=======
->>>>>>> Stashed changes
 
 def _make_analysis(path: str):
     return Analysis(

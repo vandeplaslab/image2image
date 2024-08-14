@@ -6,6 +6,7 @@ import typing as ty
 from functools import partial
 
 import numpy as np
+from image2image.utils.utilities import open_docs
 from loguru import logger
 from qtextra import helpers as hp
 from qtextra.widgets.qt_dialog import QtFramelessTool
@@ -67,8 +68,10 @@ class PreprocessMovingDialog(QtFramelessTool):
         self.initial_model = InitialTransformModel()
         self.on_update()
 
-    def on_rotate(self, value: int) -> None:
+    def on_rotate(self, value: int | str) -> None:
         """Rotate image."""
+        if isinstance(value, str):
+            value = 15 if value == "right" else -15
         self.initial_model.rotate = self.rotate_spin.value() + value
         with hp.qt_signals_blocked(self.rotate_spin):
             self.rotate_spin.setValue(self.initial_model.rotate)
@@ -93,7 +96,7 @@ class PreprocessMovingDialog(QtFramelessTool):
             self.flip_lr.setChecked(False)
         self.on_update()
 
-    def on_update(self):
+    def on_update(self) -> None:
         """Update image."""
         parent: ImageRegistrationWindow = self.parent()  # type: ignore[assignment]
         if parent.moving_image_layer:
@@ -136,7 +139,7 @@ class PreprocessMovingDialog(QtFramelessTool):
     # noinspection PyAttributeOutsideInit
     def make_panel(self) -> QFormLayout:
         """Make panel."""
-        _, header_layout = self._make_close_handle(title="Initial transformation")
+        _, header_layout = self._make_close_handle("Initial transformation")
 
         self.rotate_bck = hp.make_qta_btn(
             self, "rotate_left", tooltip="Rotate (counter-clockwise)", func=partial(self.on_rotate, value=-90)
@@ -165,6 +168,7 @@ class PreprocessMovingDialog(QtFramelessTool):
             hp.make_h_layout(self.rotate_spin, self.rotate_bck, self.rotate_fwd, spacing=1, margin=0, stretch_id=(0,)),
         )
         layout.addRow("Flip left-right", self.flip_lr)
+        layout.addRow(hp.make_h_line(self))
         layout.addRow(
             hp.make_label(
                 self,
@@ -180,6 +184,15 @@ class PreprocessMovingDialog(QtFramelessTool):
                 hp.make_btn(self, "OK", func=self.accept),
                 hp.make_btn(self, "Reset", func=self.on_reset),
                 hp.make_btn(self, "Cancel", func=self.reject),
+            )
+        )
+        layout.addRow(
+            hp.make_h_layout(
+                hp.make_url_btn(self, func=lambda: open_docs(dialog="initial-transform")),
+                stretch_before=True,
+                spacing=2,
+                margin=2,
+                alignment=Qt.AlignmentFlag.AlignVCenter,
             )
         )
         return layout

@@ -5,6 +5,7 @@ from __future__ import annotations
 import typing as ty
 
 import numpy as np
+from image2image.utils.utilities import open_docs
 from loguru import logger
 from napari.layers.points.points import Mode
 from qtextra import helpers as hp
@@ -261,7 +262,7 @@ class GuessDialog(QtFramelessTool):
     # noinspection PyAttributeOutsideInit
     def make_panel(self) -> QFormLayout:
         """Make panel."""
-        _, header_layout = self._make_close_handle(title="Find fiducials...")
+        _, header_layout = self._make_close_handle("Find fiducials...")
 
         self.detect_btn = hp.make_btn(
             self, "Find fiducials", func=self.on_detect, tooltip="Find fiducial markers in the moving image."
@@ -314,11 +315,19 @@ class GuessDialog(QtFramelessTool):
         layout.addRow("Point index", self.point_index)
         layout.addRow("Zoom-in on point", self.zoom_in)
         layout.addRow(self.select_btn)
-
         layout.addRow(
             hp.make_h_layout(
                 hp.make_btn(self, "OK", func=self.accept),
                 hp.make_btn(self, "Cancel", func=self.reject),
+            )
+        )
+        layout.addRow(
+            hp.make_h_layout(
+                hp.make_url_btn(self, func=lambda: open_docs(dialog="generate-fiducials")),
+                stretch_before=True,
+                spacing=2,
+                margin=2,
+                alignment=Qt.AlignmentFlag.AlignVCenter,
             )
         )
         return layout

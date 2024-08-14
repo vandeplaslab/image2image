@@ -18,7 +18,7 @@ from qtextra.widgets.qt_dialog import QtFramelessTool
 from qtpy.QtCore import Qt, Signal
 from qtpy.QtWidgets import QLayout
 
-from image2image.utils.utilities import init_shapes_layer
+from image2image.utils.utilities import init_shapes_layer, open_docs
 
 if ty.TYPE_CHECKING:
     from image2image_io.readers import BaseReader
@@ -338,7 +338,17 @@ class ShapesDialog(QtFramelessTool):
         )
         layout.addRow(hp.make_label(self, "Hide other"), self.only_current)
         layout.addRow(hp.make_h_layout(self.add_btn, self.remove_btn))
-        layout.addRow(hp.make_label(self, "Auto-update"), self.auto_update)
+        layout.addRow(
+            hp.make_label(self, "Auto-update"),
+            hp.make_h_layout(
+                self.auto_update,
+                hp.make_url_btn(self, func=lambda: open_docs(dialog=f"{self.MASK_OR_CROP}-maker")),
+                stretch_id=(0,),
+                spacing=2,
+                margin=2,
+                alignment=Qt.AlignmentFlag.AlignVCenter,
+            ),
+        )
         return layout
 
 

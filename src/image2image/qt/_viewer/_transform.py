@@ -2,6 +2,7 @@
 
 import typing as ty
 from copy import deepcopy
+from image2image.utils.utilities import open_docs
 from pathlib import Path
 
 from koyo.timer import MeasureTimer
@@ -229,13 +230,20 @@ class SelectTransformDialog(QtFramelessTool):
         layout.addRow(self.table)
         layout.addRow(hp.make_btn(self, "Apply to selected", func=self.on_apply_transform))
         layout.addRow(
-            hp.make_label(
-                self,
-                "<b>Tip.</b> Check/uncheck images to select where the current transformation matrix should be applied."
-                "<br><b>Tip.</b> You can quickly check/uncheck row by double-clicking on a row.",
-                alignment=Qt.AlignmentFlag.AlignHCenter,
-                object_name="tip_label",
-                enable_url=True,
+            hp.make_h_layout(
+                hp.make_label(
+                    self,
+                    "<b>Tip.</b> Check/uncheck images to select where the current transformation matrix should be"
+                    " applied. <br><b>Tip.</b> You can quickly check/uncheck row by double-clicking on a row.",
+                    alignment=Qt.AlignmentFlag.AlignHCenter,
+                    object_name="tip_label",
+                    enable_url=True,
+                ),
+                hp.make_url_btn(self, func=lambda: open_docs(dialog="transformation-selection")),
+                stretch_id=(0,),
+                spacing=2,
+                margin=2,
+                alignment=Qt.AlignmentFlag.AlignVCenter,
             )
         )
         return layout

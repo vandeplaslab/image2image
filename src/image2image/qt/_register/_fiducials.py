@@ -5,6 +5,7 @@ from __future__ import annotations
 import typing as ty
 
 import numpy as np
+from image2image.utils.utilities import open_docs
 from loguru import logger
 from qtextra import helpers as hp
 from qtextra.utils.table_config import TableConfig
@@ -209,13 +210,20 @@ class FiducialsDialog(QtFramelessTool):
         layout.addRow(self.table)
         layout.addRow("Zoom factor", self.zoom_factor)
         layout.addRow(
-            hp.make_label(
-                self,
-                "<b>Tip.</b> Double-click on a row to zoom in on the point.<br>"
-                "<b>Tip.</b> Press  <b>Delete</b> or <b>Backspace</b> to delete a point.",
-                alignment=Qt.AlignHCenter,  # type: ignore[attr-defined]
-                object_name="tip_label",
-                enable_url=True,
+            hp.make_h_layout(
+                hp.make_label(
+                    self,
+                    "<b>Tip.</b> Double-click on a row to zoom in on the point.<br>"
+                    "<b>Tip.</b> Press  <b>Delete</b> or <b>Backspace</b> to delete a point.",
+                    alignment=Qt.AlignHCenter,  # type: ignore[attr-defined]
+                    object_name="tip_label",
+                    enable_url=True,
+                ),
+                hp.make_url_btn(self, func=lambda: open_docs(dialog="fiducials-table")),
+                stretch_id=(0,),
+                spacing=2,
+                margin=2,
+                alignment=Qt.AlignmentFlag.AlignVCenter,
             )
         )
         return layout

@@ -3,6 +3,7 @@
 import typing as ty
 from collections import Counter
 from contextlib import contextmanager
+from image2image.utils.utilities import open_docs
 
 from loguru import logger
 from napari.utils.events import Event
@@ -240,7 +241,16 @@ class OverlayChannelsDialog(QtFramelessTool):
             layout.addRow(hp.make_h_line_with_text("Iterate through images"))
         layout.addRow(self.iterate_widget)
         layout.addRow(hp.make_h_line(self))
-        layout.addRow(self.info)
+        layout.addRow(
+            hp.make_h_layout(
+                self.info,
+                hp.make_url_btn(self, func=lambda: open_docs(dialog="channel-selection")),
+                stretch_id=(0,),
+                spacing=2,
+                margin=2,
+                alignment=Qt.AlignmentFlag.AlignVCenter,
+            )
+        )
         return layout
 
     def keyPressEvent(self, evt):

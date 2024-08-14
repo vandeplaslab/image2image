@@ -1016,27 +1016,12 @@ class ImageWsiPrepWindow(Window):
         )
         return variables
 
-    def on_show_scalebar(self) -> None:
-        """Show scale bar controls for the viewer."""
-        from image2image.qt._dialogs._scalebar import QtScaleBarControls
-
-        dlg = QtScaleBarControls(self.view.viewer, self.view.widget)
-        dlg.set_px_size(self.data_model.min_resolution)
-        dlg.show_above_widget(self.scalebar_btn)
-
     def on_show_grid(self) -> None:
         """Show scale bar controls for the viewer."""
         from qtextra._napari.common.component_controls.qt_grid_controls import QtGridControls
 
         dlg = QtGridControls(self.view.viewer, self.view.widget)
-        dlg.show_above_widget(self.grid_btn)
-
-    def on_show_save_figure(self) -> None:
-        """Show scale bar controls for the viewer."""
-        from qtextra._napari.common.widgets.screenshot_dialog import QtScreenshotDialog
-
-        dlg = QtScreenshotDialog(self.view, self)
-        dlg.show_above_widget(self.clipboard_btn)
+        dlg.show_above_mouse()
 
     def on_set_config(self):
         """Update config."""

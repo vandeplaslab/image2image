@@ -184,10 +184,12 @@ def open_link(url: str) -> None:
     webbrowser.open(url)
 
 
-def open_docs(app: str = "") -> None:
+def open_docs(app: str = "", dialog: str = "") -> None:
     """Open documentation site."""
     if app:
         open_link(f"https://vandeplaslab.github.io/image2image-docs/apps/{app}")
+    elif dialog:
+        open_link(f"https://vandeplaslab.github.io/image2image-docs/dialogs/{dialog}")
     else:
         open_link("https://vandeplaslab.github.io/image2image-docs/")
 
