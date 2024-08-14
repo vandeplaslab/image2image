@@ -65,6 +65,8 @@ def get_metadata(
 class ImageConvertWindow(Window):
     """Image viewer dialog."""
 
+    APP_NAME = "convert"
+
     _console = None
     _editing = False
     _output_dir = None

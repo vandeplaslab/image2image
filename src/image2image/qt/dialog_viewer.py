@@ -38,10 +38,11 @@ MASK_FILENAME = "mask.tmp"
 class ImageViewerWindow(Window):
     """Image viewer dialog."""
 
+    APP_NAME = "viewer"
+
     image_layer: list[Image] | None = None
     shape_layer: list[Shapes] | None = None
     points_layer: list[Points] | None = None
-    _console = None
     view: NapariImageView
 
     def __init__(

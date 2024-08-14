@@ -59,6 +59,8 @@ def parse_crop_info(data: tuple[int, int, int, int] | np.ndarray | None = None) 
 class ImageCropWindow(Window):
     """Image viewer dialog."""
 
+    APP_NAME = "crop"
+
     view: NapariImageView
 
     worker_crop: GeneratorWorker | None = None

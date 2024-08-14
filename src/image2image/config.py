@@ -114,6 +114,16 @@ class ElastixConfig(SingleAppConfig):
 
     USER_CONFIG_FILENAME = "config.elastix.json"
 
+    env_i2reg: str = Field(
+        "",
+        title="i2reg environment variable",
+        description="Path to the environment variable that leads to i2reg.",
+        in_app=True,
+    )
+    n_parallel: int = Field(
+        1, ge=1, le=8, title="Number of parallel processes", description="Number of parallel processes.", in_app=True
+    )
+
     transformations: tuple[str] = Field(
         ("rigid", "affine"), title="Transformations", description="Transformations.", in_app=True
     )
@@ -131,11 +141,26 @@ class ElastixConfig(SingleAppConfig):
     remove_merged: bool = Field(False, title="Remove merged", description="Remove merged.", in_app=True)
     rename: bool = Field(True, title="Rename", description="Rename.", in_app=True)
 
+    @validator("env_i2reg", pre=True, allow_reuse=True)
+    def _validate_path(value: PathLike) -> str:  # type: ignore[misc]
+        """Validate path."""
+        return str(value)
+
 
 class ValisConfig(SingleAppConfig):
     """Configuration for the viewer app."""
 
     USER_CONFIG_FILENAME = "config.valis.json"
+
+    env_i2reg: str = Field(
+        "",
+        title="i2reg environment variable",
+        description="Path to the environment variable that leads to i2reg.",
+        in_app=True,
+    )
+    n_parallel: int = Field(
+        1, ge=1, le=8, title="Number of parallel processes", description="Number of parallel processes.", in_app=True
+    )
 
     use_preview: bool = Field(True, title="Use preview", description="Use preview.", in_app=True)
     hide_others: bool = Field(False, title="Hide others", description="Hide others.", in_app=True)
@@ -158,6 +183,11 @@ class ValisConfig(SingleAppConfig):
     write_merged: bool = Field(True, title="Write merged", description="Write merged.", in_app=True)
     remove_merged: bool = Field(False, title="Remove merged", description="Remove merged.", in_app=True)
     rename: bool = Field(True, title="Rename", description="Rename.", in_app=True)
+
+    @validator("env_i2reg", pre=True, allow_reuse=True)
+    def _validate_path(value: PathLike) -> str:  # type: ignore[misc]
+        """Validate path."""
+        return str(value)
 
 
 class ConvertConfig(SingleAppConfig):

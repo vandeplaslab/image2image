@@ -31,7 +31,8 @@ if ty.TYPE_CHECKING:
 class ImageFusionWindow(Window):
     """Image viewer dialog."""
 
-    _console = None
+    APP_NAME = "fusion"
+
     _editing = False
     _output_dir = None
     worker: GeneratorWorker | None = None

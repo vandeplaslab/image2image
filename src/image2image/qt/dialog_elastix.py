@@ -8,7 +8,7 @@ from pathlib import Path
 import qtextra.helpers as hp
 import qtextra.queue.cli_queue as _q
 from image2image_reg.workflows.elastix import IWsiReg
-from koyo.secret import hash_obj
+from koyo.secret import hash_parameters
 from koyo.timer import MeasureTimer
 from koyo.typing import PathLike
 from loguru import logger
@@ -35,7 +35,7 @@ if ty.TYPE_CHECKING:
 
 logger.enable("qtextra")
 
-_q.N_PARALLEL = 2
+_q.N_PARALLEL = ELASTIX_CONFIG.n_parallel
 
 
 def make_registration_task(
@@ -49,7 +49,14 @@ def make_registration_task(
     rename: bool = True,
 ) -> Task:
     """Make registration task."""
-    task_id = hash_obj(project.project_dir)
+    task_id = hash_parameters(
+        project_dir=project.project_dir,
+        write_transformed=write_transformed,
+        write_not_registered=write_not_registered,
+        write_merged=write_merged,
+        as_uint8=as_uint8,
+        rename=rename,
+    )
     commands = [
         get_i2reg_path(),
         "--no_color",
@@ -82,11 +89,13 @@ def make_registration_task(
 class ImageElastixWindow(ImageWsiWindow):
     """Image viewer dialog."""
 
+    APP_NAME = "elastix"
+
     _registration_model: IWsiReg | None = None
     _mask_dlg: MaskDialog | None = None
     _crop_dlg: CropDialog | None = None
 
-    WINDOW_TITLE = f"image2wsireg: WSI Registration app (v{__version__})"
+    WINDOW_TITLE = f"image2elastix: WSI Registration app (v{__version__})"
     WINDOW_CONSOLE_ARGS = (("view", "viewer"), "data_model", ("data_model", "wrapper"), "registration_model")
     PROJECT_SUFFIX = ".wsireg"
     RUN_DISABLED: bool = False
@@ -107,8 +116,8 @@ class ImageElastixWindow(ImageWsiWindow):
             self._registration_model = IWsiReg(name=name, output_dir=self.CONFIG.output_dir, init=False)
         return self._registration_model
 
+    @staticmethod
     def make_registration_task(
-        self,
         project: IWsiReg,
         write_not_registered: bool = False,
         write_attached: bool = False,
@@ -117,6 +126,7 @@ class ImageElastixWindow(ImageWsiWindow):
         remove_merged: bool = False,
         as_uint8: bool = False,
         rename: bool = True,
+        **_kwargs: ty.Any,
     ) -> Task:
         return make_registration_task(
             project,

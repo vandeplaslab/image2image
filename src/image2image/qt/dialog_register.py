@@ -97,11 +97,13 @@ def get_random_image(array: list[np.ndarray]) -> list[np.ndarray]:
 class ImageRegistrationWindow(Window):
     """Image registration dialog."""
 
+    APP_NAME = "register"
+
     view_fixed: NapariImageView
     view_moving: NapariImageView
     fixed_image_layer: list[Image] | None = None
     moving_image_layer: list[Image] | None = None
-    _fiducials_dlg, _console = None, None
+    _fiducials_dlg = None
     _zooming = False
     _current_index = -1
 

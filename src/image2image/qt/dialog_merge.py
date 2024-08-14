@@ -56,7 +56,8 @@ def get_metadata(
 class ImageMergeWindow(Window):
     """Image viewer dialog."""
 
-    _console = None
+    APP_NAME = "merge"
+
     _editing = False
     _output_dir = None
     worker: GeneratorWorker | None = None

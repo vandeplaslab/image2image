@@ -6,10 +6,11 @@ import typing as ty
 from pathlib import Path
 
 import qtextra.helpers as hp
+import qtextra.queue.cli_queue as _q
 from image2image_io.config import CONFIG as READER_CONFIG
 from image2image_reg.enums import ValisDetectorMethod, ValisMatcherMethod
 from image2image_reg.workflows.valis import ValisReg
-from koyo.secret import hash_obj
+from koyo.secret import hash_parameters
 from koyo.timer import MeasureTimer
 from koyo.typing import PathLike
 from koyo.utilities import is_installed
@@ -32,6 +33,7 @@ if ty.TYPE_CHECKING:
     from image2image_reg.models import Modality, Preprocessing
 
 HAS_VALIS = is_installed("valis") and is_installed("pyvips")
+_q.N_PARALLEL = VALIS_CONFIG.n_parallel
 
 
 def make_registration_task(
@@ -43,11 +45,19 @@ def make_registration_task(
     remove_merged: bool = False,
     as_uint8: bool = False,
     rename: bool = True,
+    with_i2reg: bool = True,
 ) -> Task:
     """Make registration task."""
-    task_id = hash_obj(project.project_dir)
+    task_id = hash_parameters(
+        project_dir=project.project_dir,
+        write_transformed=write_transformed,
+        write_not_registered=write_not_registered,
+        write_merged=write_merged,
+        as_uint8=as_uint8,
+        rename=rename,
+    )
     commands = [
-        get_i2reg_path(),
+        get_i2reg_path() if with_i2reg else "i2reg",
         "--no_color",
         "--debug",
         "valis",
@@ -78,6 +88,8 @@ def make_registration_task(
 class ImageValisWindow(ImageWsiWindow):
     """Image viewer dialog."""
 
+    APP_NAME = "valis"
+
     _registration_model: ValisReg | None = None
 
     WINDOW_TITLE = f"image2valis: Valis Registration app (v{__version__})"
@@ -100,8 +112,8 @@ class ImageValisWindow(ImageWsiWindow):
         READER_CONFIG.init_pyramid = False
         READER_CONFIG.split_czi = False
 
+    @staticmethod
     def make_registration_task(
-        self,
         project: ValisReg,
         write_not_registered: bool = False,
         write_transformed: bool = False,
@@ -110,6 +122,8 @@ class ImageValisWindow(ImageWsiWindow):
         remove_merged: bool = False,
         as_uint8: bool = False,
         rename: bool = True,
+        with_i2reg: bool = True,
+        **_kwargs: ty.Any,
     ) -> Task:
         return make_registration_task(
             project,
@@ -120,6 +134,7 @@ class ImageValisWindow(ImageWsiWindow):
             remove_merged=remove_merged,
             as_uint8=as_uint8,
             rename=rename,
+            with_i2reg=with_i2reg,
         )
 
     @property
