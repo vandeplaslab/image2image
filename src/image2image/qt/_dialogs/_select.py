@@ -48,8 +48,7 @@ class LoadWidget(QWidget):
     evt_remove_temp = Signal(tuple)
 
     IS_FIXED: bool = True
-    INFO_TEXT = "Select data..."
-    INFO_VISIBLE = False
+    INFO_TEXT = ""
     CHANNEL_FIXED: bool | None = None
 
     def __init__(
@@ -108,18 +107,15 @@ class LoadWidget(QWidget):
 
     def _setup_ui(self) -> QFormLayout:
         """Setup UI."""
-        layout = hp.make_form_layout()
-        layout.setContentsMargins(0, 0, 0, 0)
-        hp.style_form_layout(layout)
-        self.info_text = hp.make_label(
-            self,
-            self.INFO_TEXT,
-            bold=True,
-            wrap=True,
-            alignment=Qt.AlignCenter,  # type: ignore[attr-defined]
-        )
-        self.info_text.setVisible(self.INFO_VISIBLE)
-        layout.addRow(self.info_text)  # noqa
+        if self.INFO_TEXT:
+            self.info_text = hp.make_label(
+                self,
+                self.INFO_TEXT,
+                bold=True,
+                wrap=True,
+                alignment=Qt.AlignCenter,  # type: ignore[attr-defined]
+            )
+
         self.active_icon = QtActiveIcon()
         self.import_btn = hp.make_qta_btn(
             self, "import", func=self.on_import_project, tooltip="Open project file.", standout=True, normal=True
@@ -140,6 +136,14 @@ class LoadWidget(QWidget):
             func=self.on_open_dataset_dialog,
             tooltip="Open dialog to add/remove images or adjust pixel size.",
         )
+        if self.select_channels:
+            self.channel_btn = hp.make_btn(self, "Select channels...", func=self._on_select_channels)
+
+        layout = hp.make_form_layout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        hp.style_form_layout(layout)
+        if self.INFO_TEXT:
+            layout.addRow(self.info_text)
         layout.addRow(
             hp.make_h_layout(
                 self.import_btn,
@@ -161,9 +165,7 @@ class LoadWidget(QWidget):
             )
         )
         if self.select_channels:
-            self.channel_btn = hp.make_btn(self, "Select channels...", func=self._on_select_channels)
             layout.addRow(self.channel_btn)
-        self.setLayout(layout)
         return layout
 
     def on_clear_menu(self) -> None:
@@ -229,7 +231,6 @@ class FixedWidget(LoadWidget):
     # class attrs
     IS_FIXED = True
     INFO_TEXT = "Select 'fixed' data..."
-    INFO_VISIBLE = True
 
     def __init__(
         self,
@@ -270,7 +271,6 @@ class MovingWidget(LoadWidget):
     IS_FIXED = False
     CHANNEL_FIXED = False
     INFO_TEXT = "Select 'moving' data..."
-    INFO_VISIBLE = True
 
     # events
     evt_toggle_dataset = Signal(str)
@@ -396,7 +396,6 @@ class LoadWithTransformWidget(LoadWidget):
 
     IS_FIXED = True
     CHANNEL_FIXED = None
-    INFO_VISIBLE = False
 
     def __init__(
         self,

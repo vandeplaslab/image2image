@@ -456,6 +456,7 @@ class ImageElastixWindow(ImageWsiWindow):
             self.modality_list.populate()
             self.registration_map.populate()
             self.output_dir_label.setText("")
+            self.output_dir_label.setToolTip("")
             self.output_dir = None
             logger.trace("Closed project.")
 

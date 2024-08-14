@@ -606,6 +606,7 @@ class ImageCropWindow(Window):
         """Make statusbar."""
         super()._make_statusbar()
         self._make_scalebar_statusbar()
+        self._make_export_statusbar()
 
     @property
     def data_model(self) -> DataModel:

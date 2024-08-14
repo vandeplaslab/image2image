@@ -494,6 +494,7 @@ class ImageValisWindow(ImageWsiWindow):
             self.modality_list.populate()
             self.populate_reference_list()
             self.output_dir_label.setText("")
+            self.output_dir_label.setToolTip("")
             self.output_dir = None
             logger.trace("Closed project.")
 
