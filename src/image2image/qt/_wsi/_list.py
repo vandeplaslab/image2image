@@ -45,6 +45,7 @@ class QtModalityItem(QtListItem):
     evt_preview_transform_preprocessing = Signal(Modality, Preprocessing)
     evt_preprocessing_close = Signal(Modality)
     evt_color = Signal(Modality, object)
+    _evt_color_changed = Signal(str, str)
     evt_mask = Signal(Modality, bool)
     evt_crop = Signal(Modality, bool)
 
@@ -121,6 +122,9 @@ class QtModalityItem(QtListItem):
         self.preprocessing_label.evt_clicked.connect(self.on_open_preprocessing)
 
         self.modality_icon = QtModalityLabel(self)
+        self.open_dir_btn = hp.make_qta_btn(
+            self, "folder", tooltip="Open directory containing the image.", normal=True, func=self.on_open_directory
+        )
         self.remove_btn = hp.make_qta_btn(
             self,
             "delete",
@@ -176,6 +180,7 @@ class QtModalityItem(QtListItem):
         main_layout.addLayout(
             hp.make_v_layout(
                 self.modality_icon,
+                self.open_dir_btn,
                 self.remove_btn,
                 self.visible_btn,
                 self.lock_btn,
@@ -189,6 +194,7 @@ class QtModalityItem(QtListItem):
 
         self.mode = False
         self._set_from_model()
+        self._old_hex_color = self.hex_color
 
     def _set_from_model(self, _: ty.Any = None) -> None:
         """Update UI elements."""
@@ -208,6 +214,13 @@ class QtModalityItem(QtListItem):
             self.mask_btn.setVisible(self.item_model.preprocessing.is_masked())
             self.crop_btn.setVisible(self.item_model.preprocessing.is_cropped())
         self.setToolTip(f"<b>Modality</b>: {self.item_model.name}<br><b>Path</b>: {self.item_model.path}")
+
+    def on_open_directory(self) -> None:
+        """Open directory where the image is located."""
+        from koyo.path import open_directory_alt
+
+        path = Path(self.item_model.path)
+        open_directory_alt(path.parent)
 
     def on_remove(self) -> None:
         """Remove image/modality from the list."""
@@ -379,22 +392,25 @@ class QtModalityItem(QtListItem):
     @property
     def hex_color(self) -> str:
         """Get color."""
-        return self.color_btn.hex_color
+        color = self.color_btn.hex_color
+        if len(color) > 7:  # remove the alpha channel
+            color = color[:-2]
+        return color.lower()
 
     @property
     def colormap(self) -> object:
         """Get colormap."""
         from qtextra.utils.colormap import napari_colormap
 
-        color = self.color_btn.hex_color.lower()
+        color = self.hex_color
         colors = {
-            "#ff0000ff": "red",
-            "#00ff00ff": "green",
-            "#0000ffff": "blue",
-            "#ffff00ff": "yellow",
-            "#ff00ffff": "magenta",
-            "#00ffffff": "cyan",
-            "#808080ff": "gray",
+            "#ff0000": "red",
+            "#00ff00": "green",
+            "#0000ff": "blue",
+            "#ffff00": "yellow",
+            "#ff00ff": "magenta",
+            "#00ffff": "cyan",
+            "#808080": "gray",
         }
         return colors.get(color, napari_colormap(color, name=color))
 
@@ -410,6 +426,8 @@ class QtModalityItem(QtListItem):
     def _on_change_color(self, _: ty.Any = None) -> None:
         """Change color."""
         self.evt_color.emit(self.item_model, self.colormap)
+        self._evt_color_changed.emit(self._old_hex_color, self.hex_color)
+        self._old_hex_color = self.hex_color
 
     def _on_update_name(self) -> None:
         """Update name."""
@@ -529,21 +547,30 @@ class QtModalityList(QtListWidget):
         self.setUniformItemSizes(True)
         self._parent = parent
         self.valis = valis
+        self.used_colors = []
 
     @property
     def registration_model(self) -> IWsiReg | ValisReg:
         """Get registration model."""
         return self._parent.registration_model
 
+    def _on_update_color(self, old_color: str, new_color: str) -> None:
+        """Update color."""
+        with suppress(ValueError):
+            self.used_colors.remove(old_color)
+        self.used_colors.append(new_color)
+
     def _make_widget(self, item: QListWidgetItem) -> QtModalityItem:
-        try:
-            colors = [widget.hex_color.lower() for _, _, widget in self.item_model_widget_iter()]
-        except AttributeError:
-            colors = []
-            logger.trace("Failed to retrieve colors")
-        color = get_next_color(self.count() - 1, other_colors=colors)
+        # try:
+        #     colors = [widget.hex_color.lower() for _, _, widget in self.item_model_widget_iter()]
+        # except AttributeError:
+        #     colors = []
+        #     logger.trace("Failed to retrieve colors")
+        color = get_next_color(self.count() - 1, other_colors=self.used_colors)
+        self.used_colors.append(color)
 
         widget = QtModalityItem(item, parent=self, color=color, valis=self.valis)
+        widget._evt_color_changed.connect(self._on_update_color)
         widget.evt_delete.connect(self.evt_delete.emit)
         widget.evt_remove.connect(self.remove_item)
         widget.evt_show.connect(self.evt_show.emit)
@@ -627,5 +654,5 @@ def get_next_color(n: int, other_colors: list[str] | None = None) -> str:
         if color in other_colors:
             n += 1
             return get_next_color(n, other_colors=other_colors)
-        return color
+        return color.lower()
     return "#808080"

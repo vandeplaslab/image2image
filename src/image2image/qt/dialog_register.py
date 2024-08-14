@@ -269,6 +269,8 @@ class ImageRegistrationWindow(Window):
             self.on_sync_views_moving,
             state=True,
         )
+        connect(self.view_fixed.viewer.events.status, self._status_changed, state=state)
+        connect(self.view_moving.viewer.events.status, self._status_changed, state=state)
         # temporary images
         connect(self._moving_widget.evt_update_temp, self.on_plot_temporary, state=state)
         connect(self._moving_widget.evt_remove_temp, self.on_remove_temporary, state=state)

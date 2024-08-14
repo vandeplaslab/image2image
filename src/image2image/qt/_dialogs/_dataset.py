@@ -425,7 +425,7 @@ class SelectDataDialog(QtFramelessTool):
         .add("shape", "image_size", "str", 0, sizing="contents")
         .add("type", "type", "str", 0, sizing="contents")
         .add("rotation", "rotation", "str", 0, hidden=True, sizing="contents")
-        .add("flip", "flip", "button", 0, sizing="contents")
+        .add("flip", "flip", "button", 0, hidden=True, sizing="contents")
         .add("swap", "swap", "button", 0, hidden=True, sizing="contents")
         .add("", "extract", "button", 0, sizing="contents")
         .add("", "save", "button", 0, sizing="contents")
@@ -447,9 +447,12 @@ class SelectDataDialog(QtFramelessTool):
         allow_swap: bool = False,
         show_split_czi: bool = True,
     ):
-        self.is_fixed = is_fixed
+        # update table config
         self.TABLE_CONFIG.update_attribute("rotation", "hidden", not allow_flip_rotation)
-        self.TABLE_CONFIG.update_attribute("flip", "hidden", not allow_swap)
+        self.TABLE_CONFIG.update_attribute("flip", "hidden", not allow_flip_rotation)
+        self.TABLE_CONFIG.update_attribute("swap", "hidden", not allow_swap)
+
+        self.is_fixed = is_fixed
         self.allow_geojson = allow_geojson
         self.select_channels = select_channels
         self.available_formats = available_formats

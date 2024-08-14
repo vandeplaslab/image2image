@@ -86,8 +86,9 @@ class SelectTransformDialog(QtFramelessTool):
                 translation = (translation, translation) if isinstance(translation, float) else translation
                 info += f"\nTranslation: {translation[0]:.3f}, {translation[1]:.3f}"
             if hasattr(transform, "rotation"):
-                rotation = transform.rotation
-                info += f"\nRotation: {rotation:.3f}"
+                radians = transform.rotation
+                degrees = radians * 180 / 3.141592653589793
+                info += f"\nRotation: {radians:.3f} ({degrees:.3f}°)"
         self.transform_metadata.setText(info)
 
     def on_apply_transform(self) -> None:

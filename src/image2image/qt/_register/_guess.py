@@ -12,6 +12,7 @@ from qtextra.utils.utilities import connect
 from qtextra.widgets.qt_dialog import QtFramelessTool
 from qtpy.QtCore import Qt  # type: ignore[attr-defined]
 from qtpy.QtWidgets import QFormLayout
+from superqt.utils import qdebounced
 
 if ty.TYPE_CHECKING:
     from image2image.qt.dialog_register import ImageRegistrationWindow
@@ -117,7 +118,13 @@ class GuessDialog(QtFramelessTool):
     def __init__(self, parent: ImageRegistrationWindow):
         super().__init__(parent)
         self.on_detect()
-        connect(parent.temporary_fixed_points_layer.events.data, self.on_point_added, state=True)
+        connect(parent.temporary_fixed_points_layer.events.data, self.on_point_selected, state=True)
+
+    @property
+    def contour_index(self) -> int:
+        """Get region index."""
+        current = self.region_choice.currentText()
+        return int(current.split(" ")[1])
 
     def on_detect(self) -> None:
         """Detect fiducials."""
@@ -134,17 +141,28 @@ class GuessDialog(QtFramelessTool):
 
     def on_update_region_choices(self) -> None:
         """Detect fiducials."""
+        if not self.contours:
+            return
         # update available contours
         self.simplified_contours = filter_contours(simplify_contour(self.contours, self.distance.value()))
 
+        # update list of contours
         options = contour_formatter(self.simplified_contours)
         hp.combobox_setter(self.region_choice, clear=True, items=options)
+        # update number of available point indices
+        contour_index = self.contour_index
+        contour = contour_to_points(self.simplified_contours[contour_index])
+        with hp.qt_signals_blocked(self.point_index):
+            self.point_index.setMinimum(-1)
+            self.point_index.setMaximum(len(contour) - 1)
+            self.point_index.setValue(-1)
         self.on_region_change()
 
     def on_region_change(self) -> None:
         """Update region."""
-        current = self.region_choice.currentText()
-        contour_index = int(current.split(" ")[1])
+        if not self.contours:
+            return
+        contour_index = self.contour_index
         logger.trace(f"Selected contour {contour_index}...")
         parent: ImageRegistrationWindow = self.parent()  # type: ignore[assignment]
         # add contour to the moving image
@@ -153,7 +171,7 @@ class GuessDialog(QtFramelessTool):
         contour = parent.transform_model.apply_moving_initial_transform(contour, inverse=False)
         self.current_contour = parent.temporary_moving_points_layer.data = contour
         # select the top left point
-        point_index = -1  # self.contour_index.value()
+        point_index = self.point_index.value()
         if point_index == -1:
             point_index = np.argmin(contour[:, 0] + contour[:, 1])
         self.current_index = point_index
@@ -164,21 +182,32 @@ class GuessDialog(QtFramelessTool):
         sizes[point_index] = min_size * 2
         parent.temporary_moving_points_layer.size = sizes
         # update color so it's easier to see which point they are trying to edit
-        colors = ["green"] * len(contour)
-        colors[point_index] = "red"
+        colors = ["yellow"] * len(contour)
+        colors[point_index] = "cyan"
         parent.temporary_moving_points_layer.edge_color = colors
+        if self.zoom_in.isChecked():
+            y, x = contour[point_index]
+            parent.view_moving.camera.center = (x, y, 0)
+            parent.view_moving.viewer.camera.zoom = (
+                parent.CONFIG.zoom_factor * parent.transform_model.moving_to_fixed_ratio * 0.05
+            )
 
-    def on_select(self) -> None:
+    def on_enable_selection(self) -> None:
         """Detect fiducials."""
-        current = self.region_choice.currentText()
-        index = int(current.split(" ")[1])
-        logger.trace(f"Selected contour {index}...")
+        if not self.contours:
+            return
+        contour_index = self.contour_index
+        logger.trace(f"Selected contour {contour_index}...")
         parent: ImageRegistrationWindow = self.parent()  # type: ignore[assignment]
         parent.temporary_fixed_points_layer.mode = Mode.ADD
         parent.view_fixed.select_one_layer(parent.temporary_fixed_points_layer)
 
-    def on_point_added(self, _evt: ty.Any) -> None:
+    @qdebounced(timeout=100)
+    def on_point_selected(self, _evt: ty.Any) -> None:
         """Point was added."""
+        self._on_point_selected()
+
+    def _on_point_selected(self) -> None:
         parent: ImageRegistrationWindow = self.parent()  # type: ignore[assignment]
         moving_reader = parent.get_current_moving_reader()
         fixed_reader = parent.get_current_fixed_reader()
@@ -189,7 +218,7 @@ class GuessDialog(QtFramelessTool):
         if len(data) == 0:  # or len(data) > 1:
             logger.warning("You need to add exactly one point in the fixed image...")
             return
-        # get the first point from the fixed layer
+        # get the last point from the fixed layer
         # points are in the physical space (in um) so let's convert it to pixel space
         fixed_point = data[-1] * fixed_reader.resolution
         # get the corresponding point in the moving image
@@ -248,9 +277,16 @@ class GuessDialog(QtFramelessTool):
             func=self.on_update_region_choices,
         )
         self.region_choice = hp.make_combobox(self, func=self.on_region_change, tooltip="Select region of interest.")
+        self.point_index = hp.make_int_spin_box(
+            self, minimum=-1, maximum=-1, value=-1, func=self.on_region_change, tooltip="Select point index."
+        )
+        self.zoom_in = hp.make_checkbox(self, "", tooltip="Zoom-in on the selected point.", func=self.on_region_change)
 
         self.select_btn = hp.make_btn(
-            self, "Select point in fixed image", func=self.on_select, tooltip="Select a point in the fixed image."
+            self,
+            "Select point in fixed image",
+            func=self.on_enable_selection,
+            tooltip="Select a point in the fixed image.",
         )
 
         layout = hp.make_form_layout(self)
@@ -275,6 +311,8 @@ class GuessDialog(QtFramelessTool):
         layout.addRow(self.detect_btn)
         layout.addRow("Simplify contours", self.distance)
         layout.addRow("Region", self.region_choice)
+        layout.addRow("Point index", self.point_index)
+        layout.addRow("Zoom-in on point", self.zoom_in)
         layout.addRow(self.select_btn)
 
         layout.addRow(

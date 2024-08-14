@@ -228,8 +228,9 @@ class Transformation(BaseModel):
                 else:
                     info += f"{sep}translation: {translation[0]:.1f}, {translation[1]:.1f}"
             if hasattr(transform, "rotation"):
-                rotation = transform.rotation
-                info += f"{sep}rotation: {rotation:.3f}"
+                radians = transform.rotation
+                degrees = radians * 180 / 3.141592653589793
+                info += f"{sep}rotation: {radians:.3f} ({degrees:.3f}°)"
             if error:
                 with suppress(ValueError):
                     info += f"{sep}error: {self.error():.2f}"
