@@ -9,7 +9,7 @@ import qtextra.helpers as hp
 from koyo.typing import PathLike
 from loguru import logger
 from qtextra.widgets.qt_close_window import QtConfirmCloseDialog
-from qtpy.QtWidgets import QDialog, QMenuBar, QStatusBar
+from qtpy.QtWidgets import QDialog, QMenuBar
 
 from image2image.qt.dialog_base import Window
 
