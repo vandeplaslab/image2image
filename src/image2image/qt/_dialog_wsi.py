@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import os
+
 import typing as ty
 from pathlib import Path
 
@@ -55,7 +57,11 @@ class ImageWsiWindow(SingleViewerMixin):
     pyramid_level: Qw.QSpinBox
 
     def __init__(
-        self, parent: Qw.QWidget | None, run_check_version: bool = True, project_dir: PathLike | None = None, **_kwargs
+        self,
+        parent: Qw.QWidget | None,
+        run_check_version: bool = True,
+        project_dir: PathLike | None = None,
+        **_kwargs: ty.Any,
     ):
         super().__init__(parent, self.WINDOW_TITLE, run_check_version=run_check_version)
         self._setup_config()
@@ -63,6 +69,7 @@ class ImageWsiWindow(SingleViewerMixin):
         self.queue_btn.clicked.connect(self.queue_popup.show)  # noqa
         if project_dir:
             self._on_load_from_project(project_dir)
+        self.setup_i2reg_path()
 
     @staticmethod
     def _setup_config() -> None:
@@ -128,6 +135,7 @@ class ImageWsiWindow(SingleViewerMixin):
             write_not_registered=self.write_not_registered_check.isChecked(),
             write_merged=self.write_merged_check.isChecked(),
             as_uint8=self.as_uint8.isChecked(),
+            with_i2reg=not self.RUN_DISABLED,
         )
         if task:
             if cli:
@@ -555,7 +563,6 @@ class ImageWsiWindow(SingleViewerMixin):
             func=self.on_copy_to_clipboard,
             icon="cli",
             tooltip="Copy the registration command to clipboard so it can be executed externally.",
-            disabled=self.RUN_DISABLED,
         )
         menu.addSeparator()
         hp.make_menu_item(
@@ -610,3 +617,28 @@ class ImageWsiWindow(SingleViewerMixin):
             properties={"with_menu": True},
             func=self.on_run_menu,
         )
+
+    def _make_config_menu(self) -> Qw.QMenu:
+        menu = super()._make_config_menu()
+        menu.addSeparator()
+        hp.make_menu_item(self, "Set i2reg path", menu=menu, icon="env", func=self.on_set_i2reg_path)
+        return menu
+
+    def on_set_i2reg_path(self) -> None:
+        """Set i2reg path."""
+        env_path = Path(self.CONFIG.env_i2reg) if self.CONFIG.env_i2reg else Path.cwd()
+        base_dir = env_path.parent if env_path.is_file() else env_path
+        hp.get_filename(self, "Select i2reg executable", base_dir)
+        if env_path.exists():
+            self.RUN_DISABLED = False
+            os.environ["IMAGE2IMAGE_I2REG_PATH"] = str(env_path)
+            self.CONFIG.update(env_i2reg=str(env_path))
+
+    def setup_i2reg_path(self) -> None:
+        """Set i2reg path."""
+        if not os.environ.get("IMAGE2IMAGE_I2REG_PATH", None) and self.CONFIG.env_i2reg:
+            env_path = Path(self.CONFIG.env_i2reg)
+            if env_path.exists():
+                self.RUN_DISABLED = False
+                os.environ["IMAGE2IMAGE_I2REG_PATH"] = str(env_path)
+                logger.trace(f"Set i2reg path to {env_path}.")

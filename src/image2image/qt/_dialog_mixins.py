@@ -9,7 +9,7 @@ import qtextra.helpers as hp
 from koyo.typing import PathLike
 from loguru import logger
 from qtextra.widgets.qt_close_window import QtConfirmCloseDialog
-from qtpy.QtWidgets import QDialog, QMenuBar, QStatusBar
+from qtpy.QtWidgets import QDialog, QMenuBar, QLabel
 
 from image2image.qt.dialog_base import Window
 
@@ -26,6 +26,8 @@ class SingleViewerMixin(Window):
     _output_dir = None
     view: NapariImageView
     _image_widget: LoadWidget
+
+    _output_dir_label: QLabel
 
     WINDOW_CONSOLE_ARGS: tuple[str, ...] = ()
 
@@ -45,10 +47,11 @@ class SingleViewerMixin(Window):
     @output_dir.setter
     def output_dir(self, directory: PathLike) -> None:
         if directory:
-            self._output_dir = directory
+            self._output_dir = Path(directory)
             self.CONFIG.update(output_dir=directory)
-            formatted_output_dir = f".{self.output_dir.parent}/{self.output_dir.name}"
-            self.output_dir_label.setText(hp.hyper(self.output_dir, value=formatted_output_dir))
+            formatted_output_dir = f".{self._output_dir.parent}/{self._output_dir.name}"
+            self.output_dir_label.setText(hp.hyper(self._output_dir, value=formatted_output_dir))
+            self.output_dir_label.setTooltip(str(self._output_dir))
             logger.debug(f"Output directory set to {self._output_dir}")
 
     @property

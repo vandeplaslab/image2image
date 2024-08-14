@@ -177,29 +177,32 @@ def log_exception(message_or_error: str | Exception) -> None:
         logger.warning(message_or_error)
 
 
-def open_link(url: str):
+def open_link(url: str) -> None:
     """Open link."""
     import webbrowser
 
     webbrowser.open(url)
 
 
-def open_docs():
+def open_docs(app: str = "") -> None:
     """Open documentation site."""
-    open_link("https://vandeplaslab.github.io/image2image-docs/")
+    if app:
+        open_link(f"https://vandeplaslab.github.io/image2image-docs/apps/{app}")
+    else:
+        open_link("https://vandeplaslab.github.io/image2image-docs/")
 
 
-def open_github():
+def open_github() -> None:
     """Open GitHub website."""
     open_link("https://github.com/vandeplaslab/image2image")
 
 
-def open_request():
+def open_request() -> None:
     """Open GitHub website."""
     open_link("https://github.com/vandeplaslab/image2image/issues/new")
 
 
-def open_bug_report():
+def open_bug_report() -> None:
     """Open GitHub website."""
     open_link("https://github.com/vandeplaslab/image2image/issues/new")
 

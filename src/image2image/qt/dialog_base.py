@@ -37,6 +37,9 @@ if ty.TYPE_CHECKING:
 class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
     """Base class window for all apps."""
 
+    APP_NAME: str = ""
+    CONFIG: SingleAppConfig
+
     _console = None
     view: NapariImageView | None = None
     data_model: DataModel
@@ -45,11 +48,9 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
     evt_dropped = Signal("QEvent")
     evt_initialized = Signal("QEvent")
 
-    CONFIG: SingleAppConfig
-
     def __init__(self, parent: QWidget | None, title: str, delay_events: bool = False, run_check_version: bool = True):
         super().__init__(parent)
-        self.setAttribute(Qt.WA_DeleteOnClose)  # type: ignore[attr-defined]
+        self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
         self.setWindowTitle(title)
         self.setUnifiedTitleAndToolBarOnMac(True)
         self.setMouseTracking(True)
@@ -72,7 +73,7 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
 
         # add logger
         self.logger_dlg = QtLoggerDialog(self, USER_LOG_DIR)
-        self.temporary_layers = {}
+        self.temporary_layers: dict[str, Layer] = {}
         self._setup_config()
 
     @staticmethod
@@ -462,7 +463,14 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
         from image2image.utils.utilities import open_bug_report, open_docs, open_github, open_request
 
         menu_help = hp.make_menu(self, "Help")
-        hp.make_menu_item(self, "Documentation (online)", menu=menu_help, icon="web", func=open_docs, shortcut="F1")
+        hp.make_menu_item(
+            self,
+            "Documentation (online)",
+            menu=menu_help,
+            icon="web",
+            func=lambda: open_docs(app=self.APP_NAME),
+            shortcut="F1",
+        )
         hp.make_menu_item(
             self,
             "GitHub (online)",
