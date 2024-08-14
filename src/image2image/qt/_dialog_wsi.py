@@ -386,7 +386,7 @@ class ImageWsiWindow(SingleViewerMixin):
             func=self.on_validate_path,
             func_changed=self.on_validate_path,
         )
-        self.output_dir_label = hp.make_label(side_widget, "", tooltip="Output directory", enable_url=True)
+        self.output_dir_label = hp.make_label(side_widget, "", tooltip="", enable_url=True)
         self.output_dir_btn = hp.make_qta_btn(
             side_widget,
             "folder",

@@ -627,6 +627,7 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
     def _make_statusbar(self) -> None:
         """Make statusbar."""
         self.statusbar = QStatusBar()  # noqa
+        self.statusbar.setSizeGripEnabled(False)
 
         self.progress_bar = QProgressBar(self)
         self.progress_bar.setMaximumWidth(200)
