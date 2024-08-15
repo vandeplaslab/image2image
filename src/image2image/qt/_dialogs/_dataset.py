@@ -28,6 +28,7 @@ from qtpy.QtWidgets import (
     QWidget,
 )
 from superqt.utils import create_worker
+from image2image.utils.utilities import open_docs
 
 from image2image.config import REGISTER_CONFIG, STATE, SingleAppConfig
 from image2image.enums import ALLOWED_IMAGE_FORMATS, ALLOWED_IMAGE_FORMATS_WITH_GEOJSON
@@ -125,7 +126,7 @@ class CloseDatasetDialog(QtDialog):
                 self,
                 "Please select which images should be <b>removed</b> from the project."
                 " Fiducial markers will be unaffected.",
-                alignment=Qt.AlignHCenter,  # type: ignore[attr-defined]
+                alignment=Qt.AlignmentFlag.AlignHCenter,
                 enable_url=True,
                 wrap=True,
             )
@@ -257,7 +258,7 @@ class SelectChannelsToLoadDialog(QtDialog):
                 "<b>Tip.</b> You can quickly check/uncheck row by <b>double-clicking</b> on a row.<br>"
                 "<b>Tip.</b> Check/uncheck a row to select which channels should be immediately loaded.<br>"
                 "<b>Tip.</b> You can quickly check/uncheck <b>all</b> rows by clicking on the first column header.",
-                alignment=Qt.AlignHCenter,  # type: ignore[attr-defined]
+                alignment=Qt.AlignmentFlag.AlignHCenter,
                 object_name="tip_label",
                 enable_url=True,
             )
@@ -961,12 +962,19 @@ class SelectDataDialog(QtFramelessTool):
         layout.addRow(self.table)
         layout.addRow(hp.make_h_line())
         layout.addRow(
-            hp.make_label(
-                self,
-                "<b>Tip.</b> You can edit pixel size by double-clicking on the cell.",
-                alignment=Qt.AlignHCenter,  # type: ignore[attr-defined]
-                object_name="tip_label",
-                enable_url=True,
+            hp.make_h_layout(
+                hp.make_label(
+                    self,
+                    "<b>Tip.</b> You can edit pixel size by double-clicking on the cell.",
+                    alignment=Qt.AlignmentFlag.AlignHCenter,
+                    object_name="tip_label",
+                    enable_url=True,
+                ),
+                hp.make_url_btn(self, func=lambda: open_docs(dialog="dataset-metadata")),
+                stretch_id=(0,),
+                spacing=2,
+                margin=2,
+                alignment=Qt.AlignmentFlag.AlignVCenter,
             )
         )
         return layout

@@ -19,7 +19,7 @@ from qtpy.QtWidgets import QFormLayout
 from superqt.utils import GeneratorWorker, create_worker, ensure_main_thread
 
 from image2image.config import VIEWER_CONFIG
-from image2image.utils.utilities import log_exception_or_error
+from image2image.utils.utilities import log_exception_or_error, open_docs
 
 if ty.TYPE_CHECKING:
     from image2image_io.readers._base_reader import BaseReader
@@ -533,6 +533,13 @@ class MasksDialog(QtFramelessTool):
         layout.addRow(hp.make_h_line_with_text("Export"))
         layout.addRow(self.preview_btn)
         layout.addRow(self.export_btn)
-        # layout.addRow(hp.make_h_layout(self.preview_btn, self.preview_cancel_btn, spacing=2))
-        # layout.addRow(hp.make_h_layout(self.export_btn, self.export_cancel_btn, spacing=2))
+        layout.addRow(
+            hp.make_h_layout(
+                hp.make_url_btn(self, func=lambda: open_docs(dialog="export-masks")),
+                stretch_before=True,
+                spacing=2,
+                margin=2,
+                alignment=Qt.AlignmentFlag.AlignVCenter,
+            )
+        )
         return layout

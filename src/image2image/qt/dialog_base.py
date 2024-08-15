@@ -661,7 +661,7 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
 
         dlg = QtScaleBarControls(self.view.viewer, self.view.widget)
         dlg.set_px_size(self.data_model.min_resolution)
-        dlg.show_above_widget(self.scalebar_btn)
+        dlg.show_above_mouse()
 
     def on_show_save_figure(self) -> None:
         """Show scale bar controls for the viewer."""
@@ -671,7 +671,7 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
             raise ValueError("View is not initialized.")
 
         dlg = QtScreenshotDialog(self.view, self)
-        dlg.show_above_widget(self.clipboard_btn)
+        dlg.show_above_mouse()
 
     def on_show_update_info(self) -> None:
         """Show information about available updates."""
