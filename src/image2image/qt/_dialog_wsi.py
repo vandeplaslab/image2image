@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import os
-
 import typing as ty
 from pathlib import Path
 
@@ -628,8 +627,8 @@ class ImageWsiWindow(SingleViewerMixin):
         """Set i2reg path."""
         env_path = Path(self.CONFIG.env_i2reg) if self.CONFIG.env_i2reg else Path.cwd()
         base_dir = env_path.parent if env_path.is_file() else env_path
-        hp.get_filename(self, "Select i2reg executable", base_dir)
-        if env_path.exists():
+        env_path = hp.get_filename(self, "Select i2reg executable", base_dir)
+        if env_path and Path(env_path).exists():
             self.RUN_DISABLED = False
             os.environ["IMAGE2IMAGE_I2REG_PATH"] = str(env_path)
             self.CONFIG.update(env_i2reg=str(env_path))

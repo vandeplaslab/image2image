@@ -42,6 +42,7 @@ update_icon_mapping(
         "swap": "mdi6.swap-vertical-bold",
         "keep_image": "mdi6.check-circle-outline",
         "remove_image": "mdi6.close-circle-outline",
+        "env": "fa5s.bookmark",
         # modality
         "image": "mdi6.image",
         "geojson": "msc.json",
