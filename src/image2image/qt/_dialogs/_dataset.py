@@ -28,13 +28,12 @@ from qtpy.QtWidgets import (
     QWidget,
 )
 from superqt.utils import create_worker
-from image2image.utils.utilities import open_docs
 
 from image2image.config import REGISTER_CONFIG, STATE, SingleAppConfig
 from image2image.enums import ALLOWED_IMAGE_FORMATS, ALLOWED_IMAGE_FORMATS_WITH_GEOJSON
 from image2image.exceptions import MultiSceneCziError, UnsupportedFileFormatError
 from image2image.models.transform import TransformData
-from image2image.utils.utilities import extract_extension, format_shape, log_exception_or_error
+from image2image.utils.utilities import extract_extension, format_shape, log_exception_or_error, open_docs
 
 if ty.TYPE_CHECKING:
     from image2image_io.readers.coordinate_reader import CoordinateImageReader

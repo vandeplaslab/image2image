@@ -5,7 +5,6 @@ from __future__ import annotations
 import typing as ty
 
 import numpy as np
-from image2image.utils.utilities import open_docs
 from loguru import logger
 from qtextra import helpers as hp
 from qtextra.utils.table_config import TableConfig
@@ -17,6 +16,7 @@ from qtpy.QtGui import QKeyEvent
 from qtpy.QtWidgets import QFormLayout
 
 from image2image.config import REGISTER_CONFIG
+from image2image.utils.utilities import open_docs
 
 if ty.TYPE_CHECKING:
     from image2image.qt.dialog_register import ImageRegistrationWindow

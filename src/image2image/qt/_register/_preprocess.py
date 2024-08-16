@@ -6,12 +6,13 @@ import typing as ty
 from functools import partial
 
 import numpy as np
-from image2image.utils.utilities import open_docs
 from loguru import logger
 from qtextra import helpers as hp
 from qtextra.widgets.qt_dialog import QtFramelessTool
 from qtpy.QtCore import Qt  # type: ignore[attr-defined]
 from qtpy.QtWidgets import QFormLayout
+
+from image2image.utils.utilities import open_docs
 
 if ty.TYPE_CHECKING:
     from image2image.qt.dialog_register import ImageRegistrationWindow
