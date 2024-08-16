@@ -13,7 +13,6 @@ from image2image_reg.workflows.valis import ValisReg
 from koyo.secret import hash_parameters
 from koyo.timer import MeasureTimer
 from koyo.typing import PathLike
-from koyo.utilities import is_installed
 from loguru import logger
 from qtextra.queue.queue_widget import QUEUE
 from qtextra.queue.task import Task
@@ -28,11 +27,11 @@ from image2image.qt._dialogs._select import LoadWidget
 from image2image.qt._wsi._list import QtModalityList
 from image2image.utils.utilities import get_i2reg_path, pad_str
 from image2image.utils.valis import guess_preprocessing, hash_preprocessing
+from image2image.config import STATE
 
 if ty.TYPE_CHECKING:
     from image2image_reg.models import Modality, Preprocessing
 
-HAS_VALIS = is_installed("valis") and is_installed("pyvips")
 _q.N_PARALLEL = VALIS_CONFIG.n_parallel
 
 
@@ -95,7 +94,7 @@ class ImageValisWindow(ImageWsiWindow):
     WINDOW_TITLE = f"image2valis: Valis Registration app (v{__version__})"
     WINDOW_CONSOLE_ARGS = (("view", "viewer"), "data_model", ("data_model", "wrapper"), "registration_model")
     PROJECT_SUFFIX = ".valis"
-    RUN_DISABLED: bool = not HAS_VALIS
+    RUN_DISABLED: bool = not STATE.allow_valis_run
     OTHER_PROJECT: str = "Elastix"
 
     def __init__(

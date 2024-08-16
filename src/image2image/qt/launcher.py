@@ -31,7 +31,7 @@ if not STATE.allow_convert:
     CONVERT_WARNING = "<i>Not available on Apple Silicon due to a bug I can't find...</i>"
 VALIS_WARNING = ""
 if not STATE.allow_valis:
-    VALIS_WARNING = "<br><br><i>Valis or pyvips is not installed.</i>"
+    VALIS_WARNING = "<br><br><i>Might not work withing proper setup.</i>"
 
 
 def _make_tile(

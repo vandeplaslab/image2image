@@ -113,19 +113,32 @@ class GuessDialog(QtFramelessTool):
     contours: list[np.ndarray] | None = None
     simplified_contours: list[np.ndarray] | None = None
     current_index: int = -1
-    current_contour: np.ndarray = None
-    current_transformed_contour: np.ndarray = None
+    current_contour: np.ndarray | None = None
+    current_transformed_contour: np.ndarray | None = None
+    _fixed_point_set: np.ndarray | None = None
 
     def __init__(self, parent: ImageRegistrationWindow):
         super().__init__(parent)
         self.on_detect()
         connect(parent.temporary_fixed_points_layer.events.data, self.on_point_selected, state=True)
+        self.fixed_point_set = None  # disables the OK button
 
     @property
     def contour_index(self) -> int:
         """Get region index."""
         current = self.region_choice.currentText()
         return int(current.split(" ")[1])
+
+    @property
+    def fixed_point_set(self) -> None:
+        """Get fixed point set."""
+        return self._fixed_point_set
+
+    @fixed_point_set.setter
+    def fixed_point_set(self, value):
+        """Set fixed point set."""
+        self._fixed_point_set = value
+        hp.disable_widgets(self.ok_btn, disabled=value is None)
 
     def on_detect(self) -> None:
         """Detect fiducials."""
@@ -192,6 +205,7 @@ class GuessDialog(QtFramelessTool):
             parent.view_moving.viewer.camera.zoom = (
                 parent.CONFIG.zoom_factor * parent.transform_model.moving_to_fixed_ratio * 0.05
             )
+        self.fixed_point_set = None
 
     def on_enable_selection(self) -> None:
         """Detect fiducials."""
@@ -221,6 +235,7 @@ class GuessDialog(QtFramelessTool):
             return
         # get the last point from the fixed layer
         # points are in the physical space (in um) so let's convert it to pixel space
+        self.fixed_point_set = data[-1]
         fixed_point = data[-1] * fixed_reader.resolution
         # get the corresponding point in the moving image
         # points are in the physical space (in um) so let's convert it to pixel space
@@ -290,6 +305,8 @@ class GuessDialog(QtFramelessTool):
             tooltip="Select a point in the fixed image.",
         )
 
+        self.ok_btn = hp.make_btn(self, "OK", func=self.accept)
+
         layout = hp.make_form_layout(self)
         hp.style_form_layout(layout)
         layout.setContentsMargins(6, 6, 6, 6)
@@ -298,11 +315,11 @@ class GuessDialog(QtFramelessTool):
             hp.make_label(
                 self,
                 "You can try to to automatically find fiducial markers in the <b>moving</b> image.<br><br>"
-                "1. Click on the <b>Find fiducials</b> button.<br>"
-                "2. Specify how many fiducials you wish to retain.<br>"
-                "3. Click in the <b>fixed</b> image to place the <b>first</b> fiducial marker. Make sure this matches"
-                " exactly the fiducial marker in the <b>moving</b> image.<br>"
-                "4. Click on <b>OK</b> to continue.<br><br>"
+                "<b>Instructions</b><br>"
+                "1. Specify how many fiducials you wish to retain.<br>"
+                "2. Click on the <b>Select point in the fixed image</b> button, to select the first matching point in"
+                " the fixed image.<br>Make sure this matches the fiducial marker in the <b>moving</b> image, exactly."
+                "<br>3. Click on <b>OK</b> to continue.<br><br>"
                 "At this point you might be satisfied, however, it's advised to manually check <b>each</b> fiducial"
                 " marker to ensure they are correctly placed.",
                 wrap=True,
@@ -317,7 +334,7 @@ class GuessDialog(QtFramelessTool):
         layout.addRow(self.select_btn)
         layout.addRow(
             hp.make_h_layout(
-                hp.make_btn(self, "OK", func=self.accept),
+                self.ok_btn,
                 hp.make_btn(self, "Cancel", func=self.reject),
             )
         )

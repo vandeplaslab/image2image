@@ -7,7 +7,6 @@ from copy import deepcopy
 from functools import partial
 
 from koyo.secret import hash_parameters
-from koyo.utilities import is_installed
 from loguru import logger
 from qtextra import helpers as hp
 from qtextra.utils.table_config import TableConfig
@@ -21,8 +20,6 @@ from image2image.config import STATE
 
 if ty.TYPE_CHECKING:
     from image2image_reg.models import Modality
-
-HAS_VALIS = is_installed("valis") and is_installed("pyvips")
 
 
 def get_methods_for_modality(modality: Modality) -> list[str]:
@@ -60,7 +57,7 @@ def get_methods_for_modality(modality: Modality) -> list[str]:
                 "HEPreprocessing (no preview)",
             ]
         )
-    if not HAS_VALIS:
+    if not STATE.allow_valis:
         to_pop.extend(
             [
                 "OD",

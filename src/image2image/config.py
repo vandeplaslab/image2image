@@ -13,6 +13,8 @@ from image2image.utils._appdirs import USER_CONFIG_DIR
 class State:
     """State of the application."""
 
+    _allow_valis_run: ty.Optional[bool] = None
+
     @property
     def is_mac_arm_pyinstaller(self) -> bool:
         """Check if running on Mac ARM with PyInstaller."""
@@ -40,6 +42,25 @@ class State:
         from koyo.utilities import is_installed
 
         return is_installed("valis") and is_installed("pyvips")
+
+    @property
+    def allow_valis_run(self) -> bool:
+        """Allow execution of valis command."""
+        import os, subprocess
+
+        if not self.allow_valis:
+            return False
+        if self._allow_valis_run is not None:
+            return True
+        i2reg_path = os.environ.get("IMAGE2IMAGE_I2REG_PATH", None)
+        if not i2reg_path:
+            return False
+        try:
+            ret = subprocess.check_call([i2reg_path, "valis", "--help"])
+            self._allow_valis_run = ret == 0
+        except subprocess.CalledProcessError:
+            self._allow_valis_run = False
+        return self._allow_valis_run
 
 
 class Config(BaseConfig):
