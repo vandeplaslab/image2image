@@ -2,7 +2,6 @@
 
 import typing as ty
 from copy import deepcopy
-from image2image.utils.utilities import open_docs
 from pathlib import Path
 
 from koyo.timer import MeasureTimer
@@ -18,6 +17,7 @@ from qtpy.QtWidgets import QFormLayout
 
 from image2image.models.data import DataModel
 from image2image.models.transform import TransformData, TransformModel
+from image2image.utils.utilities import open_docs
 
 if ty.TYPE_CHECKING:
     from qtextra._napari.image.wrapper import NapariImageView

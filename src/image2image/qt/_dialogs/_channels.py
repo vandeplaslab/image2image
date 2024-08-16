@@ -3,7 +3,6 @@
 import typing as ty
 from collections import Counter
 from contextlib import contextmanager
-from image2image.utils.utilities import open_docs
 
 from loguru import logger
 from napari.utils.events import Event
@@ -17,6 +16,7 @@ from qtpy.QtWidgets import QFormLayout, QWidget
 from superqt.utils import ensure_main_thread
 
 from image2image.config import STATE
+from image2image.utils.utilities import open_docs
 
 if ty.TYPE_CHECKING:
     from qtextra._napari.image.wrapper import NapariImageView
