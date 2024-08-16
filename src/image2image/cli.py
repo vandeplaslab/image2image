@@ -51,7 +51,7 @@ def dev_options(func: ty.Callable) -> ty.Callable:
     show_default=True,
 )
 @click.option("-q", "--quiet", "verbosity", flag_value=0, help="Minimal output")
-@click.option("--debug", "verbosity", flag_value=5, help="Maximum output")
+@click.option("--debug", "verbosity", flag_value=0.5, help="Maximum output")
 @click.option(
     "-v",
     "--verbose",
