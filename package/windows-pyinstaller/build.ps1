@@ -117,11 +117,11 @@ $filename = "image2image.spec"
 
 # Build bundle
 Write-Output "Filename: $filename"
-if ($debug) {
-    pyinstaller.exe --noconfirm --clean $filename
-} else {
-    pyinstaller.exe --noconfirm --clean --noconsole $filename
-}
+# if ($debug) {
+pyinstaller.exe --noconfirm --clean $filename
+# } else {
+#     pyinstaller.exe --noconfirm --clean --noconsole $filename
+# }
 
 # Copy runner script
 Copy-Item -Path "run_image2image.bat" -Destination "dist/"
