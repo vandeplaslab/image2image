@@ -348,25 +348,24 @@ class MovingWidget(LoadWidget):
             " be overlaid with other images.<br><b>Random</b> will display single image with random intensity.",
         )
         layout.addRow(hp.make_label(self, "View type"), self.view_type_choice)
-
         self.dataset_choice = hp.make_combobox(
             self,
             tooltip="Select which dataset should be used in registration process.",
             func=self._on_toggle_dataset,
         )
         layout.addRow(hp.make_label(self, "Dataset"), self.dataset_choice)
-
         self.transformed_choice = hp.make_combobox(
             self,
-            tooltip="Select which image should be displayed on the fixed modality.",
+            tooltip="Select which image channels should be displayed in the moving modality (and in the fixed"
+            " modality).",
             func=self._on_toggle_transformed,
         )
-        layout.addRow(hp.make_label(self, "Overlay"), self.transformed_choice)
+        layout.addRow(hp.make_label(self, "Channel"), self.transformed_choice)
         return layout
 
     def _on_update_view_type(self, value: str) -> None:
         """Update view type."""
-        READER_CONFIG.view_type = value.lower()  # type: ignore
+        READER_CONFIG.view_type = value.lower()
         self.evt_view_type.emit(value.lower())  # noqa
 
     def toggle_transformed(self) -> None:

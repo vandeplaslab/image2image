@@ -902,16 +902,16 @@ class SelectDataDialog(QtFramelessTool):
             self,
             ["polygon", "path", "polygon or path"],
             value=READER_CONFIG.shape_display,
-            tooltip="Select how shapes should be displayed when loading from GeoJSON."
-            "\npolygon - filled polygons (can be slow)"
-            "\npath - only outlines of polygons (much faster)"
-            "\npolygon or path - use polygons if number of shapes is not too high, otherwise use paths",
+            tooltip="Decide how shapes should be displayed when loading from GeoJSON."
+            "<br><b>polygon</b> - filled polygons (can be slow)"
+            "<br><b>path</b> - only outlines of polygons (much faster)"
+            "<br><b>polygon</b> or path - use polygons if number of shapes is not too high, otherwise use paths",
             func=self.on_update_config,
         )
         self.split_czi_check = hp.make_checkbox(
             self,
             value=READER_CONFIG.split_czi,
-            tooltip="Split CZI scenes into separate datasets.",
+            tooltip="When a CZI image contains multiple scenes, they should be split into individual datasets.",
             func=self.on_update_config,
         )
         if not self.show_split_czi:
@@ -919,7 +919,8 @@ class SelectDataDialog(QtFramelessTool):
         self.split_rgb_check = hp.make_checkbox(
             self,
             value=READER_CONFIG.split_rgb,
-            tooltip="Split RGB channels into separate layers when loading images into the view.",
+            tooltip="When loading RGB images (e.g. PAS or H&E), split those into individual <b>R</b>, <b>G</b> and"
+            " <b>B</b> channels.",
             func=self.on_update_config,
         )
         self.split_roi_check = hp.make_checkbox(
@@ -943,7 +944,7 @@ class SelectDataDialog(QtFramelessTool):
         # layout.addRow(hp.make_h_line())
         layout.addRow(
             hp.make_h_layout(
-                hp.make_label(self, "Shapes display"),
+                hp.make_label(self, "Shape display"),
                 self.shapes_combo,
                 hp.make_v_line(hide=not self.show_split_czi),
                 hp.make_label(self, "Split CZI", hide=not self.show_split_czi),
