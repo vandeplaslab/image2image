@@ -119,6 +119,7 @@ class GuessDialog(QtFramelessTool):
     _fixed_point_set: np.ndarray | None = None
 
     def __init__(self, parent: ImageRegistrationWindow):
+        self.CONFIG = parent.CONFIG
         super().__init__(parent)
         self.on_detect()
         connect(parent.temporary_fixed_points_layer.events.data, self.on_point_selected, state=True)
@@ -287,7 +288,7 @@ class GuessDialog(QtFramelessTool):
             self,
             minimum=0.0,
             maximum=10,
-            value=2.25,
+            value=self.CONFIG.simplify_contours_distance,
             step_size=0.25,
             n_decimals=2,
             tooltip="Distance to simplify contours.",
@@ -297,7 +298,13 @@ class GuessDialog(QtFramelessTool):
         self.point_index = hp.make_int_spin_box(
             self, minimum=-1, maximum=-1, value=-1, func=self.on_region_change, tooltip="Select point index."
         )
-        self.zoom_in = hp.make_checkbox(self, "", tooltip="Zoom-in on the selected point.", func=self.on_region_change)
+        self.zoom_in = hp.make_checkbox(
+            self,
+            "",
+            tooltip="Zoom-in on the selected point.",
+            func=self.on_region_change,
+            value=self.CONFIG.zoom_on_point,
+        )
 
         self.select_btn = hp.make_btn(
             self,

@@ -11,13 +11,14 @@ from pathlib import Path
 from image2image_io.config import CONFIG as READER_CONFIG
 from koyo.typing import PathLike
 from koyo.utilities import pluralize
+from koyo.path import open_directory_alt
 from loguru import logger
 from qtextra import helpers as hp
 from qtextra.utils.table_config import TableConfig
 from qtextra.utils.utilities import connect
 from qtextra.widgets.qt_dialog import QtDialog, QtFramelessTool
 from qtextra.widgets.qt_table_view import FilterProxyModel, QtCheckableTableView
-from qtpy.QtCore import Qt, Signal  # type: ignore[attr-defined]
+from qtpy.QtCore import Qt, Signal, QModelIndex  # type: ignore[attr-defined]
 from qtpy.QtGui import QDoubleValidator, QDropEvent
 from qtpy.QtWidgets import (
     QDialog,
@@ -891,12 +892,22 @@ class SelectDataDialog(QtFramelessTool):
         logger.error("Error occurred while extracting images.", exception)
         log_exception_or_error(exception)
 
+    def on_double_click(self, index: QModelIndex) -> None:
+        """Double clicked."""
+        row = index.row()
+        name = self.table.item(row, self.TABLE_CONFIG.key).text()
+        reader = self.model.get_reader_for_key(name)
+        if reader:
+            open_directory_alt(reader.path)
+            logger.trace(f"Opening directory for '{name}'")
+
     # noinspection PyAttributeOutsideInit
     def make_panel(self) -> QFormLayout:
         """Make panel."""
         _, header_layout = self._make_hide_handle(title="Images")
 
         self.table = hp.make_table(self, self.TABLE_CONFIG)
+        self.table.doubleClicked.connect(self.on_double_click)
 
         self.shapes_combo = hp.make_combobox(
             self,

@@ -14,8 +14,8 @@ from image2image_io.config import CONFIG as READER_CONFIG
 from image2image_io.enums import ViewType
 from koyo.timer import MeasureTimer
 from loguru import logger
-from napari.layers import Image
-from napari.layers.points.points import Mode, Points
+from napari.layers import Image, Shapes, Points
+from napari.layers.points.points import Mode
 from napari.layers.utils._link_layers import link_layers
 from napari.utils.events import Event
 from qtextra._napari.image.wrapper import NapariImageView
@@ -40,6 +40,8 @@ from image2image.utils.utilities import (
     ensure_extension,
     get_colormap,
     init_points_layer,
+    init_shapes_layer,
+    calculate_zoom,
 )
 
 if ty.TYPE_CHECKING:
@@ -47,6 +49,13 @@ if ty.TYPE_CHECKING:
     from skimage.transform import ProjectiveTransform
 
     from image2image.qt._dialogs import FiducialsDialog
+
+FIXED_POINTS = "Fixed (points)"
+FIXED_TMP_POINTS = "Temporary fixed (points)"
+FIXED_TMP_ZOOM = "Temporary fixed (zoom)"
+MOVING_POINTS = "Moving (points)"
+MOVING_TMP_POINTS = "Temporary moving (points)"
+MOVING_TMP_ZOOM = "Temporary moving (zoom)"
 
 
 def has_any_points(*layers: Points) -> bool:
@@ -163,11 +172,11 @@ class ImageRegistrationWindow(Window):
     @property
     def fixed_points_layer(self) -> Points:
         """Fixed points layer."""
-        if "Fixed (points)" not in self.view_fixed.layers:
+        if FIXED_POINTS not in self.view_fixed.layers:
             layer = self.view_fixed.viewer.add_points(  # noqa
                 None,
                 size=self.fixed_point_size.value(),
-                name="Fixed (points)",
+                name=FIXED_POINTS,
                 face_color="green",
                 edge_color="white",
                 symbol="ring",
@@ -177,32 +186,48 @@ class ImageRegistrationWindow(Window):
             connect(layer.events.data, self.on_run, state=True)
             connect(layer.events.data, self.fiducials_dlg.on_load, state=True)
             connect(layer.events.add_point, partial(self.on_predict, "fixed"), state=True)
-        return self.view_fixed.layers["Fixed (points)"]
+        return self.view_fixed.layers[FIXED_POINTS]
 
     @property
     def temporary_fixed_points_layer(self) -> Points:
         """Fixed points layer."""
-        if "Temporary fixed (points)" not in self.view_fixed.layers:
+        if FIXED_TMP_POINTS not in self.view_fixed.layers:
             layer = self.view_fixed.viewer.add_points(  # noqa
                 None,
                 size=self.moving_point_size.value(),
-                name="Temporary fixed (points)",
+                name=FIXED_TMP_POINTS,
                 face_color="green",
                 edge_color="white",
                 symbol="ring",
             )
             visual = self.view_fixed.widget.layer_to_visual[layer]
             init_points_layer(layer, visual, True)
-        return self.view_fixed.layers["Temporary fixed (points)"]
+        return self.view_fixed.layers[FIXED_TMP_POINTS]
+
+    @property
+    def temporary_fixed_zoom_layer(self) -> Shapes:
+        """Fixed points layer."""
+        if FIXED_TMP_ZOOM not in self.view_fixed.layers:
+            layer = self.view_fixed.viewer.add_shapes(  # noqa
+                None,
+                # size=self.moving_point_size.value(),
+                name=FIXED_TMP_ZOOM,
+                face_color="#00ff0000",
+                edge_color="white",
+            )
+            visual = self.view_fixed.widget.layer_to_visual[layer]
+            init_shapes_layer(layer, visual)
+            layer.events.data.connect(self.on_fixed_zoom_finished)
+        return self.view_fixed.layers[FIXED_TMP_ZOOM]
 
     @property
     def moving_points_layer(self) -> Points:
         """Fixed points layer."""
-        if "Moving (points)" not in self.view_moving.layers:
+        if MOVING_POINTS not in self.view_moving.layers:
             layer = self.view_moving.viewer.add_points(  # noqa
                 None,
                 size=self.moving_point_size.value(),
-                name="Moving (points)",
+                name=MOVING_POINTS,
                 face_color="green",
                 edge_color="white",
                 symbol="ring",
@@ -212,23 +237,61 @@ class ImageRegistrationWindow(Window):
             connect(layer.events.data, self.on_run, state=True)
             connect(layer.events.data, self.fiducials_dlg.on_load, state=True)
             connect(layer.events.add_point, partial(self.on_predict, "moving"), state=True)
-        return self.view_moving.layers["Moving (points)"]
+        return self.view_moving.layers[MOVING_POINTS]
 
     @property
     def temporary_moving_points_layer(self) -> Points:
         """Fixed points layer."""
-        if "Temporary moving (points)" not in self.view_moving.layers:
+        if MOVING_TMP_POINTS not in self.view_moving.layers:
             layer = self.view_moving.viewer.add_points(  # noqa
                 None,
                 size=self.moving_point_size.value(),
-                name="Temporary moving (points)",
+                name=MOVING_TMP_POINTS,
                 face_color="green",
                 edge_color="white",
                 symbol="ring",
             )
             visual = self.view_moving.widget.layer_to_visual[layer]
             init_points_layer(layer, visual, True)
-        return self.view_moving.layers["Temporary moving (points)"]
+        return self.view_moving.layers[MOVING_TMP_POINTS]
+
+    @property
+    def temporary_moving_zoom_layer(self) -> Shapes:
+        """Fixed points layer."""
+        if MOVING_TMP_ZOOM not in self.view_moving.layers:
+            layer = self.view_moving.viewer.add_shapes(  # noqa
+                None,
+                # size=self.moving_point_size.value(),
+                name=MOVING_TMP_ZOOM,
+                face_color="#00ff0000",
+                edge_color="white",
+            )
+            visual = self.view_moving.widget.layer_to_visual[layer]
+            init_shapes_layer(layer, visual)
+            layer.events.data.connect(self.on_moving_zoom_finished)
+        return self.view_moving.layers[MOVING_TMP_ZOOM]
+
+    def on_fixed_zoom_finished(self, event: Event) -> None:
+        """Zoom finished."""
+        if len(self.temporary_fixed_zoom_layer.data) == 0:
+            return
+        last_shape = self.temporary_fixed_zoom_layer.data[-1]
+        zoom, y, x = calculate_zoom(last_shape, self.view_fixed)
+        self.view_fixed.viewer.camera.center = (0.0, y, x)
+        self.view_fixed.viewer.camera.zoom = zoom
+        self.view_fixed.remove_layer(FIXED_TMP_ZOOM)
+        self.fixed_zoom_btn.setChecked(False)
+
+    def on_moving_zoom_finished(self, event: Event) -> None:
+        """Zoom finished."""
+        if len(self.temporary_moving_zoom_layer.data) == 0:
+            return
+        last_shape = self.temporary_moving_zoom_layer.data[-1]
+        zoom, y, x = calculate_zoom(last_shape, self.view_moving)
+        self.view_moving.viewer.camera.center = (0.0, y, x)
+        self.view_moving.viewer.camera.zoom = zoom
+        self.view_moving.remove_layer(MOVING_TMP_ZOOM)
+        self.fixed_zoom_btn.setChecked(False)
 
     def setup_events(self, state: bool = True) -> None:
         """Additional setup."""
@@ -507,7 +570,7 @@ class ImageRegistrationWindow(Window):
         """Toggle visibility of transformed moving image."""
         self.on_apply(update_data=True, name=value)
 
-    def _select_layer(self, which: str) -> None:
+    def _select_point_layer(self, which: str) -> Points:
         """Select layer."""
         view, layer = (
             (self.view_fixed, self.fixed_points_layer)
@@ -515,25 +578,42 @@ class ImageRegistrationWindow(Window):
             else (self.view_moving, self.moving_points_layer)
         )
         self._move_layer(view, layer)
+        return layer
 
-    def _get_mode_button(self, which: str, mode: Mode) -> QtImagePushButton | None:
+    def _select_zoom_layer(self, which: str) -> Shapes:
+        """Select layer."""
+        view, layer = (
+            (self.view_fixed, self.temporary_fixed_zoom_layer)
+            if which == "fixed"
+            else (self.view_moving, self.temporary_moving_zoom_layer)
+        )
+        self._move_layer(view, layer)
+        return layer
+
+    def _get_points_mode_button(self, which: str, mode: Mode) -> QtImagePushButton | None:
         if which == "fixed":
             widgets = {
                 Mode.ADD: self.fixed_add_btn,
                 Mode.SELECT: self.fixed_move_btn,
-                Mode.PAN_ZOOM: self.fixed_zoom_btn,
+                Mode.PAN_ZOOM: self.fixed_pan_btn,
             }
         else:
             widgets = {
                 Mode.ADD: self.moving_add_btn,
                 Mode.SELECT: self.moving_move_btn,
-                Mode.PAN_ZOOM: self.moving_zoom_btn,
+                Mode.PAN_ZOOM: self.moving_pan_btn,
             }
         return widgets.get(mode, None)
 
-    def on_mode(self, which: str, evt: ty.Any = None, mode: Mode | None = None) -> None:
+    def on_shapes_mode(self, which: str, state: bool = True) -> None:
         """Update mode."""
-        widget = self._get_mode_button(which, mode or evt.mode)
+        widget = self.fixed_zoom_btn if which == "fixed" else self.moving_zoom_btn
+        if widget:
+            widget.setChecked(state)
+
+    def on_points_mode(self, which: str, evt: ty.Any = None, mode: Mode | None = None) -> None:
+        """Update mode."""
+        widget = self._get_points_mode_button(which, mode or evt.mode)
         if widget:
             widget.setChecked(True)
             logger.trace(f"Set mode to '{mode}' for '{which}'.")
@@ -548,26 +628,30 @@ class ImageRegistrationWindow(Window):
 
     def on_panzoom(self, which: str, _evt: ty.Any = None) -> None:
         """Switch to `panzoom` tool."""
-        self._select_layer(which)
+        self._select_point_layer(which)
         for layer in self._get_layer(which):
             layer.mode = "pan_zoom"
 
     def on_add(self, which: str, _evt: ty.Any = None) -> None:
         """Add point to the image."""
-        self._select_layer(which)
+        layer = self._select_point_layer(which)
         # extract button and layer based on the appropriate mode
         widget = self.fixed_add_btn if which == "fixed" else self.moving_add_btn
-        layer = self.fixed_points_layer if which == "fixed" else self.moving_points_layer
         # make sure the 'add' mode is active
         layer.mode = "add" if widget.isChecked() else "pan_zoom"
 
     def on_move(self, which: str, _evt: ty.Any = None) -> None:
         """Move points."""
-        self._select_layer(which)
+        layer = self._select_point_layer(which)
         widget = self.fixed_move_btn if which == "fixed" else self.moving_move_btn
-        layer = self.fixed_points_layer if which == "fixed" else self.moving_points_layer
         layer.mode = "select" if widget.isChecked() else "pan_zoom"
         layer.selected_data = []
+
+    def on_zoom(self, which: str) -> None:
+        """Zoom."""
+        layer = self._select_zoom_layer(which)
+        widget = self.fixed_zoom_btn if which == "fixed" else self.moving_zoom_btn
+        layer.mode = "add_rectangle" if widget.isChecked() else "pan_zoom"
 
     def on_activate_initial(self):
         """Activate initial button."""
@@ -933,7 +1017,7 @@ class ImageRegistrationWindow(Window):
             )
         self.transformed_moving_image_layer.visible = READER_CONFIG.show_transformed
         self._move_layer(self.view_fixed, self.transformed_moving_image_layer, -1, False)
-        self._select_layer("fixed")
+        self._select_point_layer("fixed")
 
     def on_add_transformed_moving(self, name: str | None = None):
         """Add transformed moving image."""
@@ -1444,6 +1528,12 @@ class ImageRegistrationWindow(Window):
             func=lambda *args: self.on_remove("fixed"),
             tooltip="Remove last point from the fixed image.",
         )
+        self.fixed_zoom_btn = toolbar.insert_qta_tool(
+            "zoom",
+            func=lambda *args: self.on_zoom("fixed"),
+            tooltip="Enable zooming interface, allowing selection of ROI in the image to zoom-in directly.",
+            checkable=True,
+        )
         self.fixed_move_btn = toolbar.insert_qta_tool(
             "select_points",
             func=lambda *args: self.on_move("fixed"),
@@ -1456,16 +1546,16 @@ class ImageRegistrationWindow(Window):
             tooltip="Add new point to the fixed image. Press <b>2</b> on your keyboard to activate...",
             checkable=True,
         )
-        self.fixed_zoom_btn = toolbar.insert_qta_tool(
+        self.fixed_pan_btn = toolbar.insert_qta_tool(
             "pan_zoom",
             func=lambda *args: self.on_panzoom("fixed"),
             tooltip="Switch to zoom-only mode. Press <b>1</b> on your keyboard to activate...",
             checkable=True,
         )
-        hp.make_radio_btn_group(self, [self.fixed_zoom_btn, self.fixed_add_btn, self.fixed_move_btn])
+        hp.make_radio_btn_group(self, [self.fixed_pan_btn, self.fixed_add_btn, self.fixed_move_btn])
         _fixed_bring_to_top = toolbar.insert_qta_tool(
             "bring_to_top",
-            func=lambda *args: self._select_layer("fixed"),
+            func=lambda *args: self._select_point_layer("fixed"),
             tooltip="Bring points layer to the top.",
         )
         _fixed_layers_btn = toolbar.insert_qta_tool(
@@ -1510,6 +1600,12 @@ class ImageRegistrationWindow(Window):
             func=lambda *args: self.on_remove("moving"),
             tooltip="Remove last point from the moving image.",
         )
+        self.moving_zoom_btn = toolbar.insert_qta_tool(
+            "zoom",
+            func=lambda *args: self.on_zoom("moving"),
+            tooltip="Enable zooming interface, allowing selection of ROI in the image to zoom-in directly.",
+            checkable=True,
+        )
         self.moving_move_btn = toolbar.insert_qta_tool(
             "select_points",
             func=lambda *args: self.on_move("moving"),
@@ -1522,16 +1618,16 @@ class ImageRegistrationWindow(Window):
             tooltip="Add new point to the moving image. Press <b>2</b> on your keyboard to activate..",
             checkable=True,
         )
-        self.moving_zoom_btn = toolbar.insert_qta_tool(
+        self.moving_pan_btn = toolbar.insert_qta_tool(
             "pan_zoom",
             func=lambda *args: self.on_panzoom("moving"),
             tooltip="Switch to zoom-only mode. Press <b>1</b> on your keyboard to activate...",
             checkable=True,
         )
-        hp.make_radio_btn_group(self, [self.moving_zoom_btn, self.moving_add_btn, self.moving_move_btn])
+        hp.make_radio_btn_group(self, [self.moving_pan_btn, self.moving_add_btn, self.moving_move_btn])
         _moving_bring_to_top = toolbar.insert_qta_tool(
             "bring_to_top",
-            func=lambda *args: self._select_layer("moving"),
+            func=lambda *args: self._select_point_layer("moving"),
             tooltip="Bring points layer to the top.",
         )
         _moving_layers_btn = toolbar.insert_qta_tool(
@@ -1632,17 +1728,29 @@ class ImageRegistrationWindow(Window):
         self.statusbar.insertPermanentWidget(14, self.text_color)
         self.statusbar.insertPermanentWidget(15, hp.make_v_line(), stretch=1)
 
-    def on_toggle_mode(self, which: str | ty.Literal["fixed", "moving", "both"], mode: str | Mode) -> None:
+    def on_toggle_mode(
+        self, which: str | ty.Literal["fixed", "moving", "both"], mode: str | Mode, zoom: bool = False
+    ) -> None:
         """Toggle mode."""
         which = ["fixed", "moving"] if which == "both" else [which]
         for w in which:
-            self.on_mode(w, mode=mode)
+            self.on_points_mode(w, mode=mode)
             if mode == Mode.PAN_ZOOM:
                 self.on_panzoom(w)
             elif mode == Mode.ADD:
                 self.on_add(w)
             elif mode == Mode.SELECT:
                 self.on_move(w)
+            if not zoom:
+                self.on_shapes_mode(w, state=False)
+
+    def on_toggle_zoom(self, which: str | ty.Literal["fixed", "moving", "both"]) -> None:
+        """Toggle zoom."""
+        self.on_toggle_mode(which, mode=Mode.PAN_ZOOM, zoom=True)
+        which = ["fixed", "moving"] if which == "both" else [which]
+        for w in which:
+            self.on_shapes_mode(w)
+            self.on_zoom(w)
 
     @qdebounced(timeout=50, leading=True)
     def keyPressEvent(self, evt: QKeyEvent) -> None:
@@ -1677,6 +1785,8 @@ class ImageRegistrationWindow(Window):
             ignore = True
         elif key == Qt.Key.Key_3:
             self.on_toggle_mode("both", mode=Mode.SELECT)
+        elif key == Qt.Key.Key_4:
+            self.on_toggle_zoom("both")
             ignore = True
         elif key == Qt.Key.Key_Z:
             self.on_apply_focus()

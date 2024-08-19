@@ -20,6 +20,7 @@ if ty.TYPE_CHECKING:
     from napari._vispy.layers.shapes import VispyShapesLayer
     from napari.layers import Image, Layer, Points, Shapes
     from vispy.color import Colormap as VispyColormap
+    from qtextra._napari.image.wrapper import NapariImageView
 
 DRAG_DIST_THRESHOLD = 5
 
@@ -350,6 +351,40 @@ def _get_text_data(data: np.ndarray) -> dict[str, list[str]]:
     """Get data."""
     n_pts = data.shape[0]
     return {"name": [str(i + 1) for i in range(n_pts)]}
+
+
+def get_extents_from_layers(viewer: "NapariImageView") -> tuple[float, float, float, float]:
+    """Calculate extents from all layers."""
+    from napari.layers import Image
+
+    layers = viewer.get_layers_of_type(Image)
+    extents = [(0, 512, 0, 512)]
+    if layers:
+        for layer in layers:
+            mins = np.min(layer._extent_data, axis=0)
+            maxs = np.max(layer._extent_data, axis=0)
+            extents.append((mins[0], maxs[0], mins[1], maxs[1]))
+    extents = np.asarray(extents)
+    return np.min(extents[:, 0]), np.max(extents[:, 1]), np.min(extents[:, 2]), np.max(extents[:, 3])
+
+
+def calculate_zoom(
+    shape: np.ndarray, viewer: "NapariImageView", multiplier: float = 0.01
+) -> tuple[float, float, float]:
+    """Calculate zoom for specified region."""
+    # calculate min/max for y, x coordinates
+    mins = np.min(shape, axis=0)
+    maxs = np.max(shape, axis=0)
+    y_fixed = (maxs[0] + mins[0]) / 2
+    x_fixed = (maxs[1] + mins[1]) / 2
+    # calculate extents for the view
+    xmin, xmax, ymin, ymax = get_extents_from_layers(viewer)
+    # calculate zoom as fraction of the extent
+    if ymax > xmax:
+        zoom = ((ymax - ymin) / (maxs[0] - mins[0])) * multiplier
+    else:
+        zoom = ((xmax - xmin) / (maxs[1] - mins[1])) * multiplier
+    return zoom, y_fixed, x_fixed
 
 
 def add(layer, event, snap=True) -> None:

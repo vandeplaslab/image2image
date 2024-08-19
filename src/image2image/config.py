@@ -294,6 +294,13 @@ class RegisterConfig(SingleAppConfig):
     fixed_dir: str = Field("", title="Fixed directory", description="Directory with fixed images.", in_app=False)
     moving_dir: str = Field("", title="Moving directory", description="Directory with moving images.", in_app=False)
 
+    # fiducial marker options
+    zoom_on_point: bool = Field(True, title="Fiducial zoom", description="Fiducial zoom.", in_app=False)
+    simplify_contours_distance: float = Field(
+        2.25, title="Simplify contour", description="Simplify contour.", in_app=False, le=10, ge=0
+    )
+    zoom_scale: float = Field(0.01, title="Zoom scale", description="Zoom scale.", in_app=False, ge=0.0001, le=1)
+
     @validator("viewer_orientation", pre=True, allow_reuse=True)
     def _validate_orientation(value: ty.Union[str, ViewerOrientation]) -> ViewerOrientation:  # type: ignore[misc]
         """Validate path."""
