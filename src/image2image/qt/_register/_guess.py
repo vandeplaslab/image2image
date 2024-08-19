@@ -201,6 +201,7 @@ class GuessDialog(QtFramelessTool):
         colors = ["yellow"] * len(contour)
         colors[point_index] = "cyan"
         parent.temporary_moving_points_layer.edge_color = colors
+
         if self.zoom_in.isChecked():
             y, x = contour[point_index]
             parent.view_moving.camera.center = (x, y, 0)

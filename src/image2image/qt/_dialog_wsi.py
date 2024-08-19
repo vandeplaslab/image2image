@@ -54,6 +54,7 @@ class ImageWsiWindow(SingleViewerMixin):
     modality_list: QtModalityList
     open_when_finished: Qw.QCheckBox
     pyramid_level: Qw.QSpinBox
+    hidden_settings: QtCheckCollapsible
 
     def __init__(
         self,
@@ -69,6 +70,7 @@ class ImageWsiWindow(SingleViewerMixin):
         if project_dir:
             self._on_load_from_project(project_dir)
         self.setup_i2reg_path()
+        self.on_set_write_warning()
 
     @staticmethod
     def _setup_config() -> None:
@@ -395,14 +397,6 @@ class ImageWsiWindow(SingleViewerMixin):
             standout=True,
         )
 
-    def on_toggle_write(self) -> None:
-        """Toggle between write/no-write of images."""
-        write = self.write_check.isChecked()
-        self.write_registered_check.setChecked(write)
-        self.write_not_registered_check.setChecked(write)
-        self.write_attached_check.setChecked(write)
-        self.write_merged_check.setChecked(write)
-
     def _make_hidden_widgets(self, side_widget: Qw.QWidget) -> QtCheckCollapsible:
         self.write_check = hp.make_checkbox(
             self,
@@ -463,14 +457,32 @@ class ImageWsiWindow(SingleViewerMixin):
             func=self.on_update_config,
         )
 
-        hidden_settings = hp.make_advanced_collapsible(side_widget, "Export options", allow_checkbox=False)
+        hidden_settings = hp.make_advanced_collapsible(
+            side_widget, "Export options", allow_checkbox=False, allow_icon=False, icon="warning"
+        )
+        hidden_settings.warning_label.setToolTip(
+            "Current settings will not export any images as all <b>write</b> options are disabled."
+        )
         hidden_settings.addRow(hp.make_label(self, "Write/don't write"), self.write_check)
         hidden_settings.addRow(hp.make_label(self, "Write registered images"), self.write_registered_check)
         hidden_settings.addRow(hp.make_label(self, "Write unregistered images"), self.write_not_registered_check)
         hidden_settings.addRow(hp.make_label(self, "Write attached modalities"), self.write_attached_check)
-        hidden_settings.addRow(hp.make_label(self, "Merge merged images"), self.write_merged_check)
+        hidden_settings.addRow(hp.make_label(self, "Write merged images"), self.write_merged_check)
         hidden_settings.addRow(hp.make_label(self, "Rename images"), self.rename_check)
-        hidden_settings.addRow(hp.make_label(self, "Reduce data size"), self.as_uint8)
+        hidden_settings.addRow(
+            hp.make_label(self, "Reduce data size"),
+            hp.make_h_layout(
+                self.as_uint8,
+                hp.make_warning_label(
+                    self,
+                    "While this option reduces the amount of space an image takes on your disk, it can lead to data"
+                    " loss and should be used with caution.",
+                    normal=True,
+                ),
+                spacing=2,
+                stretch_id=(0,),
+            ),
+        )
         hidden_settings.addRow(hp.make_label(self, "Open when finished"), self.open_when_finished)
         return hidden_settings
 
@@ -483,6 +495,29 @@ class ImageWsiWindow(SingleViewerMixin):
         self.CONFIG.rename = self.rename_check.isChecked()
         self.CONFIG.as_uint8 = self.as_uint8.isChecked()
         self.CONFIG.open_when_finished = self.open_when_finished.isChecked()
+        self.on_set_write_warning()
+
+    def on_toggle_write(self) -> None:
+        """Toggle between write/no-write of images."""
+        write = self.write_check.isChecked()
+        self.write_registered_check.setChecked(write)
+        self.write_not_registered_check.setChecked(write)
+        self.write_attached_check.setChecked(write)
+        self.write_merged_check.setChecked(write)
+        self.on_set_write_warning()
+
+    def on_set_write_warning(self) -> None:
+        """Enable warning."""
+        self.hidden_settings.set_warning_visible(
+            not any(
+                [
+                    self.CONFIG.write_not_registered,
+                    self.CONFIG.write_registered,
+                    self.CONFIG.write_attached,
+                    self.CONFIG.write_merged,
+                ]
+            )
+        )
 
     def on_clear_project(self) -> None:
         """Clear project."""
@@ -581,7 +616,8 @@ class ImageWsiWindow(SingleViewerMixin):
             icon="delete",
             tooltip="Clears all data from the project, excluding the configuration file.",
         )
-        hp.show_above_widget(menu, self.run_btn, y_offset=-100, x_offset=-150)
+        hp.show_above_mouse(menu, x_offset=-50)
+        # hp.show_above_widget(menu, self.run_btn, y_offset=50, x_offset=-150)
 
     def _make_run_widgets(self, side_widget: Qw.QWidget) -> None:
         self.save_btn = hp.make_qta_btn(

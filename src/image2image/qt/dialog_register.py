@@ -276,22 +276,24 @@ class ImageRegistrationWindow(Window):
         if len(self.temporary_fixed_zoom_layer.data) == 0:
             return
         last_shape = self.temporary_fixed_zoom_layer.data[-1]
-        zoom, y, x = calculate_zoom(last_shape, self.view_fixed)
+        zoom, y, x = calculate_zoom(last_shape, self.view_fixed, 0.01)
         self.view_fixed.viewer.camera.center = (0.0, y, x)
         self.view_fixed.viewer.camera.zoom = zoom
         self.view_fixed.remove_layer(FIXED_TMP_ZOOM)
         self.fixed_zoom_btn.setChecked(False)
+        self.on_toggle_mode("both", Mode.PAN_ZOOM)
 
     def on_moving_zoom_finished(self, event: Event) -> None:
         """Zoom finished."""
         if len(self.temporary_moving_zoom_layer.data) == 0:
             return
         last_shape = self.temporary_moving_zoom_layer.data[-1]
-        zoom, y, x = calculate_zoom(last_shape, self.view_moving)
+        zoom, y, x = calculate_zoom(last_shape, self.view_moving, 0.5)
         self.view_moving.viewer.camera.center = (0.0, y, x)
         self.view_moving.viewer.camera.zoom = zoom
         self.view_moving.remove_layer(MOVING_TMP_ZOOM)
-        self.fixed_zoom_btn.setChecked(False)
+        self.moving_zoom_btn.setChecked(False)
+        self.on_toggle_mode("both", Mode.PAN_ZOOM)
 
     def setup_events(self, state: bool = True) -> None:
         """Additional setup."""
@@ -557,14 +559,20 @@ class ImageRegistrationWindow(Window):
 
     def get_current_moving_reader(self) -> ty.Any:
         """Get current reader."""
-        current = self._moving_widget.dataset_choice.currentText()
-        reader = self.moving_model.get_reader_for_key(current)
-        return reader
+        try:
+            current = self._moving_widget.dataset_choice.currentText()
+            reader = self.moving_model.get_reader_for_key(current)
+            return reader
+        except AttributeError:
+            return None
 
     def get_current_fixed_reader(self) -> ty.Any:
         """Get current reader."""
-        reader = next(self.fixed_model.wrapper.reader_iter())
-        return reader
+        try:
+            reader = next(self.fixed_model.wrapper.reader_iter())
+            return reader
+        except AttributeError:
+            return None
 
     def on_toggle_transformed_moving(self, value: str) -> None:
         """Toggle visibility of transformed moving image."""
@@ -1091,6 +1099,13 @@ class ImageRegistrationWindow(Window):
 
     def on_update_layer(self, which: str, _value: ty.Any = None) -> None:
         """Update points layer."""
+
+        def _update_points_layer(layer: Points, size: float) -> None:
+            with suppress(IndexError):
+                layer.size = size
+            with suppress(IndexError):
+                layer.current_size = size
+
         self.CONFIG.update(
             size_fixed=self.fixed_point_size.value(),
             size_moving=self.moving_point_size.value(),
@@ -1099,35 +1114,45 @@ class ImageRegistrationWindow(Window):
         )
 
         # update point size
-        if self.fixed_points_layer and which == "fixed":
-            self.fixed_points_layer.size = self.CONFIG.size_fixed
-            with suppress(IndexError):
-                self.fixed_points_layer.current_size = self.CONFIG.size_fixed
-        if self.moving_points_layer and which == "moving":
-            self.moving_points_layer.size = self.CONFIG.size_moving
-            with suppress(IndexError):
-                self.moving_points_layer.current_size = self.CONFIG.size_moving
-        if self.fixed_image_layer and which == "fixed":
-            self.fixed_image_layer[0].opacity = self.CONFIG.opacity_fixed / 100
-        if self.transformed_moving_image_layer and which == "moving":
-            self.transformed_moving_image_layer.opacity = self.CONFIG.opacity_moving / 100
+        if which == "fixed":
+            if self.fixed_points_layer:
+                _update_points_layer(self.fixed_points_layer, self.CONFIG.size_fixed)
+            if FIXED_TMP_POINTS in self.view_fixed.layers:
+                _update_points_layer(self.view_fixed.layers[FIXED_TMP_POINTS], self.CONFIG.size_fixed)
+            if self.fixed_image_layer:
+                self.fixed_image_layer[0].opacity = self.CONFIG.opacity_fixed / 100
+        if which == "moving":
+            if self.moving_points_layer:
+                _update_points_layer(self.moving_points_layer, self.CONFIG.size_moving)
+            if MOVING_TMP_POINTS in self.view_moving.layers:
+                _update_points_layer(self.view_moving.layers[MOVING_TMP_POINTS], self.CONFIG.size_moving)
+            if self.transformed_moving_image_layer:
+                self.transformed_moving_image_layer.opacity = self.CONFIG.opacity_moving / 100
 
     def on_update_text(self, _: ty.Any = None, block: bool = False, refresh: bool = False) -> None:
         """Update text data in each layer."""
+
+        def _update_points_text(layer_: Points) -> None:
+            if len(layer_.data) == 0:
+                return
+            with suppress(IndexError, ValueError):
+                if block:
+                    with layer_.text.events.blocker():
+                        layer_.text = _get_text_format()
+                else:
+                    layer_.text = _get_text_format()
+                if refresh:
+                    layer_.refresh_text()
+
         self.CONFIG.update(label_color=self.text_color.hex_color, label_size=self.text_size.value())
 
         # update text information
         for layer in [self.fixed_points_layer, self.moving_points_layer]:
-            if len(layer.data) == 0:
-                continue
-
-            if block:
-                with layer.text.events.blocker():
-                    layer.text = _get_text_format()
-            else:
-                layer.text = _get_text_format()
-            if refresh:
-                layer.refresh_text()
+            _update_points_text(layer)
+        # if FIXED_TMP_POINTS in self.view_fixed.layers:
+        #     _update_points_text(self.view_fixed.layers[FIXED_TMP_POINTS])
+        # if MOVING_TMP_POINTS in self.view_moving.layers:
+        #     _update_points_text(self.view_moving.layers[MOVING_TMP_POINTS])
 
     def on_lock(self) -> None:
         """Lock transformation."""
@@ -1668,6 +1693,8 @@ class ImageRegistrationWindow(Window):
             self,
             value=self.CONFIG.size_fixed,
             tooltip="Size of the points shown in the fixed image.",
+            minimum=1,
+            maximum=40,
         )
         self.fixed_point_size.setSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum)
         self.fixed_point_size.valueChanged.connect(partial(self.on_update_layer, "fixed"))  # noqa
@@ -1678,35 +1705,14 @@ class ImageRegistrationWindow(Window):
             self,
             value=self.CONFIG.size_moving,
             tooltip="Size of the points shown in the moving image.",
+            minimum=1,
+            maximum=40,
         )
         self.moving_point_size.setSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum)
         self.moving_point_size.valueChanged.connect(partial(self.on_update_layer, "moving"))  # noqa
         self.statusbar.insertPermanentWidget(4, hp.make_label(self, "(M)"))
         self.statusbar.insertPermanentWidget(5, self.moving_point_size)
         self.statusbar.insertPermanentWidget(6, hp.make_v_line())
-
-        self.fixed_opacity = hp.make_int_spin_box(
-            self,
-            value=self.CONFIG.opacity_fixed,
-            step_size=10,
-            tooltip="Opacity of the fixed image",
-        )
-        self.fixed_opacity.setSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum)
-        self.fixed_opacity.valueChanged.connect(partial(self.on_update_layer, "fixed"))  # noqa
-        self.statusbar.insertPermanentWidget(7, hp.make_label(self, "Image opacity (F)"))
-        self.statusbar.insertPermanentWidget(8, self.fixed_opacity)
-
-        self.moving_opacity = hp.make_int_spin_box(
-            self,
-            value=self.CONFIG.opacity_moving,
-            step_size=10,
-            tooltip="Opacity of the moving image in the fixed view",
-        )
-        self.moving_opacity.setSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum)
-        self.moving_opacity.valueChanged.connect(partial(self.on_update_layer, "moving"))  # noqa
-        self.statusbar.insertPermanentWidget(9, hp.make_label(self, "(M)"))
-        self.statusbar.insertPermanentWidget(10, self.moving_opacity)
-        self.statusbar.insertPermanentWidget(11, hp.make_v_line())
 
         self.text_size = hp.make_int_spin_box(
             self,
@@ -1717,16 +1723,39 @@ class ImageRegistrationWindow(Window):
         )
         self.text_size.setSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum)
         self.text_size.valueChanged.connect(self.on_update_text)  # noqa
-        self.statusbar.insertPermanentWidget(12, hp.make_label(self, "Label size"))
-        self.statusbar.insertPermanentWidget(13, self.text_size)
+        self.statusbar.insertPermanentWidget(7, hp.make_label(self, "Label size"))
+        self.statusbar.insertPermanentWidget(8, self.text_size)
 
         self.text_color = hp.make_swatch(
             self, default=self.CONFIG.label_color, tooltip="Color of the text associated with each label."
         )
         self.text_color.setSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum)  # type: ignore[attr-defined]
         self.text_color.evt_color_changed.connect(self.on_update_text)  # noqa
-        self.statusbar.insertPermanentWidget(14, self.text_color)
-        self.statusbar.insertPermanentWidget(15, hp.make_v_line(), stretch=1)
+        self.statusbar.insertPermanentWidget(9, self.text_color)
+        self.statusbar.insertPermanentWidget(10, hp.make_v_line(), stretch=1)
+
+        self.fixed_opacity = hp.make_int_spin_box(
+            self,
+            value=self.CONFIG.opacity_fixed,
+            step_size=10,
+            tooltip="Opacity of the fixed image",
+        )
+        self.fixed_opacity.setSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum)
+        self.fixed_opacity.valueChanged.connect(partial(self.on_update_layer, "fixed"))  # noqa
+        self.statusbar.insertPermanentWidget(11, hp.make_label(self, "Image opacity (F)"))
+        self.statusbar.insertPermanentWidget(12, self.fixed_opacity)
+
+        self.moving_opacity = hp.make_int_spin_box(
+            self,
+            value=self.CONFIG.opacity_moving,
+            step_size=10,
+            tooltip="Opacity of the moving image in the fixed view",
+        )
+        self.moving_opacity.setSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum)
+        self.moving_opacity.valueChanged.connect(partial(self.on_update_layer, "moving"))  # noqa
+        self.statusbar.insertPermanentWidget(13, hp.make_label(self, "(M)"))
+        self.statusbar.insertPermanentWidget(14, self.moving_opacity)
+        self.statusbar.insertPermanentWidget(15, hp.make_v_line())
 
     def on_toggle_mode(
         self, which: str | ty.Literal["fixed", "moving", "both"], mode: str | Mode, zoom: bool = False
