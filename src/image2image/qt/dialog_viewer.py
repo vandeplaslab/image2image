@@ -8,34 +8,33 @@ from pathlib import Path
 import numpy as np
 import qtextra.helpers as hp
 from image2image_io.config import CONFIG as READER_CONFIG
-from koyo.timer import MeasureTimer
 from koyo.typing import PathLike
 from loguru import logger
 from napari.layers import Image, Points, Shapes
+from napari.utils.events import Event
 from qtextra.utils.utilities import connect
-from qtextra.widgets.qt_close_window import QtConfirmCloseDialog
-from qtpy.QtWidgets import QDialog, QHBoxLayout, QMenuBar, QVBoxLayout, QWidget
-from superqt import ensure_main_thread
+from qtpy.QtCore import Qt
+from qtpy.QtGui import QKeyEvent
+from qtpy.QtWidgets import QDialog, QHBoxLayout, QVBoxLayout, QWidget
+from superqt.utils import qdebounced
 
 from image2image import __version__
 from image2image.config import VIEWER_CONFIG
 from image2image.enums import ALLOWED_PROJECT_VIEWER_FORMATS
+from image2image.qt._dialog_mixins import SingleViewerMixin
 from image2image.qt._dialogs._select import LoadWithTransformWidget
-from image2image.qt.dialog_base import Window
 from image2image.utils.utilities import ensure_extension
 
 if ty.TYPE_CHECKING:
     from image2image_io.readers import ShapesReader
     from qtextra._napari.image.wrapper import NapariImageView
-
-    from image2image.models.data import DataModel
     from image2image.models.transform import TransformModel
 
 MASK_LAYER_NAME = "Mask"
 MASK_FILENAME = "mask.tmp"
 
 
-class ImageViewerWindow(Window):
+class ImageViewerWindow(SingleViewerMixin):
     """Image viewer dialog."""
 
     APP_NAME = "viewer"
@@ -80,6 +79,11 @@ class ImageViewerWindow(Window):
         READER_CONFIG.only_last_pyramid = False
         READER_CONFIG.init_pyramid = True
 
+    @property
+    def transform_model(self) -> TransformModel:
+        """Return transform model."""
+        return self._image_widget.transform_model
+
     def setup_events(self, state: bool = True) -> None:
         """Setup events."""
         # wrapper
@@ -98,101 +102,6 @@ class ImageViewerWindow(Window):
         connect(self._image_widget.evt_update_temp, self.on_plot_temporary, state=state)
         connect(self._image_widget.evt_remove_temp, self.on_remove_temporary, state=state)
         connect(self._image_widget.evt_add_channel, self.on_add_temporary_to_viewer, state=state)
-
-    def on_plot_temporary(self, res: tuple[str, int]) -> None:
-        """Plot temporary layer."""
-        key, channel_index = res
-        with MeasureTimer() as timer:
-            self._plot_temporary_layer(self.data_model, self.view, key, channel_index, True)
-        logger.trace(f"Plotted temporary layer for '{key}' in {timer()}.")
-
-    def on_remove_temporary(self, res: tuple[str, int]) -> None:
-        """Remove temporary layer."""
-        key, _ = res
-        layer_name = self._get_reader_for_key(self.data_model, key)
-        if layer_name:
-            self.view.remove_layer(layer_name)
-
-    def on_add_temporary_to_viewer(self, res: tuple[str, int]) -> None:
-        """Add temporary layer to viewer."""
-        key, channel_index = res
-        indices = self._image_widget.channel_dlg.table.find_indices_of(
-            self._image_widget.channel_dlg.TABLE_CONFIG.dataset, key
-        )
-        index = self._image_widget.channel_dlg.table.find_index_of_value_with_indices(
-            self._image_widget.channel_dlg.TABLE_CONFIG.index, channel_index, indices
-        )
-        if index != -1:
-            self._image_widget.channel_dlg.table.set_value(
-                self._image_widget.channel_dlg.TABLE_CONFIG.check, index, True
-            )
-            logger.trace(f"Added image {channel_index} for '{key}' to viewer.")
-
-    @property
-    def data_model(self) -> DataModel:
-        """Return transform model."""
-        return self._image_widget.model
-
-    @property
-    def transform_model(self) -> TransformModel:
-        """Return transform model."""
-        return self._image_widget.transform_model
-
-    @ensure_main_thread
-    def on_load_image(self, model: DataModel, channel_list: list[str]) -> None:
-        """Load fixed image."""
-        if model and model.n_paths:
-            self._on_load_image(model, channel_list)
-            hp.toast(
-                self, "Loaded data", f"Loaded model with {model.n_paths} paths.", icon="success", position="top_left"
-            )
-        else:
-            logger.warning(f"Failed to load data - model={model}")
-
-    def _on_load_image(self, model: DataModel, channel_list: list[str] | None = None) -> None:
-        with MeasureTimer() as timer:
-            logger.info(f"Loading fixed data with {model.n_paths} paths...")
-            need_reset = len(self.view.layers) == 0
-            self.plot_image_layers(channel_list)
-            if need_reset:
-                self.view.viewer.reset_view()
-        logger.info(f"Loaded data in {timer()}")
-
-    def plot_image_layers(self, channel_list: list[str] | None = None) -> None:
-        """Plot image layers."""
-        self.image_layer, self.shape_layer, self.points_layer = self._plot_image_layers(
-            self.data_model, self.view, channel_list, "view", True
-        )
-
-    def on_closing_image(self, model: DataModel, channel_names: list[str], keys: list[str]) -> None:
-        """Close fixed image."""
-        self._closing_model(model, channel_names, self.view, "view")
-
-    def on_close_image(self, model: DataModel) -> None:
-        """Close fixed image."""
-        self._close_model(model, self.view, "view")
-
-    def on_toggle_channel(self, name: str, state: bool) -> None:
-        """Toggle channel."""
-        self._toggle_channel(self.data_model, self.view, name, state, "view")
-
-    def on_toggle_all_channels(self, state: bool, channel_names: list[str] | None = None) -> None:
-        """Toggle channel."""
-        self._toggle_all_channels(self.data_model, self.view, state, "view", channel_names)
-
-    def on_update_transform(self, key: str) -> None:
-        """Update affine transformation."""
-        wrapper = self.data_model.wrapper
-        reader = self.data_model.get_reader_for_key(key)
-        if wrapper and reader:
-            channel_names = wrapper.channel_names_for_names([reader.key])
-            for name in channel_names:
-                if name not in self.view.layers:
-                    continue
-                layer = self.view.layers[name]
-                layer.scale = reader.scale
-                layer.affine = wrapper.get_affine(reader, reader.resolution)
-                logger.trace(f"Updated affine for '{name}' with resolution={reader.resolution}.")
 
     def on_load_from_project(self, _evt=None):
         """Load a previous project."""
@@ -347,7 +256,7 @@ class ImageViewerWindow(Window):
             duration=10_000,
         )
 
-    def on_update_mask_reader(self, _event=None) -> None:
+    def on_update_mask_reader(self, _event: Event | None = None) -> None:
         """Update reader based on layer data."""
         from image2image_io.readers.shapes_reader import napari_to_shapes_data
 
@@ -377,6 +286,7 @@ class ImageViewerWindow(Window):
             self, add_toolbars=False, allow_extraction=False, disable_controls=True, disable_new_layers=True
         )
         self.view.viewer.scale_bar.unit = "um"
+        self.view.widget.canvas.events.key_press.connect(self.keyPressEvent)
 
         side_widget = QWidget()
         side_widget.setMinimumWidth(400)
@@ -466,42 +376,6 @@ class ImageViewerWindow(Window):
     #     layout.addRow(hp.make_h_layout(self.lock_btn, self.use_focus_btn, stretch_id=1))
     #     return layout
 
-    def _make_statusbar(self) -> None:
-        """Make statusbar."""
-        super()._make_statusbar()
-        self._make_scalebar_statusbar()
-        self._make_export_statusbar()
-
-    def _make_menu(self) -> None:
-        """Make menu items."""
-        # File menu
-        menu_file = hp.make_menu(self, "File")
-        hp.make_menu_item(
-            self,
-            "Add image (.tiff, .png, .jpg, .imzML, .tdf, .tsf, + others)...",
-            "Ctrl+I",
-            menu=menu_file,
-            func=self._image_widget.on_select_dataset,
-        )
-        menu_file.addSeparator()
-        hp.make_menu_item(
-            self,
-            "Clear data",
-            menu=menu_file,
-            func=self._image_widget.on_close_dataset,
-        )
-        menu_file.addSeparator()
-        hp.make_menu_item(self, "Quit", menu=menu_file, func=self.close)
-
-        # set actions
-        self.menubar = QMenuBar(self)
-        self.menubar.addAction(menu_file.menuAction())
-        self.menubar.addAction(self._make_tools_menu(scalebar=True).menuAction())
-        self.menubar.addAction(self._make_apps_menu().menuAction())
-        self.menubar.addAction(self._make_config_menu().menuAction())
-        self.menubar.addAction(self._make_help_menu().menuAction())
-        self.setMenuBar(self.menubar)
-
     def _get_console_variables(self) -> dict:
         variables = super()._get_console_variables()
         variables.update(
@@ -514,35 +388,6 @@ class ImageViewerWindow(Window):
         )
         return variables
 
-    def close(self, force=False):
-        """Override to handle closing app or just the window."""
-        if (
-            not force
-            or not self.CONFIG.confirm_close
-            or QtConfirmCloseDialog(self, "confirm_close", self.on_save_to_project, self.CONFIG).exec_()  # type: ignore[attr-defined]
-            == QDialog.DialogCode.Accepted
-        ):
-            return super().close()
-        return None
-
-    def closeEvent(self, evt):
-        """Close."""
-        if (
-            evt.spontaneous()
-            and self.CONFIG.confirm_close
-            and self.data_model.is_valid()
-            and QtConfirmCloseDialog(self, "confirm_close", self.on_save_to_project, self.CONFIG).exec_()  # type: ignore[attr-defined]
-            != QDialog.DialogCode.Accepted
-        ):
-            evt.ignore()
-            return
-
-        if self._console:
-            self._console.close()
-        self.CONFIG.save()
-        READER_CONFIG.save()
-        evt.accept()
-
     def on_show_tutorial(self) -> None:
         """Quick tutorial."""
         from image2image.qt._dialogs._tutorial import show_viewer_tutorial
@@ -550,10 +395,38 @@ class ImageViewerWindow(Window):
         show_viewer_tutorial(self)
         self.CONFIG.update(first_time=False)
 
+    @qdebounced(timeout=50, leading=True)
+    def keyPressEvent(self, evt: QKeyEvent) -> None:
+        """Key press event."""
+        if hasattr(evt, "native"):
+            evt = evt.native
+        try:
+            key = evt.key()
+            ignore = self._handle_key_press(key)
+            if ignore:
+                evt.ignore()
+            if not evt.isAccepted():
+                return None
+            return super().keyPressEvent(evt)
+        except RuntimeError:
+            return None
+
+    @qdebounced(timeout=100, leading=True)
+    def on_handle_key_press(self, key: int) -> bool:
+        """Handle key-press event"""
+        return self._handle_key_press(key)
+
+    def _handle_key_press(self, key: int) -> bool:
+        ignore = False
+        if key == Qt.Key.Key_4:
+            self.on_toggle_zoom()
+            ignore = True
+        return ignore
+
 
 def get_resolution_options(wrapper) -> dict[str, str]:
     """Get resolution options."""
-    resolutions = {}
+    resolutions: dict[float, list[str]] = {}
     for reader in wrapper.reader_iter():
         if reader.reader_type != "image":
             continue

@@ -14,7 +14,7 @@ from image2image_io.config import CONFIG as READER_CONFIG
 from image2image_io.enums import ViewType
 from koyo.timer import MeasureTimer
 from loguru import logger
-from napari.layers import Image, Shapes, Points
+from napari.layers import Image, Points, Shapes
 from napari.layers.points.points import Mode
 from napari.layers.utils._link_layers import link_layers
 from napari.utils.events import Event
@@ -37,11 +37,11 @@ from image2image.qt.dialog_base import Window
 from image2image.utils.utilities import (
     _get_text_data,
     _get_text_format,
+    calculate_zoom,
     ensure_extension,
     get_colormap,
     init_points_layer,
     init_shapes_layer,
-    calculate_zoom,
 )
 
 if ty.TYPE_CHECKING:

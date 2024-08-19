@@ -617,7 +617,6 @@ class ImageWsiWindow(SingleViewerMixin):
             tooltip="Clears all data from the project, excluding the configuration file.",
         )
         hp.show_above_mouse(menu, x_offset=-50)
-        # hp.show_above_widget(menu, self.run_btn, y_offset=50, x_offset=-150)
 
     def _make_run_widgets(self, side_widget: Qw.QWidget) -> None:
         self.save_btn = hp.make_qta_btn(

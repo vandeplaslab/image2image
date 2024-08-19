@@ -18,9 +18,9 @@ from napari.utils.events import Event
 if ty.TYPE_CHECKING:
     from napari._vispy.layers.points import VispyPointsLayer
     from napari._vispy.layers.shapes import VispyShapesLayer
-    from napari.layers import Image, Layer, Points, Shapes
-    from vispy.color import Colormap as VispyColormap
+    from napari.layers import Layer, Points, Shapes
     from qtextra._napari.image.wrapper import NapariImageView
+    from vispy.color import Colormap as VispyColormap
 
 DRAG_DIST_THRESHOLD = 5
 
@@ -353,7 +353,7 @@ def _get_text_data(data: np.ndarray) -> dict[str, list[str]]:
     return {"name": [str(i + 1) for i in range(n_pts)]}
 
 
-def get_extents_from_layers(viewer: "NapariImageView") -> tuple[float, float, float, float]:
+def get_extents_from_layers(viewer: NapariImageView) -> tuple[float, float, float, float]:
     """Calculate extents from all layers."""
     from napari.layers import Image
 
@@ -368,8 +368,22 @@ def get_extents_from_layers(viewer: "NapariImageView") -> tuple[float, float, fl
     return np.min(extents[:, 0]), np.max(extents[:, 1]), np.min(extents[:, 2]), np.max(extents[:, 3])
 
 
+def get_multiplier(xmax: float, ymax: float) -> float:
+    """Based on the maximum value, get a multiplier."""
+    max_size = max(xmax, ymax)
+    if max_size < 5_000:
+        multiplier = 0.5
+    elif max_size < 25_000:
+        multiplier = 0.002
+    elif max_size < 100_000:
+        multiplier = 0.01
+    else:
+        multiplier = 0.005
+    return multiplier
+
+
 def calculate_zoom(
-    shape: np.ndarray, viewer: "NapariImageView", multiplier: float = 0.01
+    shape: np.ndarray, viewer: NapariImageView, multiplier: float | None = 0.01
 ) -> tuple[float, float, float]:
     """Calculate zoom for specified region."""
     # calculate min/max for y, x coordinates
@@ -379,6 +393,9 @@ def calculate_zoom(
     x_fixed = (maxs[1] + mins[1]) / 2
     # calculate extents for the view
     xmin, xmax, ymin, ymax = get_extents_from_layers(viewer)
+    if multiplier is None:
+        multiplier = get_multiplier(xmax, ymax)
+
     # calculate zoom as fraction of the extent
     if ymax > xmax:
         zoom = ((ymax - ymin) / (maxs[0] - mins[0])) * multiplier

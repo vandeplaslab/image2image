@@ -9,16 +9,16 @@ from functools import partial
 from pathlib import Path
 
 from image2image_io.config import CONFIG as READER_CONFIG
+from koyo.path import open_directory_alt
 from koyo.typing import PathLike
 from koyo.utilities import pluralize
-from koyo.path import open_directory_alt
 from loguru import logger
 from qtextra import helpers as hp
 from qtextra.utils.table_config import TableConfig
 from qtextra.utils.utilities import connect
 from qtextra.widgets.qt_dialog import QtDialog, QtFramelessTool
 from qtextra.widgets.qt_table_view import FilterProxyModel, QtCheckableTableView
-from qtpy.QtCore import Qt, Signal, QModelIndex  # type: ignore[attr-defined]
+from qtpy.QtCore import QModelIndex, Qt, Signal  # type: ignore[attr-defined]
 from qtpy.QtGui import QDoubleValidator, QDropEvent
 from qtpy.QtWidgets import (
     QDialog,

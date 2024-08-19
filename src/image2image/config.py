@@ -46,7 +46,8 @@ class State:
     @property
     def allow_valis_run(self) -> bool:
         """Allow execution of valis command."""
-        import os, subprocess
+        import os
+        import subprocess
 
         if not self.allow_valis:
             return False

@@ -20,14 +20,13 @@ from qtextra.utils.utilities import connect
 from qtpy.QtWidgets import QHBoxLayout, QVBoxLayout, QWidget
 
 from image2image import __version__
-from image2image.config import VALIS_CONFIG, ValisConfig
+from image2image.config import STATE, VALIS_CONFIG, ValisConfig
 from image2image.enums import ALLOWED_VALIS_FORMATS
 from image2image.qt._dialog_wsi import ImageWsiWindow
 from image2image.qt._dialogs._select import LoadWidget
 from image2image.qt._wsi._list import QtModalityList
 from image2image.utils.utilities import get_i2reg_path, pad_str
 from image2image.utils.valis import guess_preprocessing, hash_preprocessing
-from image2image.config import STATE
 
 if ty.TYPE_CHECKING:
     from image2image_reg.models import Modality, Preprocessing

@@ -1,4 +1,5 @@
 """Valis hook."""
+
 from koyo.utilities import is_installed
 from PyInstaller.utils.hooks import collect_data_files
 

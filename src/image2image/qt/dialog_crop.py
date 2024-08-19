@@ -11,23 +11,21 @@ from pathlib import Path
 import numpy as np
 import qtextra.helpers as hp
 from image2image_io.config import CONFIG as READER_CONFIG
-from koyo.timer import MeasureTimer
 from koyo.utilities import pluralize
 from loguru import logger
-from napari.layers import Image, Shapes
+from napari.layers import Shapes
 from napari.layers.shapes._shapes_constants import Box
 from qtextra.utils.utilities import connect
-from qtextra.widgets.qt_close_window import QtConfirmCloseDialog
 from qtpy.QtCore import Qt
-from qtpy.QtWidgets import QDialog, QFormLayout, QHBoxLayout, QMenuBar, QVBoxLayout, QWidget
+from qtpy.QtWidgets import QFormLayout, QHBoxLayout, QVBoxLayout, QWidget
 from superqt import ensure_main_thread
 from superqt.utils import GeneratorWorker, create_worker
 
 from image2image import __version__
 from image2image.config import CROP_CONFIG
 from image2image.enums import ALLOWED_PROJECT_CROP_FORMATS
+from image2image.qt._dialog_mixins import SingleViewerMixin
 from image2image.qt._dialogs._select import LoadWidget
-from image2image.qt.dialog_base import Window
 from image2image.utils.utilities import ensure_extension, init_shapes_layer, log_exception_or_error, write_project
 
 if ty.TYPE_CHECKING:
@@ -56,7 +54,7 @@ def parse_crop_info(data: tuple[int, int, int, int] | np.ndarray | None = None) 
     )
 
 
-class ImageCropWindow(Window):
+class ImageCropWindow(SingleViewerMixin):
     """Image viewer dialog."""
 
     APP_NAME = "crop"
@@ -68,9 +66,6 @@ class ImageCropWindow(Window):
     worker_mask: GeneratorWorker | None = None
     worker_preview_mask: GeneratorWorker | None = None
 
-    image_layer: list[Image] | None = None
-    shape_layer: list[Shapes] | None = None
-    _console = None
     _editing = False
 
     def __init__(self, parent: QWidget | None = None, run_check_version: bool = True, **kwargs: ty.Any):
@@ -103,14 +98,6 @@ class ImageCropWindow(Window):
         connect(self._image_widget.evt_toggle_all_channels, self.on_toggle_all_channels, state=state)
         connect(self.view.viewer.events.status, self._status_changed, state=state)
 
-    def on_toggle_channel(self, name: str, state: bool) -> None:
-        """Toggle channel."""
-        self._toggle_channel(self.data_model, self.view, name, state, "view")
-
-    def on_toggle_all_channels(self, state: bool, channel_names: list[str] | None = None) -> None:
-        """Toggle channel."""
-        self._toggle_all_channels(self.data_model, self.view, state, "view", channel_names=channel_names)
-
     @ensure_main_thread
     def on_load_image(self, model: DataModel, channel_list: list[str]) -> None:
         """Load fixed image."""
@@ -122,21 +109,6 @@ class ImageCropWindow(Window):
         else:
             logger.warning(f"Failed to load data - model={model}")
         self._move_layer(self.view, self.crop_layer)
-
-    def _on_load_image(self, model: DataModel, channel_list: list[str] | None = None) -> None:
-        with MeasureTimer() as timer:
-            logger.info(f"Loading fixed data with {model.n_paths} paths...")
-            need_reset = len(self.view.layers) == 0
-            self.plot_image_layers(channel_list)
-            if need_reset:
-                self.view.viewer.reset_view()
-        logger.info(f"Loaded data in {timer()}")
-
-    def plot_image_layers(self, channel_list: list[str] | None = None) -> None:
-        """Plot image layers."""
-        self.image_layer, self.shape_layer, self.points_layer = self._plot_image_layers(
-            self.data_model, self.view, channel_list, "view", True
-        )
 
     def on_close_image(self, model: DataModel) -> None:
         """Close fixed image."""
@@ -581,40 +553,6 @@ class ImageCropWindow(Window):
         self._make_icon()
         self._make_statusbar()
 
-    def _make_menu(self) -> None:
-        """Make menu items."""
-        # File menu
-        menu_file = hp.make_menu(self, "File")
-        hp.make_menu_item(
-            self,
-            "Add image (.tiff, .png, .jpg, .imzML, .tdf, .tsf, + others)...",
-            "Ctrl+I",
-            menu=menu_file,
-            func=self._image_widget.on_select_dataset,
-        )
-        menu_file.addSeparator()
-        hp.make_menu_item(self, "Quit", menu=menu_file, func=self.close)
-
-        # set actions
-        self.menubar = QMenuBar(self)
-        self.menubar.addAction(menu_file.menuAction())
-        self.menubar.addAction(self._make_tools_menu(scalebar=True).menuAction())
-        self.menubar.addAction(self._make_apps_menu().menuAction())
-        self.menubar.addAction(self._make_config_menu().menuAction())
-        self.menubar.addAction(self._make_help_menu().menuAction())
-        self.setMenuBar(self.menubar)
-
-    def _make_statusbar(self) -> None:
-        """Make statusbar."""
-        super()._make_statusbar()
-        self._make_scalebar_statusbar()
-        self._make_export_statusbar()
-
-    @property
-    def data_model(self) -> DataModel:
-        """Return transform model."""
-        return self._image_widget.model
-
     def _get_console_variables(self) -> dict:
         variables = super()._get_console_variables()
         variables.update({"viewer": self.view.viewer, "data_model": self.data_model})
@@ -625,45 +563,6 @@ class ImageCropWindow(Window):
         self._editing = True
         yield
         self._editing = False
-
-    def close(self, force=False):
-        """Override to handle closing app or just the window."""
-        if (
-            not force
-            or not self.CONFIG.confirm_close
-            or QtConfirmCloseDialog(
-                self,
-                "confirm_close",
-                self.on_save_to_project,
-                self.CONFIG,
-            ).exec_()  # type: ignore[attr-defined]
-            == QDialog.DialogCode.Accepted
-        ):
-            return super().close()
-        return None
-
-    def closeEvent(self, evt):
-        """Close."""
-        if (
-            evt.spontaneous()
-            and self.CONFIG.confirm_close
-            and self.data_model.is_valid()
-            and QtConfirmCloseDialog(
-                self,
-                "confirm_close",
-                self.on_save_to_project,
-                self.CONFIG,
-            ).exec_()  # type: ignore[attr-defined]
-            != QDialog.DialogCode.Accepted
-        ):
-            evt.ignore()
-            return
-
-        if self._console:
-            self._console.close()
-        self.CONFIG.save()
-        READER_CONFIG.save()
-        evt.accept()
 
     def on_show_tutorial(self) -> None:
         """Quick tutorial."""
