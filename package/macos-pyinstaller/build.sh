@@ -222,7 +222,12 @@ echo "### End of versions ###"
 
 # Build bundle
 echo "Building bundle... filename=$filename"
-pyinstaller --noconfirm --clean $filename
+if $debug
+then
+  pyinstaller --noconfirm --clean $filename
+else
+  pyinstaller --noconfirm --clean --noconsole $filename
+fi
 
 if $package
 then

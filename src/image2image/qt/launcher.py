@@ -31,7 +31,7 @@ if not STATE.allow_convert:
     CONVERT_WARNING = "<i>Not available on Apple Silicon due to a bug I can't find...</i>"
 VALIS_WARNING = ""
 if not STATE.allow_valis:
-    VALIS_WARNING = "<br><br><i>Might not work withing proper setup.</i>"
+    VALIS_WARNING = "<br><br><i>Might not work without a proper setup.</i>"
 
 
 def _make_tile(
@@ -154,7 +154,7 @@ class Launcher(QtDialog):
     def on_open_app(self, func: ty.Callable) -> None:
         """Open app."""
         self.spinner.show()
-        self.progress_label.setText("Opening application...")
+        self.progress_label.setText("Opening application - this should only take a moment...")
         func()
         hp.call_later(self, self._open_finished, 5000)
 

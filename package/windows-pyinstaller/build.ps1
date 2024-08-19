@@ -7,6 +7,7 @@ param (
     [switch]$update_just_reader = $false,
     [switch]$update_just_register = $false,
     [switch]$update_pip = $false,
+    [switch]$debug = $false,
     [switch]$zip = $false,
     [switch]$run = $false,
     [switch]$help = $false
@@ -23,6 +24,8 @@ if ($help) {
     -update_just_app: Update just the app. Default=False
     -update_just_reader: Update just the reader. Default=False
     -update_just_register: Update just the register. Default=False
+    -update_pip: Update pip packages. Default=False
+    -debug: Debug mode. Default=False
     -zip: Compress distribution. Default=False
     -run: Run application after it has been built.
     -help: Print this message.
@@ -33,6 +36,13 @@ if ($help) {
 conda activate image2image_package
 if ($activate) {
     Exit
+}
+
+if ($debug) {
+    echo "Debug mode enabled"
+    $env:PYINSTALLER_DEBUG="all"
+} else {
+    $env:PYINSTALLER_DEBUG="imports"
 }
 
 $python_ver = &{python -V} 2>&1
@@ -107,7 +117,11 @@ $filename = "image2image.spec"
 
 # Build bundle
 Write-Output "Filename: $filename"
-pyinstaller.exe --noconfirm --clean $filename
+if ($debug) {
+    pyinstaller.exe --noconfirm --clean $filename
+} else {
+    pyinstaller.exe --noconfirm --clean --noconsole $filename
+}
 
 # Copy runner script
 Copy-Item -Path "run_image2image.bat" -Destination "dist/"
