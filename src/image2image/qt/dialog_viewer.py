@@ -28,6 +28,7 @@ from image2image.utils.utilities import ensure_extension
 if ty.TYPE_CHECKING:
     from image2image_io.readers import ShapesReader
     from qtextra._napari.image.wrapper import NapariImageView
+
     from image2image.models.transform import TransformModel
 
 MASK_LAYER_NAME = "Mask"

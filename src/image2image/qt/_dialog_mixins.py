@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import typing as ty
 from pathlib import Path
-from superqt import ensure_main_thread
 
 import qtextra.helpers as hp
 from image2image_io.config import CONFIG as READER_CONFIG
@@ -15,6 +14,7 @@ from napari.layers import Image, Points, Shapes
 from napari.utils.events import Event
 from qtextra.widgets.qt_close_window import QtConfirmCloseDialog
 from qtpy.QtWidgets import QDialog, QMenuBar
+from superqt import ensure_main_thread
 
 from image2image.qt.dialog_base import Window
 from image2image.utils.utilities import calculate_zoom, init_shapes_layer
