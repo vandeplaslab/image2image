@@ -373,8 +373,8 @@ def get_multiplier(xmax: float, ymax: float) -> float:
     max_size = max(xmax, ymax)
     if max_size < 5_000:
         multiplier = 0.5
-    elif max_size < 25_000:
-        multiplier = 0.002
+    elif max_size < 35_000:
+        multiplier = 0.02
     elif max_size < 100_000:
         multiplier = 0.01
     else:
