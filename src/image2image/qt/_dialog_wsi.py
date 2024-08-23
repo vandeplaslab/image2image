@@ -460,9 +460,6 @@ class ImageWsiWindow(SingleViewerMixin):
         hidden_settings = hp.make_advanced_collapsible(
             side_widget, "Export options", allow_checkbox=False, allow_icon=False, icon="warning"
         )
-        hidden_settings.warning_label.setToolTip(
-            "Current settings will not export any images as all <b>write</b> options are disabled."
-        )
         hidden_settings.addRow(hp.make_label(self, "Write/don't write"), self.write_check)
         hidden_settings.addRow(hp.make_label(self, "Write registered images"), self.write_registered_check)
         hidden_settings.addRow(hp.make_label(self, "Write unregistered images"), self.write_not_registered_check)
@@ -508,16 +505,23 @@ class ImageWsiWindow(SingleViewerMixin):
 
     def on_set_write_warning(self) -> None:
         """Enable warning."""
-        self.hidden_settings.set_warning_visible(
-            not any(
-                [
-                    self.CONFIG.write_not_registered,
-                    self.CONFIG.write_registered,
-                    self.CONFIG.write_attached,
-                    self.CONFIG.write_merged,
-                ]
+        tooltip = []
+        if not any(
+            [
+                self.CONFIG.write_not_registered,
+                self.CONFIG.write_registered,
+                self.CONFIG.write_attached,
+                self.CONFIG.write_merged,
+            ]
+        ):
+            tooltip.append("- Current settings will not export any images as all <b>write</b> options are disabled.")
+        if self.CONFIG.as_uint8:
+            tooltip.append(
+                "- Images will be converted to uint8 to reduce file size. This can lead to data loss and should be used"
+                " with caution."
             )
-        )
+        self.hidden_settings.warning_label.setToolTip("<br>".join(tooltip))
+        self.hidden_settings.set_warning_visible(len(tooltip) > 0)
 
     def on_clear_project(self) -> None:
         """Clear project."""
