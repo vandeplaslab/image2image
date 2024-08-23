@@ -51,7 +51,7 @@ def dev_options(func: ty.Callable) -> ty.Callable:
     show_default=True,
 )
 @click.option("-q", "--quiet", "verbosity", flag_value=0, help="Minimal output")
-@click.option("--debug", "verbosity", flag_value=0.5, help="Maximum output")
+@click.option("--debug", "verbosity", flag_value=45, help="Maximum output")
 @click.option(
     "-v",
     "--verbose",
@@ -81,7 +81,8 @@ def dev_options(func: ty.Callable) -> ty.Callable:
 @click.option(
     "-p",
     "--project_dir",
-    help="Path to the Elastix/Valis project directory. It usually ends in .i2reg extension (for 'elastix' or 'valis' tool).",
+    help="Path to the Elastix/Valis project directory. It usually ends in .i2reg extension"
+    " (for 'elastix' or 'valis' tool).",
     type=click.Path(exists=True, resolve_path=True, file_okay=False, dir_okay=True),
     show_default=True,
 )
@@ -142,19 +143,22 @@ def cli(
         print(get_system_info())
         return sys.exit()
 
+    if IS_MAC:
+        os.environ["OBJC_DISABLE_INITIALIZE_FORK_SAFETY"] = "YES"
+
+    if dev:
+        if IS_PYINSTALLER:
+            click.echo("Developer mode is disabled in bundled app.")
+            dev = False
+        else:
+            verbosity = 0.5
+    else:
+        verbosity = 5 - int(verbosity)  # default is WARNING
+    verbosity = max(0, verbosity)
+    level = max(0.5, verbosity) * 10
     if ctx.invoked_subcommand is None:
         from image2image.main import run
 
-        if IS_MAC:
-            os.environ["OBJC_DISABLE_INITIALIZE_FORK_SAFETY"] = "YES"
-
-        if dev:
-            if IS_PYINSTALLER:
-                click.echo("Developer mode is disabled in bundled app.")
-                dev = False
-            else:
-                verbosity = 0.5
-        level = min(0.5, verbosity) * 10
         run(
             level=int(level),
             no_color=no_color,
@@ -165,6 +169,10 @@ def cli(
             project_dir=project_dir,
         )
         return None
+    else:
+        from image2image.main import setup_logger
+
+        setup_logger(level=int(level), no_color=no_color)
     return None
 
 

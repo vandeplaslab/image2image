@@ -475,6 +475,8 @@ class ImageElastixWindow(ImageWsiWindow):
         self.view = self._make_image_view(
             self, add_toolbars=True, allow_extraction=False, disable_controls=False, disable_new_layers=True
         )
+        self.view.widget.canvas.events.key_press.connect(self.keyPressEvent)
+        self.view.viewer.scale_bar.unit = "um"
 
         self._image_widget = LoadWidget(
             self,

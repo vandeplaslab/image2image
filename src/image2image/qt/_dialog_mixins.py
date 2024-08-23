@@ -4,17 +4,17 @@ from __future__ import annotations
 
 import typing as ty
 from pathlib import Path
-from superqt import ensure_main_thread
 
 import qtextra.helpers as hp
 from image2image_io.config import CONFIG as READER_CONFIG
 from koyo.timer import MeasureTimer
 from koyo.typing import PathLike
 from loguru import logger
-from napari.layers import Image, Points, Shapes
+from napari.layers import Image, Layer, Points, Shapes
 from napari.utils.events import Event
 from qtextra.widgets.qt_close_window import QtConfirmCloseDialog
 from qtpy.QtWidgets import QDialog, QMenuBar
+from superqt import ensure_main_thread
 
 from image2image.qt.dialog_base import Window
 from image2image.utils.utilities import calculate_zoom, init_shapes_layer
@@ -39,6 +39,7 @@ class SingleViewerMixin(Window):
     image_layer: list[Image] | None = None
     shape_layer: list[Shapes] | None = None
     points_layer: list[Points] | None = None
+    _temporary_selection: list[Layer] | None = None
 
     # Type hints
     view: NapariImageView
@@ -190,14 +191,21 @@ class SingleViewerMixin(Window):
         self.view.viewer.camera.center = (0.0, y, x)
         self.view.viewer.camera.zoom = zoom
         self.view.remove_layer(TMP_ZOOM)
+        if self._temporary_selection:
+            self.view.viewer.layers.selection.active = self._temporary_selection
+            self._temporary_selection = None
 
     def on_toggle_zoom(self) -> None:
         """Toggle zoom."""
         if TMP_ZOOM in self.view.layers:
             self.view.remove_layer(TMP_ZOOM)
+            if self._temporary_selection:
+                self.view.viewer.layers.selection.active = self._temporary_selection
+                self._temporary_selection = None
         else:
+            self._temporary_selection = self.view.viewer.layers.selection.active
             layer = self.temporary_zoom_layer
-            self._move_layer(self.view, layer)
+            self._move_layer(self.view, layer, new_index=0)
             layer.mode = "add_rectangle"
 
     @ensure_main_thread

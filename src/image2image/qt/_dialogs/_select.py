@@ -113,7 +113,7 @@ class LoadWidget(QWidget):
                 self.INFO_TEXT,
                 bold=True,
                 wrap=True,
-                alignment=Qt.AlignCenter,  # type: ignore[attr-defined]
+                alignment=Qt.AlignmentFlag.AlignCenter,
             )
 
         self.active_icon = QtActiveIcon()

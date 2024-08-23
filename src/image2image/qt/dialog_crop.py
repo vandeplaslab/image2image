@@ -17,9 +17,10 @@ from napari.layers import Shapes
 from napari.layers.shapes._shapes_constants import Box
 from qtextra.utils.utilities import connect
 from qtpy.QtCore import Qt
+from qtpy.QtGui import QKeyEvent
 from qtpy.QtWidgets import QFormLayout, QHBoxLayout, QVBoxLayout, QWidget
 from superqt import ensure_main_thread
-from superqt.utils import GeneratorWorker, create_worker
+from superqt.utils import GeneratorWorker, create_worker, qdebounced
 
 from image2image import __version__
 from image2image.config import CROP_CONFIG
@@ -434,6 +435,7 @@ class ImageCropWindow(SingleViewerMixin):
         self.view = self._make_image_view(
             self, add_toolbars=False, allow_extraction=False, disable_controls=True, disable_new_layers=True
         )
+        self.view.widget.canvas.events.key_press.connect(self.keyPressEvent)
         self.view.viewer.scale_bar.unit = "um"
 
         self._image_widget = LoadWidget(
@@ -570,6 +572,34 @@ class ImageCropWindow(SingleViewerMixin):
 
         show_crop_tutorial(self)
         self.CONFIG.update(first_time=False)
+
+    @qdebounced(timeout=50, leading=True)
+    def keyPressEvent(self, evt: QKeyEvent) -> None:
+        """Key press event."""
+        if hasattr(evt, "native"):
+            evt = evt.native
+        try:
+            key = evt.key()
+            ignore = self._handle_key_press(key)
+            if ignore:
+                evt.ignore()
+            if not evt.isAccepted():
+                return None
+            return super().keyPressEvent(evt)
+        except RuntimeError:
+            return None
+
+    @qdebounced(timeout=100, leading=True)
+    def on_handle_key_press(self, key: int) -> bool:
+        """Handle key-press event"""
+        return self._handle_key_press(key)
+
+    def _handle_key_press(self, key: int) -> bool:
+        ignore = False
+        if key == Qt.Key.Key_4:
+            self.on_toggle_zoom()
+            ignore = True
+        return ignore
 
 
 def get_project_data(data_model: DataModel, regions: list[tuple[int, int, int, int] | np.ndarray]) -> dict:

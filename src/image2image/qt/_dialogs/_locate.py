@@ -189,7 +189,7 @@ class LocateFilesDialog(QtDialog):
                 self,
                 "At least one file read from the configuration file is no longer at the specified path."
                 " Please locate it on your hard drive or it won't be imported.",
-                alignment=Qt.AlignHCenter,  # type: ignore[attr-defined]
+                alignment=Qt.AlignmentFlag.AlignHCenter,  # type: ignore[attr-defined]
             )
         )
         layout.addRow(self.table)
@@ -198,7 +198,7 @@ class LocateFilesDialog(QtDialog):
             hp.make_label(
                 self,
                 "<b>Tip.</b> Double-click on a row to open search dialog for a specific file.",
-                alignment=Qt.AlignHCenter,  # type: ignore[attr-defined]
+                alignment=Qt.AlignmentFlag.AlignHCenter,
                 object_name="tip_label",
                 enable_url=True,
             )

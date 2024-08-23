@@ -215,7 +215,7 @@ class FiducialsDialog(QtFramelessTool):
                     self,
                     "<b>Tip.</b> Double-click on a row to zoom in on the point.<br>"
                     "<b>Tip.</b> Press  <b>Delete</b> or <b>Backspace</b> to delete a point.",
-                    alignment=Qt.AlignHCenter,  # type: ignore[attr-defined]
+                    alignment=Qt.AlignmentFlag.AlignHCenter,
                     object_name="tip_label",
                     enable_url=True,
                 ),

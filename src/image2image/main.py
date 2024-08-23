@@ -22,6 +22,31 @@ AvailableTools = ty.Literal[
 ]
 
 
+def setup_logger(
+    level: int = 10,
+    no_color: bool = False,
+    modules: tuple[str, ...] = ("image2image", "image2image_io", "image2image_reg", "koyo"),
+) -> None:
+    """Setup logger."""
+    from koyo.logging import set_loguru_log
+
+    import image2image.assets  # noqa: F401
+
+    # setup console logger
+    set_loguru_log(
+        level=level,
+        no_color=no_color,
+        diagnose=True,
+        catch=True,
+        logger=logger,
+        remove=False,
+        fmt=LOG_FMT if no_color else COLOR_LOG_FMT,
+    )
+    logger.configure(extra={"src": "CLI"})
+    [logger.enable(module) for module in modules] # type: ignore
+    logger.trace(f"Enabled logger at level={level}")
+
+
 def run(
     level: int = 10,
     no_color: bool = False,
@@ -68,7 +93,7 @@ def run(
         fmt=LOG_FMT if no_color else COLOR_LOG_FMT,
     )
     logger.configure(extra={"src": "CLI"})
-    [logger.enable(module) for module in ["image2image", "image2image_io", "koyo", "qtextra"]]
+    [logger.enable(module) for module in ["image2image", "image2image_io", "image2image_reg", "koyo", "qtextra"]]
     logger.info(f"Enabled logger - logging to '{log_path}' at level={level}")
 
     run_check_version = not dev

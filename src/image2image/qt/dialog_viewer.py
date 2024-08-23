@@ -28,6 +28,7 @@ from image2image.utils.utilities import ensure_extension
 if ty.TYPE_CHECKING:
     from image2image_io.readers import ShapesReader
     from qtextra._napari.image.wrapper import NapariImageView
+
     from image2image.models.transform import TransformModel
 
 MASK_LAYER_NAME = "Mask"
@@ -285,8 +286,8 @@ class ImageViewerWindow(SingleViewerMixin):
         self.view = self._make_image_view(
             self, add_toolbars=False, allow_extraction=False, disable_controls=True, disable_new_layers=True
         )
-        self.view.viewer.scale_bar.unit = "um"
         self.view.widget.canvas.events.key_press.connect(self.keyPressEvent)
+        self.view.viewer.scale_bar.unit = "um"
 
         side_widget = QWidget()
         side_widget.setMinimumWidth(400)

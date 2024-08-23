@@ -17,6 +17,8 @@ from loguru import logger
 from napari.layers import Image
 from qtextra.queue.popup import QUEUE, QueuePopup
 from qtextra.queue.task import Task
+from qtpy.QtCore import Qt
+from qtpy.QtGui import QKeyEvent
 from superqt import ensure_main_thread
 from superqt.utils import qdebounced
 
@@ -676,3 +678,31 @@ class ImageWsiWindow(SingleViewerMixin):
                 self.RUN_DISABLED = False
                 os.environ["IMAGE2IMAGE_I2REG_PATH"] = str(env_path)
                 logger.trace(f"Set i2reg path to {env_path}.")
+
+    @qdebounced(timeout=50, leading=True)
+    def keyPressEvent(self, evt: QKeyEvent) -> None:
+        """Key press event."""
+        if hasattr(evt, "native"):
+            evt = evt.native
+        try:
+            key = evt.key()
+            ignore = self._handle_key_press(key)
+            if ignore:
+                evt.ignore()
+            if not evt.isAccepted():
+                return None
+            return super().keyPressEvent(evt)
+        except RuntimeError:
+            return None
+
+    @qdebounced(timeout=100, leading=True)
+    def on_handle_key_press(self, key: int) -> bool:
+        """Handle key-press event"""
+        return self._handle_key_press(key)
+
+    def _handle_key_press(self, key: int) -> bool:
+        ignore = False
+        if key == Qt.Key.Key_4:
+            self.on_toggle_zoom()
+            ignore = True
+        return ignore
