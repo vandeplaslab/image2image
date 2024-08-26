@@ -371,10 +371,13 @@ def get_extents_from_layers(viewer: NapariImageView) -> tuple[float, float, floa
 def get_multiplier(xmax: float, ymax: float) -> float:
     """Based on the maximum value, get a multiplier."""
     max_size = max(xmax, ymax)
+    # return max_size / 1_000_000
     if max_size < 5_000:
         multiplier = 0.5
-    elif max_size < 25_000:
-        multiplier = 0.002
+    elif max_size < 15_000:
+        multiplier = 0.05
+    elif max_size < 23_000:
+        multiplier = 0.03
     elif max_size < 100_000:
         multiplier = 0.01
     else:

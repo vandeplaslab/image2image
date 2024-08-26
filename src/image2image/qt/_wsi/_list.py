@@ -548,6 +548,7 @@ class QtModalityList(QtListWidget):
         self._parent = parent
         self.valis = valis
         self.used_colors = []
+        self.evt_pre_remove.connect(self._update_used_colors)
 
     @property
     def registration_model(self) -> IWsiReg | ValisReg:
@@ -559,6 +560,13 @@ class QtModalityList(QtListWidget):
         with suppress(ValueError):
             self.used_colors.remove(old_color)
         self.used_colors.append(new_color)
+
+    def _update_used_colors(self, item: QListWidgetItem):
+        """Update used colors."""
+        widget = self.itemWidget(item)
+        if widget:
+            with suppress(ValueError):
+                self.used_colors.remove(widget.hex_color)
 
     def _make_widget(self, item: QListWidgetItem) -> QtModalityItem:
         # try:
