@@ -465,7 +465,7 @@ class QtModalityItem(QtListItem):
                 self.evt_preview_transform_preprocessing.emit
             )
             self._preprocessing_dlg.evt_close.connect(self._on_close_preprocessing)
-            self._preprocessing_dlg.show_below_mouse()
+            self._preprocessing_dlg.show_below_mouse(x_offset=-100)
         self.evt_hide_others.emit(self.item_model)
 
     def _on_close_preprocessing(self) -> None:
@@ -489,7 +489,7 @@ class QtModalityItem(QtListItem):
         """Set pre-processing."""
         self.item_model.preprocessing = preprocessing
         self._set_from_model()
-        self.evt_set_preprocessing.emit(self.item_model)
+        self._on_close_preprocessing()
         logger.debug(f"Pre-processing set for {self.item_model.name}.")
 
     def toggle_name(self, disabled: bool) -> None:
@@ -514,10 +514,10 @@ class QtModalityItem(QtListItem):
         """Toggle name."""
         hp.disable_widgets(self.preview_btn, disabled=disabled)
 
-    def toggle_visible(self, disabled: bool) -> None:
+    def toggle_visible(self, visible: bool) -> None:
         """Toggle visibility icon."""
         with hp.qt_signals_blocked(self.visible_btn):
-            self.visible_btn.visible = not disabled
+            self.visible_btn.visible = not visible
 
 
 class QtModalityList(QtListWidget):

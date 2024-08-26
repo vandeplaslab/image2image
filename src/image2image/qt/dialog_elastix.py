@@ -92,8 +92,6 @@ class ImageElastixWindow(ImageWsiWindow):
     APP_NAME = "elastix"
 
     _registration_model: IWsiReg | None = None
-    _mask_dlg: MaskDialog | None = None
-    _crop_dlg: CropDialog | None = None
 
     WINDOW_TITLE = f"image2elastix: WSI Registration app (v{__version__})"
     WINDOW_CONSOLE_ARGS = (("view", "viewer"), "data_model", ("data_model", "wrapper"), "registration_model")

@@ -208,6 +208,10 @@ class SingleViewerMixin(Window):
             self._move_layer(self.view, layer, new_index=0)
             layer.mode = "add_rectangle"
 
+    def on_toggle_grid(self) -> None:
+        """Toggle grid on/off in the viewer."""
+        self.view.viewer.grid.enabled = not self.view.viewer.grid.enabled
+
     @ensure_main_thread
     def on_load_image(self, model: DataModel, channel_list: list[str]) -> None:
         """Load fixed image."""

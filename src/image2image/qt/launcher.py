@@ -11,6 +11,7 @@ from qtextra.config import THEMES
 from qtextra.widgets.qt_dialog import QtDialog
 from qtextra.widgets.qt_logger import QtLoggerDialog
 from qtextra.widgets.qt_tile import QtTileWidget, Tile
+from qtpy.QtCore import Qt
 from qtpy.QtWidgets import QVBoxLayout, QWidget
 
 from image2image import __version__
@@ -57,6 +58,7 @@ class Launcher(QtDialog):
         self.console = None
         self.logger_dlg = QtLoggerDialog(self, USER_LOG_DIR)
         self.setFixedSize(self.sizeHint())
+        self.setWindowFlags(self.windowFlags() | Qt.WindowType.WindowMinimizeButtonHint)
 
     # noinspection PyAttributeOutsideInit
     def make_panel(self) -> QVBoxLayout:

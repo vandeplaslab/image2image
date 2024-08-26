@@ -61,6 +61,7 @@ class ShapesDialog(QtFramelessTool):
     """Dialog to mask a group."""
 
     HIDE_WHEN_CLOSE = True
+    is_showing = False
     _editing = False
     TITLE: str
     INFO_LABEL: str
@@ -74,11 +75,12 @@ class ShapesDialog(QtFramelessTool):
         self.setMinimumWidth(400)
         self.setMinimumHeight(300)
         self.on_update_modality_options()
+        self.on_show_mask()
 
     def on_update_modality_options(self) -> None:
         """Update list of available modalities."""
         current = self.slide_choice.currentText()
-        options = self._parent.registration_model.get_image_modalities(False)
+        options = self._parent.registration_model.get_image_modalities(with_attachment=False)
         hp.combobox_setter(self.slide_choice, items=options, set_item=current)
         current = self.copy_from_choice.currentText()
         hp.combobox_setter(self.copy_from_choice, items=options, set_item=current)
@@ -115,11 +117,19 @@ class ShapesDialog(QtFramelessTool):
             self.layer_controls.set_layer(layer)
         return layer
 
-    def is_current_masked(self) -> bool:
-        """Check if current modality is masked."""
+    @property
+    def current_modality(self) -> Modality | None:
+        """Currently visible modality."""
         name = self.slide_choice.currentText()
         if name:
             modality = self._parent.registration_model.modalities[name]
+            return modality
+        return None
+
+    def is_current_masked(self) -> bool:
+        """Check if current modality is masked."""
+        modality = self.current_modality
+        if modality:
             return modality.preprocessing.is_masked() if self.MASK_OR_CROP == "mask" else modality.is_cropped()
         return False
 
@@ -163,27 +173,29 @@ class ShapesDialog(QtFramelessTool):
         with suppress(TypeError):
             self.mask_layer.visible = True
 
-    def show(self):
-        """Show dialog."""
-        self.on_update_modality_options()
-        self.on_show_mask()
-        super().show()
-
     def on_hide_mask(self) -> None:
         """Hide current mask."""
-        self._parent._move_layer(self.view, self.mask_layer, select=False)
+        self._parent.view.remove_layer(self.mask_layer)
         layers: list[Image] = self.view.get_layers_of_type(Image)
         if layers:
             self.view.select_one_layer(layers[0])
-        with suppress(TypeError):
-            self.mask_layer.visible = False
 
     def on_remove_mask(self) -> None:
         """Remove mask."""
         self.view.remove_layer(self.mask_layer)
 
+    def show(self):
+        """Show dialog."""
+        self.is_showing = True
+        self.on_update_modality_options()
+        self.on_show_mask()
+        self.on_select_modality()
+        self._parent.on_hide_not_previewed_modalities()
+        super().show()
+
     def hide(self):
         """Hide dialog."""
+        self.is_showing = False
         self.on_hide_mask()
         super().hide()
 
@@ -234,14 +246,11 @@ class ShapesDialog(QtFramelessTool):
 
     def on_select_modality(self, _=None) -> None:
         """Select mask for the currently selected group."""
-        name = self.slide_choice.currentText()
-        modality = self._parent.registration_model.modalities[name]
-        data = self._transform_from_preprocessing(modality)
-        self.mask_layer.data = data or []
-
-        # hide all other image layers
-        if self.only_current.isChecked():
-            self._parent.on_hide_modalities(modality)
+        modality = self.current_modality
+        if modality:
+            data = self._transform_from_preprocessing(modality)
+            self.mask_layer.data = data or []
+        self._parent.on_hide_not_previewed_modalities()
 
     def on_increment_modality(self, increment_by: int) -> None:
         """Increment modality."""
@@ -249,7 +258,6 @@ class ShapesDialog(QtFramelessTool):
         index = self.slide_choice.currentIndex()
         index = (index + increment_by) % count
         self.slide_choice.setCurrentIndex(index)
-        # self.on_select_modality()
         logger.trace(f"Changed modality to {index}")
 
     def _check_if_has_mask(self, modality: Modality) -> bool:
@@ -310,9 +318,6 @@ class ShapesDialog(QtFramelessTool):
         )
         self.copy_from_choice = hp.make_combobox(self, tooltip="Copy mask from another modality")
 
-        self.only_current = hp.make_checkbox(
-            self, tooltip="Hide other modalities when drawing a mask.", func=self.on_select_modality
-        )
         self.add_btn = hp.make_btn(self, f"Add {self.MASK_OR_CROP}", func=self.on_associate_mask_with_modality)
         self.remove_btn = hp.make_btn(self, f"Remove {self.MASK_OR_CROP}", func=self.on_dissociate_mask_from_modality)
         self.auto_update = hp.make_checkbox(self, "", tooltip="Auto-associate mask when making changes", value=True)
@@ -336,7 +341,6 @@ class ShapesDialog(QtFramelessTool):
                 self.copy_from_choice, hp.make_btn(self, "Copy", func=self.on_copy), spacing=2, stretch_id=(0,)
             ),
         )
-        layout.addRow(hp.make_label(self, "Hide other"), self.only_current)
         layout.addRow(hp.make_h_layout(self.add_btn, self.remove_btn))
         layout.addRow(
             hp.make_label(self, "Auto-update"),
@@ -358,9 +362,7 @@ class MaskDialog(ShapesDialog):
     TITLE = "Mask"
     INFO_LABEL = (
         "This dialog allows for you to draw a mask for some (or all) of the images. Masks can be helpful"
-        " in registration problems by focusing on a specific region of interest."  # <br>"
-        # "<b>Please remember that masks should be created on the original image (not translated or rotated)."
-        # "<br>Transformations will be applied during the registration process!</b>"
+        " in registration problems by focusing on a specific region of interest."
     )
     MASK_OR_CROP = "mask"
 
@@ -373,22 +375,25 @@ class MaskDialog(ShapesDialog):
 
     def on_associate_mask_with_modality(self) -> None:
         """Associate mask with modality at the specified location."""
-        name = self.slide_choice.currentText()
-        modality = self._parent.registration_model.modalities[name]
+        modality = self.current_modality
+        if not modality:
+            return
         yx, bbox = self._transform_to_preprocessing(modality)
         if yx is not None:
             modality.preprocessing.use_mask = True
             modality.preprocessing.mask_polygon = yx
             modality.preprocessing.mask_bbox = None
+            kind = "polygon"
         elif bbox is not None:
             modality.preprocessing.use_mask = True
             modality.preprocessing.mask_bbox = bbox
             modality.preprocessing.mask_polygon = None
+            kind = "bbox"
         else:
             modality.preprocessing.use_mask = False
+            kind = "none"
         modality.preprocessing.transform_mask = False
-        kind = "polygon" if yx is not None else "bbox"
-        logger.trace(f"Added mask for modality {name} to {kind}")
+        logger.trace(f"Added mask for modality {modality.name} to {kind}")
         self.evt_mask.emit(modality)
 
     def on_dissociate_mask_from_modality(self) -> None:
@@ -407,9 +412,7 @@ class CropDialog(ShapesDialog):
     TITLE = "Crop"
     INFO_LABEL = (
         "This dialog allows for you draw a shape for some (or all) of the images. This can be helpful"
-        " by cropping the image ahead of registration."  # <br>"
-        # "<b>Please remember that masks should be created on the original image (not translated or rotated)."
-        # "<br>Transformations will be applied during the registration process!</b>"
+        " by cropping the image ahead of registration."
     )
     MASK_OR_CROP = "crop"
 
@@ -422,8 +425,9 @@ class CropDialog(ShapesDialog):
 
     def on_associate_mask_with_modality(self) -> None:
         """Associate mask with modality at the specified location."""
-        name = self.slide_choice.currentText()
-        modality = self._parent.registration_model.modalities[name]
+        modality = self.current_modality
+        if not modality:
+            return
         yx, bbox = self._transform_to_preprocessing(modality)
         if yx is not None and bbox is not None:
             hp.warn(self, "Cannot have both polygon and bbox for crop")
@@ -432,15 +436,17 @@ class CropDialog(ShapesDialog):
             modality.preprocessing.use_crop = True
             modality.preprocessing.crop_polygon = yx
             modality.preprocessing.crop_bbox = None
+            kind = "polygon"
         elif bbox is not None:
             modality.preprocessing.use_crop = True
             modality.preprocessing.crop_bbox = bbox
             modality.preprocessing.crop_polygon = None
+            kind = "bbox"
         else:
             modality.preprocessing.use_crop = False
+            kind = "none"
         modality.preprocessing.transform_mask = False
-        kind = "polygon" if yx is not None else "bbox"
-        logger.trace(f"Added crop for modality {name} to {kind}")
+        logger.trace(f"Added crop for modality {modality.name} to {kind}")
         self.evt_mask.emit(modality)
 
     def on_dissociate_mask_from_modality(self) -> None:

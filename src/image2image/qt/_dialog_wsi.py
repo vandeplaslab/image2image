@@ -31,6 +31,7 @@ if ty.TYPE_CHECKING:
 
     from image2image.config import ElastixConfig, ValisConfig
     from image2image.qt._wsi._list import QtModalityList
+    from image2image.qt._wsi._mask import CropDialog, MaskDialog
 
 
 class ImageWsiWindow(SingleViewerMixin):
@@ -57,6 +58,9 @@ class ImageWsiWindow(SingleViewerMixin):
     open_when_finished: Qw.QCheckBox
     pyramid_level: Qw.QSpinBox
     hidden_settings: QtCheckCollapsible
+
+    _mask_dlg: MaskDialog | None = None
+    _crop_dlg: CropDialog | None = None
 
     def __init__(
         self,
@@ -283,35 +287,51 @@ class ImageWsiWindow(SingleViewerMixin):
     def _on_show_modalities(self) -> None:
         """Show modality images."""
         self.CONFIG.update(use_preview=self.use_preview_check.isChecked())
+        self.on_hide_not_previewed_modalities()
         self.modality_list.toggle_preview(self.CONFIG.use_preview)
+        # if not self.CONFIG.hide_others:
+        #     self.modality_list.toggle_visible([layer.name for layer in self.view.get_layers_of_type(Image)])
         for _, modality, widget in self.modality_list.item_model_widget_iter():
-            self.on_show_modality(modality, state=widget.visible_btn.visible, overwrite=True)
+            # self.on_show_modality(modality, state=widget.visible_btn.visible, overwrite=True)
+            self.on_show_modality(modality, state=True, overwrite=True)
 
     def on_hide_not_previewed_modalities(self) -> None:
         """Hide any modality that is not previewed."""
-        modalities = []
+        hide = self.hide_others_check.isChecked()
+        visible_modalities = []
+        # get modalities that are currently being pre-processed
         for _, modality, widget in self.modality_list.item_model_widget_iter():
-            if widget._preprocessing_dlg is not None:
-                modalities.append(modality)
-        self.on_hide_modalities(modalities)
-        logger.trace("Hiding not previewed modalities.")
+            if widget._preprocessing_dlg is not None or not hide:
+                visible_modalities.append(modality.name)
+        # also get modalities that are being masked
+        if self._mask_dlg and self._mask_dlg.is_showing and self._mask_dlg.current_modality is not None:
+            visible_modalities.append(self._mask_dlg.current_modality.name)
+        # also get modalities that are being cropped
+        if self._crop_dlg and self._crop_dlg.is_showing and self._crop_dlg.current_modality is not None:
+            visible_modalities.append(self._crop_dlg.current_modality.name)
+            print("???")
+        visible_modalities = list(set(visible_modalities))
+        self.on_hide_modalities(visible_modalities)
+        logger.trace(f"Showing {visible_modalities} (hide-not-previewed).")
 
-    def on_hide_modalities(self, modality: Modality | list[Modality], hide: bool | None = None) -> None:
+    def on_hide_modalities(
+        self, visible_modalities: Modality | list[Modality] | list[str], hide: bool | None = None
+    ) -> None:
         """Hide other modalities."""
         if hide is None:
             hide = self.hide_others_check.isChecked()
         self.CONFIG.update(hide_others=hide)
-        if not hide:
-            return
-        if not isinstance(modality, list):
-            modality = [modality]
-        visible_modalities = [mod.name for mod in modality]
-        if not visible_modalities:
-            return
-        for layer in self.view.get_layers_of_type(Image):
-            layer.visible = layer.name in visible_modalities
-        self.modality_list.toggle_visible([layer.name for layer in self.view.get_layers_of_type(Image)])
-        logger.trace(f"Showing {visible_modalities}")
+        if not isinstance(visible_modalities, list):
+            visible_modalities = [visible_modalities]
+        if hide:
+            layers_to_show = [mod.name if hasattr(mod, "name") else mod for mod in visible_modalities]
+            if layers_to_show:
+                for layer in self.view.get_layers_of_type(Image):
+                    layer.visible = layer.name in layers_to_show
+            logger.trace(f"Showing {layers_to_show} (hide-modalities)")
+        self.modality_list.toggle_visible(
+            [layer.name for layer in self.view.get_layers_of_type_with_attr_value(Image, "visible", True)]
+        )
 
     def on_open_in_viewer(self) -> None:
         """Open registration in viewer."""
@@ -709,4 +729,6 @@ class ImageWsiWindow(SingleViewerMixin):
         if key == Qt.Key.Key_4:
             self.on_toggle_zoom()
             ignore = True
+        elif key == Qt.Key.Key_G:
+            self.on_toggle_grid()
         return ignore

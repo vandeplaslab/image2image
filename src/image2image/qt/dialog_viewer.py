@@ -425,7 +425,7 @@ class ImageViewerWindow(SingleViewerMixin):
         return ignore
 
 
-def get_resolution_options(wrapper) -> dict[str, str]:
+def get_resolution_options(wrapper) -> dict[float, str]:
     """Get resolution options."""
     resolutions: dict[float, list[str]] = {}
     for reader in wrapper.reader_iter():
