@@ -233,7 +233,7 @@ class ImageWsiWindow(SingleViewerMixin):
             hp.toast(self, "Error", "Please load fixed image first.", icon="error", position="top_left")
             return
 
-        options = {key: key for key in self.registration_model.modalities}
+        options = {key: key for key in self.registration_model.get_image_modalities(with_attachment=False)}
         choice = hp.choose(self, options, "Select modality to attach to")
         if not choice:
             return
