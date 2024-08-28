@@ -55,7 +55,6 @@ class ImageWsiWindow(SingleViewerMixin):
     use_preview_check: Qw.QCheckBox
     hide_others_check: Qw.QCheckBox
     modality_list: QtModalityList
-    open_when_finished: Qw.QCheckBox
     pyramid_level: Qw.QSpinBox
     hidden_settings: QtCheckCollapsible
 
@@ -373,7 +372,7 @@ class ImageWsiWindow(SingleViewerMixin):
 
     def on_registration_finished(self, task: Task, _: ty.Any = None) -> None:
         """Open registration in viewer."""
-        if self.open_when_finished.isChecked():
+        if self.CONFIG.open_when_finished:
             path = Path(task.task_name) / "Images"
             if path.exists():
                 self.on_open_viewer("--image_dir", str(path))
@@ -469,13 +468,6 @@ class ImageWsiWindow(SingleViewerMixin):
             value=self.CONFIG.as_uint8,
             func=self.on_update_config,
         )
-        self.open_when_finished = hp.make_checkbox(
-            self,
-            "",
-            tooltip="Open images in the viewer when registration is finished.",
-            value=self.CONFIG.open_when_finished,
-            func=self.on_update_config,
-        )
 
         hidden_settings = hp.make_advanced_collapsible(
             side_widget, "Export options", allow_checkbox=False, allow_icon=False, icon="warning"
@@ -500,7 +492,6 @@ class ImageWsiWindow(SingleViewerMixin):
                 stretch_id=(0,),
             ),
         )
-        hidden_settings.addRow(hp.make_label(self, "Open when finished"), self.open_when_finished)
         return hidden_settings
 
     def on_update_config(self, _: ty.Any = None) -> None:
@@ -511,7 +502,6 @@ class ImageWsiWindow(SingleViewerMixin):
         self.CONFIG.write_merged = self.write_merged_check.isChecked()
         self.CONFIG.rename = self.rename_check.isChecked()
         self.CONFIG.as_uint8 = self.as_uint8.isChecked()
-        self.CONFIG.open_when_finished = self.open_when_finished.isChecked()
         self.on_set_write_warning()
 
     def on_toggle_write(self) -> None:
@@ -561,6 +551,15 @@ class ImageWsiWindow(SingleViewerMixin):
         hp.make_menu_item(self, "Open in viewer", menu=menu, func=self.on_open_in_viewer, icon="viewer")
         hp.make_menu_item(
             self, "Open in viewer and close", menu=menu, func=self.on_open_in_viewer_and_close_project, icon="viewer"
+        )
+        menu.addSeparator()
+        hp.make_menu_item(
+            self,
+            "Open when finished",
+            menu=menu,
+            checkable=True,
+            checked=self.CONFIG.open_when_finished,
+            func=lambda _: self.CONFIG.update(open_when_finished=not self.CONFIG.open_when_finished),
         )
         hp.show_right_of_mouse(menu)
 
