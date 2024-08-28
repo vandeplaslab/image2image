@@ -309,9 +309,8 @@ class ImageWsiWindow(SingleViewerMixin):
         # also get modalities that are being cropped
         if self._crop_dlg and self._crop_dlg.is_showing and self._crop_dlg.current_modality is not None:
             visible_modalities.append(self._crop_dlg.current_modality.name)
-            print("???")
         visible_modalities = list(set(visible_modalities))
-        self.on_hide_modalities(visible_modalities)
+        self.on_hide_modalities(visible_modalities, hide=True)
         logger.trace(f"Showing {visible_modalities} (hide-not-previewed).")
 
     def on_hide_modalities(
@@ -323,15 +322,14 @@ class ImageWsiWindow(SingleViewerMixin):
         self.CONFIG.update(hide_others=hide)
         if not isinstance(visible_modalities, list):
             visible_modalities = [visible_modalities]
-        if hide:
-            layers_to_show = [mod.name if hasattr(mod, "name") else mod for mod in visible_modalities]
-            if layers_to_show:
-                for layer in self.view.get_layers_of_type(Image):
-                    layer.visible = layer.name in layers_to_show
+        layers_to_show = [mod.name if hasattr(mod, "name") else mod for mod in visible_modalities]
+        if hide and layers_to_show:
+            for layer in self.view.get_layers_of_type(Image):
+                layer.visible = layer.name in layers_to_show
             logger.trace(f"Showing {layers_to_show} (hide-modalities)")
-        self.modality_list.toggle_visible(
-            [layer.name for layer in self.view.get_layers_of_type_with_attr_value(Image, "visible", True)]
-        )
+        # self.modality_list.toggle_visible(
+        #     [layer.name for layer in self.view.get_layers_of_type_with_attr_value(Image, "visible", True)]
+        # )
 
     def on_open_in_viewer(self) -> None:
         """Open registration in viewer."""
@@ -731,4 +729,8 @@ class ImageWsiWindow(SingleViewerMixin):
             ignore = True
         elif key == Qt.Key.Key_G:
             self.on_toggle_grid()
+        elif key == Qt.Key.Key_H:
+            self.hide_others_check.setChecked(not self.hide_others_check.isChecked())
+        elif key == Qt.Key.Key_P:
+            self.use_preview_check.setChecked(not self.use_preview_check.isChecked())
         return ignore

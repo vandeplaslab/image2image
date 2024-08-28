@@ -220,7 +220,7 @@ class QtModalityItem(QtListItem):
         from koyo.path import open_directory_alt
 
         path = Path(self.item_model.path)
-        open_directory_alt(path.parent)
+        open_directory_alt(path)
 
     def on_remove(self) -> None:
         """Remove image/modality from the list."""
@@ -505,6 +505,7 @@ class QtModalityItem(QtListItem):
         self.mask_btn.setVisible(self.item_model.preprocessing.is_masked())
         self.on_update_preprocessing(self.item_model.preprocessing)
 
+    #
     def toggle_crop(self) -> None:
         """Toggle name."""
         self.crop_btn.setVisible(self.item_model.preprocessing.is_cropped())

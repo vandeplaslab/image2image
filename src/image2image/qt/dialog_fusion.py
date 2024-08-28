@@ -280,7 +280,6 @@ class ImageFusionWindow(Window):
     def _setup_ui(self):
         """Create panel."""
         self._image_widget = LoadWidget(self, None, self.CONFIG, select_channels=False)
-        self._image_widget.info_text.setVisible(False)
 
         columns = self.TABLE_CONFIG.to_columns()
         self.table = QTableWidget(self)

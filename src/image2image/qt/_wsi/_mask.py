@@ -9,6 +9,7 @@ from math import ceil, floor
 
 import numpy as np
 import qtextra.helpers as hp
+from image2image_reg.models import Modality, Preprocessing
 from loguru import logger
 from napari.layers import Image, Shapes
 from napari.layers.shapes._shapes_constants import Box
@@ -22,7 +23,6 @@ from image2image.utils.utilities import init_shapes_layer, open_docs
 
 if ty.TYPE_CHECKING:
     from image2image_io.readers import BaseReader
-    from image2image_reg.models import Modality, Preprocessing
     from qtextra._napari.image.wrapper import NapariImageView
 
     from image2image.qt.dialog_elastix import ImageElastixWindow
@@ -68,6 +68,7 @@ class ShapesDialog(QtFramelessTool):
     MASK_OR_CROP: str
 
     evt_mask = Signal(object)
+    evt_preview_transform_preprocessing = Signal(Modality, Preprocessing)
 
     def __init__(self, parent: ImageElastixWindow | None):
         super().__init__(parent)
@@ -151,11 +152,11 @@ class ShapesDialog(QtFramelessTool):
 
     def _get_crop_area_for_index(
         self,
-    ) -> ty.Generator[tuple[int, int, int, int, str | None, np.ndarray | None], None, None]:
+    ) -> ty.Generator[tuple[str | None, int, int, int, int, np.ndarray | None], None, None]:
         """Return crop area."""
         n = len(self.mask_layer.data)
         if n == 0:
-            return 0, 0, 0, 0, None, None
+            return None, 0, 0, 0, 0, None
         for index in range(n):
             array = self.mask_layer.data[index]
             shape_type = self.mask_layer.shape_type[index]
@@ -165,7 +166,7 @@ class ShapesDialog(QtFramelessTool):
             xmin = max(0, xmin)
             ymin, ymax = np.min(rect[:, 0]), np.max(rect[:, 0])
             ymin = max(0, ymin)
-            yield floor(xmin), ceil(xmax), floor(ymin), ceil(ymax), shape_type, array
+            yield shape_type, floor(xmin), ceil(xmax), floor(ymin), ceil(ymax), array
 
     def on_show_mask(self) -> None:
         """Show mask."""
@@ -226,22 +227,29 @@ class ShapesDialog(QtFramelessTool):
                 data.append((np.asarray(xy[:, ::-1]) * reader.resolution, "polygon"))
         return data
 
-    def _transform_to_preprocessing(self, modality: Modality) -> tuple[np.ndarray | None, tuple[int] | None]:
-        """Transform data from napari layer to preprocessing data."""
+    def _transform_to_preprocessing(
+        self, modality: Modality, as_px: bool = True
+    ) -> tuple[np.ndarray | None, tuple[int] | None]:
+        """Transform data from napari layer to preprocessing data.
+
+        Values are stored in the micron units and returned in pixel units.
+        """
         wrapper = self._parent.data_model.get_wrapper()
         reader = wrapper.get_reader_for_path(modality.path)
         # _, inv_affine = get_affine(reader, modality.preprocessing)
         inv_affine = np.eye(3)
+        inv_resolution = reader.inv_resolution if as_px else 1.0
         yx_, bbox_ = [], []
-        for left, right, top, bottom, shape_type, yx in self._get_crop_area_for_index():
+        for shape_type, left, right, top, bottom, yx in self._get_crop_area_for_index():
             if shape_type == "polygon":
                 # convert to pixel coordinates and round
                 yx = np.dot(inv_affine[:2, :2], yx.T).T + inv_affine[:2, 2]
-                yx = yx * reader.inv_resolution
+                yx = yx * inv_resolution
                 yx_.append(np.round(yx).astype(np.int32)[:, ::-1])
             else:
+                print("??", right - left, bottom - top)
                 bbox = np.asarray([left, top, (right - left), (bottom - top)])
-                bbox_.append(tuple(np.round(bbox * reader.inv_resolution).astype(int)))
+                bbox_.append(tuple(np.round(bbox * inv_resolution).astype(int)))
         return yx_ or None, bbox_ or None
 
     def on_select_modality(self, _=None) -> None:
@@ -428,7 +436,7 @@ class CropDialog(ShapesDialog):
         modality = self.current_modality
         if not modality:
             return
-        yx, bbox = self._transform_to_preprocessing(modality)
+        yx, bbox = self._transform_to_preprocessing(modality, as_px=False)
         if yx is not None and bbox is not None:
             hp.warn(self, "Cannot have both polygon and bbox for crop")
             return
@@ -447,6 +455,8 @@ class CropDialog(ShapesDialog):
             kind = "none"
         modality.preprocessing.transform_mask = False
         logger.trace(f"Added crop for modality {modality.name} to {kind}")
+        if yx is not None or bbox is not None:
+            self.evt_preview_transform_preprocessing.emit(modality, modality.preprocessing)
         self.evt_mask.emit(modality)
 
     def on_dissociate_mask_from_modality(self) -> None:

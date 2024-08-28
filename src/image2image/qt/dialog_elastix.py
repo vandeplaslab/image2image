@@ -348,7 +348,8 @@ class ImageElastixWindow(ImageWsiWindow):
             from image2image.qt._wsi._mask import CropDialog
 
             self._crop_dlg = CropDialog(self)
-            self._crop_dlg.evt_mask.connect(self.modality_list.toggle_crop)
+            connect(self._crop_dlg.evt_mask, self.modality_list.toggle_crop, state=True)
+            connect(self._crop_dlg.evt_preview_transform_preprocessing, self.on_preview_transform, state=True)
         size = self.crop_btn.sizeHint()
         self._crop_dlg.show_above_widget(self.crop_btn, x_offset=-size.width() // 8, y_offset=size.height() // 2)
 

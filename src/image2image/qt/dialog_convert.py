@@ -376,7 +376,6 @@ class ImageConvertWindow(Window):
             available_formats=ALLOWED_IMAGE_FORMATS_MICROSCOPY_ONLY,
             show_split_czi=False,
         )
-        self._image_widget.info_text.setVisible(False)
 
         columns = self.TABLE_CONFIG.to_columns()
         self.table = QTableWidget(self)

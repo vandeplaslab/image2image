@@ -43,7 +43,7 @@ def setup_logger(
         fmt=LOG_FMT if no_color else COLOR_LOG_FMT,
     )
     logger.configure(extra={"src": "CLI"})
-    [logger.enable(module) for module in modules] # type: ignore
+    [logger.enable(module) for module in modules]  # type: ignore
     logger.trace(f"Enabled logger at level={level}")
 
 
