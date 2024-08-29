@@ -13,7 +13,7 @@ from image2image.config import ELASTIX_CONFIG
 from image2image.enums import REGISTRATION_PATH_HELP
 
 if ty.TYPE_CHECKING:
-    from image2image_reg.workflows.elastix import IWsiReg
+    from image2image_reg.workflows.elastix import ElastixReg
 
 logger = logger.bind(src="RegistrationMap")
 
@@ -138,7 +138,7 @@ class RegistrationMap(QWidget):
         self._init_ui()
 
     @property
-    def registration_model(self) -> IWsiReg:
+    def registration_model(self) -> ElastixReg:
         """Registration model."""
         return self._parent.registration_model
 
@@ -220,7 +220,7 @@ class RegistrationMap(QWidget):
 
     def on_path_choice(self, _=None) -> None:
         """Handle path selection."""
-        registration_model: IWsiReg = self.registration_model
+        registration_model: ElastixReg = self.registration_model
         path = self._choice.currentText()
         if path:
             parts = path.split(" » ")
@@ -275,7 +275,7 @@ class RegistrationMap(QWidget):
             hp.warn(self, "Please select source and target images.")
             return
         # self._warning_label.setText("")
-        registration_model: IWsiReg = self.registration_model
+        registration_model: ElastixReg = self.registration_model
         if not registration_model.has_registration_path(source, target, through):
             registration_model.add_registration_path(source, target, through=through, transform=registrations)
             self._log_message(f"Added registration path: {source} » {through} » {target}")
@@ -292,7 +292,7 @@ class RegistrationMap(QWidget):
         if not valid:
             # self._warning_label.setText("Please select source and target images.")
             return
-        registration_model: IWsiReg = self.registration_model
+        registration_model: ElastixReg = self.registration_model
         registration_model.remove_registration_path(source, target, through)
         self.populate_paths()
         self.toggle_name()
@@ -302,7 +302,7 @@ class RegistrationMap(QWidget):
         """Reset all registration paths."""
         if not hp.confirm(self, "Are you sure you want to reset all registration paths?", "Please confirm."):
             return
-        registration_model: IWsiReg = self.registration_model
+        registration_model: ElastixReg = self.registration_model
         registration_model.reset_registration_paths()
         self.populate_paths()
         self.toggle_name()
@@ -326,7 +326,7 @@ class RegistrationMap(QWidget):
 
     def populate_images(self) -> None:
         """Populate options."""
-        registration_model: IWsiReg = self._parent.registration_model
+        registration_model: ElastixReg = self._parent.registration_model
         # add available modalities
         options = [""] + list(registration_model.modalities.keys())
         hp.combobox_setter(self._source_choice, items=options, set_item=self._source_choice.currentText())
@@ -335,7 +335,7 @@ class RegistrationMap(QWidget):
 
     def populate_paths(self) -> None:
         """Populate options."""
-        registration_model: IWsiReg = self._parent.registration_model
+        registration_model: ElastixReg = self._parent.registration_model
         # add available paths
         paths = [""]
         for node in registration_model.registration_nodes:

@@ -17,7 +17,7 @@ from image2image.utils.transform import combined_transform
 
 if ty.TYPE_CHECKING:
     from image2image_io.readers import BaseReader
-    from image2image_reg.workflows import IWsiReg
+    from image2image_reg.workflows import ElastixReg
 
 
 SCHEMA_VERSION: str = "1.0"
@@ -216,7 +216,7 @@ class RegistrationGroup(BaseModel):
         from image2image_io.readers import get_simple_reader
         from image2image_reg.enums import CoordinateFlip
         from image2image_reg.models import Preprocessing
-        from image2image_reg.workflows import IWsiReg
+        from image2image_reg.workflows import ElastixReg
 
         if export_mode == "all":
             export_mode = "Export with mask + affine initialization"
@@ -237,9 +237,9 @@ class RegistrationGroup(BaseModel):
         # if len(index_to_image) == 1:
         #     raise ValueError("Cannot register a single image")
 
-        # create iwsireg object
+        # create ElastixReg object
         path = Path(output_dir) / f"{name}.wsireg"
-        obj = IWsiReg(name=name, output_dir=output_dir, cache=True, merge=True)
+        obj = ElastixReg(name=name, output_dir=output_dir, cache=True, merge=True)
         for index, key in index_to_image.items():
             image = registration.images[key]
             name_index = index if index_mode == "auto" else image.metadata[index_mode]
@@ -369,7 +369,7 @@ class RegistrationGroup(BaseModel):
 
     def _add_cascade_paths(
         self,
-        obj: "IWsiReg",
+        obj: "ElastixReg",
         registration: "Registration",
         reference: ty.Optional[str],
         index_to_image: dict[int, str],
@@ -390,7 +390,7 @@ class RegistrationGroup(BaseModel):
 
     def _add_converge_paths(
         self,
-        obj: "IWsiReg",
+        obj: "ElastixReg",
         registration: "Registration",
         reference: str,
         index_to_image: dict[int, str],
@@ -725,14 +725,14 @@ class Registration(BaseModel):
         from image2image_io.readers import get_simple_reader
         from image2image_reg.enums import CoordinateFlip
         from image2image_reg.models import Preprocessing
-        from image2image_reg.workflows import IWsiReg
+        from image2image_reg.workflows import ElastixReg
 
         if export_mode == "all":
             export_mode = "Export with mask + affine initialization"
 
         # create iwsireg object
         path = Path(output_dir) / f"{name}.wsireg"
-        obj = IWsiReg(name=name, output_dir=output_dir, cache=True, merge=True)
+        obj = ElastixReg(name=name, output_dir=output_dir, cache=True, merge=True)
 
         for group_index, group in enumerate(self.groups.values()):
             # retrieve images

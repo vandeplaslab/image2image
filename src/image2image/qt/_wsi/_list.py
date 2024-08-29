@@ -21,7 +21,7 @@ from image2image.config import ELASTIX_CONFIG, VALIS_CONFIG, SingleAppConfig
 from image2image.qt._wsi._widgets import QtModalityLabel
 
 if ty.TYPE_CHECKING:
-    from image2image_reg.workflows import IWsiReg, ValisReg
+    from image2image_reg.workflows import ElastixReg, ValisReg
 
     from image2image.qt._wsi._preprocessing import PreprocessingDialog
 
@@ -235,7 +235,7 @@ class QtModalityItem(QtListItem):
         return VALIS_CONFIG if self.valis else ELASTIX_CONFIG
 
     @property
-    def registration_model(self) -> IWsiReg:
+    def registration_model(self) -> ElastixReg:
         """Get registration model."""
         parent = self.parent()
         if hasattr(parent, "registration_model"):
@@ -552,7 +552,7 @@ class QtModalityList(QtListWidget):
         self.evt_pre_remove.connect(self._update_used_colors)
 
     @property
-    def registration_model(self) -> IWsiReg | ValisReg:
+    def registration_model(self) -> ElastixReg | ValisReg:
         """Get registration model."""
         return self._parent.registration_model
 

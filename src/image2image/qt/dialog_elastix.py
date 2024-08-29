@@ -7,7 +7,7 @@ from pathlib import Path
 
 import qtextra.helpers as hp
 import qtextra.queue.cli_queue as _q
-from image2image_reg.workflows.elastix import IWsiReg
+from image2image_reg.workflows.elastix import ElastixReg
 from koyo.secret import hash_parameters
 from koyo.timer import MeasureTimer
 from koyo.typing import PathLike
@@ -31,7 +31,6 @@ from image2image.utils.valis import guess_preprocessing, hash_preprocessing
 if ty.TYPE_CHECKING:
     from image2image_reg.models import Modality, Preprocessing
 
-    from image2image.qt._wsi._mask import CropDialog, MaskDialog
 
 logger.enable("qtextra")
 
@@ -39,7 +38,7 @@ _q.N_PARALLEL = ELASTIX_CONFIG.n_parallel
 
 
 def make_registration_task(
-    project: IWsiReg,
+    project: ElastixReg,
     write_not_registered: bool = False,
     write_transformed: bool = False,
     write_attached: bool = False,
@@ -103,7 +102,7 @@ class ImageElastixWindow(ImageWsiWindow):
 
     APP_NAME = "elastix"
 
-    _registration_model: IWsiReg | None = None
+    _registration_model: ElastixReg | None = None
 
     WINDOW_TITLE = f"image2elastix: WSI Registration app (v{__version__})"
     WINDOW_CONSOLE_ARGS = (("view", "viewer"), "data_model", ("data_model", "wrapper"), "registration_model")
@@ -118,17 +117,17 @@ class ImageElastixWindow(ImageWsiWindow):
         super().__init__(parent, run_check_version=run_check_version, project_dir=project_dir)
 
     @property
-    def registration_model(self) -> IWsiReg | None:
+    def registration_model(self) -> ElastixReg | None:
         """Registration model."""
         if self._registration_model is None:
             name = self.name_label.text() or "project"
-            name = IWsiReg.format_project_name(name)
-            self._registration_model = IWsiReg(name=name, output_dir=self.CONFIG.output_dir, init=False)
+            name = ElastixReg.format_project_name(name)
+            self._registration_model = ElastixReg(name=name, output_dir=self.CONFIG.output_dir, init=False)
         return self._registration_model
 
     @staticmethod
     def make_registration_task(
-        project: IWsiReg,
+        project: ElastixReg,
         write_not_registered: bool = False,
         write_attached: bool = False,
         write_transformed: bool = False,
@@ -431,7 +430,7 @@ class ImageElastixWindow(ImageWsiWindow):
         if path_:
             path_ = Path(path_)
             try:
-                project = IWsiReg.from_path(path_.parent if path_.is_file() else path_)
+                project = ElastixReg.from_path(path_.parent if path_.is_file() else path_)
                 if project:
                     self._registration_model = project
                     self.output_dir = project.output_dir

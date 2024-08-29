@@ -487,7 +487,7 @@ class MaskDialog(WsiPrepMixin):
 
 
 class ConfigDialog(WsiPrepMixin):
-    """Dialog to generate IWsiReg config."""
+    """Dialog to generate ElastixReg config."""
 
     HIDE_WHEN_CLOSE = True
     _output_dir = None

@@ -12,7 +12,7 @@ from qtextra.widgets.qt_dialog import QtFramelessTool
 from qtpy.QtWidgets import QFormLayout, QWidget
 
 if ty.TYPE_CHECKING:
-    from image2image_reg.workflows import IWsiReg
+    from image2image_reg.workflows import ElastixReg
 
 
 class NetworkViewer(QtFramelessTool):
@@ -25,7 +25,7 @@ class NetworkViewer(QtFramelessTool):
         self.on_plot()
 
     @property
-    def registration_model(self) -> IWsiReg:
+    def registration_model(self) -> ElastixReg:
         """Registration model."""
         if hasattr(self, "_parent"):
             return self._parent.registration_model

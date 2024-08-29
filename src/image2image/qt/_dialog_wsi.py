@@ -11,7 +11,7 @@ import qtextra.helpers as hp
 import qtpy.QtWidgets as Qw
 from image2image_io.config import CONFIG as READER_CONFIG
 from image2image_reg.models import Modality
-from image2image_reg.workflows import IWsiReg, ValisReg
+from image2image_reg.workflows import ElastixReg, ValisReg
 from koyo.typing import PathLike
 from loguru import logger
 from napari.layers import Image
@@ -37,7 +37,7 @@ if ty.TYPE_CHECKING:
 class ImageWsiWindow(SingleViewerMixin):
     """Image viewer dialog."""
 
-    _registration_model: IWsiReg | ValisReg | None = None
+    _registration_model: ElastixReg | ValisReg | None = None
 
     WINDOW_TITLE: str
     PROJECT_SUFFIX: str
@@ -89,7 +89,7 @@ class ImageWsiWindow(SingleViewerMixin):
         raise NotImplementedError("Must implement method")
 
     @property
-    def registration_model(self) -> IWsiReg | ValisReg:
+    def registration_model(self) -> ElastixReg | ValisReg:
         """Registration model."""
         raise NotImplementedError("Must implement method")
 
@@ -290,7 +290,7 @@ class ImageWsiWindow(SingleViewerMixin):
         self.modality_list.toggle_preview(self.CONFIG.use_preview)
         # if not self.CONFIG.hide_others:
         #     self.modality_list.toggle_visible([layer.name for layer in self.view.get_layers_of_type(Image)])
-        for _, modality, widget in self.modality_list.item_model_widget_iter():
+        for _, modality, _widget in self.modality_list.item_model_widget_iter():
             # self.on_show_modality(modality, state=widget.visible_btn.visible, overwrite=True)
             self.on_show_modality(modality, state=True, overwrite=True)
 
