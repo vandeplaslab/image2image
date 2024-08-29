@@ -26,6 +26,7 @@ from image2image.utils._appdirs import USER_LOG_DIR
 from image2image.utils.utilities import (
     get_colormap,
     get_contrast_limits,
+    get_next_color,
     log_exception_or_error,
 )
 
@@ -205,11 +206,12 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
 
                 current_scale = reader.scale if scale else (1, 1)
                 if reader.reader_type == "shapes" and hasattr(reader, "to_shapes_kwargs"):
-                    kws = reader.to_shapes_kwargs(name=name, affine=current_affine)
+                    edge_color = get_next_color(0, view_wrapper.layers, "shapes")
+                    kws = reader.to_shapes_kwargs(name=name, affine=current_affine, edge_color=edge_color)
                     logger.trace(f"Adding '{name}' to {view_kind} with {len(kws['data']):,} shapes...")
                     shape_layer.append(view_wrapper.viewer.add_shapes(**kws))
                 elif reader.reader_type == "points" and hasattr(reader, "to_points_kwargs"):
-                    kws = reader.to_points_kwargs(channel_name=channel_name, name=name, affine=current_affine)
+                    kws = reader.to_points_kwargs(face_color=channel_name, name=name, affine=current_affine)
                     logger.trace(f"Adding '{name}' to {view_kind} with {len(kws['data']):,} points...")
                     points_layer.append(view_wrapper.viewer.add_points(**kws))
                 else:
@@ -280,12 +282,15 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
 
         if reader.reader_type == "shapes" and hasattr(reader, "to_shapes_kwargs"):
             view_wrapper.remove_layer(name)
-            layer = view_wrapper.viewer.add_shapes(**reader.to_shapes_kwargs(name=name, affine=current_affine))
+            edge_color = get_next_color(0, view_wrapper.layers, "shapes")
+            layer = view_wrapper.viewer.add_shapes(
+                **reader.to_shapes_kwargs(name=name, affine=current_affine, edge_color=edge_color)
+            )
         elif reader.reader_type == "points" and hasattr(reader, "to_points_kwargs"):
             view_wrapper.remove_layer(name)
             channel_name = reader.channel_names[channel_index]
             layer = view_wrapper.viewer.add_points(
-                **reader.to_points_kwargs(channel_name=channel_name, name=name, affine=current_affine)
+                **reader.to_points_kwargs(face_color=channel_name, name=name, affine=current_affine)
             )
         else:
             array = reader.get_channel_pyramid(channel_index)

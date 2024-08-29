@@ -18,6 +18,7 @@ from napari.utils.events import Event
 if ty.TYPE_CHECKING:
     from napari._vispy.layers.points import VispyPointsLayer
     from napari._vispy.layers.shapes import VispyShapesLayer
+    from napari.components import LayerList
     from napari.layers import Layer, Points, Shapes
     from qtextra._napari.image.wrapper import NapariImageView
     from vispy.color import Colormap as VispyColormap
@@ -33,6 +34,19 @@ PREFERRED_COLORMAPS = [
     "magenta",
     "yellow",
     "cyan",
+    "#469990",
+    "#bfef45",
+    "#f58231",
+    "#42d4f4",
+    "#800000",
+]
+PREFERRED_COLORS = [
+    "#ff00ff",  # magenta
+    "#ffff00",  # yellow
+    "#00ffff",  # cyan
+    "#ff0000",  # red
+    "#00ff00",  # green
+    "#0000ff",  # blue
     "#469990",
     "#bfef45",
     "#f58231",
@@ -217,7 +231,7 @@ def get_random_hex_color() -> str:
     return "#%06x" % random.randint(0, 0xFFFFFF)
 
 
-def get_used_colormaps(layer_list: list[Layer]) -> list[str]:
+def get_used_colormaps(layer_list: LayerList) -> list[str]:
     """Return list of used colormaps based on their name."""
     from napari.layers import Image
 
@@ -233,7 +247,7 @@ def get_used_colormaps(layer_list: list[Layer]) -> list[str]:
     return used
 
 
-def get_colormap(index: int, layer_list, preferred: str | None = None) -> VispyColormap | str:
+def get_colormap(index: int, layer_list: LayerList, preferred: str | None = None) -> VispyColormap | str:
     """Get colormap that has not been used yet."""
     used = get_used_colormaps(layer_list)
     if preferred is not None and isinstance(preferred, str) and preferred not in used:
@@ -253,6 +267,36 @@ def get_colormap(index: int, layer_list, preferred: str | None = None) -> VispyC
                 return vispy_colormap(colormap)
             return colormap
     return vispy_colormap(get_random_hex_color())
+
+
+def get_used_colors(layer_list: LayerList, kind: ty.Literal["shapes", "points"]) -> list[str]:
+    """Return list of colors."""
+    from koyo.color import rgb_1_to_hex
+    from napari.layers import Points, Shapes
+
+    cls = Shapes if kind == "shapes" else Points
+
+    used = []
+    for layer in layer_list:
+        if isinstance(layer, cls):
+            edge_color = layer.edge_color
+            if len(edge_color) > 0:
+                edge_color = edge_color[0]
+                used.append(rgb_1_to_hex(edge_color))
+    return list(set(used))
+
+
+def get_next_color(index: int, layer_list: LayerList, kind: ty.Literal["shapes", "points"]) -> str:
+    """Get shapes color."""
+    used = get_used_colors(layer_list, kind)
+    if index < len(PREFERRED_COLORS):
+        color = PREFERRED_COLORS[index]
+        if color not in used:
+            return color
+    for color in PREFERRED_COLORS:
+        if color not in used:
+            return color
+    return get_random_hex_color()
 
 
 def get_contrast_limits(array: list[np.ndarray]) -> tuple[tuple[float, float] | None, tuple[float, float] | None]:
@@ -357,34 +401,42 @@ def _get_text_data(data: np.ndarray) -> dict[str, list[str]]:
 
 def get_extents_from_layers(viewer: NapariImageView) -> tuple[float, float, float, float]:
     """Calculate extents from all layers."""
-    from napari.layers import Image
+    from napari.layers import Image, Points, Shapes
 
-    layers = viewer.get_layers_of_type(Image)
-    extents = [(0, 512, 0, 512)]
-    if layers:
+    extents = []
+    for layers in [
+        viewer.get_layers_of_type(Image),
+        viewer.get_layers_of_type(Points),
+        viewer.get_layers_of_type(Shapes),
+    ]:
         for layer in layers:
             mins = np.min(layer._extent_data, axis=0)
             maxs = np.max(layer._extent_data, axis=0)
             extents.append((mins[0], maxs[0], mins[1], maxs[1]))
+    if not extents:
+        extents = [(0, 512, 0, 512)]
     extents = np.asarray(extents)
     return np.min(extents[:, 0]), np.max(extents[:, 1]), np.min(extents[:, 2]), np.max(extents[:, 3])
 
 
 def get_multiplier(xmax: float, ymax: float) -> float:
     """Based on the maximum value, get a multiplier."""
+    from koyo.utilities import find_nearest_value
+
     max_size = max(xmax, ymax)
-    # return max_size / 1_000_000
-    if max_size < 5_000:
-        multiplier = 0.5
-    elif max_size < 15_000:
-        multiplier = 0.05
-    elif max_size < 23_000:
-        multiplier = 0.03
-    elif max_size < 100_000:
-        multiplier = 0.01
-    else:
-        multiplier = 0.005
-    return multiplier
+    range_to_multiplier = {
+        1_000: 0.75,
+        2_500: 0.5,
+        5_000: 0.35,
+        10_000: 0.25,
+        15_000: 0.05,
+        23_000: 0.03,
+        100_000: 0.01,
+        250_000: 0.005,
+        float("inf"): 0.005,
+    }
+    nearest = find_nearest_value(list(range_to_multiplier.keys()), max_size)
+    return range_to_multiplier[nearest]
 
 
 def calculate_zoom(
@@ -400,7 +452,6 @@ def calculate_zoom(
     xmin, xmax, ymin, ymax = get_extents_from_layers(viewer)
     if multiplier is None:
         multiplier = get_multiplier(xmax, ymax)
-
     # calculate zoom as fraction of the extent
     if ymax > xmax:
         zoom = ((ymax - ymin) / (maxs[0] - mins[0])) * multiplier
