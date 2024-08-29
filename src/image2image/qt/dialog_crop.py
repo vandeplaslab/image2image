@@ -291,9 +291,7 @@ class ImageCropWindow(SingleViewerMixin):
             hp.toast(self, "No output directory", "No output directory selected.", icon="error")
             return
 
-        self.CONFIG.update(
-            output_dir=output_dir_, tile_size=int(self.tile_size.currentText()), as_uint8=self.as_uint8.isChecked()
-        )
+        self.CONFIG.update(output_dir=output_dir_)
         if regions:
             # list(crop_regions(self.data_model, Path(output_dir_), regions, tile_size=tile_size, as_uint8=as_uint8))
             self.worker_crop = create_worker(
@@ -501,21 +499,6 @@ class ImageCropWindow(SingleViewerMixin):
             cancel_func=partial(self.on_cancel, which="crop"),
         )
         self.mask_btn.hide()
-        self.tile_size = hp.make_combobox(
-            self,
-            ["256", "512", "1024", "2048", "4096"],
-            tooltip="Specify size of the tile. Default is 512",
-            default="512",
-            value=f"{self.CONFIG.tile_size}",
-        )
-        self.as_uint8 = hp.make_checkbox(
-            self,
-            "Reduce file size",
-            tooltip="Convert to uint8 to reduce file size with minimal data loss. This will result in change of the"
-            " dynamic range of the image to between 0-255.",
-            checked=True,
-            value=self.CONFIG.as_uint8,
-        )
 
         side_layout = hp.make_form_layout(settings_widget)
         hp.style_form_layout(side_layout)
@@ -523,15 +506,38 @@ class ImageCropWindow(SingleViewerMixin):
         side_layout.addRow(hp.make_h_line_with_text("Image crop position"))
         side_layout.addRow(crop_layout)
         side_layout.addRow(hp.make_h_layout(self.init_btn, self.reset_btn, spacing=2))
-        side_layout.addRow(hp.make_h_line_with_text("Export options"))
-        side_layout.addRow("Tile size", self.tile_size)
-        side_layout.addRow(self.as_uint8)
         side_layout.addRow(hp.make_h_line_with_text("Crop"))
         side_layout.addRow(self.preview_crop_btn)
-        side_layout.addRow(self.crop_btn)
+        side_layout.addRow(
+            hp.make_h_layout(
+                hp.make_qta_btn(
+                    self,
+                    "gear",
+                    tooltip="Update export settings",
+                    standout=True,
+                    func=self.on_export_settings,
+                ),
+                self.crop_btn,
+                stretch_id=(1,),
+                spacing=2,
+            )
+        )
         # side_layout.addRow(hp.make_h_line_with_text("Mask"))
         side_layout.addRow(self.preview_mask_btn)
-        side_layout.addRow(self.mask_btn)
+        side_layout.addRow(
+            hp.make_h_layout(
+                hp.make_qta_btn(
+                    self,
+                    "gear",
+                    tooltip="Update export settings",
+                    standout=True,
+                    func=self.on_export_settings,
+                ),
+                self.mask_btn,
+                stretch_id=(1,),
+                spacing=2,
+            )
+        )
         side_layout.addRow(hp.make_h_line_with_text("Layer controls"))
         side_layout.addRow(self.view.widget.controls)
         side_layout.addRow(self.view.widget.layerButtons)
@@ -554,6 +560,13 @@ class ImageCropWindow(SingleViewerMixin):
         self._make_menu()
         self._make_icon()
         self._make_statusbar()
+
+    def on_export_settings(self) -> None:
+        """Open export settings."""
+        from image2image.qt._dialogs._save import ExportImageDialog
+
+        dlg = ExportImageDialog(self, self.data_model, None, self.CONFIG)
+        dlg.exec_()
 
     def _get_console_variables(self) -> dict:
         variables = super()._get_console_variables()

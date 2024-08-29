@@ -546,7 +546,7 @@ class SelectDataDialog(QtFramelessTool):
                                 self,
                                 "save",
                                 normal=True,
-                                func=partial(self.on_save, key=reader.key),
+                                func=partial(self.on_export_settings, key=reader.key),
                                 tooltip="Save image as OME-TIFF...",
                             ),
                         )
@@ -841,7 +841,7 @@ class SelectDataDialog(QtFramelessTool):
         self.evt_closed.emit(self.model)  # noqa
         self.on_populate_table()
 
-    def on_save(self, key: str) -> None:
+    def on_export_settings(self, key: str) -> None:
         """Save image as OME-TIFF."""
         from image2image.qt._dialogs._save import ExportImageDialog
 

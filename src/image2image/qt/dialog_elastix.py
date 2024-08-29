@@ -57,7 +57,8 @@ def make_registration_task(
         as_uint8=as_uint8,
         rename=rename,
     )
-    commands = [
+    commands = []
+    register_command = [
         get_i2reg_path(),
         "--no_color",
         "--debug",
@@ -65,24 +66,35 @@ def make_registration_task(
         "register",
         "--project_dir",
         pad_str(project.project_dir),
+        "--no_write",
     ]
+    commands.append(register_command)
+
     if any([write_attached, write_transformed, write_not_registered, write_merged]):
-        commands.append("--write")
-    commands.append("--write_not_registered" if write_not_registered else "--no_write_not_registered")
-    commands.append("--write_registered" if write_transformed else "--no_write_registered")
-    commands.append("--write_attached" if write_attached else "--no_write_attached")
-    commands.append("--write_merged" if write_merged else "--no_write_merged")
-    commands.append("--remove_merged" if remove_merged else "--no_remove_merged")
-    if as_uint8:
-        commands.append("--as_uint8")
-    if not rename:
-        commands.append("--no_rename")
+        write_command = [
+            get_i2reg_path(),
+            "--no_color",
+            "--debug",
+            "elastix",
+            "write",
+            "--project_dir",
+            pad_str(project.project_dir),
+            "--write_not_registered" if write_not_registered else "--no_write_not_registered",
+            "--write_registered" if write_transformed else "--no_write_registered",
+            "--write_attached" if write_attached else "--no_write_attached",
+            "--write_merged" if write_merged else "--no_write_merged",
+            "--remove_merged" if remove_merged else "--no_remove_merged",
+            "--as_uint8" if as_uint8 else "--no_as_uint8",
+            "--rename" if rename else "--no_rename",
+        ]
+        commands.append(write_command)
+
     return Task(
         task_id=task_id,
         task_name=f"{project.project_dir!s}",
         task_name_repr=hp.hyper(project.project_dir, value=project.project_dir.name),
         task_name_tooltip=str(project.project_dir),
-        commands=[commands],
+        commands=commands,
     )
 
 

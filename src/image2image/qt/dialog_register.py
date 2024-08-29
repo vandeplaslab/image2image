@@ -276,10 +276,13 @@ class ImageRegistrationWindow(Window):
         if len(self.temporary_fixed_zoom_layer.data) == 0:
             return
         last_shape = self.temporary_fixed_zoom_layer.data[-1]
-        zoom, y, x = calculate_zoom(last_shape, self.view_fixed, 0.01)
-        self.view_fixed.viewer.camera.center = (0.0, y, x)
-        self.view_fixed.viewer.camera.zoom = zoom
+        zoom, y, x = calculate_zoom(last_shape, self.view_fixed)
+        with self.zooming():
+            self.view_fixed.viewer.camera.center = (0.0, y, x)
+            self.view_fixed.viewer.camera.zoom = zoom
+            self.__on_sync_views("fixed", force=True)
         self.view_fixed.remove_layer(FIXED_TMP_ZOOM)
+        self.view_moving.remove_layer(MOVING_TMP_ZOOM)
         self.fixed_zoom_btn.setChecked(False)
         self.on_toggle_mode("both", Mode.PAN_ZOOM)
 
@@ -288,10 +291,13 @@ class ImageRegistrationWindow(Window):
         if len(self.temporary_moving_zoom_layer.data) == 0:
             return
         last_shape = self.temporary_moving_zoom_layer.data[-1]
-        zoom, y, x = calculate_zoom(last_shape, self.view_moving, 0.5)
-        self.view_moving.viewer.camera.center = (0.0, y, x)
-        self.view_moving.viewer.camera.zoom = zoom
+        zoom, y, x = calculate_zoom(last_shape, self.view_moving)
+        with self.zooming():
+            self.view_moving.viewer.camera.center = (0.0, y, x)
+            self.view_moving.viewer.camera.zoom = zoom
+            self.__on_sync_views("moving", force=True)
         self.view_moving.remove_layer(MOVING_TMP_ZOOM)
+        self.view_fixed.remove_layer(FIXED_TMP_ZOOM)
         self.moving_zoom_btn.setChecked(False)
         self.on_toggle_mode("both", Mode.PAN_ZOOM)
 
@@ -755,13 +761,39 @@ class ImageRegistrationWindow(Window):
                 self.transform_error.setText("<need more points>")
                 self.transform_info.setText("The number of `fixed` and `moving` points must be equal.")
 
-    def on_save_to_project(self, _evt: ty.Any = None) -> None:
-        """Export transformation."""
+    def _get_moving_key(self, warn: bool = True) -> str | None:
+        visible_datasets = self._get_currently_visible_moving_datasets()
+        moving_key = self._moving_widget.dataset_choice.currentText()
+        if not visible_datasets and not moving_key:
+            if warn:
+                hp.warn_pretty(
+                    self,
+                    "No visible datasets in the moving view. Please select from the list of available options.",
+                    "No visible datasets",
+                )
+            return None
+        if moving_key and moving_key not in visible_datasets:
+            visible_datasets.append(moving_key)
+        if moving_key in visible_datasets and len(visible_datasets) > 1:
+            moving_key = hp.choose(
+                self, visible_datasets, "Please select a single dataset from the list.", orientation="vertical"
+            )
+        if not moving_key:
+            if warn:
+                hp.warn_pretty(
+                    self,
+                    "No dataset selected. Please select a dataset to save configuration file.",
+                    "No dataset selected",
+                )
+            return None
+        return moving_key
+
+    def _get_transform_model(self) -> Transformation | None:
         transform = self.transform_model
         if not transform.is_valid():
             logger.warning("Cannot save transformation - no transformation has been computed.")
             hp.warn_pretty(self, "Cannot save transformation - no transformation has been computed.")
-            return
+            return None
         is_valid, reason = transform.is_error()
         if not is_valid:
             hp.warn_pretty(
@@ -769,36 +801,24 @@ class ImageRegistrationWindow(Window):
                 f"Cannot save transformations in this state.<br><br><b>Reason</b><br>{reason}"
                 f"<br><br><b>Please fix these issues and try again.</b>",
             )
-            return
+            return None
         is_recommended, reason = transform.is_recommended()
         if not is_recommended and not hp.confirm(
             self,
             f"Saving transformations in this state is not recommended.<br><br><b>Reason</b><br>{reason}"
             f"<br><br>Do you wish to continue?",
         ):
-            return
+            return None
+        return transform
 
+    def on_save_to_project(self, _evt: ty.Any = None) -> None:
+        """Export transformation."""
+        transform_model = self._get_transform_model()
+        if not transform_model:
+            return
         # get currently select dataset
-        visible_datasets = self._get_currently_visible_moving_datasets()
-        moving_key = self._moving_widget.dataset_choice.currentText()
-        if not visible_datasets and not moving_key:
-            hp.warn_pretty(
-                self,
-                "No visible datasets in the moving view. Please select from the list of available options.",
-                "No visible datasets",
-            )
-            return
-        if moving_key and moving_key not in visible_datasets:
-            visible_datasets.append(moving_key)
-
-        if moving_key in visible_datasets and len(visible_datasets) > 1:
-            moving_key = hp.choose(
-                self, visible_datasets, "Please select a single dataset from the list.", orientation="vertical"
-            )
+        moving_key = self._get_moving_key()
         if not moving_key:
-            hp.warn_pretty(
-                self, "No dataset selected. Please select a dataset to save configuration file.", "No dataset selected"
-            )
             return
 
         # get filename which is based on the moving dataset
@@ -814,7 +834,7 @@ class ImageRegistrationWindow(Window):
             path = Path(path_)
             path = ensure_extension(path, "i2r")
             self.CONFIG.update(output_dir=str(path.parent))
-            transform.to_file(path, moving_key=moving_key)
+            transform_model.to_file(path, moving_key=moving_key)
             hp.long_toast(
                 self,
                 "Exported transformation",
@@ -822,6 +842,50 @@ class ImageRegistrationWindow(Window):
                 icon="success",
                 position="top_left",
             )
+
+    def on_transform_moving(self) -> None:
+        """Transform image."""
+        from image2image_io.utils.warp import ImageWarper
+
+        transform_model = self._get_transform_model()
+        if not transform_model:
+            return
+        # get currently select dataset
+        moving_key = self._get_moving_key()
+        if not moving_key:
+            return
+        # get warper
+        reader = self.moving_model.get_reader_for_key(moving_key)
+        if reader.allow_extraction:
+            hp.warn_pretty(self, "Cannot transform image of this type - only applies to images and not IMS datasets.")
+
+        warper = ImageWarper(transform_model.to_dict(moving_key=moving_key), inv=True)
+        base_dir = reader.path.parent
+        filename = f"{reader.path.stem}-transformed".replace(".ome", "") + ".ome.tiff"
+        # export image
+        filename = hp.get_save_filename(
+            self,
+            "Save image filename...",
+            base_dir,
+            base_filename=filename,
+            file_filter="OME-TIFF (*.ome.tiff);;",
+        )
+        if not filename or Path(filename).exists():
+            return
+        filename = reader.to_ome_tiff(
+            filename,
+            as_uint8=self.CONFIG.as_uint8,
+            tile_size=self.CONFIG.tile_size,
+            transformer=warper,
+        )
+        hp.toast(self, "Image saved", f"Saved image {hp.hyper(filename, moving_key)} as OME-TIFF.", icon="info")
+
+    def on_export_settings(self) -> None:
+        """Open export settings."""
+        from image2image.qt._dialogs._save import ExportImageDialog
+
+        dlg = ExportImageDialog(self, self.moving_model, None, self.CONFIG)
+        dlg.exec_()
 
     def _get_currently_visible_moving_datasets(self) -> list[str]:
         """Get currently visible datasets from the moving view."""
@@ -831,7 +895,7 @@ class ImageRegistrationWindow(Window):
             if " | " in name:
                 channel_name, dataset = name.split(" | ")
                 datasets.append(dataset)
-        return datasets
+        return list(set(datasets))
 
     def on_load_from_project(self, _evt: ty.Any = None) -> None:
         """Import transformation."""
@@ -1005,16 +1069,23 @@ class ImageRegistrationWindow(Window):
 
         # add image and apply transformation
         if READER_CONFIG.view_type == ViewType.OVERLAY:
-            colormap = get_colormap(0, self.view_moving.layers, moving_image_layer.colormap)
+            colormap = get_colormap(0, self.view_fixed.layers, moving_image_layer.colormap)
         else:
             colormap = moving_image_layer.colormap
-        if self.transformed_moving_image_layer:
-            self.transformed_moving_image_layer.affine = affine
-            if update_data:
-                self.transformed_moving_image_layer.data = moving_image_layer.data
-                self.transformed_moving_image_layer.colormap = colormap
-                self.transformed_moving_image_layer.reset_contrast_limits()
-        else:
+        contrast_limits = moving_image_layer.contrast_limits
+        update = self.transformed_moving_image_layer is not None
+        if update:
+            try:
+                self.transformed_moving_image_layer.affine = affine
+                if update_data:
+                    self.transformed_moving_image_layer.data = moving_image_layer.data
+                    self.transformed_moving_image_layer.colormap = colormap
+                    self.transformed_moving_image_layer.reset_contrast_limits()
+                    self.transformed_moving_image_layer.contrast_limits = contrast_limits
+            except (ValueError, TypeError, KeyError):
+                update = False
+                self.view_fixed.remove_layer(self.transformed_moving_image_layer)
+        if not update:
             self.view_fixed.viewer.add_image(
                 moving_image_layer.data,
                 name="Transformed",
@@ -1022,6 +1093,7 @@ class ImageRegistrationWindow(Window):
                 affine=affine,
                 colormap=colormap,
                 opacity=self.CONFIG.opacity_moving / 100,
+                contrast_limits=contrast_limits,
             )
         self.transformed_moving_image_layer.visible = READER_CONFIG.show_transformed
         self._move_layer(self.view_fixed, self.transformed_moving_image_layer, -1, False)
@@ -1225,13 +1297,13 @@ class ImageRegistrationWindow(Window):
         self.CONFIG.update(sync_views=self.synchronize_zoom.isChecked())
         self.on_sync_views_fixed()
 
-    @qdebounced(timeout=100, leading=False)
+    @qdebounced(timeout=200, leading=False)
     def on_sync_views_fixed(self, _event: Event | None = None) -> None:
         """Synchronize views."""
         if not self._zooming:
             self._on_sync_views("fixed")
 
-    @qdebounced(timeout=100, leading=False)
+    @qdebounced(timeout=200, leading=False)
     def on_sync_views_moving(self, _event: Event | None = None) -> None:
         """Synchronize views."""
         if not self._zooming:
@@ -1241,10 +1313,10 @@ class ImageRegistrationWindow(Window):
     def _on_sync_views(self, from_which: str):
         self.__on_sync_views(from_which)
 
-    def __on_sync_views(self, from_which: str) -> None:
+    def __on_sync_views(self, from_which: str, force: bool = False) -> None:
         if not self.CONFIG.sync_views:
             return
-        if self._zooming:
+        if self._zooming and not force:
             logger.trace("Zooming in progress, skipping synchronization.")
             return
         if self.transform is None:
@@ -1356,6 +1428,12 @@ class ImageRegistrationWindow(Window):
             tooltip="Export transformation to file. XML format is usable by MATLAB fusion.",
             func=self.on_save_to_project,
         )
+        self.transform_btn = hp.make_btn(
+            side_widget,
+            "Transform and save...",
+            tooltip="Transform image using the specified transformation matrix and save it as OME-TIFF.",
+            func=self.on_transform_moving,
+        )
 
         side_layout = hp.make_form_layout(side_widget)
         hp.style_form_layout(side_layout)
@@ -1367,11 +1445,24 @@ class ImageRegistrationWindow(Window):
         side_layout.addRow(hp.make_h_line_with_text("Area of interest"))
         side_layout.addRow(self._make_focus_layout())
         side_layout.addRow(hp.make_h_line_with_text("Transformation"))
-        side_layout.addRow(self.initial_btn)
-        side_layout.addRow(self.guess_btn)
+        side_layout.addRow(hp.make_h_layout(self.initial_btn, self.guess_btn, spacing=2, stretch_id=(0, 1)))
         side_layout.addRow(self.fiducials_btn)
         side_layout.addRow(hp.make_btn(side_widget, "Compute transformation", func=self.on_run))
         side_layout.addRow(hp.make_h_layout(self.close_btn, self.export_project_btn, stretch_id=(1,), spacing=2))
+        side_layout.addRow(
+            hp.make_h_layout(
+                hp.make_qta_btn(
+                    self,
+                    "gear",
+                    tooltip="Update export settings",
+                    standout=True,
+                    func=self.on_export_settings,
+                ),
+                self.transform_btn,
+                stretch_id=(1,),
+                spacing=2,
+            )
+        )
         side_layout.addRow(hp.make_h_line_with_text("About transformation"))
         side_layout.addRow(hp.make_label(self, "Estimated error"), self.transform_error)
         side_layout.addRow(self.transform_info)
@@ -1845,10 +1936,10 @@ class ImageRegistrationWindow(Window):
             self.on_increment_dataset(-1)
             ignore = True
         elif key == Qt.Key.Key_E:  # increase opacity
-            self.on_adjust_transformed_opacity(10)
+            self.on_adjust_transformed_opacity(25)
             ignore = True
         elif key == Qt.Key.Key_Q:  # decrease opacity
-            self.on_adjust_transformed_opacity(-10)
+            self.on_adjust_transformed_opacity(-25)
             ignore = True
         return ignore
 

@@ -227,6 +227,8 @@ def get_used_colormaps(layer_list: list[Layer]) -> list[str]:
             if hasattr(layer.colormap, "name"):
                 used.append(layer.colormap.name)
             else:
+                if hasattr(layer, "rgb") and layer.rgb:
+                    continue
                 used.append(layer.colormap)
     return used
 
@@ -386,7 +388,7 @@ def get_multiplier(xmax: float, ymax: float) -> float:
 
 
 def calculate_zoom(
-    shape: np.ndarray, viewer: NapariImageView, multiplier: float | None = 0.01
+    shape: np.ndarray, viewer: NapariImageView, multiplier: float | None = None
 ) -> tuple[float, float, float]:
     """Calculate zoom for specified region."""
     # calculate min/max for y, x coordinates
