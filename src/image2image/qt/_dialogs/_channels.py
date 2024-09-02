@@ -69,7 +69,7 @@ class OverlayChannelsDialog(QtFramelessTool):
 
     def connect_events(self, state: bool = True) -> None:
         """Connect events."""
-        parent: "LoadWidget" = self.parent()  # type: ignore[assignment]
+        parent: LoadWidget = self.parent()  # type: ignore[assignment]
         # change of model events
         connect(parent.dataset_dlg.evt_loaded, self.on_update_data_list, state=state)
         connect(parent.dataset_dlg.evt_closed, self.on_update_data_list, state=state)
@@ -124,7 +124,7 @@ class OverlayChannelsDialog(QtFramelessTool):
         """Toggle channel."""
         if self._editing:
             return
-        parent: "LoadWidget" = self.parent()  # type: ignore[assignment]
+        parent: LoadWidget = self.parent()  # type: ignore[assignment]
         with self.view.layers.events.blocker(self.sync_layers):
             if index == -1:
                 channel_names = self.channel_list()
@@ -279,59 +279,65 @@ class IterateWidget(QWidget):
         self.setup_ui()
 
     # noinspection PyTestUnpassedFixture,PyAttributeOutsideInit
-    def setup_ui(self):
+    def setup_ui(self) -> None:
         """Setup UI."""
         self.dataset_combo = hp.make_combobox(self, func=self.on_change_source)
         self.index_spinbox = hp.make_int_spin_box(self, min=0, max=1_000, func=self.on_change_index)
-        self.channel_label = hp.make_label(self, "", bold=True, alignment=Qt.AlignmentFlag.AlignCenter)
+        self.channel_combo = hp.make_combobox(self, func=self.on_change_channel)
+        # self.channel_label = hp.make_label(self, "", bold=True, alignment=Qt.AlignmentFlag.AlignCenter)
 
         layout = hp.make_form_layout(self)
         layout.addRow(hp.make_h_layout(self.dataset_combo, self.index_spinbox, stretch_id=(0,)))
-        layout.addRow(self.channel_label)
+        layout.addRow(self.channel_combo)
         layout.addRow(hp.make_btn(self, "Add to viewer", func=self.on_add_to_viewer, tooltip="Add image to viewer."))
 
         parent: OverlayChannelsDialog = self.parent()
         parent.parent().dataset_dlg.evt_loaded.connect(self.on_update_sources)
+        parent.parent().dataset_dlg.evt_closed.connect(self.on_update_sources)
         self.on_update_sources()
 
-    def on_update_sources(self):
+    def on_update_sources(self, *_args: ty.Any) -> None:
         """Update sources."""
         parent: OverlayChannelsDialog = self.parent()
         dataset_names = parent.model.dataset_names(reader_type=("image",))
         current = self.dataset_combo.currentText()
         with hp.qt_signals_blocked(self.dataset_combo):
             hp.combobox_setter(self.dataset_combo, items=dataset_names, set_item=current)
-        current = self.dataset_combo.currentText()
-        if current:
-            reader = parent.model.get_reader_for_key(current)
-            with hp.qt_signals_blocked(self.index_spinbox):
-                self.index_spinbox.setMaximum(reader.n_channels - 1)
+        current = self.dataset_combo.currentText()  # after update in case it was removed
+        self._update_source(current)
 
     def on_change_index(self, value: int) -> None:
         """Change index."""
         self.current_index = value
         self._update_current()
 
+    def on_change_channel(self) -> None:
+        """Change channel."""
+        self.current_index = self.channel_combo.currentIndex()
+        self._update_current()
+
     def on_change_source(self, value: str) -> None:
         """Change source."""
-        parent: OverlayChannelsDialog = self.parent()
         current = self.dataset_combo.currentText()
-        if current:
-            reader = parent.model.get_reader_for_key(current)
-            with hp.qt_signals_blocked(self.index_spinbox):
-                self.index_spinbox.setMaximum(reader.n_channels - 1)
+        self._update_source(current)
         self.current_index = 0
         self._update_current()
 
-    def _update_current(self):
+    def _update_source(self, current: str) -> None:
+        if current:
+            parent: OverlayChannelsDialog = self.parent()
+            reader = parent.model.get_reader_for_key(current)
+            if reader:
+                with hp.qt_signals_blocked(self.index_spinbox):
+                    self.index_spinbox.setMaximum(reader.n_channels - 1)
+                hp.combobox_setter(self.channel_combo, items=reader.channel_names, clear=True)
+
+    def _update_current(self) -> None:
         """Emit update event."""
-        parent: OverlayChannelsDialog = self.parent()
-        reader = parent.model.get_reader_for_key(self.dataset_combo.currentText())
-        if reader:
-            name = reader.channel_names[self.current_index]
-            self.channel_label.setText(name)
         with hp.qt_signals_blocked(self.index_spinbox):
             self.index_spinbox.setValue(self.current_index)
+        with hp.qt_signals_blocked(self.channel_combo):
+            self.channel_combo.setCurrentIndex(self.current_index)
         self.evt_update.emit((self.dataset_combo.currentText(), self.current_index))
 
     def on_next(self) -> None:
@@ -349,7 +355,6 @@ class IterateWidget(QWidget):
         self.evt_add.emit((self.dataset_combo.currentText(), self.current_index))
         logger.trace("Added temporary image to the viewer.")
 
-    def on_close(self):
+    def on_close(self) -> None:
         """Close event."""
         self.evt_close.emit((self.dataset_combo.currentText(), self.current_index))
-        logger.trace("Removed temporary image.")

@@ -278,9 +278,11 @@ class SingleViewerMixin(Window):
     def on_remove_temporary(self, res: tuple[str, int]) -> None:
         """Remove temporary layer."""
         key, _ = res
-        layer_name = self._get_reader_for_key(self.data_model, key)
-        if layer_name:
-            self.view.remove_layer(layer_name)
+        if key:
+            _, layer_name = self._get_reader_for_key(self.data_model, key)
+            if layer_name:
+                self.view.remove_layer(layer_name)
+            logger.trace(f"Removed temporary layer for '{key}' ({layer_name}).")
 
     def on_add_temporary_to_viewer(self, res: tuple[str, int]) -> None:
         """Add temporary layer to viewer."""
