@@ -8,6 +8,7 @@ from contextlib import contextmanager, suppress
 from functools import partial
 from pathlib import Path
 
+import numpy as np
 from image2image_io.config import CONFIG as READER_CONFIG
 from koyo.path import open_directory_alt
 from koyo.typing import PathLike
@@ -909,16 +910,6 @@ class SelectDataDialog(QtFramelessTool):
         self.table = hp.make_table(self, self.TABLE_CONFIG)
         self.table.doubleClicked.connect(self.on_double_click)
 
-        self.shapes_combo = hp.make_combobox(
-            self,
-            ["polygon", "path", "polygon or path"],
-            value=READER_CONFIG.shape_display,
-            tooltip="Decide how shapes should be displayed when loading from GeoJSON."
-            "<br><b>polygon</b> - filled polygons (can be slow)"
-            "<br><b>path</b> - only outlines of polygons (much faster)"
-            "<br><b>polygon</b> or path - use polygons if number of shapes is not too high, otherwise use paths",
-            func=self.on_update_config,
-        )
         self.split_czi_check = hp.make_checkbox(
             self,
             value=READER_CONFIG.split_czi,
@@ -938,6 +929,42 @@ class SelectDataDialog(QtFramelessTool):
             self,
             value=READER_CONFIG.split_roi,
             tooltip="When loading Bruker .d image(s), slit them by the region of interest.",
+            func=self.on_update_config,
+        )
+
+        self.shapes_combo = hp.make_combobox(
+            self,
+            ["polygon", "path", "polygon or path"],
+            value=READER_CONFIG.shape_display,
+            tooltip="Decide how shapes should be displayed when loading from GeoJSON."
+            "<br><b>polygon</b> - filled polygons (can be slow)"
+            "<br><b>path</b> - only outlines of polygons (much faster)"
+            "<br><b>polygon</b> or path - use polygons if number of shapes is not too high, otherwise use paths",
+            func=self.on_update_config,
+        )
+        self.subsample_check = hp.make_checkbox(
+            self,
+            tooltip="Subsample shapes to speed-up rendering. Subsampling only happens if there are more than 10,000"
+            " shapes.",
+            func=self.on_update_config,
+            value=READER_CONFIG.subsample,
+        )
+        self.subsample_ratio = hp.make_double_spin_box(
+            self,
+            minimum=0.01,
+            maximum=1.0,
+            value=READER_CONFIG.subsample_ratio,
+            step=0.01,
+            n_decimals=2,
+            tooltip="Ratio of samples.",
+            func=self.on_update_config,
+        )
+        self.subsample_random = hp.make_int_spin_box(
+            self,
+            minimum=-1,
+            maximum=np.iinfo(np.int32).max - 1,  # maximum of np.int32
+            value=READER_CONFIG.subsample_random_seed,
+            tooltip="Random seed for sub-selecting points.",
             func=self.on_update_config,
         )
 
@@ -969,6 +996,18 @@ class SelectDataDialog(QtFramelessTool):
                 stretch_after=True,
             )
         )
+        layout.addRow(
+            hp.make_h_layout(
+                hp.make_label(self, "Subsample shapes"),
+                self.subsample_check,
+                hp.make_v_line(),
+                hp.make_label(self, "Ratio"),
+                self.subsample_ratio,
+                hp.make_label(self, "Seed"),
+                self.subsample_random,
+                stretch_after=True,
+            )
+        )
         layout.addRow(hp.make_h_line())
         layout.addRow(self.table)
         layout.addRow(hp.make_h_line())
@@ -992,10 +1031,15 @@ class SelectDataDialog(QtFramelessTool):
 
     def on_update_config(self, _=None) -> None:
         """Update configuration."""
-        READER_CONFIG.shape_display = self.shapes_combo.currentText()
-        READER_CONFIG.split_rgb = self.split_rgb_check.isChecked()
-        READER_CONFIG.split_czi = self.split_czi_check.isChecked()
-        READER_CONFIG.split_roi = self.split_roi_check.isChecked()
+        READER_CONFIG.update(
+            shape_display=self.shapes_combo.currentText(),
+            subsample=self.subsample_check.isChecked(),
+            subsample_ratio=self.subsample_ratio.value(),
+            subsample_random_seed=self.subsample_random.value(),
+            split_rgb=self.split_rgb_check.isChecked(),
+            split_czi=self.split_czi_check.isChecked(),
+            split_roi=self.split_roi_check.isChecked(),
+        )
 
     # noinspection PyAttributeOutsideInit
     @contextmanager

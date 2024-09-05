@@ -211,7 +211,8 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
                     logger.trace(f"Adding '{name}' to {view_kind} with {len(kws['data']):,} shapes...")
                     shape_layer.append(view_wrapper.viewer.add_shapes(**kws))
                 elif reader.reader_type == "points" and hasattr(reader, "to_points_kwargs"):
-                    kws = reader.to_points_kwargs(face_color=channel_name, name=name, affine=current_affine)
+                    face_color = get_next_color(0, view_wrapper.layers, "points")
+                    kws = reader.to_points_kwargs(name=name, affine=current_affine, face_color=face_color)
                     logger.trace(f"Adding '{name}' to {view_kind} with {len(kws['data']):,} points...")
                     points_layer.append(view_wrapper.viewer.add_points(**kws))
                 else:
@@ -297,6 +298,8 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
             contrast_limits, contrast_limits_range = get_contrast_limits(array)
             if any(v in name.lower() for v in ("brightfield", "bright")):
                 colormap = "gray"
+            elif layer:
+                colormap = layer.colormap
             else:
                 colormap = get_colormap(channel_index, view_wrapper.layers)
             if layer and len(array) == 1:

@@ -80,7 +80,7 @@ def format_reader_metadata(reader_metadata: dict) -> str:
 
 def format_shape(shape: tuple[int, ...]) -> str:
     """Format shape."""
-    return " x ".join(str(x) for x in shape)
+    return " x ".join(f"{x:,}" for x in shape)
 
 
 def get_groups(filenames: list[str], keyword: str, by_slide: bool = False) -> dict[str, list[str]]:

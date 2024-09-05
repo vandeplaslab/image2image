@@ -78,8 +78,8 @@ class OverlayChannelsDialog(QtFramelessTool):
         connect(self.view.layers.events, self.sync_layers, state=state)
         connect(self.iterate_widget.evt_update, parent.evt_update_temp.emit, state=state)
         connect(self.iterate_widget.evt_add, parent.evt_add_channel.emit, state=state)
-        connect(self.iterate_widget.evt_close, parent.evt_remove_temp.emit, state=state)
-        connect(self.evt_hide, self.iterate_widget.on_close, state=state)
+        connect(self.evt_hide, parent.evt_remove_temp.emit, state=state)
+        connect(self.evt_close, parent.evt_remove_temp.emit, state=state)
 
     @ensure_main_thread
     def sync_layers(self, event: Event) -> None:
@@ -354,7 +354,3 @@ class IterateWidget(QWidget):
         """Add image to viewer."""
         self.evt_add.emit((self.dataset_combo.currentText(), self.current_index))
         logger.trace("Added temporary image to the viewer.")
-
-    def on_close(self) -> None:
-        """Close event."""
-        self.evt_close.emit((self.dataset_combo.currentText(), self.current_index))

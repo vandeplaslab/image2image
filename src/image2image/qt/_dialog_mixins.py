@@ -275,14 +275,12 @@ class SingleViewerMixin(Window):
             self._plot_temporary_layer(self.data_model, self.view, key, channel_index, True)
         logger.trace(f"Plotted temporary layer for '{key}' in {timer()}.")
 
-    def on_remove_temporary(self, res: tuple[str, int]) -> None:
+    def on_remove_temporary(self) -> None:
         """Remove temporary layer."""
-        key, _ = res
-        if key:
-            _, layer_name = self._get_reader_for_key(self.data_model, key)
-            if layer_name:
-                self.view.remove_layer(layer_name)
-            logger.trace(f"Removed temporary layer for '{key}' ({layer_name}).")
+        for layer in self.view.layers:
+            if layer.name.startswith("temporary"):
+                self.view.remove_layer(layer.name)
+                logger.trace(f"Removed temporary layer '{layer.name}'.")
 
     def on_add_temporary_to_viewer(self, res: tuple[str, int]) -> None:
         """Add temporary layer to viewer."""

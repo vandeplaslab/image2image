@@ -45,7 +45,7 @@ class LoadWidget(QWidget):
     # temporary images
     evt_update_temp = Signal(tuple)
     evt_add_channel = Signal(tuple)
-    evt_remove_temp = Signal(tuple)
+    evt_remove_temp = Signal()
 
     IS_FIXED: bool = True
     INFO_TEXT = ""

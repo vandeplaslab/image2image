@@ -247,7 +247,7 @@ class QtModalityItem(QtListItem):
         paths = hp.get_filename(
             self,
             "Attach image file",
-            file_filter="Image files (*.czi *.tiff)",
+            file_filter="Image files (*.czi *.tif *.tiff)",
             base_dir=self.CONFIG.last_dir,
             multiple=True,
         )
@@ -315,7 +315,7 @@ class QtModalityItem(QtListItem):
             file = Path(file)
             if file.suffix in [".geojson"]:
                 shapes.append(file)
-            elif file.suffix in [".csv", ".txt", ".tsv"]:
+            elif file.suffix in [".csv", ".txt", ".tsv", ".parquet"]:
                 points.append(file)
         if shapes or points:
             name, pixel_size = self._get_attachment_metadata()
@@ -371,7 +371,7 @@ class QtModalityItem(QtListItem):
         paths = hp.get_filename(
             self,
             "Attach points file",
-            file_filter="Points files (*.csv *.txt *.tsv)",
+            file_filter="Points files (*.csv *.txt *.tsv *.parquet)",
             base_dir=self.CONFIG.last_dir,
             multiple=True,
         )
