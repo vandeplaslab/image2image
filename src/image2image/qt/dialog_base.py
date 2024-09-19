@@ -831,7 +831,8 @@ def create_new_window(plugin: str, *extra_args: ty.Any) -> None:
         arguments.append("--dev")
     if plugin:
         arguments.append("--tool")
-        arguments.append(pad_str(plugin))
+        # arguments.append(pad_str(plugin))
+        arguments.append(plugin)
     if extra_args:
         for arg in extra_args:
             if isinstance(arg, str):
