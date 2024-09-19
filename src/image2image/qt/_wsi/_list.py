@@ -119,7 +119,7 @@ class QtModalityItem(QtListItem):
         self.preprocessing_label = hp.make_scrollable_label(
             self, "<no pre-processing>", alignment=Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop
         )
-        self.preprocessing_label.evt_clicked.connect(self.on_open_preprocessing)
+        # self.preprocessing_label.evt_clicked.connect(self.on_open_preprocessing)
 
         self.modality_icon = QtModalityLabel(self)
         self.open_dir_btn = hp.make_qta_btn(

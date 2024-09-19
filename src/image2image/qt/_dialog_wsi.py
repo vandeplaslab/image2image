@@ -84,7 +84,7 @@ class ImageWsiWindow(SingleViewerMixin):
         READER_CONFIG.split_czi = False
 
     @staticmethod
-    def make_registration_task(**kwargs) -> Task:
+    def make_registration_task(**kwargs: ty.Any) -> Task:
         """Make registration task."""
         raise NotImplementedError("Must implement method")
 
@@ -126,7 +126,7 @@ class ImageWsiWindow(SingleViewerMixin):
             dlg.show()
         return is_valid
 
-    def _queue_registration_model(self, add_delayed: bool, save: bool = True, cli: bool = False) -> bool:
+    def _queue_registration_model(self, add_delayed: bool, save: bool = True, cli: bool = False) -> bool | Task:
         """Queue registration model."""
         if not self.registration_model:
             return False
@@ -145,10 +145,7 @@ class ImageWsiWindow(SingleViewerMixin):
         )
         if task:
             if cli:
-                commands = [" ".join(command) for command in task.command_iter()]
-                hp.copy_text_to_clipboard("; ".join(commands))
-                logger.trace(f"Copied command to clipboard: {commands}")
-                return True
+                return task
             if QUEUE.is_queued(task.task_id):
                 hp.toast(
                     self, "Already queued", "This task is already in the queue.", icon="warning", position="top_left"
@@ -176,9 +173,21 @@ class ImageWsiWindow(SingleViewerMixin):
         """Queue registration."""
         self._queue_registration_model(add_delayed=True, save=False)
 
-    def on_copy_to_clipboard(self) -> None:
+    def on_copy_to_clipboard(self, which: str = "both") -> None:
         """Copy command to clipboard."""
-        self._queue_registration_model(add_delayed=False, save=False, cli=True)
+        # retrieve task
+        task = self._queue_registration_model(add_delayed=False, save=False, cli=True)
+        commands_ = [" ".join(command) for command in task.command_iter()]  # type: ignore[union-attr]
+        commands = []
+        if which == "registration":
+            commands = [commands_[0]]
+        elif which == "transformation" and len(commands_) == 2:
+            commands = [commands_[1]]
+        elif which == "both":
+            commands = commands_
+        if commands:
+            hp.copy_text_to_clipboard("; ".join(commands))
+            logger.trace(f"Copied command to clipboard: {commands}")
 
     def on_validate_path(self, _: ty.Any = None) -> None:
         """Validate project path."""
@@ -613,11 +622,29 @@ class ImageWsiWindow(SingleViewerMixin):
             " saved before adding to the queue.",
             disabled=self.RUN_DISABLED,
         )
+
+        menu.addSeparator()
         hp.make_menu_item(
             self,
-            "Copy command to clipboard",
+            "Copy registration + transformation command to clipboard",
             menu=menu,
-            func=self.on_copy_to_clipboard,
+            func=lambda: self.on_copy_to_clipboard("both"),
+            icon="cli",
+            tooltip="Copy the registration command to clipboard so it can be executed externally.",
+        )
+        hp.make_menu_item(
+            self,
+            "Copy registration command to clipboard",
+            menu=menu,
+            func=lambda: self.on_copy_to_clipboard("registration"),
+            icon="cli",
+            tooltip="Copy the registration command to clipboard so it can be executed externally.",
+        )
+        hp.make_menu_item(
+            self,
+            "Copy transformation command to clipboard",
+            menu=menu,
+            func=lambda: self.on_copy_to_clipboard("transformation"),
             icon="cli",
             tooltip="Copy the registration command to clipboard so it can be executed externally.",
         )

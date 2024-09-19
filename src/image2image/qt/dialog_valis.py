@@ -54,6 +54,7 @@ def make_registration_task(
         as_uint8=as_uint8,
         rename=rename,
     )
+
     commands = []
     register_command = [
         get_i2reg_path() if with_i2reg else "i2reg",
@@ -63,6 +64,7 @@ def make_registration_task(
         "register",
         "--project_dir",
         pad_str(project.project_dir),
+        "--no_write",
     ]
     commands.append(register_command)
     if any([write_attached, write_transformed, write_not_registered, write_merged]):

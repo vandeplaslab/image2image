@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import typing as ty
+from contextlib import suppress
 from copy import deepcopy
 from functools import partial
 
@@ -86,7 +87,7 @@ class PreprocessingDialog(QtFramelessTool):
     evt_set_preprocessing = Signal(object)  # used to set the preprocessing
 
     TABLE_CONFIG = (
-        TableConfig()  # type: ignore[no-untyped-call]
+        TableConfig()
         .add("", "check", "bool", 25, no_sort=True, sizing="fixed")
         .add("index", "channel_index", "int", 100, sizing="contents")
         .add("name", "channel_name", "str", 250, sizing="stretch")
@@ -268,29 +269,29 @@ class PreprocessingDialog(QtFramelessTool):
         self.evt_preview_transform_preprocessing.emit(self.modality, self.preprocessing)
         self.on_preview_preprocessing()
 
-    def accept(self) -> None:
-        """Set model."""
+    def on_accept(self) -> None:
+        """Accept."""
         self.evt_update.emit(self.preprocessing)
         self.evt_set_preprocessing.emit(self.preprocessing)
         parent = self.parent()
         if parent and hasattr(parent, "previewing"):
             parent.previewing = False
-        super().accept()
+        self.close()
 
-    def close(self) -> bool:
-        """Hide dialog rather than delete it."""
+    def on_close(self) -> None:
+        """Close model."""
         new_hash = hash_parameters(**self.preprocessing.to_dict())
         if new_hash != self.original_hash and not hp.confirm(
             self,
             "You've made changes to the pre-processing settings. Closing will discard them. "
             "<br><b>Are you sure you wish to continue?</b>",
         ):
-            return
+            return False
         self.evt_update.emit(self.modality.preprocessing)
         parent = self.parent()
         if parent and hasattr(parent, "previewing"):
             parent.previewing = False
-        super().close()
+        self.close()
 
     def on_rotate(self, value: int) -> None:
         """Increment rotation by specified value."""
@@ -507,8 +508,8 @@ class PreprocessingDialog(QtFramelessTool):
         layout.addRow("Preview", self.preview_check)
         layout.addRow(
             hp.make_h_layout(
-                hp.make_btn(self, "Apply", func=self.accept),
-                hp.make_btn(self, "Cancel", func=self.close),
+                hp.make_btn(self, "Apply", func=self.on_accept),
+                hp.make_btn(self, "Cancel", func=self.on_close),
                 spacing=2,
             )
         )
