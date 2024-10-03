@@ -277,10 +277,11 @@ class ImageRegistrationWindow(Window):
             return
         last_shape = self.temporary_fixed_zoom_layer.data[-1]
         zoom, y, x = calculate_zoom(last_shape, self.view_fixed)
-        with self.zooming():
-            self.view_fixed.viewer.camera.center = (0.0, y, x)
-            self.view_fixed.viewer.camera.zoom = zoom
-            self.__on_sync_views("fixed", force=True)
+        if zoom and x and y:
+            with self.zooming():
+                self.view_fixed.viewer.camera.center = (0.0, y, x)
+                self.view_fixed.viewer.camera.zoom = zoom
+        self.__on_sync_views("fixed", force=True)
         self.view_fixed.remove_layer(FIXED_TMP_ZOOM)
         self.view_moving.remove_layer(MOVING_TMP_ZOOM)
         self.fixed_zoom_btn.setChecked(False)
@@ -292,10 +293,11 @@ class ImageRegistrationWindow(Window):
             return
         last_shape = self.temporary_moving_zoom_layer.data[-1]
         zoom, y, x = calculate_zoom(last_shape, self.view_moving)
-        with self.zooming():
-            self.view_moving.viewer.camera.center = (0.0, y, x)
-            self.view_moving.viewer.camera.zoom = zoom
-            self.__on_sync_views("moving", force=True)
+        if zoom and x and y:
+            with self.zooming():
+                self.view_moving.viewer.camera.center = (0.0, y, x)
+                self.view_moving.viewer.camera.zoom = zoom
+                self.__on_sync_views("moving", force=True)
         self.view_moving.remove_layer(MOVING_TMP_ZOOM)
         self.view_fixed.remove_layer(FIXED_TMP_ZOOM)
         self.moving_zoom_btn.setChecked(False)
@@ -1867,8 +1869,8 @@ class ImageRegistrationWindow(Window):
     def on_toggle_zoom(self, which: str | ty.Literal["fixed", "moving", "both"]) -> None:
         """Toggle zoom."""
         self.on_toggle_mode(which, mode=Mode.PAN_ZOOM, zoom=True)
-        which = ["fixed", "moving"] if which == "both" else [which]
-        for w in which:
+        views = ["fixed", "moving"] if which == "both" else [which]
+        for w in views:
             self.on_shapes_mode(w)
             self.on_zoom(w)
 

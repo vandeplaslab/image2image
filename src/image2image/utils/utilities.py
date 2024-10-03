@@ -417,7 +417,7 @@ def get_extents_from_layers(viewer: NapariImageView) -> tuple[float, float, floa
     if not extents:
         extents = [(0, 512, 0, 512)]
     extents = np.asarray(extents)
-    return np.min(extents[:, 0]), np.max(extents[:, 1]), np.min(extents[:, 2]), np.max(extents[:, 3])
+    return np.nanmin(extents[:, 0]), np.nanmax(extents[:, 1]), np.nanmin(extents[:, 2]), np.nanmax(extents[:, 3])
 
 
 def get_multiplier(xmax: float, ymax: float) -> float:
@@ -453,6 +453,7 @@ def calculate_zoom(
     xmin, xmax, ymin, ymax = get_extents_from_layers(viewer)
     if multiplier is None:
         multiplier = get_multiplier(xmax, ymax)
+
     # calculate zoom as fraction of the extent
     if ymax > xmax:
         zoom = ((ymax - ymin) / (maxs[0] - mins[0])) * multiplier
