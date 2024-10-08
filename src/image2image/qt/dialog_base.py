@@ -205,39 +205,43 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
                 current_affine = wrapper.get_affine(reader, reader.resolution) if scale else reader.transform
 
                 current_scale = reader.scale if scale else (1, 1)
-                if reader.reader_type == "shapes" and hasattr(reader, "to_shapes_kwargs"):
-                    edge_color = get_next_color(0, view_wrapper.layers, "shapes")
-                    kws = reader.to_shapes_kwargs(name=name, affine=current_affine, edge_color=edge_color)
-                    logger.trace(f"Adding '{name}' to {view_kind} with {len(kws['data']):,} shapes...")
-                    shape_layer.append(view_wrapper.viewer.add_shapes(**kws))
-                elif reader.reader_type == "points" and hasattr(reader, "to_points_kwargs"):
-                    face_color = get_next_color(0, view_wrapper.layers, "points")
-                    kws = reader.to_points_kwargs(name=name, affine=current_affine, face_color=face_color)
-                    logger.trace(f"Adding '{name}' to {view_kind} with {len(kws['data']):,} points...")
-                    points_layer.append(view_wrapper.viewer.add_points(**kws))
-                else:
-                    if array is None:
-                        raise ValueError(f"Failed to get array for '{name}'.")
-                    contrast_limits, contrast_limits_range = get_contrast_limits(array)
-                    if any(v in name.lower() for v in ("brightfield", "bright")):
-                        colormap = "gray"
+                try:
+                    if reader.reader_type == "shapes" and hasattr(reader, "to_shapes_kwargs"):
+                        edge_color = get_next_color(0, view_wrapper.layers, "shapes")
+                        kws = reader.to_shapes_kwargs(name=name, affine=current_affine, edge_color=edge_color)
+                        logger.trace(f"Adding '{name}' to {view_kind} with {len(kws['data']):,} shapes...")
+                        shape_layer.append(view_wrapper.viewer.add_shapes(**kws))
+                    elif reader.reader_type == "points" and hasattr(reader, "to_points_kwargs"):
+                        face_color = get_next_color(0, view_wrapper.layers, "points")
+                        kws = reader.to_points_kwargs(name=name, affine=current_affine, face_color=face_color)
+                        logger.trace(f"Adding '{name}' to {view_kind} with {len(kws['data']):,} points...")
+                        points_layer.append(view_wrapper.viewer.add_points(**kws))
                     else:
-                        colormap = get_colormap(index, view_wrapper.layers)
-                    image_layer.append(
-                        view_wrapper.viewer.add_image(
-                            array,
-                            name=name,
-                            blending="additive",
-                            colormap=colormap,
-                            visible=name in channel_list,
-                            affine=current_affine,
-                            scale=current_scale,
-                            contrast_limits=contrast_limits,
+                        if array is None:
+                            raise ValueError(f"Failed to get array for '{name}'.")
+                        contrast_limits, contrast_limits_range = get_contrast_limits(array)
+                        if any(v in name.lower() for v in ("brightfield", "bright")):
+                            colormap = "gray"
+                        else:
+                            colormap = get_colormap(index, view_wrapper.layers)
+                        image_layer.append(
+                            view_wrapper.viewer.add_image(
+                                array,
+                                name=name,
+                                blending="additive",
+                                colormap=colormap,
+                                visible=name in channel_list,
+                                affine=current_affine,
+                                scale=current_scale,
+                                contrast_limits=contrast_limits,
+                            )
                         )
-                    )
-                    if contrast_limits_range:
-                        image_layer[-1].contrast_limits_range = contrast_limits_range
-                logger.trace(f"Added '{name}' to {view_kind} in {timer()}.")
+                        if contrast_limits_range:
+                            image_layer[-1].contrast_limits_range = contrast_limits_range
+                    logger.trace(f"Added '{name}' to {view_kind} in {timer()}.")
+                except (TypeError, ValueError, AssertionError):
+                    logger.exception(f"Failed to add '{name}' to {view_kind}.")
+                    continue
         if need_reset:
             view_wrapper.viewer.reset_view()
         else:
