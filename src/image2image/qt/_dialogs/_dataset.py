@@ -934,12 +934,13 @@ class SelectDataDialog(QtFramelessTool):
 
         self.shapes_combo = hp.make_combobox(
             self,
-            ["polygon", "path", "polygon or path"],
+            ["polygon", "path", "polygon or path", "points"],
             value=READER_CONFIG.shape_display,
             tooltip="Decide how shapes should be displayed when loading from GeoJSON."
             "<br><b>polygon</b> - filled polygons (can be slow)"
             "<br><b>path</b> - only outlines of polygons (much faster)"
-            "<br><b>polygon</b> or path - use polygons if number of shapes is not too high, otherwise use paths",
+            "<br><b>polygon</b> or path - use polygons if number of shapes is not too high, otherwise use paths"
+            "<br><b>points</b> - display points as points (much faster but no shape information is retained)",
             func=self.on_update_config,
         )
         self.subsample_check = hp.make_checkbox(
