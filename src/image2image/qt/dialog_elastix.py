@@ -56,6 +56,7 @@ def make_registration_task(
         as_uint8=as_uint8,
         rename=rename,
     )
+
     commands = []
     register_command = [
         get_i2reg_path(),
