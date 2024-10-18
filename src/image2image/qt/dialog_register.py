@@ -358,7 +358,7 @@ class ImageRegistrationWindow(Window):
             self._plot_temporary_layer(self.moving_model, self.view_moving, key, channel_index, True)
         logger.trace(f"Plotted temporary layer for '{key}' in {timer()}.")
 
-    def on_remove_temporary(self, _ = None) -> None:
+    def on_remove_temporary(self, _=None) -> None:
         """Remove temporary layer."""
         for view in [self.view_fixed, self.view_moving]:
             for layer in view.layers:
