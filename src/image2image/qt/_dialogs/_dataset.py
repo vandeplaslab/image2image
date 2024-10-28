@@ -952,11 +952,11 @@ class SelectDataDialog(QtFramelessTool):
         )
         self.subsample_ratio = hp.make_double_spin_box(
             self,
-            minimum=0.01,
+            minimum=0.001,
             maximum=1.0,
             value=READER_CONFIG.subsample_ratio,
             step=0.01,
-            n_decimals=2,
+            n_decimals=3,
             tooltip="Ratio of samples.",
             func=self.on_update_config,
         )

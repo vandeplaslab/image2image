@@ -574,7 +574,9 @@ def get_cli_path(name: str) -> str:
     else:
         # on Windows, {name} lives under the `Scripts` directory
         if IS_WIN:
-            script_path = base_path / "Scripts"
+            script_path = base_path
+            if script_path.name != "Scripts":
+                script_path = base_path / "Scripts"
             if script_path.exists() and (script_path / f"{name}.exe").exists():
                 return str(script_path / f"{name}.exe")
         elif IS_MAC or IS_LINUX:
@@ -593,4 +595,8 @@ def get_i2reg_path() -> str:
 
     You can force a specific path by setting the environment variable `IMAGE2IMAGE_I2REG`.
     """
-    return get_cli_path("i2reg")
+    try:
+        return get_cli_path("i2reg")
+    except RuntimeError as exc:
+        log_exception_or_error(exc)
+        return "i2reg"
