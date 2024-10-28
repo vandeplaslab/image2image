@@ -427,7 +427,9 @@ class LoadWithTransformWidget(LoadWidget):
             allow_export_project=allow_export_project,
         )
         self.transform_model = TransformModel()
-        self.transform_model.add_transform("Identity matrix", TransformData.from_array(np.eye(3, dtype=np.float64)))
+        self.transform_model.add_transform(
+            "Identity matrix", TransformData.from_array(np.eye(3, dtype=np.float64)), with_inverse=False
+        )
         self.transform_dlg = SelectTransformDialog(self, self.model, self.transform_model, self.view)
 
     def _setup_ui(self) -> QFormLayout:
