@@ -112,7 +112,11 @@ class ImageElastixWindow(ImageWsiWindow):
     OTHER_PROJECT: str = "Valis"
 
     def __init__(
-        self, parent: QWidget | None, run_check_version: bool = True, project_dir: PathLike | None = None, **_kwargs
+        self,
+        parent: QWidget | None,
+        run_check_version: bool = True,
+        project_dir: PathLike | None = None,
+        **_kwargs: ty.Any,
     ):
         self.CONFIG = ELASTIX_CONFIG
         super().__init__(parent, run_check_version=run_check_version, project_dir=project_dir)
@@ -271,6 +275,10 @@ class ImageElastixWindow(ImageWsiWindow):
         if wrapper:
             with MeasureTimer() as timer:
                 reader = wrapper.get_reader_for_path(modality.path)
+                # if pyramid == -1:
+                #     image, scale = reader.get_thumbnail()
+                # else:
+                image = reader.pyramid[pyramid]
                 scale = reader.scale_for_pyramid(pyramid)
                 layer = self.view.get_layer(modality.name)
                 preprocessing_hash = (
@@ -284,7 +292,7 @@ class ImageElastixWindow(ImageWsiWindow):
                     return
 
                 if self.use_preview_check.isChecked():
-                    image = preprocess_preview(reader.pyramid[pyramid], reader.is_rgb, scale[0], modality.preprocessing)
+                    image = preprocess_preview(image, reader.is_rgb, scale[0], modality.preprocessing)
                 else:
                     image = reader.get_channel(0, pyramid)
                 widget = self.modality_list.get_widget_for_item_model(modality)

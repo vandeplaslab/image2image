@@ -116,7 +116,7 @@ class ImageWsiWindow(SingleViewerMixin):
         """Populate list."""
         raise NotImplementedError("Must implement method")
 
-    def _validate(self) -> None:
+    def _validate(self) -> bool:
         """Validate project."""
         is_valid, errors = self.registration_model.validate(require_paths=True)
         if not is_valid:
