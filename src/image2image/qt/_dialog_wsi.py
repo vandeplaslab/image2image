@@ -461,6 +461,8 @@ class ImageWsiWindow(SingleViewerMixin):
             value=self.CONFIG.write_merged,
             func=self.on_update_config,
         )
+        hp.disable_widgets(self.write_merged_check, disabled=True)
+
         self.rename_check = hp.make_checkbox(
             self,
             "",
@@ -685,6 +687,7 @@ class ImageWsiWindow(SingleViewerMixin):
             func_menu=self.on_view_menu,
             tooltip="Open the project in the viewer. This only makes sense if registration is complete.",
             standout=True,
+            normal=True,
         )
         self.close_btn = hp.make_qta_btn(
             side_widget,
@@ -693,6 +696,7 @@ class ImageWsiWindow(SingleViewerMixin):
             func=self.on_close,
             func_menu=self.on_close_menu,
             standout=True,
+            normal=True,
         )
         self.run_btn = hp.make_btn(
             side_widget,

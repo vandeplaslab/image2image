@@ -78,6 +78,18 @@ def format_reader_metadata(reader_metadata: dict) -> str:
     return "\n".join(metadata)
 
 
+def format_reader_metadata_alt(scene_index: int, scene_metadata: dict) -> str:
+    """Format metadata."""
+    metadata = []
+    channel_ids = scene_metadata["channel_ids"]
+    channel_names = scene_metadata["channel_names"]
+    if scene_index is not None and channel_ids:
+        metadata.append(f"scene {scene_index}")
+    for channel_index, channel_name in zip(channel_ids, channel_names):
+        metadata.append(f"- {channel_name}: {channel_index}")
+    return "\n".join(metadata)
+
+
 def format_shape(shape: tuple[int, ...]) -> str:
     """Format shape."""
     return " x ".join(f"{x:,}" for x in shape)
@@ -228,7 +240,7 @@ def open_bug_report() -> None:
 
 def get_random_hex_color() -> str:
     """Return random hex color."""
-    return "#%06x" % random.randint(0, 0xFFFFFF)
+    return f"#{random.randint(0, 0xFFFFFF):06x}"
 
 
 def get_used_colormaps(layer_list: LayerList) -> list[str]:

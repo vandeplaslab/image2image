@@ -158,9 +158,9 @@ class LoadWidget(QWidget):
                     normal=True,
                 ),
                 self.export_btn,
-                self.more_btn,
                 self.active_icon,
-                stretch_id=2,
+                self.more_btn,
+                stretch_id=3,
                 spacing=2,
             )
         )

@@ -18,11 +18,12 @@ from superqt import ensure_main_thread
 from superqt.utils import GeneratorWorker, create_worker
 
 from image2image import __version__
-from image2image.config import MERGE_CONFIG
+from image2image.config import MERGE_CONFIG, STATE
 from image2image.enums import ALLOWED_IMAGE_FORMATS_TIFF_ONLY
+from image2image.qt._dialog_mixins import NoViewerMixin
 from image2image.qt._dialogs._select import LoadWidget
 from image2image.qt.dialog_base import Window
-from image2image.utils.utilities import format_reader_metadata, format_shape, log_exception_or_error
+from image2image.utils.utilities import format_reader_metadata_alt, format_shape, log_exception_or_error
 
 if ty.TYPE_CHECKING:
     from image2image.models.data import DataModel
@@ -53,13 +54,11 @@ def get_metadata(
     return metadata
 
 
-class ImageMergeWindow(Window):
+class ImageMergeWindow(NoViewerMixin):
     """Image viewer dialog."""
 
     APP_NAME = "merge"
 
-    _editing = False
-    _output_dir = None
     worker: GeneratorWorker | None = None
 
     TABLE_CONFIG = (
@@ -70,6 +69,8 @@ class ImageMergeWindow(Window):
         .add("image size (px)", "image_size", "str", 0)
         .add("scenes & channels", "metadata", "str", 0)
     )
+
+    _get_metadata = staticmethod(get_metadata)
 
     def __init__(self, parent: QWidget | None, run_check_version: bool = True, **kwargs: ty.Any):
         self.CONFIG = MERGE_CONFIG
@@ -90,48 +91,6 @@ class ImageMergeWindow(Window):
         READER_CONFIG.split_czi = False
         READER_CONFIG.split_rgb = True
         READER_CONFIG.only_last_pyramid = False
-
-    def setup_events(self, state: bool = True) -> None:
-        """Setup events."""
-        connect(self._image_widget.dataset_dlg.evt_loaded, self.on_load_image, state=state)
-        connect(self._image_widget.dataset_dlg.evt_closed, self.on_remove_image, state=state)
-
-    @ensure_main_thread
-    def on_load_image(self, model: DataModel, _channel_list: list[str]) -> None:
-        """Load fixed image."""
-        if model and model.n_paths:
-            hp.toast(
-                self, "Loaded data", f"Loaded model with {model.n_paths} paths.", icon="success", position="top_left"
-            )
-            self.on_populate_table()
-        else:
-            logger.warning(f"Failed to load data - model={model}")
-
-    def on_remove_image(self, model: DataModel) -> None:
-        """Remove image."""
-        if model:
-            self.on_depopulate_table()
-        else:
-            logger.warning(f"Failed to remove data - model={model}")
-
-    @property
-    def output_dir(self) -> Path:
-        """Output directory."""
-        if self._output_dir is None:
-            if self.CONFIG.output_dir is None:
-                return Path.cwd()
-            return Path(self.CONFIG.output_dir)
-        return Path(self._output_dir)
-
-    def on_depopulate_table(self) -> None:
-        """Remove items that are not present in the model."""
-        to_remove = []
-        for index in range(self.table.rowCount()):
-            key = self.table.item(index, self.TABLE_CONFIG.key).text()
-            if not self.data_model.has_key(key):
-                to_remove.append(index)
-        for index in reversed(to_remove):
-            self.table.removeRow(index)
 
     def on_populate_table(self) -> None:
         """Load data."""
@@ -188,13 +147,14 @@ class ImageMergeWindow(Window):
                     self.reader_metadata[reader.path] = {}
                     for scene_index in range(reader.n_scenes):
                         self.reader_metadata[reader.path][scene_index] = {
+                            "key": reader.key,
                             "keep": [True] * reader.n_channels,
                             "channel_ids": reader.channel_ids,
                             "channel_names": reader.channel_names,
                         }
         self.on_update_reader_metadata()
 
-    def on_open_fusion(self) -> None:
+    def on_merge(self) -> None:
         """Process data."""
         from image2image_io.writers import merge_images
 
@@ -249,23 +209,36 @@ class ImageMergeWindow(Window):
         )
 
         if paths:
-            self.worker = create_worker(
-                merge_images,
-                name=name,
-                paths=paths,
-                output_dir=output_dir,
-                as_uint8=self.CONFIG.as_uint8,
-                tile_size=self.CONFIG.tile_size,
-                metadata=metadata,
-                overwrite=self.CONFIG.overwrite,
-                _start_thread=True,
-                _connect={
-                    "finished": self._on_export_finished,
-                    "errored": self._on_export_error,
-                },
-            )
-            hp.disable_widgets(self.export_btn.active_btn, disabled=True)
-            self.export_btn.active = True
+            if True:  # STATE.is_mac_arm_pyinstaller:
+                logger.warning("Merging process is running in the UI thread, meaning that the app will freeze!")
+                merge_images(
+                    name=name,
+                    paths=paths,
+                    output_dir=output_dir,
+                    as_uint8=self.CONFIG.as_uint8,
+                    tile_size=self.CONFIG.tile_size,
+                    metadata=metadata,
+                    overwrite=self.CONFIG.overwrite,
+                )
+                self._on_export_finished()
+            else:
+                self.worker = create_worker(
+                    merge_images,
+                    name=name,
+                    paths=paths,
+                    output_dir=output_dir,
+                    as_uint8=self.CONFIG.as_uint8,
+                    tile_size=self.CONFIG.tile_size,
+                    metadata=metadata,
+                    overwrite=self.CONFIG.overwrite,
+                    _start_thread=True,
+                    _connect={
+                        "finished": self._on_export_finished,
+                        "errored": self._on_export_error,
+                    },
+                )
+                hp.disable_widgets(self.export_btn.active_btn, disabled=True)
+                self.export_btn.active = True
 
     def on_cancel(self) -> None:
         """Cancel processing."""
@@ -273,7 +246,7 @@ class ImageMergeWindow(Window):
             self.worker.quit()
             logger.trace("Requested aborting of the export process.")
 
-    @ensure_main_thread()
+    @ensure_main_thread()  # type: ignore[misc]
     def _on_export_error(self, exc: Exception) -> None:
         """Failed exporting of the CSV."""
         self.on_toggle_export_btn(force=True)
@@ -292,15 +265,6 @@ class ImageMergeWindow(Window):
         hp.disable_widgets(self.export_btn.active_btn, disabled=disabled)
         self.export_btn.active = disabled
 
-    def on_set_output_dir(self):
-        """Set output directory."""
-        directory = hp.get_directory(self, "Select output directory", self.CONFIG.output_dir)
-        if directory:
-            self._output_dir = directory
-            self.CONFIG.update(output_dir=directory)
-            self.output_dir_label.setText(f"<b>Output directory</b>: {hp.hyper(self.output_dir)}")
-            logger.debug(f"Output directory set to {self._output_dir}")
-
     def on_select(self, evt) -> None:
         """Select channels."""
         from image2image.qt._dialogs._rename import ChannelRenameDialog
@@ -310,26 +274,16 @@ class ImageMergeWindow(Window):
         name = self.table.item(row, self.TABLE_CONFIG.key).text()
         reader = self.data_model.get_reader_for_key(name)
         if column == self.TABLE_CONFIG.metadata:
-            reader_metadata = self.reader_metadata[reader.path]
-            dlg = ChannelRenameDialog(self, reader_metadata, allow_merge=False)
+            scene_metadata = self.reader_metadata[reader.path][reader.scene_index]
+            dlg = ChannelRenameDialog(self, reader.scene_index, scene_metadata, allow_merge=False)
             if dlg.exec_() == QDialog.DialogCode.Accepted:
-                self.reader_metadata[reader.path] = dlg.reader_metadata
+                self.reader_metadata[reader.path][reader.scene_index] = dlg.scene_metadata
                 self.on_update_reader_metadata()
         elif column == self.TABLE_CONFIG.name:
             name = self.table.item(row, self.TABLE_CONFIG.name).text()
             new_name = hp.get_text(self, "Rename image", "Enter new name for the image.", name)
             if new_name and new_name != name:
                 self.table.item(row, self.TABLE_CONFIG.name).setText(new_name)
-
-    def on_update_reader_metadata(self) -> None:
-        """Update reader metadata."""
-        reader_metadata = get_metadata(self.reader_metadata)
-        for path, reader_metadata_ in reader_metadata.items():
-            key = path.name
-            row = hp.find_in_table(self.table, self.TABLE_CONFIG.key, key)
-            if row is None:
-                continue
-            self.table.item(row, self.TABLE_CONFIG.metadata).setText(format_reader_metadata(reader_metadata_))
 
     def on_check_file(self) -> None:
         """Check whether file already exists."""
@@ -405,7 +359,7 @@ class ImageMergeWindow(Window):
             self,
             "Merge to OME-TIFF",
             tooltip="Merge to OME-TIFF...",
-            func=self.on_open_fusion,
+            func=self.on_merge,
             cancel_func=self.on_cancel,
         )
 

@@ -359,8 +359,11 @@ class ImageElastixWindow(ImageWsiWindow):
 
             self._mask_dlg = MaskDialog(self)
             self._mask_dlg.evt_mask.connect(self.modality_list.toggle_mask)
-        size = self.mask_btn.sizeHint()
-        self._mask_dlg.show_above_widget(self.mask_btn, x_offset=-size.width() // 8, y_offset=size.height() // 2)
+        self._mask_dlg.show_in_center_of(self)
+        # size = self.mask_btn.sizeHint()
+        # self._mask_dlg.show_above_widget(
+        #     self.mask_btn, x_offset=-(size.width() // 8) - 50, y_offset=(size.height() // 2) - 200
+        # )
 
     def on_open_crop_dialog(self) -> None:
         """Open crop dialog."""
@@ -370,8 +373,11 @@ class ImageElastixWindow(ImageWsiWindow):
             self._crop_dlg = CropDialog(self)
             connect(self._crop_dlg.evt_mask, self.modality_list.toggle_crop, state=True)
             connect(self._crop_dlg.evt_preview_transform_preprocessing, self.on_preview_transform, state=True)
-        size = self.crop_btn.sizeHint()
-        self._crop_dlg.show_above_widget(self.crop_btn, x_offset=-size.width() // 8, y_offset=size.height() // 2)
+        self._crop_dlg.show_in_center_of(self)
+        # size = self.crop_btn.sizeHint()
+        # self._crop_dlg.show_above_widget(
+        #     self.crop_btn, x_offset=-(size.width() // 8) - 100, y_offset=size.height() // 2
+        # )
 
     def on_open_merge_dialog(self) -> None:
         """Open merge dialog."""
@@ -528,6 +534,7 @@ class ImageElastixWindow(ImageWsiWindow):
             " takes place...",
             func=self.on_open_crop_dialog,
         )
+        hp.disable_widgets(self.crop_btn, disabled=True)
         self.merge_btn = hp.make_btn(
             self, "Merge...", tooltip="Specify images to merge...", func=self.on_open_merge_dialog
         )

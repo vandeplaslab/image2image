@@ -456,7 +456,7 @@ class ImageCropWindow(SingleViewerMixin):
         self.crop_info = hp.make_label(self, "", alignment=Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
         self.crop_info.setMinimumHeight(100)
 
-        crop_layout = QFormLayout()  # noqa
+        crop_layout = hp.make_form_layout()
         crop_layout.setSpacing(2)
         crop_layout.addRow(hp.make_label(self, "Crop area"), self.index_choice)
         crop_layout.addRow(hp.make_label(self, "Information"), self.crop_info)
@@ -491,6 +491,7 @@ class ImageCropWindow(SingleViewerMixin):
             cancel_func=partial(self.on_cancel, which="preview"),
         )
         self.preview_mask_btn.hide()
+
         self.mask_btn = hp.make_active_progress_btn(
             self,
             "Export to OME-TIFF (mask)...",
@@ -501,7 +502,6 @@ class ImageCropWindow(SingleViewerMixin):
         self.mask_btn.hide()
 
         side_layout = hp.make_form_layout(settings_widget)
-        hp.style_form_layout(side_layout)
         side_layout.addRow(self._image_widget)
         side_layout.addRow(hp.make_h_line_with_text("Image crop position"))
         side_layout.addRow(crop_layout)
@@ -515,6 +515,7 @@ class ImageCropWindow(SingleViewerMixin):
                     "gear",
                     tooltip="Update export settings",
                     standout=True,
+                    normal=True,
                     func=self.on_export_settings,
                 ),
                 self.crop_btn,
@@ -531,7 +532,9 @@ class ImageCropWindow(SingleViewerMixin):
                     "gear",
                     tooltip="Update export settings",
                     standout=True,
+                    normal=True,
                     func=self.on_export_settings,
+                    hide=True,
                 ),
                 self.mask_btn,
                 stretch_id=(1,),

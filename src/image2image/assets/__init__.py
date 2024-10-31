@@ -24,6 +24,9 @@ update_styles({x.stem: str(x) for x in STYLES_PATH.iterdir() if x.suffix == ".qs
 
 update_icon_mapping(
     {
+        # other
+        "transform": "ri.drag-move-line",
+        "preprocess": "fa5s.paint-brush",
         # wsireg
         "mask": "mdi6.drama-masks",
         "process": "msc.wand",

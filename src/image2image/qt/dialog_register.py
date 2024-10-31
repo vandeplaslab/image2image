@@ -1424,6 +1424,7 @@ class ImageRegistrationWindow(Window):
             func=self.on_close,
             func_menu=self.on_close_menu,
             standout=True,
+            normal=True,
         )
         self.export_project_btn = hp.make_btn(
             side_widget,
@@ -1459,6 +1460,7 @@ class ImageRegistrationWindow(Window):
                     "gear",
                     tooltip="Update export settings",
                     standout=True,
+                    normal=True,
                     func=self.on_export_settings,
                 ),
                 self.transform_btn,
@@ -1578,8 +1580,8 @@ class ImageRegistrationWindow(Window):
         self.lock_btn = hp.make_lock_btn(
             self,
             func=self.on_lock,
-            normal=True,
             tooltip="Lock the area of interest. Press <b>L</b> on your keyboard to lock.",
+            normal=True,
             standout=True,
         )
         # self.set_current_focus_btn = hp.make_btn(self, "Set current range", func=self.on_set_focus)

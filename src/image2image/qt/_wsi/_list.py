@@ -119,7 +119,7 @@ class QtModalityItem(QtListItem):
         self.preprocessing_label = hp.make_scrollable_label(
             self, "<no pre-processing>", alignment=Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop
         )
-        # self.preprocessing_label.evt_clicked.connect(self.on_open_preprocessing)
+        self.preprocessing_label.evt_clicked.connect(self.on_open_preprocessing)
 
         self.modality_icon = QtModalityLabel(self)
         self.open_dir_btn = hp.make_qta_btn(
@@ -465,7 +465,7 @@ class QtModalityItem(QtListItem):
                 self.evt_preview_transform_preprocessing.emit
             )
             self._preprocessing_dlg.evt_close.connect(self._on_close_preprocessing)
-            self._preprocessing_dlg.show_below_mouse(x_offset=-100)
+            self._preprocessing_dlg.show_below_mouse(x_offset=-200)
         self.evt_hide_others.emit(self.item_model)
 
     def _on_close_preprocessing(self) -> None:
