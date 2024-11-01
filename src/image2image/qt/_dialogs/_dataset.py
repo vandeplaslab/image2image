@@ -11,6 +11,7 @@ from pathlib import Path
 import numpy as np
 from image2image_io.config import CONFIG as READER_CONFIG
 from koyo.path import open_directory_alt
+from koyo.timer import MeasureTimer
 from koyo.typing import PathLike
 from koyo.utilities import pluralize
 from loguru import logger
@@ -480,7 +481,7 @@ class SelectDataDialog(QtFramelessTool):
         self._clear_table()
         wrapper = self.model.wrapper
         if wrapper:
-            with self._editing_table():
+            with self._editing_table(), MeasureTimer() as timer:
                 for _path, reader in wrapper.path_reader_iter():
                     index = hp.find_in_table(self.table, self.TABLE_CONFIG.key, reader.key)
                     if index is not None:
@@ -535,10 +536,6 @@ class SelectDataDialog(QtFramelessTool):
                         item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
                         self.table.setItem(index, self.TABLE_CONFIG.extract, item)
 
-                        # item = QTableWidgetItem("N/A")
-                        # item.setFlags(item.flags() & ~Qt.ItemIsEditable.ItemIsEditable)
-                        # item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-                        # self.table.setItem(index, self.TABLE_CONFIG.save, item)
                     if reader.reader_type == "image":
                         self.table.setCellWidget(
                             index,
@@ -574,6 +571,7 @@ class SelectDataDialog(QtFramelessTool):
                             tooltip="Remove image from project. You will <b>not</b> be asked to confirm removal..",
                         ),
                     )
+            logger.trace(f"Populated table with {self.table.rowCount()} rows in {timer}")
 
     @property
     def available_formats_filter(self) -> str:

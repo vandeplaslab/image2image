@@ -278,67 +278,76 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
         if not wrapper:
             logger.error("Failed to get wrapper.")
             return
-        reader = wrapper.data[key]
+        with MeasureTimer() as timer:
+            reader = wrapper.data[key]
 
-        # get current transform and scale
-        current_affine = wrapper.get_affine(reader, reader.resolution) if scale else reader.transform
-        current_scale = reader.scale if scale else (1, 1)
-        full_channel_name = f"{reader.channel_names[channel_index]} | {key}"
+            # get current transform and scale
+            current_affine = wrapper.get_affine(reader, reader.resolution) if scale else reader.transform
+            current_scale = reader.scale if scale else (1, 1)
+            full_channel_name = f"{reader.channel_names[channel_index]} | {key}"
 
-        # get temporary layer
-        name = f"temporary-{reader.reader_type}"
-        layer, updated = None, False
-        if name in view_wrapper.layers:
-            layer = view_wrapper.layers[name]
+            # get temporary layer
+            name = f"temporary-{reader.reader_type}"
+            layer, updated = None, False
+            if name in view_wrapper.layers:
+                layer = view_wrapper.layers[name]
 
-        if reader.reader_type == "shapes" and hasattr(reader, "to_shapes_kwargs"):
-            view_wrapper.remove_layer(name)
-            if READER_CONFIG.shape_display == "points" and hasattr(reader, "to_points_kwargs"):
-                face_color = get_next_color(0, view_wrapper.layers, "points")
-                layer = view_wrapper.viewer.add_points(
-                    **reader.to_points_kwargs(face_color=face_color, name=name, affine=current_affine)
-                )
-            else:
-                edge_color = get_next_color(0, view_wrapper.layers, "shapes")
-                layer = view_wrapper.viewer.add_shapes(
-                    **reader.to_shapes_kwargs(name=name, affine=current_affine, edge_color=edge_color)
-                )
-        elif reader.reader_type == "points" and hasattr(reader, "to_points_kwargs"):
-            view_wrapper.remove_layer(name)
-            channel_name = reader.channel_names[channel_index]
-            layer = view_wrapper.viewer.add_points(
-                **reader.to_points_kwargs(face_color=channel_name, name=name, affine=current_affine)
-            )
-        else:
-            array = reader.get_channel_pyramid(channel_index)
-            contrast_limits, contrast_limits_range = get_contrast_limits(array)
-            if any(v in name.lower() for v in ("brightfield", "bright")):
-                colormap = "gray"
-            elif layer:
-                colormap = layer.colormap
-            else:
-                colormap = get_colormap(channel_index, view_wrapper.layers)
-            if layer and len(array) == 1:
-                layer_name = layer.metadata.get("name", " | ")
-                if layer_name.split(" | ")[1] == full_channel_name.split(" | ")[1]:
-                    layer.data = array[0]
-                    layer.contrast_limits = contrast_limits
-                    updated = True
-            if not updated:
+            if reader.reader_type == "shapes" and hasattr(reader, "to_shapes_kwargs"):
                 view_wrapper.remove_layer(name)
-                layer = view_wrapper.viewer.add_image(
-                    array,
-                    name=name,
-                    blending="additive",
-                    colormap=colormap,
-                    affine=current_affine,
-                    scale=current_scale,
-                    contrast_limits=contrast_limits,
-                    metadata={"name": full_channel_name},
-                )
-            if contrast_limits_range:
-                layer.contrast_limits_range = contrast_limits_range
-        self.temporary_layers[key] = layer
+                if READER_CONFIG.shape_display == "points" and hasattr(reader, "to_points_kwargs"):
+                    face_color = get_next_color(0, view_wrapper.layers, "points")
+                    layer_data = reader.to_points_kwargs(face_color=face_color, name=name, affine=current_affine)
+                    collected_in = timer(since_last=True)
+                    layer = view_wrapper.viewer.add_points(**layer_data)
+                    plotted_in = timer(since_last=True)
+                else:
+                    edge_color = get_next_color(0, view_wrapper.layers, "shapes")
+                    layer_data = reader.to_shapes_kwargs(name=name, affine=current_affine, edge_color=edge_color)
+                    collected_in = timer(since_last=True)
+                    layer = view_wrapper.viewer.add_shapes(**layer_data)
+                    plotted_in = timer(since_last=True)
+            elif reader.reader_type == "points" and hasattr(reader, "to_points_kwargs"):
+                view_wrapper.remove_layer(name)
+                channel_name = reader.channel_names[channel_index]
+                layer_data = reader.to_points_kwargs(face_color=channel_name, name=name, affine=current_affine)
+                collected_in = timer(since_last=True)
+                layer = view_wrapper.viewer.add_points(**layer_data)
+                plotted_in = timer(since_last=True)
+            else:
+                array = reader.get_channel_pyramid(channel_index)
+                collected_in = timer(since_last=True)
+                contrast_limits, contrast_limits_range = get_contrast_limits(array)
+                if any(v in name.lower() for v in ("brightfield", "bright")):
+                    colormap = "gray"
+                elif layer:
+                    colormap = layer.colormap
+                else:
+                    colormap = get_colormap(channel_index, view_wrapper.layers)
+                if layer and len(array) == 1:
+                    layer_name = layer.metadata.get("name", " | ")
+                    if layer_name.split(" | ")[1] == full_channel_name.split(" | ")[1]:
+                        layer.data = array[0]
+                        layer.contrast_limits = contrast_limits
+                        updated = True
+                if not updated:
+                    view_wrapper.remove_layer(name)
+                    layer = view_wrapper.viewer.add_image(
+                        array,
+                        name=name,
+                        blending="additive",
+                        colormap=colormap,
+                        affine=current_affine,
+                        scale=current_scale,
+                        contrast_limits=contrast_limits,
+                        metadata={"name": full_channel_name},
+                    )
+                plotted_in = timer(since_last=True)
+                if contrast_limits_range:
+                    layer.contrast_limits_range = contrast_limits_range
+            self.temporary_layers[key] = layer
+        logger.trace(
+            f"Plotted temporary layer for '{key}' in {timer()} (collected={collected_in}; plotted={plotted_in})."
+        )
 
     @staticmethod
     def _closing_model(
