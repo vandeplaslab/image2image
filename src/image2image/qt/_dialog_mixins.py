@@ -12,8 +12,10 @@ from koyo.typing import PathLike
 from loguru import logger
 from napari.layers import Image, Layer, Points, Shapes
 from napari.utils.events import Event
+from qtextra.utils.utilities import connect
 from qtextra.widgets.qt_close_window import QtConfirmCloseDialog
-from qtpy.QtWidgets import QDialog, QMenuBar
+from qtpy.QtCore import QModelIndex
+from qtpy.QtWidgets import QDialog, QLabel, QMenuBar, QTableWidget
 from superqt import ensure_main_thread
 
 from image2image.qt.dialog_base import Window
@@ -21,11 +23,11 @@ from image2image.utils.utilities import calculate_zoom, init_shapes_layer
 
 if ty.TYPE_CHECKING:
     from qtextra._napari.image.wrapper import NapariImageView
+    from qtextra.utils.table_config import TableConfig
     from qtextra.widgets.qt_click_label import QtClickLabel
 
     from image2image.models.data import DataModel
     from image2image.qt._dialogs._select import LoadWidget
-
 
 TMP_ZOOM = "Temporary (zoom)"
 
@@ -175,7 +177,8 @@ class SingleViewerMixin(Window):
                 # size=self.moving_point_size.value(),
                 name=TMP_ZOOM,
                 face_color="#00ff0000",
-                edge_color="white",
+                edge_color="cyan",
+                edge_width=5,
             )
             visual = self.view.widget.layer_to_visual[layer]
             init_shapes_layer(layer, visual)
@@ -296,3 +299,129 @@ class SingleViewerMixin(Window):
                 self._image_widget.channel_dlg.TABLE_CONFIG.check, index, True
             )
             logger.trace(f"Added image {channel_index} for '{key}' to viewer.")
+
+
+class NoViewerMixin(Window):
+    """Mixin class for no viewer."""
+
+    TABLE_CONFIG: TableConfig
+    # UI Elements
+    output_dir_label: QLabel
+    _image_widget: LoadWidget
+    table: QTableWidget
+
+    # Attributes
+    reader_metadata: dict[Path, dict[int, dict[str, bool | dict | list[bool | int | str]]]]
+    _output_dir: Path | None = None
+
+    # Methods
+    _get_metadata: ty.Callable
+
+    def setup_events(self, state: bool = True) -> None:
+        """Setup events."""
+        connect(self._image_widget.dataset_dlg.evt_loaded, self.on_load_image, state=state)
+        connect(self._image_widget.dataset_dlg.evt_closed, self.on_remove_image, state=state)
+
+    @ensure_main_thread  # type: ignore[misc]
+    def on_load_image(self, model: DataModel, _channel_list: list[str]) -> None:
+        """Load fixed image."""
+        if model and model.n_paths:
+            hp.toast(
+                self, "Loaded data", f"Loaded model with {model.n_paths} paths.", icon="success", position="top_left"
+            )
+            self.on_populate_table()
+        else:
+            logger.warning(f"Failed to load data - model={model}")
+
+    def on_remove_image(self, model: DataModel) -> None:
+        """Remove image."""
+        if model:
+            self.on_depopulate_table()
+        else:
+            logger.warning(f"Failed to remove data - model={model}")
+
+    def on_populate_table(self) -> None:
+        """Load data."""
+        raise NotImplementedError("Must implement method")
+
+    def on_depopulate_table(self) -> None:
+        """Remove items that are not present in the model."""
+        to_remove = []
+        for index in range(self.table.rowCount()):
+            key = self.table.item(index, self.TABLE_CONFIG.key).text()
+            if not self.data_model.has_key(key):
+                to_remove.append((index, key))
+        for index, key in reversed(to_remove):
+            self.table.removeRow(index)
+
+            for path, reader_metadata in self.reader_metadata.items():
+                for scene_index, scene_metadata in reader_metadata.items():
+                    key_ = scene_metadata.get("key", None)
+                    if key_ == key:
+                        self.reader_metadata[path].pop(scene_index)
+                        break
+
+    def on_update_reader_metadata(self) -> None:
+        """Update reader metadata."""
+        from image2image.utils.utilities import format_reader_metadata_alt
+
+        reader_metadata = self._get_metadata(self.reader_metadata)
+        for path, reader_metadata_ in reader_metadata.items():
+            for scene_index, scene_metadata in reader_metadata_.items():
+                key = self.reader_metadata[path][scene_index].get("key", path.name)
+                row = hp.find_in_table(self.table, self.TABLE_CONFIG.key, key)
+                if row is None:
+                    continue
+                self.table.item(row, self.TABLE_CONFIG.metadata).setText(
+                    format_reader_metadata_alt(scene_index, scene_metadata)
+                )
+
+    def on_select(self, evt: QModelIndex) -> None:
+        """Select channels."""
+        from image2image.qt._dialogs._rename import ChannelRenameDialog
+
+        row = evt.row()
+        column = evt.column()
+        name = self.table.item(row, self.TABLE_CONFIG.key).text()
+        reader = self.data_model.get_reader_for_key(name)
+        if column == self.TABLE_CONFIG.metadata:
+            scene_metadata = self.reader_metadata[reader.path][reader.scene_index]
+            dlg = ChannelRenameDialog(self, reader.scene_index, scene_metadata)
+            result = dlg.exec_()
+            if result == QDialog.DialogCode.Accepted:
+                self.reader_metadata[reader.path][reader.scene_index] = dlg.scene_metadata
+                self.on_update_reader_metadata()
+                logger.trace(f"Updated metadata for {name}")
+        # elif column == self.TABLE_CONFIG.resolution:
+        #     new_resolution = hp.get_double(
+        #         self,
+        #         value=reader.resolution,
+        #         label="Specify resolution (um) - don't do this unless you know what you are doing!",
+        #         title="Specify image resolution",
+        #         n_decimals=3,
+        #         minimum=0.001,
+        #         maximum=10000,
+        #     )
+        #     if not new_resolution or new_resolution == reader.resolution:
+        #         return
+        #     if hp.confirm(self, "Changing resolution may cause issues with the image data. Proceed with caution!"):
+        #         reader.resolution = new_resolution
+        #         self.table.item(row, self.TABLE_CONFIG.resolution).setText(f"{new_resolution:.2f}")
+
+    @property
+    def output_dir(self) -> Path:
+        """Output directory."""
+        if self._output_dir is None:
+            if self.CONFIG.output_dir is None:
+                return Path.cwd()
+            return Path(self.CONFIG.output_dir)
+        return Path(self._output_dir)
+
+    def on_set_output_dir(self) -> None:
+        """Set output directory."""
+        directory = hp.get_directory(self, "Select output directory", self.CONFIG.output_dir)
+        if directory:
+            self._output_dir = directory
+            self.CONFIG.update(output_dir=directory)
+            self.output_dir_label.setText(hp.hyper(self.output_dir))
+            logger.debug(f"Output directory set to {self._output_dir}")

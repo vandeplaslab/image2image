@@ -46,37 +46,30 @@ class ChannelRenameDialog(MixinDialog):
     )
 
     def __init__(
-        self, parent: QWidget, reader_metadata: dict[int, dict[str, dict | list[int]]], allow_merge: bool = True
+        self, parent: QWidget, scene_index: int, scene_metadata: dict[str, dict | list[int]], allow_merge: bool = True
     ):
         self.allow_merge = allow_merge
         super().__init__(parent)
         self.setMinimumWidth(400)
         self.setMinimumHeight(400)
-        self.reader_metadata = reader_metadata
+        self.scene_index = scene_index
+        self.scene_metadata = scene_metadata
         self.on_populate_table()
 
-    def accept(self):
+    def accept(self) -> int:
         """Accept dialog."""
-        reader_metadata = self.reader_metadata
+        scene_metadata = self.scene_metadata
         # reset metadata
-        for _, scene_metadata in reader_metadata.items():
-            scene_metadata["keep"] = []
-            scene_metadata["channel_ids"] = []
-            scene_metadata["channel_names"] = []
+        scene_metadata["keep"] = []
+        scene_metadata["channel_ids"] = []
+        scene_metadata["channel_names"] = []
 
         # iterate over all rows and update metadata
         for row in range(self.table.n_rows):
-            scene_index = self.table.get_value(self.TABLE_CONFIG.scene_index, row)
-            if scene_index not in reader_metadata:
-                reader_metadata[scene_index] = {"keep": [], "channel_ids": [], "channel_names": []}
-            reader_metadata[scene_index]["keep"].append(self.table.get_value(self.TABLE_CONFIG.check, row))
-            reader_metadata[scene_index]["channel_ids"].append(
-                self.table.get_value(self.TABLE_CONFIG.channel_index, row)
-            )
-            reader_metadata[scene_index]["channel_names"].append(
-                self.table.get_value(self.TABLE_CONFIG.channel_name, row)
-            )
-        self.reader_metadata = reader_metadata
+            scene_metadata["keep"].append(self.table.get_value(self.TABLE_CONFIG.check, row))
+            scene_metadata["channel_ids"].append(self.table.get_value(self.TABLE_CONFIG.channel_index, row))
+            scene_metadata["channel_names"].append(self.table.get_value(self.TABLE_CONFIG.channel_name, row))
+        self.scene_metadata = scene_metadata
         return super().accept()
 
     def on_replace(self) -> None:
@@ -92,11 +85,11 @@ class ChannelRenameDialog(MixinDialog):
 
     def on_merge(self) -> None:
         """Merge channels."""
-        dlg = MergeDialog(self, self.reader_metadata)
+        dlg = MergeDialog(self, self.scene_index, self.scene_metadata)
         if dlg.exec_() == QDialog.DialogCode.Accepted:
-            self.reader_metadata = dlg.reader_metadata
+            self.scene_metadata = dlg.scene_metadata
 
-    def on_edit(self, row: int):
+    def on_edit(self, row: int) -> None:
         """Edit channel name."""
         old_value = self.table.get_value(self.TABLE_CONFIG.channel_name, row)
         new_value = hp.get_text(self, "Edit channel name", "Edit channel name", old_value)
@@ -109,14 +102,15 @@ class ChannelRenameDialog(MixinDialog):
         """Edit channel name."""
         self.changed = True
 
-    def on_populate_table(self):
+    def on_populate_table(self) -> None:
         """Populate table."""
+        scene_metadata = self.scene_metadata
         data = []
-        for scene_index, scene_metadata in self.reader_metadata.items():
-            for keep, channel_index, channel_name in zip(
-                scene_metadata["keep"], scene_metadata["channel_ids"], scene_metadata["channel_names"]
-            ):
-                data.append([keep, scene_index, channel_index, channel_name])
+        # for scene_index, scene_metadata in self.reader_metadata.items():
+        for keep, channel_index, channel_name in zip(
+            scene_metadata["keep"], scene_metadata["channel_ids"], scene_metadata["channel_names"]
+        ):
+            data.append([keep, self.scene_index, channel_index, channel_name])
         # set data in table
         self.table.reset_data()
         self.table.add_data(data)
@@ -186,27 +180,27 @@ class MergeDialog(MixinDialog):
         .add("merge name", "merge_name", "str", 200, sizing="stretch")
     )
 
-    def __init__(self, parent: ChannelRenameDialog, reader_metadata: dict[int, dict[str, dict | list[int]]]):
+    def __init__(self, parent: ChannelRenameDialog, scene_index: int, scene_metadata: dict[str, dict | list[int]]):
         super().__init__(parent)
         self.setMinimumWidth(400)
         self.setMinimumHeight(400)
-        self.reader_metadata = reader_metadata
+        self.scene_index = scene_index
+        self.scene_metadata = scene_metadata
         self.on_populate_table()
 
-    def on_edit_state(self, _row: int, _state: bool):
+    def on_edit_state(self, _row: int, _state: bool) -> None:
         """Edit channel name."""
         self.changed = True
         self.parent().changed = True
 
-    def accept(self):
+    def accept(self) -> int:
         """Accept dialog."""
         self.parent().changed = True
-        return super().accept()
+        return super().accept()  # type: ignore[no-any-return]
 
-    def on_select_scene(self) -> None:
-        """Select scene."""
-        scene_index = int(self.scene_index.currentText())
-        scene_metadata = self.reader_metadata[scene_index]
+    def on_populate_table(self) -> None:
+        """Populate table."""
+        scene_metadata = self.scene_metadata
 
         data = []
         for channel_index, channel_name in zip(scene_metadata["channel_ids"], scene_metadata["channel_names"]):
@@ -217,17 +211,8 @@ class MergeDialog(MixinDialog):
         self.table.reset_data()
         self.table.add_data(data)
 
-    def on_populate_table(self) -> None:
-        """Populate table."""
-        scenes = [str(k) for k in self.reader_metadata]
-        with hp.qt_signals_blocked(self.scene_index):
-            self.scene_index.clear()
-            self.scene_index.addItems(scenes)
-        self.on_select_scene()
-
     def on_merge(self) -> None:
         """Merge channels."""
-        scene_index = int(self.scene_index.currentText())
         channel_ids = self.table.get_all_checked()
         new_name = self.new_name.text()
         if not channel_ids or len(channel_ids) < 2:
@@ -236,17 +221,15 @@ class MergeDialog(MixinDialog):
 
         for channel_index in channel_ids:
             if not new_name:
-                self.reader_metadata[scene_index]["channel_id_to_merge"].pop(channel_index, None)
+                self.scene_metadata["channel_id_to_merge"].pop(channel_index, None)
             else:
-                self.reader_metadata[scene_index]["channel_id_to_merge"][channel_index] = new_name
+                self.scene_metadata["channel_id_to_merge"][channel_index] = new_name
             self.table.set_value(self.TABLE_CONFIG.merge_name, channel_index, new_name)
-        self.reader_metadata[scene_index]["merge_and_keep"] = self.merge_and_keep.isChecked()
+        self.scene_metadata["merge_and_keep"] = self.merge_and_keep.isChecked()
 
     # noinspection PyAttributeOutsideInit
     def make_panel(self) -> QFormLayout:
         """Make panel."""
-        self.scene_index = hp.make_combobox(self, func=self.on_populate_table)
-
         self.table = QtCheckableTableView(self, config=self.TABLE_CONFIG, enable_all_check=True, sortable=True)
         self.table.setCornerButtonEnabled(False)
         hp.set_font(self.table)
@@ -279,7 +262,6 @@ class MergeDialog(MixinDialog):
         layout = hp.make_form_layout(self)
         hp.style_form_layout(layout)
         layout.addRow(self._make_hide_handle("Select and merge channels")[1])
-        layout.addRow(hp.make_label(self, "Scene index"), self.scene_index)
         if STATE.allow_filters:
             layout.addRow(hp.make_h_layout(self.filter_by_name, spacing=1))
         layout.addRow(self.table)

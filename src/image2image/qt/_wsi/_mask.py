@@ -316,13 +316,13 @@ class ShapesDialog(QtFramelessTool):
             self,
             "chevron_left_circle",
             func=partial(self.on_increment_modality, increment_by=-1),
-            tooltip="Go to previous modality.",
+            tooltip="Go to previous modality.", normal=True, standout=True
         )
         self.next_btn = hp.make_qta_btn(
             self,
             "chevron_right_circle",
             func=partial(self.on_increment_modality, increment_by=1),
-            tooltip="Go to next modality.",
+            tooltip="Go to next modality.", normal=True, standout=True
         )
         self.copy_from_choice = hp.make_combobox(self, tooltip="Copy mask from another modality")
 

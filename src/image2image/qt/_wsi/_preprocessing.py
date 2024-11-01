@@ -383,13 +383,13 @@ class PreprocessingDialog(QtFramelessTool):
             self,
             "arrow_left",
             tooltip="Add 500um from current value (it might not be left!)",
-            func=partial(self.on_translate_x, value=500),
+            func=partial(self.on_translate_x, value=500),normal=True, standout=True
         )
         self.translate_right = hp.make_qta_btn(
             self,
             "arrow_right",
             tooltip="Subtract 500um to the current value (it might not be right!)",
-            func=partial(self.on_translate_x, value=-500),
+            func=partial(self.on_translate_x, value=-500),normal=True, standout=True
         )
         self.translate_y = hp.make_int_spin_box(
             self,
@@ -399,25 +399,25 @@ class PreprocessingDialog(QtFramelessTool):
             step_size=10,
             suffix="µm",
             tooltip="Translate Y",
-            func=self.on_update_transform_model,
+            func=self.on_update_transform_model,normal=True, standout=True
         )
         self.translate_up = hp.make_qta_btn(
             self,
             "arrow_up",
             tooltip="Add 500um from current value (it might not be up!)",
-            func=partial(self.on_translate_y, value=500),
+            func=partial(self.on_translate_y, value=500),normal=True, standout=True
         )
         self.translate_down = hp.make_qta_btn(
             self,
             "arrow_down",
             tooltip="Subtract 500um to the current value (it might not be down!)",
-            func=partial(self.on_translate_y, value=-500),
+            func=partial(self.on_translate_y, value=-500),normal=True, standout=True
         )
         self.rotate_bck = hp.make_qta_btn(
-            self, "rotate_left", tooltip="Rotate (counter-clockwise)", func=partial(self.on_rotate, value=-90)
+            self, "rotate_left", tooltip="Rotate (counter-clockwise)", func=partial(self.on_rotate, value=-90),normal=True, standout=True
         )
         self.rotate_fwd = hp.make_qta_btn(
-            self, "rotate_right", tooltip="Rotate (clockwise)", func=partial(self.on_rotate, value=90)
+            self, "rotate_right", tooltip="Rotate (clockwise)", func=partial(self.on_rotate, value=90),normal=True, standout=True
         )
         self.rotate_spin = hp.make_double_spin_box(
             self,
