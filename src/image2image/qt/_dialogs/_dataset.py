@@ -741,23 +741,26 @@ class SelectDataDialog(QtFramelessTool):
             },
         )
 
-    def _on_loaded_dataset(self, model: DataModel, select: bool = True) -> None:
+    def _on_loaded_dataset(self, model: DataModel, select: bool = True, keys: list[str] | None = None) -> None:
         """Finished loading data."""
         channel_list = []
         wrapper = model.wrapper
+        if not keys:
+            keys = model.just_added_keys
+
         if not self.select_channels or not select:
             if wrapper:
-                channel_list = wrapper.channel_names_for_names(model.just_added_keys)
+                channel_list = wrapper.channel_names_for_names(keys)
         else:
             if wrapper:
-                channel_list_ = list(wrapper.channel_names_for_names(self.model.just_added_keys))
+                channel_list_ = list(wrapper.channel_names_for_names(keys))
                 if channel_list_:
                     dlg = SelectChannelsToLoadDialog(self, model)
                     if dlg.exec_():  # type: ignore
                         channel_list = dlg.channels
         logger.trace(f"Loaded {len(channel_list)} channels")
         if not channel_list:
-            model.remove_keys(model.just_added_keys)
+            model.remove_keys(keys)
             model, channel_list = None, None
             logger.warning("No channels selected - dataset not loaded")
         # load data into an image
