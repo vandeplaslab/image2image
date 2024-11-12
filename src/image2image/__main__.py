@@ -15,7 +15,10 @@ def main() -> None:
 
 
 if __name__ == "__main__":
+    from image2image.cli import cli
+
     freeze_support()
     if sys.platform == "darwin":
         set_start_method("spawn", True)
-    sys.exit(main())
+    cli.main(windows_expand_args=False)
+
