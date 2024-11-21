@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import sys
 import typing as ty
+from multiprocessing import freeze_support, set_start_method
 
 import click
 from click_groups import GroupedGroup
@@ -94,7 +96,11 @@ def dev_options(func: ty.Callable) -> ty.Callable:
     show_default=True,
 )
 @click.group(
-    context_settings={"help_option_names": ["-h", "--help"], "max_content_width": 120, "ignore_unknown_options": True},
+    context_settings={
+        "help_option_names": ["-h", "--help"],
+        "max_content_width": 120,
+        "ignore_unknown_options": True,
+    },
     invoke_without_command=True,
     cls=GroupedGroup,
 )
@@ -169,10 +175,9 @@ def cli(
             project_dir=project_dir,
         )
         return None
-    else:
-        from image2image.main import setup_logger
+    from image2image.main import setup_logger
 
-        setup_logger(level=int(level), no_color=no_color)
+    setup_logger(level=int(level), no_color=no_color)
     return None
 
 
@@ -190,3 +195,18 @@ if is_installed("image2image_reg"):
     cli.add_command(merge, help_group="Utility")
     cli.add_command(thumbnail, help_group="Utility")
     cli.add_command(transform, help_group="Utility")
+
+
+def main():
+    """Execute the "imimspy" command line program."""
+    freeze_support()
+    if sys.platform == "darwin":
+        set_start_method("spawn", True)
+    cli.main(windows_expand_args=False)
+
+
+if __name__ == "__main__":
+    freeze_support()
+    if sys.platform == "darwin":
+        set_start_method("spawn", True)
+    cli.main(windows_expand_args=False)

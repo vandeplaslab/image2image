@@ -232,6 +232,9 @@ class ImageViewerWindow(SingleViewerMixin):
         from image2image_io.readers import ShapesReader
         from qtextra.widgets.qt_pick_option import QtScrollablePickOption
 
+        def _is_in_layers() -> bool:
+            return f"{MASK_LAYER_NAME} | mask.tmp" in self.view.viewer.layers
+
         wrapper = self.data_model.get_wrapper()
         options = get_resolution_options(wrapper)
         if not options:
@@ -269,16 +272,21 @@ class ImageViewerWindow(SingleViewerMixin):
         affine = np.eye(3)
         if wrapper:
             if MASK_FILENAME not in wrapper.data:
+                is_available = _is_in_layers()
                 reader = ShapesReader.create(MASK_FILENAME, channel_names=[MASK_LAYER_NAME])
                 self.data_model.add_paths([MASK_FILENAME])
                 wrapper.add(reader)
-                self._image_widget.dataset_dlg._on_loaded_dataset(self.data_model, select=False)
+                self._image_widget.dataset_dlg._on_loaded_dataset(self.data_model, select=False, keys=[reader.key])
+                if not is_available and _is_in_layers():
+                    layer = self.view.get_layer(f"{MASK_LAYER_NAME} | mask.tmp")
+                    connect(layer.events.set_data, self.on_update_mask_reader, state=True)
+                    logger.info(f"Added mask layer: {layer.name}")
             else:
                 reader = wrapper.get_reader_for_key(MASK_FILENAME)
                 affine = wrapper.get_affine(reader, reader.resolution)
                 scale = reader.scale
 
-        if f"{MASK_LAYER_NAME} | mask.tmp" not in self.view.viewer.layers:
+        if not _is_in_layers():
             layer = self.view.viewer.add_shapes(
                 name=f"{MASK_LAYER_NAME} | mask.tmp",
                 face_color="green",
@@ -289,6 +297,7 @@ class ImageViewerWindow(SingleViewerMixin):
                 affine=affine,
             )
             connect(layer.events.set_data, self.on_update_mask_reader, state=True)
+            logger.info(f"Added mask layer: {layer.name}")
         hp.toast(
             self,
             "Change resolution",
@@ -310,7 +319,9 @@ class ImageViewerWindow(SingleViewerMixin):
                 if reader:
                     reader._channel_names = [MASK_LAYER_NAME]
                     reader.shape_data = napari_to_shapes_data(layer.name, layer.data, layer.shape_type)
+                    logger.info(f"Updated mask reader for {MASK_FILENAME}")
             except KeyError:
+                logger.warning(f"Could not find reader for {MASK_FILENAME}")
                 return
 
     def on_save_masks(self) -> None:

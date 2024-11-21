@@ -4,6 +4,7 @@ import typing as ty
 from collections import Counter
 from contextlib import contextmanager
 
+from koyo.timer import MeasureTimer
 from loguru import logger
 from napari.utils.events import Event
 from qtextra import helpers as hp
@@ -38,7 +39,7 @@ class OverlayChannelsDialog(QtFramelessTool):
     TABLE_CONFIG = (
         TableConfig()  # type: ignore[no-untyped-call]
         .add("", "check", "bool", 25, no_sort=True, sizing="fixed")
-        .add("index", "index", "int", 50, sizing="contents")
+        .add("index", "index", "int", 50, sizing="fixed")
         .add("channel name", "channel_name", "str", 125)
         .add("dataset", "dataset", "str", 250)
         .add("key", "key", "str", 0, hidden=True)
@@ -144,34 +145,83 @@ class OverlayChannelsDialog(QtFramelessTool):
             f"Total number of channels: <b>{n_total}</b> out of which <b>{n_selected}</b> {verb} selected."
         )
 
+    def on_update_data_list_old(self, model: "DataModel") -> None:
+        """On load."""
+        if not model:
+            return
+
+        with self.editing(), MeasureTimer() as timer:
+            self.model = model
+            data = []
+            wrapper = self.model.wrapper
+            if wrapper:
+                counter = Counter()
+                for name in wrapper.channel_names():
+                    channel_name, dataset = name.split(" | ")
+                    # checked, channel_id, channel_name, dataset, key
+                    data.append([False, counter[dataset], channel_name, dataset, name])
+                    counter[dataset] += 1
+
+            collected_in = timer(since_last=True)
+            existing_data = self.table.get_data()
+            got_prev_in = timer(since_last=True)
+            if existing_data:
+                for exist_row in existing_data:
+                    for new_row in data:
+                        if (
+                            exist_row[self.TABLE_CONFIG.channel_name] == new_row[self.TABLE_CONFIG.channel_name]
+                            and exist_row[self.TABLE_CONFIG.dataset] == new_row[self.TABLE_CONFIG.dataset]
+                        ):
+                            new_row[self.TABLE_CONFIG.check] = exist_row[self.TABLE_CONFIG.check]
+            self.table.reset_data()
+            self.table.add_data(data)
+            populated_in = timer(since_last=True)
+            self.table.enable_all_check = len(data) < 20
+            self.on_update_info()
+        logger.trace(
+            f"Updated channel table - {len(data)} rows in {timer()} (collected={collected_in}; previous={got_prev_in};"
+            f" updated={populated_in}."
+        )
+
     def on_update_data_list(self, model: "DataModel") -> None:
         """On load."""
         if not model:
             return
 
-        self.model = model
-        data = []
-        wrapper = self.model.wrapper
-        if wrapper:
-            counter = Counter()
-            for name in wrapper.channel_names():
-                channel_name, dataset = name.split(" | ")
-                data.append([False, counter[dataset], channel_name, dataset, name])
-                counter[dataset] += 1
-        existing_data = self.table.get_data()
-        if existing_data:
-            for exist_row in existing_data:
-                for new_row in data:
-                    if (
-                        exist_row[self.TABLE_CONFIG.channel_name] == new_row[self.TABLE_CONFIG.channel_name]
-                        and exist_row[self.TABLE_CONFIG.dataset] == new_row[self.TABLE_CONFIG.dataset]
-                    ):
-                        new_row[self.TABLE_CONFIG.check] = exist_row[self.TABLE_CONFIG.check]
-        self.table.reset_data()
-        self.table.add_data(data)
-        self.table.enable_all_check = len(data) < 20
-        self.on_update_info()
-        logger.trace(f"Updated channel table - {len(data)} rows.")
+        with self.editing(), MeasureTimer() as timer:
+            self.model = model
+            data = []
+            wrapper = self.model.wrapper
+            if wrapper:
+                existing_data = self.table.get_data()
+                got_prev_in = timer(since_last=True)
+                dataset_in_model = [dataset for dataset in self.model.dataset_names()]
+                to_remove = []
+                datasets_in_table = set()
+                for index, row in enumerate(existing_data):
+                    if row[self.TABLE_CONFIG.dataset] not in dataset_in_model:
+                        to_remove.append(index)
+                    else:
+                        datasets_in_table.add(row[self.TABLE_CONFIG.dataset])
+                if to_remove:
+                    self.table.remove_rows(to_remove)
+
+                counter = Counter()
+                for name in wrapper.channel_names():
+                    channel_name, dataset = name.split(" | ")
+                    if dataset not in datasets_in_table:
+                        # checked, channel_id, channel_name, dataset, key
+                        data.append([False, counter[dataset], channel_name, dataset, name])
+                        counter[dataset] += 1
+            collected_in = timer(since_last=True)
+            self.table.append_data(data)
+            populated_in = timer(since_last=True)
+            self.table.enable_all_check = self.table.row_count() < 20
+            self.on_update_info()
+        logger.trace(
+            f"Updated channel table - {len(data)} rows in {timer()} (collected={collected_in}; previous={got_prev_in};"
+            f" updated={populated_in}."
+        )
 
     # def on_open_iterate_dlg(self):
     #     """Open iterate dialog."""
