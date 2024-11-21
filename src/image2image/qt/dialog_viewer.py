@@ -94,6 +94,7 @@ class ImageViewerWindow(SingleViewerMixin):
         connect(self._image_widget.dataset_dlg.evt_export_project, self.on_save_to_project, state=state)
         connect(self._image_widget.dataset_dlg.evt_resolution, self.on_update_transform, state=state)
         connect(self._image_widget.dataset_dlg.evt_resolution, self.on_update_mask_reader, state=state)
+        connect(self._image_widget.dataset_dlg.evt_loaded_keys, self.on_maybe_select_resolution, state=state)
         connect(self._image_widget.transform_dlg.evt_transform, self.on_update_transform, state=state)
         connect(self._image_widget.evt_toggle_channel, self.on_toggle_channel, state=state)
         connect(self._image_widget.evt_toggle_all_channels, self.on_toggle_all_channels, state=state)
@@ -104,7 +105,47 @@ class ImageViewerWindow(SingleViewerMixin):
         connect(self._image_widget.evt_remove_temp, self.on_remove_temporary, state=state)
         connect(self._image_widget.evt_add_channel, self.on_add_temporary_to_viewer, state=state)
 
-    def on_load_from_project(self, _evt=None):
+    def on_maybe_select_resolution(self, keys: str) -> None:
+        """Potentially select resolution."""
+        from qtextra.widgets.qt_pick_option import QtScrollablePickOption
+
+        wrapper = self.data_model.get_wrapper()
+        if wrapper:
+            # check whether the resolution option even applies here
+
+            image_keys = []
+            shape_or_point_keys = []
+            for reader in wrapper.reader_iter():
+                if reader.key not in keys:
+                    continue
+                if reader.reader_type == "image":
+                    image_keys.append((reader.key, reader.resolution))
+                else:
+                    shape_or_point_keys.append(reader.key)
+            if not shape_or_point_keys:
+                return
+            # get resolution options
+            options = get_resolution_options(wrapper)
+            which = None
+            if options and len(options) > 1:
+                dlg = QtScrollablePickOption(
+                    self,
+                    "Please select the resolution (pixel size) of the GeoJSON files. This is <b>important</b> as it will"
+                    " determine the way the data is displayed in the viewer. You can always change it again in the table.",
+                    options,
+                    orientation="vertical",
+                )
+                if dlg.exec_() == QDialog.DialogCode.Accepted:  # type: ignore[attr-defined]
+                    which = dlg.option
+            elif len(options) == 1:
+                which = next(iter(options.keys()))
+            else:
+                which = min([v[1] for v in image_keys])
+            if which:
+                for key in shape_or_point_keys:
+                    self._image_widget.dataset_dlg.on_set_resolution(key, which)
+
+    def on_load_from_project(self, _evt: ty.Any = None) -> None:
         """Load a previous project."""
         path_ = hp.get_filename(
             self, "Load i2v project", base_dir=self.CONFIG.output_dir, file_filter=ALLOWED_PROJECT_VIEWER_FORMATS

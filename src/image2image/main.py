@@ -59,7 +59,7 @@ def run(
 
     from image2image_io.config import CONFIG as READER_CONFIG
     from koyo.faulthandler import install_segfault_handler, maybe_submit_segfault
-    from koyo.hooks import install_debugger_hook, install_logger_hook
+    from koyo.hooks import install_debugger_hook
     from koyo.logging import set_loguru_log
     from qtextra.config import THEMES
     from qtextra.utils.context import _maybe_allow_interrupt
@@ -100,8 +100,8 @@ def run(
     if dev:
         install_debugger_hook()
         logger.debug(f"Installed debugger hook: {sys.excepthook.__name__}")
-    else:
-        install_logger_hook()
+    # else:
+    #     install_logger_hook()
 
     # load config
     READER_CONFIG.load()

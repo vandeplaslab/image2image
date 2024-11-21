@@ -37,6 +37,9 @@ dependencies = [
     "sentry_sdk>2",
     "lxml==4.9.2",
     "rasterio",
+    "pandas<2",
+    "numpy<2",
+    "pydantic<2"
     # "qtextra",
     # "image2image-io"
 ]
