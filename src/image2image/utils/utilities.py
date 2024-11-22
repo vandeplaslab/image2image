@@ -55,6 +55,47 @@ PREFERRED_COLORS = [
 ]
 
 
+def check_image_size(
+    image: np.ndarray,
+    scale: tuple[float, float],
+    pyramid_level: int,
+    channel_axis: int,
+    max_size: int = 1024,
+) -> tuple[np.ndarray, tuple[float, float]]:
+    """Check image size.
+
+    If pyramid level == -1 then check and ensure that image is not too large. If it is, let's scale it down,
+     maintaining aspect ratio.
+    """
+    if pyramid_level == -1:
+        while max(image.shape) > max_size:
+            scale = (scale[0] * 0.5, scale[1] * 0.5)
+            if channel_axis is None:
+                image = np.asarray(
+                    [
+                        np.asarray([image[int(i / 2), int(j / 2)] for j in range(0, image.shape[1], 2)])
+                        for i in range(0, image.shape[0], 2)
+                    ]
+                )
+            elif channel_axis == 1 or channel_axis == 0:
+                image = np.asarray(
+                    [
+                        np.asarray([image[k, int(i / 2), int(j / 2)] for j in range(0, image.shape[2], 2)])
+                        for i in range(0, image.shape[1], 2)
+                        for k in range(image.shape[0])
+                    ]
+                )
+            elif channel_axis == 2:
+                image = np.asarray(
+                    [
+                        np.asarray([image[k, int(i / 2), int(j / 2)] for j in range(0, image.shape[1], 2)])
+                        for i in range(0, image.shape[0], 2)
+                        for k in range(image.shape[2])
+                    ]
+                )
+    return image, scale
+
+
 def pad_str(value: ty.Any) -> str:
     """Pad string with quotes around out."""
     from koyo.system import IS_MAC

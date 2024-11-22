@@ -25,7 +25,7 @@ from image2image.qt._dialog_wsi import ImageWsiWindow
 from image2image.qt._dialogs._select import LoadWidget
 from image2image.qt._wsi._list import QtModalityList
 from image2image.qt._wsi._paths import RegistrationMap
-from image2image.utils.utilities import get_i2reg_path, pad_str
+from image2image.utils.utilities import check_image_size, get_i2reg_path, pad_str
 from image2image.utils.valis import guess_preprocessing, hash_preprocessing
 
 if ty.TYPE_CHECKING:
@@ -275,11 +275,11 @@ class ImageElastixWindow(ImageWsiWindow):
         if wrapper:
             with MeasureTimer() as timer:
                 reader = wrapper.get_reader_for_path(modality.path)
-                # if pyramid == -1:
-                #     image, scale = reader.get_thumbnail()
-                # else:
+                channel_axis, _ = reader.get_channel_axis_and_n_channels()
                 image = reader.pyramid[pyramid]
                 scale = reader.scale_for_pyramid(pyramid)
+                if pyramid == -1 and reader.n_in_pyramid == 1:
+                    image, scale = check_image_size(image, scale, pyramid, channel_axis)
                 layer = self.view.get_layer(modality.name)
                 preprocessing_hash = (
                     hash_preprocessing(modality.preprocessing, pyramid=pyramid)
@@ -445,7 +445,12 @@ class ImageElastixWindow(ImageWsiWindow):
         if path_:
             path_ = Path(path_)
             try:
-                project = ElastixReg.from_path(path_.parent if path_.is_file() else path_)
+                project_path = path_.parent if path_.is_file() else path_
+                try:
+                    project = ElastixReg.from_path(project_path)
+                except ValueError:
+                    ElastixReg.update_paths(project_path, project_path.parent)
+                    project = ElastixReg.from_path(project_path)
                 if project:
                     self._registration_model = project
                     self.output_dir = project.output_dir

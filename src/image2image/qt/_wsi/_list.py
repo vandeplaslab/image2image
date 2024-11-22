@@ -465,7 +465,7 @@ class QtModalityItem(QtListItem):
                 self.evt_preview_transform_preprocessing.emit
             )
             self._preprocessing_dlg.evt_close.connect(self._on_close_preprocessing)
-            self._preprocessing_dlg.show_below_mouse(x_offset=-200)
+            self._preprocessing_dlg.show()
         self.evt_hide_others.emit(self.item_model)
 
     def _on_close_preprocessing(self) -> None:

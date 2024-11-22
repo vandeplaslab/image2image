@@ -412,6 +412,7 @@ class SelectDataDialog(QtFramelessTool):
     _editing = False
     evt_loading = Signal()
     evt_loaded = Signal(object, object)
+    evt_loaded_keys = Signal(list)
     evt_closing = Signal(object, list, list)
     evt_closed = Signal(object)
     evt_resolution = Signal(str)
@@ -646,10 +647,20 @@ class SelectDataDialog(QtFramelessTool):
             logger.trace(f"Swapping '{reader.key}' from '{source}' to '{target}'")
             self.evt_swap.emit(key, source)
 
+    def on_set_resolution(self, key: str, resolution: float) -> None:
+        """Set resolution."""
+        reader = self.model.get_reader_for_key(key)
+        if reader and reader.resolution != resolution:
+            reader.resolution = resolution
+            self.evt_resolution.emit(reader.key)
+            self.on_populate_table()
+            logger.trace(f"Updated pixel size of '{reader.key}' to {resolution:.2f}.")
+
     def on_resolution(self, item: QTableWidgetItem, key: str) -> None:
         """Table item changed."""
         if self._editing:
             return
+
         value = float(item.text())
         if value <= 0:
             hp.toast(
@@ -766,6 +777,8 @@ class SelectDataDialog(QtFramelessTool):
         # load data into an image
         self.evt_loaded.emit(model, channel_list)  # noqa
         self.on_populate_table()
+        if model:
+            self.evt_loaded_keys.emit(model.just_added_keys)  # noqa
 
     def _on_loaded_dataset_with_preselection(self, model: DataModel, select: bool = True) -> None:
         """Finished loading data."""
