@@ -21,4 +21,3 @@ if __name__ == "__main__":
     if sys.platform == "darwin":
         set_start_method("spawn", True)
     cli.main(windows_expand_args=False)
-
