@@ -243,6 +243,7 @@ class RegisterConfig(SingleAppConfig):
 
     USER_CONFIG_FILENAME = "config.register.json"
 
+    enable_prediction: bool = Field(True, title="Enable prediction", description="Enable prediction.", in_app=True)
     sync_views: bool = Field(True, title="Sync views", description="Sync views.", in_app=False)
     zoom_factor: float = Field(
         7.5, ge=0.5, le=100.0, step_size=0.25, n_decimals=2, title="Zoom factor", description="Zoom factor."

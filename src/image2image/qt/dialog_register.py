@@ -186,7 +186,6 @@ class ImageRegistrationWindow(Window):
             visual = self.view_fixed.widget.layer_to_visual[layer]
             init_points_layer(layer, visual, False)
             connect(layer.events.data, self.on_run, state=True)
-            # connect(layer.events.data, self.fiducials_dlg.on_load, state=True)
             connect(layer.events.add_point, partial(self.on_predict, "fixed"), state=True)
         return self.view_fixed.layers[FIXED_POINTS]
 
@@ -237,7 +236,6 @@ class ImageRegistrationWindow(Window):
             visual = self.view_moving.widget.layer_to_visual[layer]
             init_points_layer(layer, visual, True)
             connect(layer.events.data, self.on_run, state=True)
-            # connect(layer.events.data, self.fiducials_dlg.on_load, state=True)
             connect(layer.events.add_point, partial(self.on_predict, "moving"), state=True)
         return self.view_moving.layers[MOVING_POINTS]
 
@@ -1138,12 +1136,17 @@ class ImageRegistrationWindow(Window):
         self.is_predicting = False
 
     def _on_predict(self, which: str, _evt: ty.Any = None) -> None:
+        n_fixed = len(self.fixed_points_layer.data)
+        n_moving = len(self.moving_points_layer.data)
+        if (
+            not self.CONFIG.enable_prediction  # user disabled
+            or self.is_predicting  # already predicting
+            or n_fixed == n_moving  # no need to predict
+            or abs(n_fixed - n_moving) > 1  # unreliable prediction
+        ):
+            return
         if self.transform is None:
             logger.warning("Cannot predict - no transformation has been computed.")
-            return
-        if self.fixed_points_layer.data.size == self.moving_points_layer.data.size:
-            return
-        if self.is_predicting:
             return
 
         with self.disable_prediction():
@@ -1312,7 +1315,9 @@ class ImageRegistrationWindow(Window):
 
     def on_update_settings(self):
         """Update config."""
-        self.CONFIG.update(sync_views=self.synchronize_zoom.isChecked())
+        self.CONFIG.update(
+            sync_views=self.synchronize_zoom.isChecked(), enable_prediction=self.enable_prediction_checkbox.isChecked()
+        )
         self.on_sync_views_fixed()
 
     @qdebounced(timeout=200, leading=False)
@@ -1432,6 +1437,12 @@ class ImageRegistrationWindow(Window):
             tooltip="Show fiducial markers table where you can view and edit the markers",
             func=self.on_show_fiducials,
         )
+        self.enable_prediction_checkbox = hp.make_checkbox(
+            self,
+            tooltip="Enable prediction of points based on the transformation.",
+            func=self.on_update_settings,
+            value=self.CONFIG.enable_prediction,
+        )
         self.close_btn = hp.make_qta_btn(
             side_widget,
             "delete",
@@ -1466,6 +1477,7 @@ class ImageRegistrationWindow(Window):
         side_layout.addRow(hp.make_h_line_with_text("Transformation"))
         side_layout.addRow(hp.make_h_layout(self.initial_btn, self.guess_btn, spacing=2, stretch_id=(0, 1)))
         side_layout.addRow(self.fiducials_btn)
+        side_layout.addRow("Enable prediction", self.enable_prediction_checkbox)
         side_layout.addRow(hp.make_btn(side_widget, "Compute transformation", func=self.on_run))
         side_layout.addRow(hp.make_h_layout(self.close_btn, self.export_project_btn, stretch_id=(1,), spacing=2))
         side_layout.addRow(
