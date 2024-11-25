@@ -1,25 +1,28 @@
 """PyInstaller setup script."""
+
 import os
-from pathlib import Path
 import time
-from image2image.assets import ICON_ICO
-from PyInstaller.building.build_main import Analysis, PYZ, EXE, COLLECT, TOC, MERGE
-from PyInstaller.utils.hooks import (
-    get_package_paths,
-    remove_prefix,
-    PY_IGNORE_EXTENSIONS,
-    collect_data_files,
-    collect_submodules,
-    collect_dynamic_libs,
-    collect_all,
-    copy_metadata,
-)
-import qtpy
-import napari
-import image2image
+from pathlib import Path
+
 import debugpy._vendored
 import imagecodecs
+import napari
+import qtpy
 from koyo.timer import MeasureTimer
+from PyInstaller.building.build_main import COLLECT, EXE, MERGE, PYZ, TOC, Analysis
+from PyInstaller.utils.hooks import (
+    PY_IGNORE_EXTENSIONS,
+    collect_all,
+    collect_data_files,
+    collect_dynamic_libs,
+    collect_submodules,
+    copy_metadata,
+    get_package_paths,
+    remove_prefix,
+)
+
+import image2image
+from image2image.assets import ICON_ICO
 
 time_start = time.time()
 block_cipher = None
@@ -36,7 +39,7 @@ def collect_pkg_data(package, include_py_files=False, subdir=None):
         pkg_dir = os.path.join(pkg_dir, subdir)
     # Walk through all file in the given package, looking for data files.
     data_toc = TOC()
-    for dir_path, dir_names, files in os.walk(pkg_dir):
+    for dir_path, _dir_names, files in os.walk(pkg_dir):
         for f in files:
             extension = os.path.splitext(f)[1]
             if include_py_files or (extension not in PY_IGNORE_EXTENSIONS):
@@ -99,13 +102,12 @@ def _make_exe(pyz: PYZ, analysis: Analysis, name: str):
         debug="all",
         strip=False,
         upx=True,
-        console=True,
+        console=False,
         bootloader_ignore_signals=False,
         icon=ICON_ICO,
     )
 
 
-# main app / launcher
 # main app / launcher
 with MeasureTimer() as timer:
     launcher_analysis = _make_analysis("../../src/image2image/__main__.py")
@@ -131,6 +133,13 @@ with MeasureTimer() as timer:
     )
     print(f"COLLECT took {timer.format(timer.elapsed_since_last())}")
 
+
+# create launcher bat scripts
+for tool in ["viewer", "register", "convert", "crop", "elastix", "valis"]:
+    with open(f"dist/image2image/{tool}.bat", "w") as f:
+        f.write(f"@echo off\ncall image2image.exe --debug -t {tool}")
+        f.close()
+
 # Give information about build time
 time_end = time.time()
-print("Build image2image in {:.2f} seconds\n".format(time_end - time_start))
+print(f"Build image2image in {time_end - time_start:.2f} seconds\n")
