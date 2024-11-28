@@ -112,6 +112,8 @@ class ImageRegistrationWindow(Window):
     view_moving: NapariImageView
     fixed_image_layer: list[Image] | None = None
     moving_image_layer: list[Image] | None = None
+    is_predicting: bool = False
+
     _fiducials_dlg = None
     _zooming = False
     _current_index = -1
@@ -184,7 +186,6 @@ class ImageRegistrationWindow(Window):
             visual = self.view_fixed.widget.layer_to_visual[layer]
             init_points_layer(layer, visual, False)
             connect(layer.events.data, self.on_run, state=True)
-            connect(layer.events.data, self.fiducials_dlg.on_load, state=True)
             connect(layer.events.add_point, partial(self.on_predict, "fixed"), state=True)
         return self.view_fixed.layers[FIXED_POINTS]
 
@@ -235,7 +236,6 @@ class ImageRegistrationWindow(Window):
             visual = self.view_moving.widget.layer_to_visual[layer]
             init_points_layer(layer, visual, True)
             connect(layer.events.data, self.on_run, state=True)
-            connect(layer.events.data, self.fiducials_dlg.on_load, state=True)
             connect(layer.events.add_point, partial(self.on_predict, "moving"), state=True)
         return self.view_moving.layers[MOVING_POINTS]
 
@@ -670,7 +670,7 @@ class ImageRegistrationWindow(Window):
         widget = self.fixed_zoom_btn if which == "fixed" else self.moving_zoom_btn
         layer.mode = "add_rectangle" if widget.isChecked() else "pan_zoom"
 
-    def on_activate_initial(self):
+    def on_activate_initial(self) -> None:
         """Activate initial button."""
         hp.disable_widgets(self.initial_btn, self.guess_btn, disabled=has_any_points(self.moving_points_layer))
 
@@ -701,6 +701,9 @@ class ImageRegistrationWindow(Window):
         """Remove point to the image."""
         layer = self.fixed_points_layer if which == "fixed" else self.moving_points_layer
         view = self.view_fixed if which == "fixed" else self.view_moving
+        if layer.data.size == 0:
+            logger.warning(f"No data points to remove from '{which}'.")
+            return
         if force or hp.confirm(self, "Are you sure you want to remove all data points from the points layer?"):
             layer.data = np.zeros((0, 2))
             self.evt_predicted.emit()  # noqa
@@ -1125,40 +1128,55 @@ class ImageRegistrationWindow(Window):
         """Predict transformation from either image."""
         self._on_predict(which, evt)
 
+    @contextmanager
+    def disable_prediction(self) -> ty.Generator:
+        """Disable prediction."""
+        self.is_predicting = True
+        yield self
+        self.is_predicting = False
+
     def _on_predict(self, which: str, _evt: ty.Any = None) -> None:
+        n_fixed = len(self.fixed_points_layer.data)
+        n_moving = len(self.moving_points_layer.data)
+        if (
+            not self.CONFIG.enable_prediction  # user disabled
+            or self.is_predicting  # already predicting
+            or n_fixed == n_moving  # no need to predict
+            or abs(n_fixed - n_moving) > 1  # unreliable prediction
+        ):
+            return
         if self.transform is None:
             logger.warning("Cannot predict - no transformation has been computed.")
             return
 
-        if self.fixed_points_layer.data.size == self.moving_points_layer.data.size:
-            return
-        self.on_update_text()
-        if which == "fixed":
-            # predict point position in the moving image -> inverse transform
-            predict_for_layer = self.moving_points_layer
-            transformed_last_point = self.transform.inverse(self.fixed_points_layer.data[-1])
-            transformed_last_point = self.transform_model.apply_moving_initial_transform(
-                transformed_last_point, inverse=False
-            )
-            logger.trace("Predicted moving points based on fixed points...")
-        else:
-            # predict point position in the fixed image -> transform
-            predict_for_layer = self.fixed_points_layer
-            transformed_last_point = self.transform_model.apply_moving_initial_transform(
-                self.moving_points_layer.data[-1], inverse=True
-            )
-            transformed_last_point = self.transform(transformed_last_point)
-            logger.trace("Predicted fixed points based on moving points...")
+        with self.disable_prediction():
+            self.on_update_text()
+            if which == "fixed":
+                # predict point position in the moving image -> inverse transform
+                predict_for_layer = self.moving_points_layer
+                transformed_last_point = self.transform.inverse(self.fixed_points_layer.data[-1])
+                transformed_last_point = self.transform_model.apply_moving_initial_transform(
+                    transformed_last_point, inverse=False
+                )
+                logger.trace("Predicted moving points based on fixed points...")
+            else:
+                # predict point position in the fixed image -> transform
+                predict_for_layer = self.fixed_points_layer
+                transformed_last_point = self.transform_model.apply_moving_initial_transform(
+                    self.moving_points_layer.data[-1], inverse=True
+                )
+                transformed_last_point = self.transform(transformed_last_point)
+                logger.trace("Predicted fixed points based on moving points...")
 
-        transformed_data = predict_for_layer.data
-        transformed_data = np.append(transformed_data, transformed_last_point, axis=0)
-        # don't predict positions if the number of points is lower than the number already present in the image
-        if predict_for_layer.data.shape[0] > len(transformed_data):
-            return
+            transformed_data = predict_for_layer.data
+            transformed_data = np.append(transformed_data, transformed_last_point, axis=0)
+            # don't predict positions if the number of points is lower than the number already present in the image
+            if predict_for_layer.data.shape[0] > len(transformed_data):
+                return
 
-        self._update_layer_points(predict_for_layer, transformed_data)
-        self.evt_predicted.emit()  # noqa
-        self._on_run()
+            self._update_layer_points(predict_for_layer, transformed_data)
+            self.evt_predicted.emit()  # noqa
+            self._on_run()
 
     @staticmethod
     def _update_layer_points(layer: Points, data: np.ndarray, block: bool = True) -> None:
@@ -1297,7 +1315,9 @@ class ImageRegistrationWindow(Window):
 
     def on_update_settings(self):
         """Update config."""
-        self.CONFIG.update(sync_views=self.synchronize_zoom.isChecked())
+        self.CONFIG.update(
+            sync_views=self.synchronize_zoom.isChecked(), enable_prediction=self.enable_prediction_checkbox.isChecked()
+        )
         self.on_sync_views_fixed()
 
     @qdebounced(timeout=200, leading=False)
@@ -1417,6 +1437,12 @@ class ImageRegistrationWindow(Window):
             tooltip="Show fiducial markers table where you can view and edit the markers",
             func=self.on_show_fiducials,
         )
+        self.enable_prediction_checkbox = hp.make_checkbox(
+            self,
+            tooltip="Enable prediction of points based on the transformation.",
+            func=self.on_update_settings,
+            value=self.CONFIG.enable_prediction,
+        )
         self.close_btn = hp.make_qta_btn(
             side_widget,
             "delete",
@@ -1451,6 +1477,7 @@ class ImageRegistrationWindow(Window):
         side_layout.addRow(hp.make_h_line_with_text("Transformation"))
         side_layout.addRow(hp.make_h_layout(self.initial_btn, self.guess_btn, spacing=2, stretch_id=(0, 1)))
         side_layout.addRow(self.fiducials_btn)
+        side_layout.addRow("Enable prediction", self.enable_prediction_checkbox)
         side_layout.addRow(hp.make_btn(side_widget, "Compute transformation", func=self.on_run))
         side_layout.addRow(hp.make_h_layout(self.close_btn, self.export_project_btn, stretch_id=(1,), spacing=2))
         side_layout.addRow(

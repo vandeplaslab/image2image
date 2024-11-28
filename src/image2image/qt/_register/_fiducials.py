@@ -95,6 +95,7 @@ class FiducialsDialog(QtFramelessTool):
                     with parent.fixed_points_layer.events.data.blocker(self.on_load):
                         parent.moving_points_layer.data = moving_points
                 logger.debug(f"Deleted index '{index}' from fiducial table")
+            self.table.scrollTo(sel_model.currentIndex())
             self.evt_update.emit()
 
     def on_double_click(self, index: QModelIndex) -> None:
@@ -102,7 +103,7 @@ class FiducialsDialog(QtFramelessTool):
         row = index.row()
         self.on_select_point(row)
 
-    def on_select_last_point(self):
+    def on_select_last_point(self) -> None:
         """Zoom in on last point."""
         if self.last_point is not None:
             row = self.last_point
@@ -156,7 +157,7 @@ class FiducialsDialog(QtFramelessTool):
     def on_load(self, _evt: ty.Any = None) -> None:
         """On load."""
 
-        def _str_fmt(value):
+        def _str_fmt(value: float) -> str:
             if np.isnan(value):
                 return ""
             return f"{value:.3f}"

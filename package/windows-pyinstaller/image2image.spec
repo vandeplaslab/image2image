@@ -1,4 +1,5 @@
 """PyInstaller setup script."""
+
 import os
 import time
 from pathlib import Path
@@ -9,6 +10,9 @@ import imagecodecs
 import napari
 import qtpy
 from image2image.assets import ICON_ICO
+import imagecodecs
+import napari
+import qtpy
 from koyo.timer import MeasureTimer
 from PyInstaller.building.build_main import COLLECT, EXE, MERGE, PYZ, TOC, Analysis
 from PyInstaller.utils.hooks import (
@@ -37,7 +41,7 @@ def collect_pkg_data(package, include_py_files=False, subdir=None):
         pkg_dir = os.path.join(pkg_dir, subdir)
     # Walk through all file in the given package, looking for data files.
     data_toc = TOC()
-    for dir_path, dir_names, files in os.walk(pkg_dir):
+    for dir_path, _dir_names, files in os.walk(pkg_dir):
         for f in files:
             extension = os.path.splitext(f)[1]
             if include_py_files or (extension not in PY_IGNORE_EXTENSIONS):
