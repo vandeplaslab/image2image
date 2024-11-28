@@ -1,25 +1,26 @@
 """PyInstaller setup script."""
 import os
-from pathlib import Path
 import time
+from pathlib import Path
+
+import debugpy._vendored
+import image2image
+import imagecodecs
+import napari
+import qtpy
 from image2image.assets import ICON_ICO
-from PyInstaller.building.build_main import Analysis, PYZ, EXE, COLLECT, TOC, MERGE
+from koyo.timer import MeasureTimer
+from PyInstaller.building.build_main import COLLECT, EXE, MERGE, PYZ, TOC, Analysis
 from PyInstaller.utils.hooks import (
+    PY_IGNORE_EXTENSIONS,
+    collect_all,
+    collect_data_files,
+    collect_dynamic_libs,
+    collect_submodules,
+    copy_metadata,
     get_package_paths,
     remove_prefix,
-    PY_IGNORE_EXTENSIONS,
-    collect_data_files,
-    collect_submodules,
-    collect_dynamic_libs,
-    collect_all,
-    copy_metadata,
 )
-import qtpy
-import napari
-import image2image
-import debugpy._vendored
-import imagecodecs
-from koyo.timer import MeasureTimer
 
 time_start = time.time()
 block_cipher = None
@@ -134,9 +135,9 @@ with MeasureTimer() as timer:
 # create launcher bat scripts
 for tool in ["viewer", "register", "convert", "crop", "elastix", "valis"]:
     with open(f"dist/image2image/{tool}.bat", "w") as f:
-        f.write(f'@echo off\ncall image2image.exe --debug -t {tool}')
+        f.write(f"@echo off\ncall image2image.exe --debug -t {tool}")
         f.close()
 
 # Give information about build time
 time_end = time.time()
-print("Build image2image in {:.2f} seconds\n".format(time_end - time_start))
+print(f"Build image2image in {time_end - time_start:.2f} seconds\n")
