@@ -10,9 +10,6 @@ import imagecodecs
 import napari
 import qtpy
 from image2image.assets import ICON_ICO
-import imagecodecs
-import napari
-import qtpy
 from koyo.timer import MeasureTimer
 from PyInstaller.building.build_main import COLLECT, EXE, MERGE, PYZ, TOC, Analysis
 from PyInstaller.utils.hooks import (
