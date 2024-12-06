@@ -139,8 +139,8 @@ class Transformation(BaseModel):
         moving_points = self.moving_points
         moving_points = self.apply_moving_initial_transform(moving_points)  # type: ignore[arg-type]
         transformed_points = self.transform(moving_points)
-        transformed_points = transformed_points * self.fixed_model.resolution  # type: ignore[union-attr]
-        return float(np.sqrt(np.sum((self.fixed_points * self.fixed_model.resolution - transformed_points) ** 2)))
+        transformed_points = transformed_points * self.fixed_model.get_resolution()  # type: ignore[union-attr]
+        return float(np.sqrt(np.sum((self.fixed_points * self.fixed_model.get_resolution() - transformed_points) ** 2)))
 
     @property
     def matrix(self) -> np.ndarray:
@@ -180,18 +180,14 @@ class Transformation(BaseModel):
             fixed_points = fixed_points[:, ::-1]
         # swap px to um
         if not px:
-            moving_points = moving_points * self.fixed_model.resolution  # type: ignore[union-attr]
-            fixed_points = fixed_points * self.moving_model.resolution  # type: ignore[union-attr]
+            moving_points = moving_points * self.fixed_model.get_resolution()  # type: ignore[union-attr]
+            fixed_points = fixed_points * self.moving_model.get_resolution()  # type: ignore[union-attr]
 
-        transform = compute_transform(
+        return compute_transform(
             moving_points,  # source
             fixed_points,  # destination
             self.transformation_type,
         )
-        # if self.moving_initial_affine is not None:
-        #     transform = transform.params @ AffineTransform(matrix=self.moving_initial_affine)._inv_matrix
-        #     transform = AffineTransform(matrix=transform)
-        return transform
 
     def about(
         self,
@@ -289,9 +285,9 @@ class Transformation(BaseModel):
             if self.moving_initial_affine is not None
             else [],
             "fixed_points_yx_px": fixed_pts.tolist(),
-            "fixed_points_yx_um": (fixed_pts * fixed_mdl.resolution).tolist(),
+            "fixed_points_yx_um": (fixed_pts * fixed_mdl.get_resolution()).tolist(),
             "moving_points_yx_px": moving_pts.tolist(),
-            "moving_points_yx_um": (moving_pts * moving_mdl.resolution).tolist(),
+            "moving_points_yx_um": (moving_pts * moving_mdl.get_resolution()).tolist(),
             "matrix_yx_px": self.compute(yx=True, px=True).params.tolist(),
             "matrix_yx_um": self.compute(yx=True, px=False).params.tolist(),
             "matrix_xy_px": self.compute(yx=False, px=True).params.tolist(),
@@ -395,7 +391,7 @@ def _read_image2register_config(config: dict, validate_paths: bool = True) -> I2
     schema_version = config["schema_version"]
     if schema_version == "1.0":
         return _read_image2register_v1_0_config(config, validate_paths)
-    elif schema_version == "1.1":
+    if schema_version == "1.1":
         return _read_image2register_v1_1_config(config, validate_paths)
     # accept 1.2 and 1.3
     return _read_image2register_latest_config(config, validate_paths)

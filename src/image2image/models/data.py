@@ -44,13 +44,22 @@ class DataModel(BaseModel):
         assert all(p.exists() for p in value_), "Path does not exist."
         return value_
 
+    def get_resolution(self) -> None:
+        """Get resolution for data model."""
+        resolutions = [reader.resolution for reader in self.wrapper.reader_iter()]
+        resolutions = set(resolutions)
+        if len(resolutions) == 1:
+            return resolutions.pop()
+        logger.warning("Multiple resolutions found.")
+        return self.resolution
+
     def get_filename(self, reader_key: ty.Optional[PathLike] = None) -> str:
         """Get representative filename."""
         if reader_key:
             return reader_key.split(".")[0]
         if self.n_paths == 0:
             return "no_files"
-        elif self.n_paths == 1:
+        if self.n_paths == 1:
             wrapper = self.wrapper
             key = wrapper.get_key_for_path(self.paths[0])[0]
             # remove suffix

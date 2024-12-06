@@ -127,19 +127,21 @@ class ImageViewerWindow(SingleViewerMixin):
             # get resolution options
             options = get_resolution_options(wrapper)
             which = None
-            if options and len(options) > 1:
-                dlg = QtScrollablePickOption(
-                    self,
-                    "Please select the resolution (pixel size) of the GeoJSON files. This is <b>important</b> as it will"
-                    " determine the way the data is displayed in the viewer. You can always change it again in the table.",
-                    options,
-                    orientation="vertical",
-                )
-                if dlg.exec_() == QDialog.DialogCode.Accepted:  # type: ignore[attr-defined]
-                    which = dlg.option
-            elif len(options) == 1:
-                which = next(iter(options.keys()))
-            else:
+            if options:
+                if len(options) > 1:
+                    dlg = QtScrollablePickOption(
+                        self,
+                        "Please select the resolution (pixel size) of the GeoJSON files. This is <b>important</b> as it"
+                        " will determine the way the data is displayed in the viewer. You can always change it again in"
+                        " the table.",
+                        options,
+                        orientation="vertical",
+                    )
+                    if dlg.exec_() == QDialog.DialogCode.Accepted:  # type: ignore[attr-defined]
+                        which = dlg.option
+                elif len(options) == 1:
+                    which = next(iter(options.keys()))
+            elif image_keys:
                 which = min([v[1] for v in image_keys])
             if which:
                 for key in shape_or_point_keys:

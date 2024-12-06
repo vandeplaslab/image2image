@@ -28,7 +28,7 @@ class TransformData(_TransformData):
             _moving_resolution,
             _moving_reader_kws,
         ) = load_transform_from_file(path, validate_paths=validate_paths)
-        return TransformData(
+        return cls(
             fixed_points=fixed_points,
             moving_points=moving_points,
             transformation_type=transformation_type,
