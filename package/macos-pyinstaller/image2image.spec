@@ -94,9 +94,7 @@ with MeasureTimer() as timer:
     launcher_exe = _make_exe(launcher_pyz, launcher_analysis, "image2image_")
     print(f"EXE took {timer.format(timer.elapsed_since_last())}")
 
-    # collect all
     image2image_coll = COLLECT(
-        # launcher
         launcher_exe,
         launcher_analysis.binaries,
         launcher_analysis.zipfiles,
@@ -110,13 +108,20 @@ with MeasureTimer() as timer:
 
     image2imag_app = BUNDLE(
         image2image_coll,
-        # image2image_a.binaries,
-        # image2image_a.zipfiles,
-        # image2image_a.datas,
         name="image2image.app",
         icon=ICON_ICO,
         bundle_identifier="com.vandeplaslab.image2image",
-        info_plist={"NSHighResolutionCapable": "True"},
+        info_plist={
+            'CFBundleIdentifier': 'com.vandeplaslab.image2image',
+            'CFBundleName': 'autoims',
+            'NSPrincipalClass': 'NSApplication',
+            'NSRequiresAquaSystemAppearance': 'Yes',
+            'NSHighResolutionCapable': 'True',
+            'LSHandlerRank': 'Default',
+            'NSHumanReadableCopyright': 'Copyright © 2023-2024 Van de Plas lab. All Rights Reserved',
+            'LSMinimumSystemVersion': '10.13',
+            'CFBundleShortVersionString': '0.0.1'
+        },
     )
     print(f"BUNDLE took {timer.format(timer.elapsed_since_last())}")
 

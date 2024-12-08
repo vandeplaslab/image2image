@@ -1101,11 +1101,14 @@ class ImageRegistrationWindow(Window):
                 opacity=self.CONFIG.opacity_moving / 100,
                 contrast_limits=contrast_limits,
             )
-        self.transformed_moving_image_layer.visible = READER_CONFIG.show_transformed
+        try:
+            self.transformed_moving_image_layer.visible = READER_CONFIG.show_transformed
+        except TypeError:
+            logger.warning("Failed to apply transformation to the moving image.")
         self._move_layer(self.view_fixed, self.transformed_moving_image_layer, -1, False)
         self._select_point_layer("fixed")
 
-    def on_add_transformed_moving(self, name: str | None = None):
+    def on_add_transformed_moving(self, name: str | None = None) -> None:
         """Add transformed moving image."""
         if self.transformed_moving_image_layer is None and self.moving_image_layer:
             if name is None or name == "None":
@@ -1312,8 +1315,9 @@ class ImageRegistrationWindow(Window):
     def on_adjust_transformed_opacity(self, increase_by: int) -> None:
         """Toggle visibility of transformed image."""
         self.moving_opacity.setValue(self.moving_opacity.value() + increase_by)
+        hp.toast(self, "Opacity", f"Adjusted opacity to {self.moving_opacity.value()}.")
 
-    def on_update_settings(self):
+    def on_update_settings(self) -> None:
         """Update config."""
         self.CONFIG.update(
             sync_views=self.synchronize_zoom.isChecked(), enable_prediction=self.enable_prediction_checkbox.isChecked()
@@ -1978,10 +1982,12 @@ class ImageRegistrationWindow(Window):
     def on_increment_dataset(self, increment: int) -> None:
         """Increase the dataset index."""
         hp.increment_combobox(self._moving_widget.dataset_choice, increment)
+        hp.toast(self, "Dataset", f"Switched to dataset {self._moving_widget.dataset_choice.currentText()}.")
 
     def on_toggle_transformed_view_type(self) -> None:
         """Toggle between image and random."""
         hp.increment_combobox(self._moving_widget.view_type_choice, 1)
+        hp.toast(self, "View type", f"Switched to {self._moving_widget.view_type_choice.currentText()}.")
 
     def close(self, force=False):
         """Override to handle closing app or just the window."""
