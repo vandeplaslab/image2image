@@ -4,32 +4,23 @@ from __future__ import annotations
 
 import os
 import sys
-from warnings import warn
-
-from napari._qt.dialogs.qt_notification import NapariQtNotification
-from napari._qt.qt_event_loop import _ipython_has_eventloop
-from napari._qt.qthreading import wait_for_workers_to_quit
-from napari.plugins import plugin_manager
-from napari.resources._icons import _theme_path
-from napari.utils.notifications import notification_manager, show_console_notification
-from qtextra.config import THEMES
-from qtpy.QtCore import QDir, Qt
-from qtpy.QtGui import QIcon
-from qtpy.QtWidgets import QApplication
-from superqt import QMessageHandler
+import typing as ty
 
 from image2image import __version__
 from image2image.assets import ICON_PNG
 
+if ty.TYPE_CHECKING:
+    from qtpy.QtWidgets import QApplication
+
 APP_ID = f"image2image.app.{__version__}"
 
 
-def set_app_id(app_id):
+def set_app_id(app_id: str | None = None) -> None:
     """Get app ID."""
     if os.name == "nt" and app_id and not getattr(sys, "frozen", False):
         import ctypes
 
-        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(app_id)
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(app_id)  # type: ignore[attr-defined]
 
 
 _defaults = {
@@ -100,6 +91,18 @@ def get_app(
     because we'd be deleting the QApplication after we created QWidgets with
     it, such as we do for the splash screen.
     """
+    import warnings
+
+    from napari._qt.qt_event_loop import _ipython_has_eventloop
+    from napari._qt.qthreading import wait_for_workers_to_quit
+    from napari.resources._icons import _theme_path
+    from napari.utils.notifications import notification_manager, show_console_notification
+    from qtextra.config import THEMES
+    from qtpy.QtCore import QDir, Qt
+    from qtpy.QtGui import QIcon
+    from qtpy.QtWidgets import QApplication
+    from superqt import QMessageHandler
+
     # napari defaults are all-or nothing.  If any of the keywords are used
     # then they are all used.
     set_values = {k for k, v in locals().items() if v}
@@ -111,7 +114,7 @@ def get_app(
         if app:
             set_values.discard("ipy_interactive")
             if set_values:
-                warn(
+                warnings.warn(
                     f"QApplication already existed, these arguments to to 'get_app' were ignored: {set_values}",
                     stacklevel=1,
                 )
@@ -138,6 +141,8 @@ def get_app(
             set_app_id(kwargs.get("app_id"))
 
         if not _ipython_has_eventloop():
+            from napari._qt.dialogs.qt_notification import NapariQtNotification
+
             notification_manager.notification_ready.connect(NapariQtNotification.show_notification)
             notification_manager.notification_ready.connect(show_console_notification)
 
@@ -155,6 +160,8 @@ def get_app(
             THEMES.update_palette()
 
             try:
+                from napari.plugins import plugin_manager
+
                 # this will register all of our resources (icons) with Qt, so that they
                 # can be used in qss files and elsewhere.
                 plugin_manager.discover_icons()
@@ -166,8 +173,12 @@ def get_app(
         return app
 
 
-def quit_app():
+def quit_app() -> None:
     """Close all windows and quit the QApplication if image2image started it."""
+    from napari._qt.qt_event_loop import _ipython_has_eventloop
+    from qtpy.QtGui import QIcon
+    from qtpy.QtWidgets import QApplication
+
     QApplication.closeAllWindows()
     # if we started the application then the app will be named 'image2image'.
     if QApplication.applicationName() == "image2image" and not _ipython_has_eventloop():

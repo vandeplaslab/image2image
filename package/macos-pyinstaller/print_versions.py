@@ -7,6 +7,8 @@ for module in [
     "image2image_io",
     "koyo",
     "napari",
+    "numpy",
+    "pandas",
     "pydantic",
     "qtextra",
 ]:

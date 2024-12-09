@@ -52,77 +52,89 @@ def run(
     no_color: bool = False,
     dev: bool = False,
     tool: str | AvailableTools = "launcher",
+    log: bool = True,
     **kwargs: ty.Any,
 ) -> None:
     """Execute command."""
     import warnings
 
-    from image2image_io.config import CONFIG as READER_CONFIG
-    from koyo.faulthandler import install_segfault_handler, maybe_submit_segfault
-    from koyo.hooks import install_debugger_hook
-    from koyo.logging import set_loguru_log
     from qtextra.config import THEMES
-    from qtextra.utils.context import _maybe_allow_interrupt
 
     import image2image.assets  # noqa: F401
-    from image2image.config import APP_CONFIG
-    from image2image.qt._dialogs._sentry import install_error_monitor
     from image2image.qt.event_loop import get_app
     from image2image.utils._appdirs import USER_LOG_DIR
 
     # setup file logger
-    log_path = USER_LOG_DIR / f"log_tool={tool}.txt"
-    set_loguru_log(
-        log_path,
-        level=level,
-        no_color=True,
-        diagnose=True,
-        catch=True,
-        logger=logger,
-        fmt=LOG_FMT,
-    )
+    if log:
+        from koyo.logging import set_loguru_log
 
-    # setup console logger
-    set_loguru_log(
-        level=level,
-        no_color=no_color,
-        diagnose=True,
-        catch=True,
-        logger=logger,
-        remove=False,
-        fmt=LOG_FMT if no_color else COLOR_LOG_FMT,
-    )
-    logger.configure(extra={"src": "CLI"})
-    [logger.enable(module) for module in ["image2image", "image2image_io", "image2image_reg", "koyo", "qtextra"]]
-    logger.info(f"Enabled logger - logging to '{log_path}' at level={level}")
+        log_path = USER_LOG_DIR / f"log_tool={tool}.txt"
+        set_loguru_log(
+            log_path,
+            level=level,
+            no_color=True,
+            diagnose=True,
+            catch=True,
+            logger=logger,
+            fmt=LOG_FMT,
+        )
+
+        # setup console logger
+        set_loguru_log(
+            level=level,
+            no_color=no_color,
+            diagnose=True,
+            catch=True,
+            logger=logger,
+            remove=False,
+            fmt=LOG_FMT if no_color else COLOR_LOG_FMT,
+        )
+        logger.configure(extra={"src": "CLI"})
+        for module in ["image2image", "image2image_io", "image2image_reg", "koyo", "qtextra"]:
+            logger.enable(module)
+        logger.info(f"Enabled logger - logging to '{log_path}' at level={level}")
+        print("LOG SETUP")
 
     run_check_version = not dev
     if dev:
+        from koyo.hooks import install_debugger_hook
+
         install_debugger_hook()
         logger.debug(f"Installed debugger hook: {sys.excepthook.__name__}")
-    # else:
-    #     install_logger_hook()
-
-    # load config
-    READER_CONFIG.load()
-    # setup theme
-    for theme in THEMES.themes:
-        THEMES[theme].font_size = "10pt"
-    THEMES.theme = APP_CONFIG.theme
 
     # make app
     app = get_app()
 
+    # load config
+    try:
+        from image2image_io.config import CONFIG as READER_CONFIG
+
+        from image2image.config import APP_CONFIG
+
+        READER_CONFIG.load()
+        # setup theme
+        for theme in THEMES.themes:
+            THEMES[theme].font_size = "10pt"
+        THEMES.theme = APP_CONFIG.theme
+    except Exception as e:
+        logger.exception(f"Failed to load config: {e}")
+
     # install error monitor
     if not dev:
+        from image2image.qt._dialogs._sentry import install_error_monitor
+
         install_error_monitor()
-        maybe_submit_segfault(USER_LOG_DIR)
+
+    # install segfault handler
+    from koyo.faulthandler import install_segfault_handler, maybe_submit_segfault
+
+    maybe_submit_segfault(USER_LOG_DIR)
     install_segfault_handler(USER_LOG_DIR)
 
-    args = sys.argv
-    if args and ("image2image" in args or "image2image" in args[0]):
-        os.environ["IMAGE2IMAGE_PROGRAM"] = args[0]
-        logger.trace(f"Updated environment variable. IMAGE2IMAGE_PROGRAM={os.environ['IMAGE2IMAGE_PROGRAM']}")
+    # args = sys.argv
+    # if args and ("image2image" in args or "image2image" in args[0]):
+    #     os.environ["IMAGE2IMAGE_PROGRAM"] = args[0]
+    #     logger.trace(f"Updated environment variable. IMAGE2IMAGE_PROGRAM={os.environ['IMAGE2IMAGE_PROGRAM']}")
 
     if tool == "launcher":
         from image2image.qt.launcher import Launcher
@@ -207,15 +219,11 @@ def run(
             )
             dlg.statusbar.addPermanentWidget(dlg.dev_btn)  # type: ignore[attr-defined]
 
-        # install_debugger_hook()
-        os.environ["IMAGE2IMAGE_DEV_MODE"] = "1"
-    else:
-        os.environ["IMAGE2IMAGE_DEV_MODE"] = "0"
+    os.environ["IMAGE2IMAGE_DEV_MODE"] = "1" if dev else "0"
 
+    from qtextra.utils.context import _maybe_allow_interrupt
+
+    # show dialog
     dlg.show()
     with _maybe_allow_interrupt(app):
         sys.exit(app.exec_())
-
-
-if __name__ == "__main__":  # pragma: no cover
-    run(dev=True, tool="viewer")

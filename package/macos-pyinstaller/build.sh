@@ -19,7 +19,7 @@ uv=false
 package=false
 debug=false
 
-while getopts uadjirnrwvgph opt; do
+while getopts uadrwjpnvgzh opt; do
   case $opt in
     u) update=true;;
     a) update_app=true;;
@@ -27,11 +27,11 @@ while getopts uadjirnrwvgph opt; do
     r) update_just_reader=true;;
     w) update_just_register=true;;
     j) update_just_app=true;;
-    i) update_pip=true;;
+    p) update_pip=true;;
     n) no_docs=true;;
     v) uv=true;;
     g) debug=true;;
-    p) package=true;;
+    z) package=true;;
     h) help=true;;
     *) echo "Invalid option: -$OPTARG" >&2
        exit 1;;
@@ -83,6 +83,7 @@ github_dir=$(realpath $start_dir/../../../)
 echo "GitHub directory: " $github_dir
 if $uv
 then
+#  source_path=$(realpath $start_dir/../../venv_package_uv/bin/activate)
   source_path=$(realpath $start_dir/../../venv_package_uv/bin/activate)
 else
   source_path=$(realpath $start_dir/../../venv_package/bin/activate)
@@ -164,6 +165,7 @@ if $update_pip
 then
     pip_install+=("napari==0.4.19")
     pip_install+=("pydantic<2")
+    pip_install+=("pandas<2")
     pip_install+=("numpy<2")
     pip_install+=("PyQt6==6.5.3")
     pip_install+=("pyinstaller")

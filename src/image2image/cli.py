@@ -140,16 +140,17 @@ def cli(
     crop - opens a dialog where you can crop (and mask) images
     fusion - opens a dialog where you can prepare data for image fusion
     """
-    import os
-    import sys
+    from image2image.main import setup_logger
 
     if info:
         from image2image.utils.system import get_system_info
 
         print(get_system_info())
-        return sys.exit()
+        return sys.exit(0)
 
     if IS_MAC:
+        import os
+
         os.environ["OBJC_DISABLE_INITIALIZE_FORK_SAFETY"] = "YES"
 
     if dev:
@@ -162,6 +163,8 @@ def cli(
         verbosity = 5 - int(verbosity)  # default is WARNING
     verbosity = max(0, verbosity)
     level = max(0.5, verbosity) * 10
+
+    setup_logger(level=int(level), no_color=no_color)
     if ctx.invoked_subcommand is None:
         from image2image.main import run
 
@@ -175,9 +178,6 @@ def cli(
             project_dir=project_dir,
         )
         return None
-    from image2image.main import setup_logger
-
-    setup_logger(level=int(level), no_color=no_color)
     return None
 
 
@@ -186,27 +186,24 @@ if is_installed("image2image_reg"):
     from image2image_reg.cli import convert, elastix, merge, valis
 
     # registration
-    cli.add_command(elastix, help_group="Registration")
+    cli.add_command(elastix, help_group="Registration")  # type: ignore[attr-defined]
     if valis:
-        cli.add_command(valis, help_group="Registration")
+        cli.add_command(valis, help_group="Registration")  # type: ignore[attr-defined]
 
     # utilities
-    cli.add_command(convert, help_group="Utility")
-    cli.add_command(merge, help_group="Utility")
-    cli.add_command(thumbnail, help_group="Utility")
-    cli.add_command(transform, help_group="Utility")
+    cli.add_command(convert, help_group="Utility")  # type: ignore[attr-defined]
+    cli.add_command(merge, help_group="Utility")  # type: ignore[attr-defined]
+    cli.add_command(thumbnail, help_group="Utility")  # type: ignore[attr-defined]
+    cli.add_command(transform, help_group="Utility")  # type: ignore[attr-defined]
 
 
-def main():
+def main() -> None:
     """Execute the "imimspy" command line program."""
     freeze_support()
     if sys.platform == "darwin":
         set_start_method("spawn", True)
-    cli.main(windows_expand_args=False)
+    cli.main(windows_expand_args=False)  # type: ignore[attr-defined]
 
 
 if __name__ == "__main__":
-    freeze_support()
-    if sys.platform == "darwin":
-        set_start_method("spawn", True)
-    cli.main(windows_expand_args=False)
+    main()
