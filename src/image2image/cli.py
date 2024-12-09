@@ -105,15 +105,6 @@ def dev_options(func: ty.Callable) -> ty.Callable:
     cls=GroupedGroup,
 )
 @click.pass_context
-# @click.group(
-#     context_settings={
-#         "help_option_names": ["-h", "--help"],
-#         "max_content_width": 120,
-#         "ignore_unknown_options": True,
-#         "allow_extra_args": False,
-#     },
-#     invoke_without_command=True,
-# )
 def cli(
     ctx: click.Context,
     tool: str,

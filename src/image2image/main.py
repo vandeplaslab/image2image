@@ -58,9 +58,13 @@ def run(
     """Execute command."""
     import warnings
 
+    from image2image_io.config import CONFIG as READER_CONFIG
+    from koyo.faulthandler import install_segfault_handler, maybe_submit_segfault
     from qtextra.config import THEMES
+    from qtextra.utils.context import _maybe_allow_interrupt
 
     import image2image.assets  # noqa: F401
+    from image2image.config import APP_CONFIG
     from image2image.qt.event_loop import get_app
     from image2image.utils._appdirs import USER_LOG_DIR
 
@@ -93,7 +97,6 @@ def run(
         for module in ["image2image", "image2image_io", "image2image_reg", "koyo", "qtextra"]:
             logger.enable(module)
         logger.info(f"Enabled logger - logging to '{log_path}' at level={level}")
-        print("LOG SETUP")
 
     run_check_version = not dev
     if dev:
@@ -107,10 +110,6 @@ def run(
 
     # load config
     try:
-        from image2image_io.config import CONFIG as READER_CONFIG
-
-        from image2image.config import APP_CONFIG
-
         READER_CONFIG.load()
         # setup theme
         for theme in THEMES.themes:
@@ -126,8 +125,6 @@ def run(
         install_error_monitor()
 
     # install segfault handler
-    from koyo.faulthandler import install_segfault_handler, maybe_submit_segfault
-
     maybe_submit_segfault(USER_LOG_DIR)
     install_segfault_handler(USER_LOG_DIR)
 
@@ -220,8 +217,6 @@ def run(
             dlg.statusbar.addPermanentWidget(dlg.dev_btn)  # type: ignore[attr-defined]
 
     os.environ["IMAGE2IMAGE_DEV_MODE"] = "1" if dev else "0"
-
-    from qtextra.utils.context import _maybe_allow_interrupt
 
     # show dialog
     dlg.show()
