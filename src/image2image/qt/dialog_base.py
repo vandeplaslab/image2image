@@ -186,7 +186,7 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
         zoom = view_wrapper.viewer.camera.zoom
         center = view_wrapper.viewer.camera.center
         for index, (name, array, reader) in enumerate(wrapper.channel_image_for_channel_names_iter(channel_list)):
-            channel_name = name.split(" | ")[0]
+            name.split(" | ")[0]
             if name not in channel_list:
                 continue
             logger.trace(f"Adding '{name}' to view...")
@@ -849,7 +849,7 @@ def create_new_window(plugin: str, *extra_args: ty.Any) -> None:
     process = QProcess()
     args = sys.argv
     if not program:
-        program = args.pop(0)
+        program = args.pop(0, None)
     process.setProgram(program)
     arguments = []
     if "--dev" in args:
