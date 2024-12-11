@@ -1,13 +1,12 @@
 """PyInstaller setup script."""
+
 import os
 from pathlib import Path
 
 import debugpy._vendored
-import image2image
 import imagecodecs
 import napari
 import qtpy
-from image2image.assets import ICON_ICO
 from koyo.timer import MeasureTimer
 from PyInstaller.building.build_main import COLLECT, EXE, MERGE, PYZ, TOC, Analysis
 from PyInstaller.utils.hooks import (
@@ -20,6 +19,9 @@ from PyInstaller.utils.hooks import (
     get_package_paths,
     remove_prefix,
 )
+
+import image2image
+from image2image.assets import ICON_ICO
 
 block_cipher = None
 DEBUG_MODE = os.getenv("PYINSTALLER_DEBUG", "all")
@@ -112,15 +114,15 @@ with MeasureTimer() as timer:
         icon=ICON_ICO,
         bundle_identifier="com.vandeplaslab.image2image",
         info_plist={
-            'CFBundleIdentifier': 'com.vandeplaslab.image2image',
-            'CFBundleName': 'autoims',
-            'NSPrincipalClass': 'NSApplication',
-            'NSRequiresAquaSystemAppearance': 'Yes',
-            'NSHighResolutionCapable': 'True',
-            'LSHandlerRank': 'Default',
-            'NSHumanReadableCopyright': 'Copyright © 2023-2024 Van de Plas lab. All Rights Reserved',
-            'LSMinimumSystemVersion': '10.13',
-            'CFBundleShortVersionString': '0.0.1'
+            "CFBundleIdentifier": "com.vandeplaslab.image2image",
+            "CFBundleName": "autoims",
+            "NSPrincipalClass": "NSApplication",
+            "NSRequiresAquaSystemAppearance": "Yes",
+            "NSHighResolutionCapable": "True",
+            "LSHandlerRank": "Default",
+            "NSHumanReadableCopyright": "Copyright © 2023-2024 Van de Plas lab. All Rights Reserved",
+            "LSMinimumSystemVersion": "10.13",
+            "CFBundleShortVersionString": "0.0.1",
         },
     )
     print(f"BUNDLE took {timer.format(timer.elapsed_since_last())}")

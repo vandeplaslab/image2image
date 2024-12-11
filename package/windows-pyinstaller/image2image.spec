@@ -5,11 +5,9 @@ import time
 from pathlib import Path
 
 import debugpy._vendored
-import image2image
 import imagecodecs
 import napari
 import qtpy
-from image2image.assets import ICON_ICO
 from koyo.timer import MeasureTimer
 from PyInstaller.building.build_main import COLLECT, EXE, MERGE, PYZ, TOC, Analysis
 from PyInstaller.utils.hooks import (
@@ -22,6 +20,9 @@ from PyInstaller.utils.hooks import (
     get_package_paths,
     remove_prefix,
 )
+
+import image2image
+from image2image.assets import ICON_ICO
 
 time_start = time.time()
 block_cipher = None
