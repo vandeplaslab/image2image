@@ -14,9 +14,9 @@ from koyo.timer import MeasureTimer
 from loguru import logger
 from napari.layers import Image, Shapes
 from natsort import natsorted
+from qtextra.dialogs.qt_close_window import QtConfirmCloseDialog
 from qtextra.utils.table_config import TableConfig
 from qtextra.utils.utilities import connect
-from qtextra.dialogs.qt_close_window import QtConfirmCloseDialog
 from qtextra.widgets.qt_image_button import QtThemeButton
 from qtextra.widgets.qt_mini_toolbar import QtMiniToolbar
 from qtextra.widgets.qt_table_view import QtCheckableTableView

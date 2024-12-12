@@ -19,8 +19,8 @@ from napari.layers.points.points import Mode
 from napari.layers.utils._link_layers import link_layers
 from napari.utils.events import Event
 from qtextra._napari.image.wrapper import NapariImageView
-from qtextra.utils.utilities import connect
 from qtextra.dialogs.qt_close_window import QtConfirmCloseDialog
+from qtextra.utils.utilities import connect
 from qtextra.widgets.qt_mini_toolbar import QtMiniToolbar
 from qtpy.QtCore import Qt, Signal  # type: ignore[attr-defined]
 from qtpy.QtGui import QKeyEvent

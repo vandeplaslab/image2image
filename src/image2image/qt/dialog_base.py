@@ -12,9 +12,9 @@ from loguru import logger
 from napari.layers import Image, Layer, Points, Shapes
 from qtextra._napari.mixins import ImageViewMixin
 from qtextra.config import THEMES
+from qtextra.dialogs.qt_logger import QtLoggerDialog
 from qtextra.mixins import IndicatorMixin
 from qtextra.widgets.qt_image_button import QtThemeButton
-from qtextra.dialogs.qt_logger import QtLoggerDialog
 from qtpy.QtCore import QProcess, Qt, Signal  # type: ignore[attr-defined]
 from qtpy.QtWidgets import QMainWindow, QMenu, QProgressBar, QStatusBar, QWidget
 from superqt.utils import create_worker, ensure_main_thread
