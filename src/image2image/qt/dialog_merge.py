@@ -9,8 +9,7 @@ import qtextra.helpers as hp
 from image2image_io.config import CONFIG as READER_CONFIG
 from loguru import logger
 from qtextra.utils.table_config import TableConfig
-from qtextra.utils.utilities import connect
-from qtextra.widgets.qt_close_window import QtConfirmCloseDialog
+from qtextra.dialogs.qt_close_window import QtConfirmCloseDialog
 from qtpy.QtCore import Qt
 from qtpy.QtGui import QDropEvent
 from qtpy.QtWidgets import QDialog, QHeaderView, QMenuBar, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget
@@ -18,12 +17,11 @@ from superqt import ensure_main_thread
 from superqt.utils import GeneratorWorker, create_worker
 
 from image2image import __version__
-from image2image.config import MERGE_CONFIG, STATE
+from image2image.config import MERGE_CONFIG
 from image2image.enums import ALLOWED_IMAGE_FORMATS_TIFF_ONLY
 from image2image.qt._dialog_mixins import NoViewerMixin
 from image2image.qt._dialogs._select import LoadWidget
-from image2image.qt.dialog_base import Window
-from image2image.utils.utilities import format_reader_metadata_alt, format_shape, log_exception_or_error
+from image2image.utils.utilities import format_shape, log_exception_or_error
 
 if ty.TYPE_CHECKING:
     from image2image.models.data import DataModel

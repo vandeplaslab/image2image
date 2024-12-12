@@ -359,7 +359,7 @@ class ImageElastixWindow(ImageWsiWindow):
 
             self._mask_dlg = MaskDialog(self)
             self._mask_dlg.evt_mask.connect(self.modality_list.toggle_mask)
-        self._mask_dlg.show_in_center_of(self)
+        self._mask_dlg.show_in_center_of_widget(self)
         # size = self.mask_btn.sizeHint()
         # self._mask_dlg.show_above_widget(
         #     self.mask_btn, x_offset=-(size.width() // 8) - 50, y_offset=(size.height() // 2) - 200
@@ -373,7 +373,7 @@ class ImageElastixWindow(ImageWsiWindow):
             self._crop_dlg = CropDialog(self)
             connect(self._crop_dlg.evt_mask, self.modality_list.toggle_crop, state=True)
             connect(self._crop_dlg.evt_preview_transform_preprocessing, self.on_preview_transform, state=True)
-        self._crop_dlg.show_in_center_of(self)
+        self._crop_dlg.show_in_center_of_widget(self)
         # size = self.crop_btn.sizeHint()
         # self._crop_dlg.show_above_widget(
         #     self.crop_btn, x_offset=-(size.width() // 8) - 100, y_offset=size.height() // 2

@@ -13,7 +13,7 @@ from loguru import logger
 from napari.layers import Image, Layer, Points, Shapes
 from napari.utils.events import Event
 from qtextra.utils.utilities import connect
-from qtextra.widgets.qt_close_window import QtConfirmCloseDialog
+from qtextra.dialogs.qt_close_window import QtConfirmCloseDialog
 from qtpy.QtCore import QModelIndex
 from qtpy.QtWidgets import QDialog, QLabel, QMenuBar, QTableWidget
 from superqt import ensure_main_thread
