@@ -19,8 +19,8 @@ from napari.layers.points.points import Mode
 from napari.layers.utils._link_layers import link_layers
 from napari.utils.events import Event
 from qtextra._napari.image.wrapper import NapariImageView
-from qtextra.utils.utilities import connect
 from qtextra.dialogs.qt_close_window import QtConfirmCloseDialog
+from qtextra.utils.utilities import connect
 from qtextra.widgets.qt_mini_toolbar import QtMiniToolbar
 from qtpy.QtCore import Qt, Signal  # type: ignore[attr-defined]
 from qtpy.QtGui import QKeyEvent
@@ -1013,7 +1013,7 @@ class ImageRegistrationWindow(Window):
         from image2image.qt._register._preprocess import PreprocessMovingDialog
 
         initial = PreprocessMovingDialog(self)
-        initial.show_above_widget(self.initial_btn, x_offset=-100)
+        initial.show_below_widget(self.initial_btn)
         hp.disable_widgets(self.initial_btn, disabled=True)
 
     def on_show_generate(self) -> None:
@@ -1021,7 +1021,7 @@ class ImageRegistrationWindow(Window):
         from image2image.qt._register._guess import GuessDialog
 
         initial = GuessDialog(self)
-        initial.show_above_widget(self.guess_btn, x_offset=-100)
+        initial.show_left_of_widget(self.guess_btn, x_offset=-100)
         hp.disable_widgets(self.guess_btn, disabled=True)
 
     def on_show_shortcuts(self) -> None:

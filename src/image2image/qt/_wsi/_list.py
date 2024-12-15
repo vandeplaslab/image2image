@@ -9,6 +9,7 @@ from pathlib import Path
 import numpy as np
 import qtextra.helpers as hp
 from image2image_reg.models import Modality, Preprocessing
+from koyo.color import get_next_color
 from koyo.typing import PathLike
 from loguru import logger
 from qtextra.widgets.qt_image_button import QtLockButton, QtVisibleButton
@@ -653,15 +654,15 @@ class QtModalityList(QtListWidget):
             widget.toggle_visible(model.name not in names)
 
 
-def get_next_color(n: int, other_colors: list[str] | None = None) -> str:
-    """Get next color based on the number of items."""
-    if other_colors is None:
-        other_colors = []
-    colors = ["#ff0000", "#00ff00", "#0000ff", "#ffff00", "#f00ff", "#00ffff"]
-    if n < len(colors):
-        color = colors[n]
-        if other_colors and color in other_colors:
-            n += 1
-            return get_next_color(n, other_colors=other_colors)
-        return color.lower()
-    return "#808080"
+# def get_next_color(n: int, other_colors: list[str] | None = None) -> str:
+#     """Get next color based on the number of items."""
+#     if other_colors is None:
+#         other_colors = []
+#     colors = ["#ff0000", "#00ff00", "#0000ff", "#ffff00", "#f00ff", "#00ffff"]
+#     if n < len(colors):
+#         color = colors[n]
+#         if other_colors and color in other_colors:
+#             n += 1
+#             return get_next_color(n, other_colors=other_colors)
+#         return color.lower()
+#     return "#808080"

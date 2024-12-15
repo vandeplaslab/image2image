@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import typing as ty
-from contextlib import suppress
 from copy import deepcopy
 from functools import partial
 
@@ -292,6 +291,7 @@ class PreprocessingDialog(QtFramelessTool):
         if parent and hasattr(parent, "previewing"):
             parent.previewing = False
         self.close()
+        return None
 
     def on_rotate(self, value: int) -> None:
         """Increment rotation by specified value."""

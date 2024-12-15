@@ -27,6 +27,7 @@ update_icon_mapping(
         # other
         "transform": "ri.drag-move-line",
         "preprocess": "fa5s.paint-brush",
+        "common": "fa5s.thumbs-up",
         # wsireg
         "mask": "mdi6.drama-masks",
         "process": "msc.wand",

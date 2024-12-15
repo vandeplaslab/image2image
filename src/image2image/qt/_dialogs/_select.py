@@ -179,7 +179,7 @@ class LoadWidget(QWidget):
             func=partial(self.on_close_dataset, force=True),
             icon="delete",
         )
-        hp.show_below_widget(menu, self.add_btn)
+        hp.show_below_widget(menu, self.add_btn, x_offset=50)
 
     def _on_select_channels(self) -> None:
         """Select channels from the list."""

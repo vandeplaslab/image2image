@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import typing as ty
+from functools import partial
 
 import qtextra.helpers as hp
 from loguru import logger
+from natsort import natsorted
 from qtpy.QtCore import Signal
 from qtpy.QtWidgets import QWidget
 
@@ -83,12 +85,42 @@ class RegistrationPaths(QWidget):
                     standout=True,
                     normal=True,
                 ),
+                hp.make_qta_btn(
+                    self,
+                    "common",
+                    func=self.on_select_from_common,
+                    tooltip="Add selected transformation to the list.",
+                    standout=True,
+                    normal=True,
+                ),
                 stretch_id=(1,),
                 spacing=2,
                 margin=(0, 0, 0, 0),
             )
         )
         layout.addRow(self._path)
+
+    def on_select_from_common(self) -> None:
+        """Select from list of common annotations."""
+        menu = hp.make_menu(self)
+        for option in [
+            "rigid » affine",
+            "rigid_expanded » affine_expanded",
+            "rigid_extreme » affine_extreme",
+            "rigid » affine » nl",
+            "rigid_expanded » affine_expanded » nl_expanded",
+            "affine » nl",
+            "affine_expanded » nl_expanded",
+        ]:
+            hp.make_menu_item(self, option, menu=menu, func=partial(self._on_select_from_common, option))
+        hp.show_below_widget(menu, self._path, x_offset=50)
+
+    def _on_select_from_common(self, transformation: str) -> None:
+        """Select from list of common annotations."""
+        transformations = transformation.split(" » ")
+        self.transformations = list(transformations)
+        ELASTIX_CONFIG.transformations = tuple(self.transformations)
+        self._update_transformation_path()
 
     def on_add_transformation(self) -> None:
         """Add transformation to the list."""
@@ -213,10 +245,21 @@ class RegistrationMap(QWidget):
 
     def on_preview(self) -> None:
         """Preview paths as network."""
+        from networkx.exception import NetworkXNoPath
+
         from image2image.qt._wsi._network import NetworkViewer
 
-        dlg = NetworkViewer(self._parent)
-        dlg.show()
+        try:
+            dlg = NetworkViewer(self._parent)
+            dlg.show()
+        except NetworkXNoPath as exc:
+            hp.toast(
+                self.parent(),
+                "Registration path is not valid",
+                f"Registration paths re not valid.<br>Encountered an error: {exc}",
+                duration=5000,
+                icon="error",
+            )
 
     def on_path_choice(self, _=None) -> None:
         """Handle path selection."""
@@ -328,7 +371,7 @@ class RegistrationMap(QWidget):
         """Populate options."""
         registration_model: ElastixReg = self._parent.registration_model
         # add available modalities
-        options = [""] + list(registration_model.modalities.keys())
+        options = [""] + natsorted(list(registration_model.modalities.keys()))
         hp.combobox_setter(self._source_choice, items=options, set_item=self._source_choice.currentText())
         hp.combobox_setter(self._target_choice, items=options, set_item=self._target_choice.currentText())
         hp.combobox_setter(self._through_choice, items=options, set_item=self._through_choice.currentText())

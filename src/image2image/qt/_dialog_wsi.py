@@ -383,7 +383,7 @@ class ImageWsiWindow(SingleViewerMixin):
         """Open registration in viewer."""
         if self.CONFIG.open_when_finished:
             path = Path(task.task_name) / "Images"
-            if path.exists():
+            if path.exists() and len(list(path.glob("*.ome.tiff"))) > 0:
                 self.on_open_viewer("--image_dir", str(path))
                 logger.trace("Registration finished - opening viewer.")
             else:
@@ -554,7 +554,7 @@ class ImageWsiWindow(SingleViewerMixin):
         menu = hp.make_menu(self.save_btn)
         hp.make_menu_item(self, "Save", menu=menu, func=self.on_save_to_project, icon="save")
         hp.make_menu_item(self, "Save and close", menu=menu, func=self.on_save_and_close_project, icon="save")
-        hp.show_right_of_mouse(menu)
+        hp.show_above_widget(menu, self.save_btn)
 
     def on_view_menu(self) -> None:
         """Save menu."""
@@ -572,7 +572,7 @@ class ImageWsiWindow(SingleViewerMixin):
             checked=self.CONFIG.open_when_finished,
             func=lambda _: self.CONFIG.update(open_when_finished=not self.CONFIG.open_when_finished),
         )
-        hp.show_right_of_mouse(menu)
+        hp.show_above_widget(menu, self.viewer_btn)
 
     def on_close_menu(self) -> None:
         """Save menu."""
@@ -581,7 +581,7 @@ class ImageWsiWindow(SingleViewerMixin):
         hp.make_menu_item(
             self, "Close (without confirmation)", menu=menu, func=lambda: self.on_close(True), icon="delete"
         )
-        hp.show_right_of_mouse(menu)
+        hp.show_above_widget(menu, self.close_btn)
 
     def on_run_menu(self) -> None:
         """Menu."""
@@ -668,14 +668,14 @@ class ImageWsiWindow(SingleViewerMixin):
             icon="delete",
             tooltip="Clears all data from the project, excluding the configuration file.",
         )
-        hp.show_above_mouse(menu, x_offset=-50)
+        hp.show_above_mouse(menu)
 
     def _make_run_widgets(self, side_widget: Qw.QWidget) -> None:
         self.save_btn = hp.make_qta_btn(
             self,
             "save",
             normal=True,
-            tooltip="Save Valis project to disk.",
+            tooltip=f"Save {self.APP_NAME.capitalize()} project to disk.",
             func=self.on_save_to_project,
             func_menu=self.on_save_menu,
             standout=True,

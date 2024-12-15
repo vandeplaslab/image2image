@@ -12,9 +12,9 @@ from loguru import logger
 from napari.layers import Image, Layer, Points, Shapes
 from qtextra._napari.mixins import ImageViewMixin
 from qtextra.config import THEMES
+from qtextra.dialogs.qt_logger import QtLoggerDialog
 from qtextra.mixins import IndicatorMixin
 from qtextra.widgets.qt_image_button import QtThemeButton
-from qtextra.dialogs.qt_logger import QtLoggerDialog
 from qtpy.QtCore import QProcess, Qt, Signal  # type: ignore[attr-defined]
 from qtpy.QtWidgets import QMainWindow, QMenu, QProgressBar, QStatusBar, QWidget
 from superqt.utils import create_worker, ensure_main_thread
@@ -694,7 +694,7 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
 
         dlg = QtScaleBarControls(self.view.viewer, self.view.widget)
         dlg.set_px_size(self.data_model.min_resolution)
-        dlg.show_above_mouse()
+        dlg.show_above_widget(self.scalebar_btn)
 
     def on_show_save_figure(self) -> None:
         """Show scale bar controls for the viewer."""
@@ -704,7 +704,7 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
             raise ValueError("View is not initialized.")
 
         dlg = QtScreenshotDialog(self.view, self)
-        dlg.show_above_mouse()
+        dlg.show_above_widget(self.screenshot_btn)
 
     def on_show_update_info(self) -> None:
         """Show information about available updates."""

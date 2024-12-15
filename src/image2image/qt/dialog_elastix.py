@@ -106,7 +106,6 @@ class ImageElastixWindow(ImageWsiWindow):
     _registration_model: ElastixReg | None = None
 
     WINDOW_TITLE = f"image2elastix: WSI Registration app (v{__version__})"
-    WINDOW_CONSOLE_ARGS = (("view", "viewer"), "data_model", ("data_model", "wrapper"), "registration_model")
     PROJECT_SUFFIX = ".wsireg"
     RUN_DISABLED: bool = False
     OTHER_PROJECT: str = "Valis"
@@ -120,6 +119,7 @@ class ImageElastixWindow(ImageWsiWindow):
     ):
         self.CONFIG = ELASTIX_CONFIG
         super().__init__(parent, run_check_version=run_check_version, project_dir=project_dir)
+        self.WINDOW_CONSOLE_ARGS = (("view", "viewer"), "data_model", ("data_model", "wrapper"), "registration_model")
 
     @property
     def registration_model(self) -> ElastixReg | None:
@@ -359,11 +359,7 @@ class ImageElastixWindow(ImageWsiWindow):
 
             self._mask_dlg = MaskDialog(self)
             self._mask_dlg.evt_mask.connect(self.modality_list.toggle_mask)
-        self._mask_dlg.show_in_center_of_widget(self)
-        # size = self.mask_btn.sizeHint()
-        # self._mask_dlg.show_above_widget(
-        #     self.mask_btn, x_offset=-(size.width() // 8) - 50, y_offset=(size.height() // 2) - 200
-        # )
+        self._mask_dlg.show_in_center_of_widget(self.mask_btn)
 
     def on_open_crop_dialog(self) -> None:
         """Open crop dialog."""
@@ -374,10 +370,6 @@ class ImageElastixWindow(ImageWsiWindow):
             connect(self._crop_dlg.evt_mask, self.modality_list.toggle_crop, state=True)
             connect(self._crop_dlg.evt_preview_transform_preprocessing, self.on_preview_transform, state=True)
         self._crop_dlg.show_in_center_of_widget(self)
-        # size = self.crop_btn.sizeHint()
-        # self._crop_dlg.show_above_widget(
-        #     self.crop_btn, x_offset=-(size.width() // 8) - 100, y_offset=size.height() // 2
-        # )
 
     def on_open_merge_dialog(self) -> None:
         """Open merge dialog."""

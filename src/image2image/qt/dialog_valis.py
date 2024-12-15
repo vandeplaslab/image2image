@@ -102,7 +102,6 @@ class ImageValisWindow(ImageWsiWindow):
     _registration_model: ValisReg | None = None
 
     WINDOW_TITLE = f"image2valis: Valis Registration app (v{__version__})"
-    WINDOW_CONSOLE_ARGS = (("view", "viewer"), "data_model", ("data_model", "wrapper"), "registration_model")
     PROJECT_SUFFIX = ".valis"
     RUN_DISABLED: bool = not STATE.allow_valis_run
     OTHER_PROJECT: str = "Elastix"
@@ -112,6 +111,7 @@ class ImageValisWindow(ImageWsiWindow):
     ):
         self.CONFIG: ValisConfig = VALIS_CONFIG
         super().__init__(parent, run_check_version=run_check_version, project_dir=project_dir)
+        self.WINDOW_CONSOLE_ARGS = (("view", "viewer"), "data_model", ("data_model", "wrapper"), "registration_model")
         if self.CONFIG.first_time:
             hp.call_later(self, self.on_show_tutorial, 10_000)
 

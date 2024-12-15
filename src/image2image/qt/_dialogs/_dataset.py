@@ -767,6 +767,7 @@ class SelectDataDialog(QtFramelessTool):
                 channel_list_ = list(wrapper.channel_names_for_names(keys))
                 if channel_list_:
                     dlg = SelectChannelsToLoadDialog(self, model)
+                    dlg.show_in_center_of_screen()
                     if dlg.exec_():  # type: ignore
                         channel_list = dlg.channels
         logger.trace(f"Loaded {len(channel_list)} channels")
@@ -826,6 +827,7 @@ class SelectDataDialog(QtFramelessTool):
                 channel_list_ = list(wrapper.channel_names_for_names(just_added))
                 if channel_list_:
                     dlg = SelectChannelsToLoadDialog(self, model)
+                    dlg.show_in_center_of_screen()
                     if dlg.exec_():  # type: ignore
                         channel_list = dlg.channels
         logger.trace(f"Loaded {len(channel_list)} channels")
