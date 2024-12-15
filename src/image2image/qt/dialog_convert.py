@@ -8,8 +8,8 @@ from pathlib import Path
 import qtextra.helpers as hp
 from image2image_io.config import CONFIG as READER_CONFIG
 from loguru import logger
-from qtextra.utils.table_config import TableConfig
 from qtextra.dialogs.qt_close_window import QtConfirmCloseDialog
+from qtextra.utils.table_config import TableConfig
 from qtpy.QtCore import Qt
 from qtpy.QtGui import QDropEvent
 from qtpy.QtWidgets import QDialog, QHeaderView, QMenuBar, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget

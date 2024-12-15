@@ -8,8 +8,8 @@ from functools import partial
 import qtextra.helpers as hp
 from image2image_io.config import CONFIG as READER_CONFIG
 from qtextra.config import THEMES
-from qtextra.widgets.qt_dialog import QtDialog
 from qtextra.dialogs.qt_logger import QtLoggerDialog
+from qtextra.widgets.qt_dialog import QtDialog
 from qtextra.widgets.qt_tile import QtTileWidget, Tile
 from qtpy.QtCore import Qt
 from qtpy.QtWidgets import QVBoxLayout, QWidget
