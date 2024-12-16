@@ -136,7 +136,9 @@ class ImageViewerWindow(SingleViewerMixin):
                         " the table.",
                         options,
                         orientation="vertical",
+                        max_width=self.width() - 100,
                     )
+                    hp.show_in_center_of_screen(dlg)
                     if dlg.exec_() == QDialog.DialogCode.Accepted:  # type: ignore[attr-defined]
                         which = dlg.option
                 elif len(options) == 1:
@@ -256,7 +258,9 @@ class ImageViewerWindow(SingleViewerMixin):
             " images, you should use the resolution of the image you are currently viewing.",
             options,
             orientation="vertical",
+            max_width=self.width() - 100,
         )
+        hp.show_in_center_of_screen(dlg)
         which = None
         if dlg.exec_() == QDialog.DialogCode.Accepted:  # type: ignore[attr-defined]
             which = dlg.option
@@ -488,7 +492,7 @@ def get_resolution_options(wrapper) -> dict[float, str]:
         if reader.resolution not in resolutions:
             resolutions[reader.resolution] = []
         resolutions[reader.resolution].append(reader.name)
-    options = {}
+    options = {1.0: "Apply no scaling."}
     for resolution, names in resolutions.items():
         datasets = ", ".join(names)
         if len(datasets) > 120:

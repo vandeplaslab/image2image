@@ -202,7 +202,7 @@ class QtModalityItem(QtListItem):
         self.name_label.setText(self.item_model.name)
         self.modality_icon.state = "image"
         self.resolution_label.setText(f"{self.item_model.pixel_size:.3f}")
-        text, tooltip = self.item_model.preprocessing.as_str()
+        text, tooltip = self.item_model.preprocessing.as_str(valis=self.valis)
         self.preprocessing_label.setText(text)
         self.preprocessing_label.setToolTip(tooltip)
         n = self.registration_model.get_attachment_count(self.item_model.name, "image")
@@ -448,7 +448,7 @@ class QtModalityItem(QtListItem):
 
         self.previewing = True
         try:
-            self._preprocessing_dlg.show()
+            self._preprocessing_dlg.show_below_widget(self)
         except (RuntimeError, AttributeError):
             self._preprocessing_dlg = None
 
@@ -466,7 +466,7 @@ class QtModalityItem(QtListItem):
                 self.evt_preview_transform_preprocessing.emit
             )
             self._preprocessing_dlg.evt_close.connect(self._on_close_preprocessing)
-            self._preprocessing_dlg.show()
+            self._preprocessing_dlg.show_below_widget(self)
         self.evt_hide_others.emit(self.item_model)
 
     def _on_close_preprocessing(self) -> None:

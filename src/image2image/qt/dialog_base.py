@@ -641,7 +641,7 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
             "screenshot",
             tooltip="Take a snapshot of the canvas and copy it into your clipboard. Right-click to show dialog with"
             " more options.",
-            func=self.view.widget.clipboard,
+            func=lambda _: self.view.widget.clipboard(),
             func_menu=self.on_show_save_figure,
             small=True,
         )
@@ -651,7 +651,7 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
             self,
             "save",
             tooltip="Save snapshot of the canvas to file. Right-click to show dialog with more options.",
-            func=self.view.widget.on_save_figure,
+            func=lambda _: self.view.widget.on_save_figure(),
             func_menu=self.on_show_save_figure,
             small=True,
         )

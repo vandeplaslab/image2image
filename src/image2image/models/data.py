@@ -46,10 +46,11 @@ class DataModel(BaseModel):
 
     def get_resolution(self) -> None:
         """Get resolution for data model."""
-        resolutions = [reader.resolution for reader in self.wrapper.reader_iter()]
-        resolutions = set(resolutions)
-        if len(resolutions) == 1:
-            return resolutions.pop()
+        if self.wrapper:
+            resolutions = [reader.resolution for reader in self.wrapper.reader_iter()]
+            resolutions = set(resolutions)
+            if len(resolutions) == 1:
+                return resolutions.pop()
         logger.warning("Multiple resolutions found.")
         return self.resolution
 

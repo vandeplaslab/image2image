@@ -810,6 +810,7 @@ class SelectDataDialog(QtFramelessTool):
                     orientation="vertical",
                 )
                 which = None
+                hp.show_in_center_of_screen(dlg)
                 if dlg.exec_() == QDialog.DialogCode.Accepted:
                     which = dlg.option
             else:

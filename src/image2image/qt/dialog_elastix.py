@@ -58,6 +58,20 @@ def make_registration_task(
     )
 
     commands = []
+
+    # pre-processing command
+    preprocess_command = [
+        get_i2reg_path(),
+        "--no_color",
+        "--debug",
+        "elastix",
+        "preprocess",
+        "--project_dir",
+        pad_str(project.project_dir),
+    ]
+    commands.append(preprocess_command)
+
+    # registration command
     register_command = [
         get_i2reg_path(),
         "--no_color",
@@ -70,6 +84,7 @@ def make_registration_task(
     ]
     commands.append(register_command)
 
+    # write command
     if any([write_attached, write_transformed, write_not_registered, write_merged]):
         write_command = [
             get_i2reg_path(),
