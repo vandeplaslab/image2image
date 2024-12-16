@@ -52,7 +52,7 @@ class CloseDatasetDialog(QtDialog):
 
         super().__init__(parent)
         self.keys = self.get_keys()
-        self.setMinimumWidth(600)
+        self.setMinimumWidth(800)
         self.setMaximumHeight(800)
         self.on_apply()
 
@@ -712,6 +712,7 @@ class SelectDataDialog(QtFramelessTool):
             keys = None
             if not force:  # only ask user if not forced
                 dlg = CloseDatasetDialog(self, self.model)
+                dlg.show_in_center_of_screen()
                 if dlg.exec_():  # type: ignore[attr-defined]
                     keys = dlg.keys
             else:

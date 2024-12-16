@@ -18,7 +18,7 @@ from napari.layers.shapes._shapes_constants import Box
 from qtextra.utils.utilities import connect
 from qtpy.QtCore import Qt
 from qtpy.QtGui import QKeyEvent
-from qtpy.QtWidgets import QFormLayout, QHBoxLayout, QVBoxLayout, QWidget
+from qtpy.QtWidgets import QHBoxLayout, QVBoxLayout, QWidget
 from superqt import ensure_main_thread
 from superqt.utils import GeneratorWorker, create_worker, qdebounced
 

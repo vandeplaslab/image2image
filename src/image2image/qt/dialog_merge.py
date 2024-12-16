@@ -14,7 +14,7 @@ from qtpy.QtCore import Qt
 from qtpy.QtGui import QDropEvent
 from qtpy.QtWidgets import QDialog, QHeaderView, QMenuBar, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget
 from superqt import ensure_main_thread
-from superqt.utils import GeneratorWorker, create_worker
+from superqt.utils import GeneratorWorker
 
 from image2image import __version__
 from image2image.config import MERGE_CONFIG
@@ -35,6 +35,7 @@ def get_metadata(
     for path, reader_metadata in readers_metadata.items():
         metadata_ = {}
         for scene_index, scene_metadata in reader_metadata.items():
+            name = scene_metadata["name"]
             channel_name_to_ids = {}
             # iterate over channels and merge if necessary
             for index, channel_id in enumerate(scene_metadata["channel_ids"]):
@@ -47,7 +48,7 @@ def get_metadata(
                     channel_name_to_ids[channel_name] = sorted(set(channel_name_to_ids[channel_name]))
             channel_names = list(channel_name_to_ids.keys())
             channel_ids = list(channel_name_to_ids.values())
-            metadata_[scene_index] = {"channel_ids": channel_ids, "channel_names": channel_names}
+            metadata_[scene_index] = {"name": name, "channel_ids": channel_ids, "channel_names": channel_names}
         metadata[path] = metadata_
     return metadata
 
@@ -90,6 +91,19 @@ class ImageMergeWindow(NoViewerMixin):
         READER_CONFIG.split_rgb = True
         READER_CONFIG.only_last_pyramid = False
 
+    def on_cleanup_reader_metadata(self, model: DataModel) -> None:
+        """Cleanup metadata."""
+        if not model:
+            return
+        paths = model.paths
+        to_remove = []
+        for path in self.reader_metadata:
+            if path not in paths:
+                to_remove.append(path)
+        for path in to_remove:
+            del self.reader_metadata[path]
+            logger.trace(f"Removed metadata for {path}")
+
     def on_populate_table(self) -> None:
         """Load data."""
         self.on_depopulate_table()
@@ -102,6 +116,7 @@ class ImageMergeWindow(NoViewerMixin):
 
                 # get model information
                 index = self.table.rowCount()
+                reader_metadata = self.reader_metadata.get(reader.path, {})
 
                 self.table.insertRow(index)
 
@@ -138,7 +153,6 @@ class ImageMergeWindow(NoViewerMixin):
                 table_item.setFlags(table_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
                 self.table.setItem(index, self.TABLE_CONFIG.metadata, table_item)
 
-                reader_metadata = self.reader_metadata.get(reader.path, {})
                 if reader_metadata:
                     self.reader_metadata[reader.path] = reader_metadata
                 else:
@@ -149,6 +163,7 @@ class ImageMergeWindow(NoViewerMixin):
                             "keep": [True] * reader.n_channels,
                             "channel_ids": reader.channel_ids,
                             "channel_names": reader.channel_names,
+                            "name": reader.clean_name,
                         }
         self.on_update_reader_metadata()
 
@@ -192,12 +207,12 @@ class ImageMergeWindow(NoViewerMixin):
 
         # get metadata and add extra information such as the new tag/name
         metadata = get_metadata(self.reader_metadata)
-        # update metadata with the name
-        for path in metadata:
-            reader = self.data_model.get_reader(path)
-            row = hp.find_in_table(self.table, self.TABLE_CONFIG.key, reader.key)
-            name_for_path = self.table.item(row, self.TABLE_CONFIG.name).text()
-            metadata[path]["name"] = name_for_path
+        # # update metadata with the name
+        # for path in metadata:
+        #     reader = self.data_model.get_reader(path)
+        #     row = hp.find_in_table(self.table, self.TABLE_CONFIG.key, reader.key)
+        #     name_for_path = self.table.item(row, self.TABLE_CONFIG.name).text()
+        #     metadata[path]["name"] = name_for_path
 
         output_dir = self.output_dir
         self.CONFIG.update(
@@ -206,37 +221,36 @@ class ImageMergeWindow(NoViewerMixin):
             tile_size=int(self.tile_size.currentText()),
         )
 
-        if paths:
-            if True:  # STATE.is_mac_arm_pyinstaller:
-                logger.warning("Merging process is running in the UI thread, meaning that the app will freeze!")
-                merge_images(
-                    name=name,
-                    paths=paths,
-                    output_dir=output_dir,
-                    as_uint8=self.CONFIG.as_uint8,
-                    tile_size=self.CONFIG.tile_size,
-                    metadata=metadata,
-                    overwrite=self.CONFIG.overwrite,
-                )
-                self._on_export_finished()
-            else:
-                self.worker = create_worker(
-                    merge_images,
-                    name=name,
-                    paths=paths,
-                    output_dir=output_dir,
-                    as_uint8=self.CONFIG.as_uint8,
-                    tile_size=self.CONFIG.tile_size,
-                    metadata=metadata,
-                    overwrite=self.CONFIG.overwrite,
-                    _start_thread=True,
-                    _connect={
-                        "finished": self._on_export_finished,
-                        "errored": self._on_export_error,
-                    },
-                )
-                hp.disable_widgets(self.export_btn.active_btn, disabled=True)
-                self.export_btn.active = True
+        if paths and True:  # STATE.is_mac_arm_pyinstaller:
+            logger.warning("Merging process is running in the UI thread, meaning that the app will freeze!")
+            merge_images(
+                name=name,
+                paths=paths,
+                output_dir=output_dir,
+                as_uint8=self.CONFIG.as_uint8,
+                tile_size=self.CONFIG.tile_size,
+                metadata=metadata,
+                overwrite=self.CONFIG.overwrite,
+            )
+            self._on_export_finished()
+            # else:
+            #     self.worker = create_worker(
+            #         merge_images,
+            #         name=name,
+            #         paths=paths,
+            #         output_dir=output_dir,
+            #         as_uint8=self.CONFIG.as_uint8,
+            #         tile_size=self.CONFIG.tile_size,
+            #         metadata=metadata,
+            #         overwrite=self.CONFIG.overwrite,
+            #         _start_thread=True,
+            #         _connect={
+            #             "finished": self._on_export_finished,
+            #             "errored": self._on_export_error,
+            #         },
+            #     )
+            #     hp.disable_widgets(self.export_btn.active_btn, disabled=True)
+            #     self.export_btn.active = True
 
     def on_cancel(self) -> None:
         """Cancel processing."""
@@ -271,8 +285,8 @@ class ImageMergeWindow(NoViewerMixin):
         column = evt.column()
         name = self.table.item(row, self.TABLE_CONFIG.key).text()
         reader = self.data_model.get_reader_for_key(name)
+        scene_metadata = self.reader_metadata[reader.path][reader.scene_index]
         if column == self.TABLE_CONFIG.metadata:
-            scene_metadata = self.reader_metadata[reader.path][reader.scene_index]
             dlg = ChannelRenameDialog(self, reader.scene_index, scene_metadata, allow_merge=False)
             if dlg.exec_() == QDialog.DialogCode.Accepted:
                 self.reader_metadata[reader.path][reader.scene_index] = dlg.scene_metadata
@@ -282,6 +296,7 @@ class ImageMergeWindow(NoViewerMixin):
             new_name = hp.get_text(self, "Rename image", "Enter new name for the image.", name)
             if new_name and new_name != name:
                 self.table.item(row, self.TABLE_CONFIG.name).setText(new_name)
+                self.reader_metadata[reader.path][reader.scene_index]["name"] = new_name
 
     def on_check_file(self) -> None:
         """Check whether file already exists."""
@@ -296,6 +311,7 @@ class ImageMergeWindow(NoViewerMixin):
         self._image_widget = LoadWidget(
             self, None, self.CONFIG, select_channels=False, available_formats=ALLOWED_IMAGE_FORMATS_TIFF_ONLY
         )
+        self._image_widget.dataset_dlg.evt_closed.connect(self.on_cleanup_reader_metadata)
 
         columns = self.TABLE_CONFIG.to_columns()
         self.table = QTableWidget(self)
@@ -320,6 +336,7 @@ class ImageMergeWindow(NoViewerMixin):
             placeholder="Name to be used for merged images.",
             tooltip="Name of the merged image.",
             func_changed=self.on_check_file,
+            object_name="warning",
         )
         self.tile_size = hp.make_combobox(
             self,

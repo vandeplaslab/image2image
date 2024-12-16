@@ -45,6 +45,8 @@ class ChannelRenameDialog(MixinDialog):
         .add("channel name", "channel_name", "str", 200)
     )
 
+    merge_info = None
+
     def __init__(
         self, parent: QWidget, scene_index: int, scene_metadata: dict[str, dict | list[int]], allow_merge: bool = True
     ):
@@ -88,6 +90,7 @@ class ChannelRenameDialog(MixinDialog):
         dlg = MergeDialog(self, self.scene_index, self.scene_metadata)
         if dlg.exec_() == QDialog.DialogCode.Accepted:
             self.scene_metadata = dlg.scene_metadata
+            self.on_populate_table()
 
     def on_edit(self, row: int) -> None:
         """Edit channel name."""
@@ -114,6 +117,13 @@ class ChannelRenameDialog(MixinDialog):
         # set data in table
         self.table.reset_data()
         self.table.add_data(data)
+        self.on_populate_merge()
+
+    def on_populate_merge(self) -> None:
+        """Populate merge."""
+        if self.merge_info is not None or "channel_id_to_merge" in self.scene_metadata:
+            n = len(list(set(self.scene_metadata["channel_id_to_merge"].values())))
+            self.merge_info.setText(f"+ {n} merged channel(s)")
 
     # noinspection PyAttributeOutsideInit
     def make_panel(self) -> QFormLayout:
@@ -126,9 +136,6 @@ class ChannelRenameDialog(MixinDialog):
         )
         self.table.evt_double_clicked.connect(self.on_edit)
         self.table.evt_checked.connect(self.on_edit_state)
-
-        if self.allow_merge:
-            self.merge_btn = hp.make_btn(self, "Merge...", func=self.on_merge)
 
         self.search_for = hp.make_line_edit(self, placeholder="Search for...")
         self.replace_with = hp.make_line_edit(self, placeholder="Replace with...")
@@ -153,8 +160,12 @@ class ChannelRenameDialog(MixinDialog):
             layout.addRow(hp.make_h_layout(self.filter_by_name, spacing=1))
         layout.addRow(self.table)
         if self.allow_merge:
+            self.merge_btn = hp.make_btn(self, "Merge...", func=self.on_merge)
+            self.merge_info = hp.make_label(self, "")
+
             layout.addRow(hp.make_h_line_with_text("Merge channels"))
             layout.addRow(self.merge_btn)
+            layout.addRow(self.merge_info)
         layout.addRow(hp.make_h_line_with_text("Rename channels"))
         layout.addRow(self.search_for)
         layout.addRow(self.replace_with)
@@ -219,13 +230,24 @@ class MergeDialog(MixinDialog):
             hp.warn_pretty(self, "Please select channels to merge", "No channels selected")
             return
 
+        merge_and_keep = self.merge_and_keep.isChecked()
         for channel_index in channel_ids:
             if not new_name:
                 self.scene_metadata["channel_id_to_merge"].pop(channel_index, None)
             else:
                 self.scene_metadata["channel_id_to_merge"][channel_index] = new_name
+            # update dictionary
+            if not merge_and_keep:
+                self.scene_metadata["keep"][channel_index] = False
+
+            # update table
             self.table.set_value(self.TABLE_CONFIG.merge_name, channel_index, new_name)
-        self.scene_metadata["merge_and_keep"] = self.merge_and_keep.isChecked()
+        self.scene_metadata["merge_and_keep"] = merge_and_keep
+
+    def on_update_new_name(self, _: str | None = None) -> None:
+        """Update new name."""
+        value = self.new_name.text()
+        hp.set_object_name(self.new_name, object_name="success" if value else "warning")
 
     # noinspection PyAttributeOutsideInit
     def make_panel(self) -> QFormLayout:
@@ -250,7 +272,9 @@ class MergeDialog(MixinDialog):
                     text, col
                 ),
             )
-        self.new_name = hp.make_line_edit(self, placeholder="New channel name...")
+        self.new_name = hp.make_line_edit(
+            self, placeholder="New channel name...", object_name="warning", func_changed=self.on_update_new_name
+        )
         self.merge_and_keep = hp.make_checkbox(
             self,
             tooltip="Keep channels that are being merged together. This will create new 'merged' channel and keep the"

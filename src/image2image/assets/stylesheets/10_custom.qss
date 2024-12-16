@@ -1,4 +1,9 @@
 
+QWidget#success {
+    border: 2px solid {{ lighten(success, 30) }};
+    border-radius: 2px;
+}
+
 QWidget#error {
     border: 2px solid {{ lighten(error, 30) }};
     border-radius: 2px;
@@ -37,9 +42,6 @@ QLabel#reg_warning {
     color: {{ warning }};
 }
 
-QLabel#reg_success {
-    color: {{ success }};
-}
 QLabel#shortcuts, QLabel#errors {
     font-size: {{ increase(font_size, 3) }};
 }

@@ -107,6 +107,19 @@ class ImageConvertWindow(NoViewerMixin):
         for index in reversed(to_remove):
             self.table.removeRow(index)
 
+    def on_cleanup_reader_metadata(self, model: DataModel) -> None:
+        """Cleanup metadata."""
+        if not model:
+            return
+        paths = model.paths
+        to_remove = []
+        for path in self.reader_metadata:
+            if path not in paths:
+                to_remove.append(path)
+        for path in to_remove:
+            del self.reader_metadata[path]
+            logger.trace(f"Removed metadata for {path}")
+
     def on_populate_table(self) -> None:
         """Load data."""
         self.on_depopulate_table()
@@ -294,6 +307,7 @@ class ImageConvertWindow(NoViewerMixin):
             available_formats=ALLOWED_IMAGE_FORMATS_MICROSCOPY_ONLY,
             show_split_czi=False,
         )
+        self._image_widget.dataset_dlg.evt_closed.connect(self.on_cleanup_reader_metadata)
 
         columns = self.TABLE_CONFIG.to_columns()
         self.table = QTableWidget(self)
