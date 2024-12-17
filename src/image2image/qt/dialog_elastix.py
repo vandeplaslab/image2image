@@ -20,7 +20,7 @@ from qtpy.QtWidgets import QHBoxLayout, QSizePolicy, QVBoxLayout, QWidget
 
 from image2image import __version__
 from image2image.config import ELASTIX_CONFIG
-from image2image.enums import ALLOWED_ELASTIX_FORMATS, ALLOWED_PROJECT_ELASTIX_FORMATS
+from image2image.enums import ALLOWED_ELASTIX_FORMATS, ALLOWED_PROJECT_ELASTIX_FORMATS, PYRAMID_TO_LEVEL
 from image2image.qt._dialog_wsi import ImageWsiWindow
 from image2image.qt._dialogs._select import LoadWidget
 from image2image.qt._wsi._list import QtModalityList
@@ -212,7 +212,7 @@ class ImageElastixWindow(ImageWsiWindow):
         if preprocessing is None:
             preprocessing = modality.preprocessing
 
-        pyramid = self.pyramid_level.value()
+        pyramid = PYRAMID_TO_LEVEL[self.pyramid_level.currentText()]
         preprocessing_hash = (
             hash_preprocessing(preprocessing, pyramid=pyramid)
             if self.use_preview_check.isChecked()
@@ -250,7 +250,7 @@ class ImageElastixWindow(ImageWsiWindow):
         if preprocessing is None:
             preprocessing = modality.preprocessing
 
-        pyramid = self.pyramid_level.value()
+        pyramid = PYRAMID_TO_LEVEL[self.pyramid_level.currentText()]
         preprocessing_hash = (
             hash_preprocessing(modality.preprocessing, pyramid=pyramid)
             if self.use_preview_check.isChecked()
@@ -285,7 +285,7 @@ class ImageElastixWindow(ImageWsiWindow):
         """Preview image."""
         from image2image_reg.utils.preprocessing import preprocess_preview
 
-        pyramid = self.pyramid_level.value()
+        pyramid = PYRAMID_TO_LEVEL[self.pyramid_level.currentText()]
         wrapper = self.data_model.get_wrapper()
         if wrapper:
             with MeasureTimer() as timer:
@@ -587,10 +587,16 @@ class ImageElastixWindow(ImageWsiWindow):
         self._make_output_widgets(side_widget)
         side_layout.addRow(hp.make_h_line_with_text("I2Reg project"))
         side_layout.addRow(hp.make_label(side_widget, "Name"), self.name_label)
-        side_layout.addRow(hp.make_label(side_widget, "Output directory", alignment=Qt.AlignmentFlag.AlignLeft))
         side_layout.addRow(
-            hp.make_h_layout(self.output_dir_label, self.output_dir_btn, stretch_id=(0,), spacing=1, margin=1),
+            hp.make_h_layout(
+                hp.make_label(side_widget, "Output directory", alignment=Qt.AlignmentFlag.AlignLeft),
+                self.output_dir_btn,
+                stretch_id=(0,),
+                spacing=1,
+                margin=1,
+            ),
         )
+        side_layout.addRow(self.output_dir_label)
         # Advanced options
         self.hidden_settings = self._make_hidden_widgets(side_widget)
         side_layout.addRow(self.hidden_settings)
@@ -621,25 +627,23 @@ class ImageElastixWindow(ImageWsiWindow):
 
     def _make_statusbar(self) -> None:
         super()._make_statusbar()
-        self.pyramid_level = hp.make_int_spin_box(
+        self.pyramid_level = hp.make_combobox(
             self,
-            value=-1,
-            minimum=-3,
-            maximum=0,
+            PYRAMID_TO_LEVEL.keys(),
             tooltip="Index of the polygon to show in the fixed image.\nNegative values are used go from smallest to"
             " highest level.\nValue of 0 means that the highest resolution is shown which will be slow to pre-process.",
+            object_name="statusbar_combobox"
         )
+        self.pyramid_level.currentIndexChanged.connect(self.on_update_pyramid_level)
         self.pyramid_level.setSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum)
-        self.pyramid_level.valueChanged.connect(self.on_update_pyramid_level)
-        self.statusbar.insertPermanentWidget(0, hp.make_label(self, "Pyramid level:"))
-        self.statusbar.insertPermanentWidget(1, self.pyramid_level)
-        self.statusbar.insertPermanentWidget(2, hp.make_v_line())
+        self.statusbar.insertPermanentWidget(0, self.pyramid_level)
+        self.statusbar.insertPermanentWidget(1, hp.make_v_line())
 
         self.spinner, _ = hp.make_loading_gif(self, which="infinity", size=(20, 20), retain_size=False, hide=True)
-        self.statusbar.insertPermanentWidget(3, self.spinner)
+        self.statusbar.insertPermanentWidget(2, self.spinner)
 
         self.queue_btn = hp.make_qta_btn(self, "queue", tooltip="Open queue popup.", small=True)
-        self.statusbar.insertPermanentWidget(4, self.queue_btn)
+        self.statusbar.insertPermanentWidget(3, self.queue_btn)
 
     def on_show_tutorial(self) -> None:
         """Quick tutorial."""

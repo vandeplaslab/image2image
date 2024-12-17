@@ -22,6 +22,7 @@ from qtpy.QtGui import QKeyEvent
 from superqt import ensure_main_thread
 from superqt.utils import qdebounced
 
+from image2image.enums import LEVEL_TO_PYRAMID, PYRAMID_TO_LEVEL
 from image2image.models.data import DataModel
 from image2image.qt._dialog_mixins import SingleViewerMixin
 
@@ -55,7 +56,7 @@ class ImageWsiWindow(SingleViewerMixin):
     use_preview_check: Qw.QCheckBox
     hide_others_check: Qw.QCheckBox
     modality_list: QtModalityList
-    pyramid_level: Qw.QSpinBox
+    pyramid_level: Qw.QComboBox
     hidden_settings: QtCheckCollapsible
 
     _mask_dlg: MaskDialog | None = None
@@ -248,7 +249,11 @@ class ImageWsiWindow(SingleViewerMixin):
             return
 
         options = {key: key for key in self.registration_model.get_image_modalities(with_attachment=False)}
-        choice = hp.choose(self, options, "Select modality to attach to")
+        if len(options) == 0:
+            hp.toast(self, "Error", "No modalities to attach to.", icon="error", position="top_left")
+            return
+        choice = options.popitem()[0] if len(options) == 1 else hp.choose(self, options, "Select modality to attach to")
+
         if not choice:
             return
 
@@ -268,21 +273,20 @@ class ImageWsiWindow(SingleViewerMixin):
         else:
             logger.warning(f"Failed to load data - model={model}")
 
-    @qdebounced(timeout=250)
     def on_update_pyramid_level(self) -> None:
         """Update pyramid level."""
         self._on_update_pyramid_level()
 
     def _on_update_pyramid_level(self) -> None:
         """Update pyramid level."""
-        level = self.pyramid_level.value()
+        level = PYRAMID_TO_LEVEL[self.pyramid_level.currentText()]
         if level == 0 and not hp.confirm(
             self,
             "Please confirm if you wish to preview the full-resolution image.<br><b>Pre-processing might take"
             " a bit of time.</b>",
             "Please confirm",
         ):
-            self.pyramid_level.setValue(-1)
+            self.pyramid_level.setCurrentText(LEVEL_TO_PYRAMID[-1])
             return
         self.on_show_modalities()
         logger.trace(f"Updated pyramid level to {level}")

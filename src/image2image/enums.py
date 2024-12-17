@@ -143,3 +143,12 @@ REGISTRATION_PATH_HELP = (
     "<b>ams</b> - Advanced Mean Squares metric instead of Advanced Mattes Mutual Information<br>"
     "<b>anc</b> - Advanced Normalized Correlation metric instead of Advanced Mattes Mutual Information<br>"
 )
+
+
+PYRAMID_TO_LEVEL = {
+    "-1 (smallest pyramid level)": -1,
+    "-2 (second smallest pyramid level)": -2,
+    "-3 (third smallest pyramid level)": -3,
+    "0 (full resolution image - not recommended)": 0,
+}
+LEVEL_TO_PYRAMID = {v: k for k, v in PYRAMID_TO_LEVEL.items()}

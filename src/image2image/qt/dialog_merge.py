@@ -14,10 +14,10 @@ from qtpy.QtCore import Qt
 from qtpy.QtGui import QDropEvent
 from qtpy.QtWidgets import QDialog, QHeaderView, QMenuBar, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget
 from superqt import ensure_main_thread
-from superqt.utils import GeneratorWorker
+from superqt.utils import GeneratorWorker, create_worker
 
 from image2image import __version__
-from image2image.config import MERGE_CONFIG
+from image2image.config import MERGE_CONFIG, STATE
 from image2image.enums import ALLOWED_IMAGE_FORMATS_TIFF_ONLY
 from image2image.qt._dialog_mixins import NoViewerMixin
 from image2image.qt._dialogs._select import LoadWidget
@@ -221,7 +221,7 @@ class ImageMergeWindow(NoViewerMixin):
             tile_size=int(self.tile_size.currentText()),
         )
 
-        if paths and True:  # STATE.is_mac_arm_pyinstaller:
+        if paths and STATE.is_mac_arm_pyinstaller:
             logger.warning("Merging process is running in the UI thread, meaning that the app will freeze!")
             merge_images(
                 name=name,
@@ -233,24 +233,24 @@ class ImageMergeWindow(NoViewerMixin):
                 overwrite=self.CONFIG.overwrite,
             )
             self._on_export_finished()
-            # else:
-            #     self.worker = create_worker(
-            #         merge_images,
-            #         name=name,
-            #         paths=paths,
-            #         output_dir=output_dir,
-            #         as_uint8=self.CONFIG.as_uint8,
-            #         tile_size=self.CONFIG.tile_size,
-            #         metadata=metadata,
-            #         overwrite=self.CONFIG.overwrite,
-            #         _start_thread=True,
-            #         _connect={
-            #             "finished": self._on_export_finished,
-            #             "errored": self._on_export_error,
-            #         },
-            #     )
-            #     hp.disable_widgets(self.export_btn.active_btn, disabled=True)
-            #     self.export_btn.active = True
+        else:
+            self.worker = create_worker(
+                merge_images,
+                name=name,
+                paths=paths,
+                output_dir=output_dir,
+                as_uint8=self.CONFIG.as_uint8,
+                tile_size=self.CONFIG.tile_size,
+                metadata=metadata,
+                overwrite=self.CONFIG.overwrite,
+                _start_thread=True,
+                _connect={
+                    "finished": self._on_export_finished,
+                    "errored": self._on_export_error,
+                },
+            )
+            hp.disable_widgets(self.export_btn.active_btn, disabled=True)
+            self.export_btn.active = True
 
     def on_cancel(self) -> None:
         """Cancel processing."""
@@ -347,7 +347,7 @@ class ImageMergeWindow(NoViewerMixin):
         )
         self.as_uint8 = hp.make_checkbox(
             self,
-            "Reduce data size",
+            "",
             tooltip="Convert to uint8 to reduce file size with minimal data loss. This will result in change of the"
             " dynamic range of the image to between 0-255.",
             checked=True,
@@ -378,8 +378,8 @@ class ImageMergeWindow(NoViewerMixin):
             cancel_func=self.on_cancel,
         )
 
-        side_layout = hp.make_v_layout()
-        side_layout.addWidget(
+        side_layout = hp.make_form_layout()
+        side_layout.addRow(
             hp.make_label(
                 self,
                 "This app will <b>merge</b> multiple images into a single <b>pyramidal OME-TIFF</b>.<br>"
@@ -390,11 +390,11 @@ class ImageMergeWindow(NoViewerMixin):
                 wrap=True,
             )
         )
-        side_layout.addWidget(hp.make_h_line())
-        side_layout.addWidget(self._image_widget)
-        side_layout.addWidget(hp.make_h_line())
-        side_layout.addWidget(self.table, stretch=True)
-        side_layout.addWidget(
+        side_layout.addRow(hp.make_h_line())
+        side_layout.addRow(self._image_widget)
+        side_layout.addRow(hp.make_h_line())
+        side_layout.addRow(self.table)
+        side_layout.addRow(
             hp.make_label(
                 self,
                 "<b>Tip.</b> Double-click on the <b>name</b> field to rename the image.<br>"
@@ -406,22 +406,27 @@ class ImageMergeWindow(NoViewerMixin):
                 wrap=True,
             )
         )
-        side_layout.addWidget(hp.make_h_line(self))
-        side_layout.addWidget(self.name_edit)
-        side_layout.addWidget(self.directory_btn)
-        side_layout.addWidget(self.output_dir_label)
-        side_layout.addLayout(
+        side_layout.addRow(hp.make_h_line(self))
+        side_layout.addRow(self.name_edit)
+        side_layout.addRow(self.directory_btn)
+        side_layout.addRow(self.output_dir_label)
+        side_layout.addRow("Tile size", hp.make_h_layout(self.tile_size, stretch_after=True))
+        side_layout.addRow(
+            "Reduce file size",
             hp.make_h_layout(
-                hp.make_label(self, "Tile size:"),
-                self.tile_size,
-                hp.make_v_line(),
                 self.as_uint8,
-                hp.make_v_line(),
-                self.overwrite,
+                hp.make_warning_label(
+                    self,
+                    "While this option reduces the amount of space an image takes on your disk, it can lead to data"
+                    " loss and should be used with caution.",
+                    normal=True,
+                ),
+                spacing=2,
                 stretch_after=True,
-            )
+            ),
         )
-        side_layout.addWidget(self.export_btn)
+        side_layout.addRow("Overwrite", hp.make_h_layout(self.overwrite, stretch_after=True))
+        side_layout.addRow(self.export_btn)
 
         widget = QWidget()
         self.setCentralWidget(widget)

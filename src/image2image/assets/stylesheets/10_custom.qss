@@ -121,3 +121,7 @@ QStatusBar QCheckBox::indicator {
 QtModalityItem {
     border: 2px solid {{ highlight }};
 }
+
+QComboBox#statusbar_combobox {
+    border: 2px solid {{ secondary }};
+}

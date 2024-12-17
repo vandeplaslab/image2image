@@ -306,8 +306,8 @@ class QtModalityItem(QtListItem):
 
         dlg = AttachWidget(self, pixel_sizes=(1.0, self.item_model.pixel_size))
         if dlg.exec_() == QDialog.DialogCode.Accepted:  # type: ignore[attr-defined]
-            return dlg.attachment_name, dlg.source_pixel_size
-        return None, 1.0
+            return None, dlg.source_pixel_size
+        return None, None
 
     def auto_add_attachments(self, filelist: list[str]):
         """Add any attachment"""
@@ -321,7 +321,7 @@ class QtModalityItem(QtListItem):
         if shapes or points:
             name, pixel_size = self._get_attachment_metadata()
             if name is None and pixel_size is None:
-                hp.toast(self, "Error", "No attachment name or pixel size provided.", icon="warning")
+                hp.toast(hp.get_main_window(), "Error", "No attachment name or pixel size provided.", icon="warning")
                 return
             if shapes:
                 self._attach_shapes(shapes, name, pixel_size)

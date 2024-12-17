@@ -970,13 +970,14 @@ class SelectDataDialog(QtFramelessTool):
         )
         self.subsample_ratio = hp.make_double_spin_box(
             self,
-            minimum=0.001,
-            maximum=1.0,
-            value=READER_CONFIG.subsample_ratio,
-            step=0.01,
-            n_decimals=3,
+            minimum=1,
+            maximum=100,
+            value=READER_CONFIG.subsample_ratio * 100,
+            step_size=1,
+            n_decimals=1,
             tooltip="Ratio of samples.",
             func=self.on_update_config,
+            suffix="%",
         )
         self.subsample_random = hp.make_int_spin_box(
             self,
@@ -991,35 +992,29 @@ class SelectDataDialog(QtFramelessTool):
         hp.style_form_layout(layout)
         layout.setContentsMargins(6, 6, 6, 6)
         layout.addRow(header_layout)
-        # layout.addRow(
-        #     hp.make_h_layout(
-        #         hp.make_btn(self, "Add image...", func=self.on_select_dataset),
-        #         hp.make_btn(self, "Remove image...", func=self.on_close_dataset),
-        #         stretch_id=0,
-        #     )
-        # )
-        # layout.addRow(hp.make_h_line())
+
+        layout.addRow(hp.make_label(self, "How to load data", bold=True))
+        layout.addRow(
+            hp.make_h_layout(
+                hp.make_label(self, "Split CZI (recommended)", hide=not self.show_split_czi),
+                self.split_czi_check,
+                hp.make_v_line(),
+                hp.make_label(self, "Split Bruker .d (recommended)"),
+                self.split_roi_check,
+                hp.make_v_line(),
+                hp.make_label(self, "Split RGB (not recommended)"),
+                self.split_rgb_check,
+                stretch_after=True,
+            )
+        )
+        layout.addRow(hp.make_label(self, "How to shape and scatter data", bold=True))
         layout.addRow(
             hp.make_h_layout(
                 hp.make_label(self, "Shape display"),
                 self.shapes_combo,
-                hp.make_v_line(hide=not self.show_split_czi),
-                hp.make_label(self, "Split CZI", hide=not self.show_split_czi),
-                self.split_czi_check,
-                hp.make_v_line(),
-                hp.make_label(self, "Split RGB"),
-                self.split_rgb_check,
-                hp.make_v_line(),
-                hp.make_label(self, "Split Bruker .d (recommended)"),
-                self.split_roi_check,
-                stretch_after=True,
-            )
-        )
-        layout.addRow(
-            hp.make_h_layout(
                 hp.make_label(self, "Subsample shapes"),
-                self.subsample_check,
                 hp.make_v_line(),
+                self.subsample_check,
                 hp.make_label(self, "Ratio"),
                 self.subsample_ratio,
                 hp.make_label(self, "Seed"),
@@ -1053,7 +1048,7 @@ class SelectDataDialog(QtFramelessTool):
         READER_CONFIG.update(
             shape_display=self.shapes_combo.currentText(),
             subsample=self.subsample_check.isChecked(),
-            subsample_ratio=self.subsample_ratio.value(),
+            subsample_ratio=self.subsample_ratio.value() / 100,
             subsample_random_seed=self.subsample_random.value(),
             split_rgb=self.split_rgb_check.isChecked(),
             split_czi=self.split_czi_check.isChecked(),

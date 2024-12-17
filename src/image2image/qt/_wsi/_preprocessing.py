@@ -165,6 +165,8 @@ class PreprocessingDialog(QtFramelessTool):
 
     def set_from_model(self) -> None:
         """Set from model."""
+        from image2image_reg.models.preprocessing import CoordinateFlip
+
         with self.setting_config():
             self._title_label.setText(f"{self.modality.name}")
             method = {
@@ -184,7 +186,7 @@ class PreprocessingDialog(QtFramelessTool):
             self.invert_check.setChecked(self.preprocessing.invert_intensity)
             self.uint8_check.setChecked(self.preprocessing.as_uint8)
             # spatial
-            flip = {"None": 0, "H": 1, "V": 1}.get(self.preprocessing.flip, 0)
+            flip = {"None": 0, CoordinateFlip.HORIZONTAL: 1, CoordinateFlip.VERTICAL: 1}.get(self.preprocessing.flip, 0)
             self.flip_choices_group.button(flip).setChecked(True)
             self.translate_x.setValue(self.preprocessing.translate_x)
             self.translate_y.setValue(self.preprocessing.translate_y)
@@ -490,8 +492,7 @@ class PreprocessingDialog(QtFramelessTool):
             hp.make_h_layout(
                 hp.make_warning_label(
                     self,
-                    "Setting this value is not fully supported yet.<br>Positive values might result in cropped"
-                    " images.",
+                    "Setting this value is not fully supported yet.<br>Aim to move your image to the <b>top left!</b>",
                     small=True,
                 ),
                 self.translate_x,
@@ -507,8 +508,7 @@ class PreprocessingDialog(QtFramelessTool):
             hp.make_h_layout(
                 hp.make_warning_label(
                     self,
-                    "Setting this value is not fully supported yet.<br>Positive values might result in cropped"
-                    " images.",
+                    "Setting this value is not fully supported yet.<br>Aim to move your images to the <b>top left!</b>",
                     small=True,
                 ),
                 self.translate_y,

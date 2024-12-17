@@ -17,6 +17,7 @@ from loguru import logger
 from qtextra.queue.queue_widget import QUEUE
 from qtextra.queue.task import Task
 from qtextra.utils.utilities import connect
+from qtpy.QtCore import Qt
 from qtpy.QtWidgets import QHBoxLayout, QVBoxLayout, QWidget
 
 from image2image import __version__
@@ -290,8 +291,15 @@ class ImageValisWindow(ImageWsiWindow):
         side_layout.addRow(hp.make_h_line_with_text("Valis project"))
         side_layout.addRow(hp.make_label(side_widget, "Name"), self.name_label)
         side_layout.addRow(
-            hp.make_h_layout(self.output_dir_label, self.output_dir_btn, stretch_id=(0,), spacing=1, margin=1),
+            hp.make_h_layout(
+                hp.make_label(side_widget, "Output directory", alignment=Qt.AlignmentFlag.AlignLeft),
+                self.output_dir_btn,
+                stretch_id=(0,),
+                spacing=1,
+                margin=1,
+            ),
         )
+        side_layout.addRow(self.output_dir_label)
         # Advanced options
         self.hidden_settings = self._make_hidden_widgets(side_widget)
         side_layout.addRow(self.hidden_settings)

@@ -7,7 +7,7 @@ import sys
 import typing as ty
 
 from image2image import __version__
-from image2image.assets import ICON_PNG
+from image2image.assets import ICON_ICO
 
 if ty.TYPE_CHECKING:
     from qtpy.QtWidgets import QApplication
@@ -26,7 +26,7 @@ def set_app_id(app_id: str | None = None) -> None:
 _defaults = {
     "app_name": "image2image",
     "app_version": __version__,
-    "icon": ICON_PNG,
+    "icon": ICON_ICO,
     "org_name": "image2image",
     "org_domain": "",
     "app_id": APP_ID,
@@ -148,6 +148,7 @@ def get_app(
 
         if app.windowIcon().isNull():
             app.setWindowIcon(QIcon(kwargs.get("icon")))
+            QApplication.setWindowIcon(QIcon(kwargs.get("icon")))
 
         if not _app_ref:  # running get_app for the first time
             # see docstring of `wait_for_workers_to_quit` for caveats on killing

@@ -65,7 +65,7 @@ class NetworkViewer(QtFramelessTool):
             self,
             ty.get_args(NetworkTypes),
             tooltip="Select the type of network to display.",
-            value="kk",
+            value="spring",
             func=self.on_plot,
         )
 

@@ -89,7 +89,7 @@ class RegistrationPaths(QWidget):
                     self,
                     "common",
                     func=self.on_select_from_common,
-                    tooltip="Add selected transformation to the list.",
+                    tooltip="Select from a list of commonly used transformation combinations.",
                     standout=True,
                     normal=True,
                 ),
@@ -113,7 +113,7 @@ class RegistrationPaths(QWidget):
             "affine_expanded » nl_expanded",
         ]:
             hp.make_menu_item(self, option, menu=menu, func=partial(self._on_select_from_common, option))
-        hp.show_below_widget(menu, self._path, x_offset=50)
+        hp.show_below_widget(menu, self._choice)
 
     def _on_select_from_common(self, transformation: str) -> None:
         """Select from list of common annotations."""
@@ -371,7 +371,7 @@ class RegistrationMap(QWidget):
         """Populate options."""
         registration_model: ElastixReg = self._parent.registration_model
         # add available modalities
-        options = [""] + natsorted(list(registration_model.modalities.keys()))
+        options = [""] + natsorted(registration_model.get_image_modalities(with_attachment=False))
         hp.combobox_setter(self._source_choice, items=options, set_item=self._source_choice.currentText())
         hp.combobox_setter(self._target_choice, items=options, set_item=self._target_choice.currentText())
         hp.combobox_setter(self._through_choice, items=options, set_item=self._through_choice.currentText())
