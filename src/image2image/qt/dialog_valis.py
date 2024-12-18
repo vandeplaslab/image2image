@@ -163,6 +163,7 @@ class ImageValisWindow(ImageWsiWindow):
         connect(self._image_widget.dataset_dlg.evt_import_project, self._on_load_from_project, state=state)
         connect(self._image_widget.dataset_dlg.evt_files, self._on_pre_loading_images, state=state)
         connect(self._image_widget.dataset_dlg.evt_rejected_files, self.on_maybe_add_attachment, state=state)
+        connect(self._image_widget.dataset_dlg.evt_resolution, self.on_update_resolution, state=state)
 
         connect(self.view.viewer.events.status, self._status_changed, state=state)
         # connect(self.view.widget.canvas.events.key_press, self.keyPressEvent, state=state)
@@ -171,9 +172,9 @@ class ImageValisWindow(ImageWsiWindow):
         connect(self.modality_list.evt_rename, self.on_rename_modality, state=state)
         connect(self.modality_list.evt_hide_others, self.on_hide_modalities, state=state)
         connect(self.modality_list.evt_preview_preprocessing, self.on_preview, state=state)
-        connect(self.modality_list.evt_resolution, self.on_update_modality, state=state)
         connect(self.modality_list.evt_show, self.on_show_or_hide_modality, state=state)
-        connect(self.modality_list.evt_set_preprocessing, self.on_update_modality, state=state)
+        connect(self.modality_list.evt_resolution, self.on_update_resolution_of_modality, state=state)
+        connect(self.modality_list.evt_set_preprocessing, self.on_update_preprocessing_of_modality, state=state)
         connect(self.modality_list.evt_color, self.on_update_colormap, state=state)
         connect(self.modality_list.evt_preprocessing_close, self.on_preview_close, state=state)
 
@@ -575,6 +576,7 @@ class ImageValisWindow(ImageWsiWindow):
         if wrapper:
             with MeasureTimer() as timer:
                 reader = wrapper.get_reader_for_path(modality.path)
+                reader.resolution = modality.pixel_size
                 scale = reader.scale_for_pyramid(pyramid)
                 layer = self.view.get_layer(modality.name)
                 preprocessing_hash = (
@@ -583,7 +585,7 @@ class ImageValisWindow(ImageWsiWindow):
                     else f"pyramid={pyramid}"
                 )
                 # no need to re-process if the layer is already there
-                if layer and layer.metadata.get("preview_hash") == preprocessing_hash:
+                if layer and layer.metadata.get("preview_hash") == preprocessing_hash and not overwrite:
                     layer.visible = state
                     return
 

@@ -2,9 +2,20 @@
 
 from __future__ import annotations
 
+import typing as ty
+from functools import partial
+from pathlib import Path
+
 from qtextra import helpers as hp
+from qtextra.utils.table_config import TableConfig
 from qtextra.widgets.qt_dialog import QtDialog
-from qtpy.QtWidgets import QFormLayout, QWidget
+from qtpy.QtCore import Qt
+from qtpy.QtGui import QDoubleValidator
+from qtpy.QtWidgets import QFormLayout, QLineEdit, QTableWidgetItem, QWidget
+
+if ty.TYPE_CHECKING:
+    from image2image_reg.models import Modality
+    from image2image_reg.workflows import ElastixReg, ValisReg
 
 
 class AttachWidget(QtDialog):
@@ -60,6 +71,168 @@ class AttachWidget(QtDialog):
         )
         layout.addRow(hp.make_h_line(self))
         layout.addRow("Pixel size", self.defaults_choice_lay)
+        layout.addRow(
+            hp.make_h_layout(
+                hp.make_btn(self, "OK", func=self.accept),
+                hp.make_btn(self, "Cancel", func=self.reject),
+            )
+        )
+        return layout
+
+
+class AttachmentEditDialog(QtDialog):
+    """Dialog where it's possible to edit the attachment."""
+
+    TABLE_CONFIG = (
+        TableConfig()  # type: ignore
+        .add("name", "name", "str", 0, sizing="stretch")
+        .add("pixel size (um)", "resolution", "str", 0, sizing="contents")
+        .add("type", "type", "str", 0, sizing="contents")
+        .add("", "remove", "button", 0, sizing="contents")
+    )
+
+    def __init__(self, parent: QWidget, modality: Modality, registration_model: ElastixReg | ValisReg):
+        self.modality = modality
+        self.registration_model = registration_model
+        self.name_mapping = {}
+        super().__init__(parent)
+        self.setWindowFlags(self.windowFlags() | Qt.WindowType.WindowStaysOnTopHint)
+        self.on_populate_table()
+        self.setMinimumWidth(600)
+
+    def on_populate_table(self) -> None:
+        """Load data."""
+
+        def _insert_row(name: str, path: Path, pixel_size: float, attachment_type: str) -> None:
+            # get model information
+            index = self.table.rowCount()
+            self.table.insertRow(index)
+
+            # add name item
+            name_item = QLineEdit(name)
+            name_item.setToolTip(str(path))
+            name_item.setObjectName("table_cell")
+            name_item.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            name_item.editingFinished.connect(
+                partial(self.on_update_attachment, name=name, attachment_type=attachment_type, name_edit=name_item)
+            )
+            self.table.setCellWidget(index, self.TABLE_CONFIG.name, name_item)
+
+            # add resolution item
+            res_item = QLineEdit(f"{pixel_size:.3f}")
+            res_item.setObjectName("table_cell")
+            res_item.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            res_item.setValidator(QDoubleValidator(0, 1000, 4))
+            res_item.editingFinished.connect(
+                partial(self.on_update_attachment, name=name, attachment_type=attachment_type, resolution_edit=res_item)
+            )
+            self.table.setCellWidget(index, self.TABLE_CONFIG.resolution, res_item)
+
+            # add type item
+            type_item = QTableWidgetItem(attachment_type)
+            type_item.setFlags(type_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+            type_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            self.table.setItem(index, self.TABLE_CONFIG.type, type_item)
+
+            # remove button
+            self.table.setCellWidget(
+                index,
+                self.TABLE_CONFIG.remove,
+                hp.make_qta_btn(
+                    self,
+                    "delete",
+                    func=partial(self.on_remove_attachment, name=name, attachment_type=attachment_type),
+                    tooltip="Remove image from project. You will <b>not</b> be asked to confirm removal..",
+                ),
+            )
+            self.name_mapping[(name, attachment_type)] = name
+
+        # clear table
+        while self.table.rowCount() > 0:
+            self.table.removeRow(0)
+
+        # add images
+        attached_images = self.registration_model.get_attachment_list(self.modality.name, "image")
+        for image in attached_images:
+            modality = self.registration_model.get_modality(image)
+            _insert_row(modality.name, modality.path, modality.pixel_size, "image")
+        # add shapes
+        attached_shapes = self.registration_model.get_attachment_list(self.modality.name, "geojson")
+        for name in attached_shapes:
+            shapes = self.registration_model.attachment_shapes[name]
+            _insert_row(name, shapes["files"], shapes["pixel_size"], "geojson")
+
+        # add shapes
+        attached_points = self.registration_model.get_attachment_list(self.modality.name, "points")
+        for name in attached_points:
+            points = self.registration_model.attachment_points[name]
+            _insert_row(name, points["files"], points["pixel_size"], "points")
+
+    def on_update_attachment(
+        self,
+        name: str,
+        attachment_type: str,
+        resolution_edit: QLineEdit | None = None,
+        name_edit: QLineEdit | None = None,
+    ):
+        """Update attachment."""
+        new_name = name_edit.text() if name_edit else name
+        new_resolution = float(resolution_edit.text()) if resolution_edit else None
+        # check mapping
+        alt_name = self.name_mapping.get((name, attachment_type))
+        if alt_name and alt_name != name:
+            name = alt_name
+
+        if attachment_type == "image":
+            if new_name != name:
+                self.registration_model.rename_modality(name, new_name)
+            if new_resolution is not None:
+                self.registration_model.modalities[new_name].pixel_size = new_resolution
+        elif attachment_type == "geojson":
+            if new_name != name:
+                self.registration_model.attachment_shapes[new_name] = self.registration_model.attachment_shapes.pop(
+                    name
+                )
+            if new_resolution is not None:
+                self.registration_model.attachment_shapes[new_name]["pixel_size"] = new_resolution
+        elif attachment_type == "points":
+            if new_name != name:
+                self.registration_model.attachment_points[new_name] = self.registration_model.attachment_points.pop(
+                    name
+                )
+            if new_resolution is not None:
+                self.registration_model.attachment_points[new_name]["pixel_size"] = new_resolution
+        self.name_mapping[(name, attachment_type)] = new_name
+
+    def on_remove_attachment(self, name: str, attachment_type: str) -> None:
+        """Remove attachment from the registration model."""
+        if attachment_type == "image":
+            self.registration_model.remove_attachment_image(name)
+        elif attachment_type == "geojson":
+            self.registration_model.remove_attachment_geojson(name)
+        elif attachment_type == "points":
+            self.registration_model.remove_attachment_points(name)
+        self.on_populate_table()
+
+    # noinspection PyAttributeOutsideInit
+    def make_panel(self) -> QFormLayout:
+        """Make panel."""
+        # _, header_layout = self._make_hide_handle(title="Modalities")
+
+        self.table = hp.make_table(self, self.TABLE_CONFIG)
+
+        layout = hp.make_form_layout(self)
+        layout.addRow(
+            hp.make_label(
+                self,
+                "Please edit the attached modalities.<br><br>"
+                "You can edit the <b>name</b> and <b>pixel size</b> of the attached modalities.<br>",
+                enable_url=True,
+                wrap=True,
+            )
+        )
+        layout.addRow(hp.make_h_line(self))
+        layout.addRow(self.table)
         layout.addRow(
             hp.make_h_layout(
                 hp.make_btn(self, "OK", func=self.accept),

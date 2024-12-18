@@ -71,7 +71,8 @@ class QtModalityItem(QtListItem):
             self,
             tooltip="Resolution of the modality.",
             func=self._on_update_resolution,
-            validator=QRegularExpressionValidator(QRegularExpression(r"^\d*\.\d+$")),
+            # validator=QRegularExpressionValidator(QRegularExpression(r"^\d*\.\d+$")),
+            validator=QRegularExpressionValidator(QRegularExpression(r"^[0-9]+(\.[0-9]{1,3})?$")),
         )
         self.preprocessing_btn = hp.make_qta_btn(
             self,
@@ -95,7 +96,7 @@ class QtModalityItem(QtListItem):
             tooltip="Click here to attach Image file. (.czi, .tiff)<br>Right-click to remove images.",
             normal=True,
             func=self.on_attach_image,
-            func_menu=self.on_edit_attach_image,
+            func_menu=self.on_edit_attachment,
             properties={"with_count": True},
         )
         self.attach_geojson_btn = hp.make_qta_btn(
@@ -104,7 +105,7 @@ class QtModalityItem(QtListItem):
             tooltip="Click here to attach GeoJSON file (.geojson).<br>Right-click to remove shapes.",
             normal=True,
             func=self.on_attach_geojson,
-            func_menu=self.on_edit_attach_geojson,
+            func_menu=self.on_edit_attachment,
             properties={"with_count": True},
         )
         self.attach_points_btn = hp.make_qta_btn(
@@ -113,7 +114,7 @@ class QtModalityItem(QtListItem):
             tooltip="Click here to attach points file (.csv, .txt).<br>Right-click to remove points.",
             normal=True,
             func=self.on_attach_points,
-            func_menu=self.on_edit_attach_points,
+            func_menu=self.on_edit_attachment,
             properties={"with_count": True},
         )
 
@@ -264,47 +265,26 @@ class QtModalityItem(QtListItem):
         to_remove = hp.choose_from_list(self, options, text=f"Please choose <b>{kind}</b> attachment from the list.")
         return to_remove
 
-    def on_edit_attach_image(self) -> None:
+    def on_edit_attachment(self) -> None:
         """Remove Image file."""
-        options = self.registration_model.get_attachment_list(self.item_model.name, "image")
-        if not options:
-            hp.toast(hp.get_parent(), "Error", "No image attachments found.", icon="warning")
-            return
-        to_remove = self._remove_modality(options, "Image")
-        if to_remove:
-            for name in to_remove:
-                self.registration_model.remove_attachment_image(name)
-            self._set_from_model()
+        from image2image.qt._wsi._attachment import AttachmentEditDialog
 
-    def on_edit_attach_geojson(self) -> None:
-        """Remove Image file."""
-        options = self.registration_model.get_attachment_list(self.item_model.name, "geojson")
-        if not options:
-            hp.toast(hp.get_parent(), "Error", "No GeoJSON attachments found.", icon="warning")
+        if not self.registration_model.has_attachments(self.item_model.name):
+            hp.toast(self, "Error", "No attachments found for this modality.", icon="warning")
             return
-        to_remove = self._remove_modality(options, "Shapes")
-        if to_remove:
-            for name in to_remove:
-                self.registration_model.remove_attachment_geojson(name)
-            self._set_from_model()
 
-    def on_edit_attach_points(self) -> None:
-        """Remove Image file."""
-        options = self.registration_model.get_attachment_list(self.item_model.name, "points")
-        if not options:
-            hp.toast(hp.get_parent(), "Error", "No point attachments found.", icon="warning")
-            return
-        to_remove = self._remove_modality(options, "Points")
-        if to_remove:
-            for name in to_remove:
-                self.registration_model.remove_attachment_points(name)
-            self._set_from_model()
+        dlg = AttachmentEditDialog(hp.get_main_window(), self.item_model, self.registration_model)
+        dlg.show_in_center_of_screen(show=False)
+        dlg.raise_()
+        _ = dlg.exec_()
+        self._set_from_model()
 
     def _get_attachment_metadata(self) -> tuple[str | None, float | None]:
         """Return attachment metadata."""
         from image2image.qt._wsi._attachment import AttachWidget
 
         dlg = AttachWidget(self, pixel_sizes=(1.0, self.item_model.pixel_size))
+        dlg.show_in_center_of_screen(show=False)
         if dlg.exec_() == QDialog.DialogCode.Accepted:  # type: ignore[attr-defined]
             return None, dlg.source_pixel_size
         return None, None

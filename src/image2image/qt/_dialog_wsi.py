@@ -31,7 +31,7 @@ if ty.TYPE_CHECKING:
     from qtextra.widgets.qt_collapsible import QtCheckCollapsible
 
     from image2image.config import ElastixConfig, ValisConfig
-    from image2image.qt._wsi._list import QtModalityList
+    from image2image.qt._wsi._list import QtModalityItem, QtModalityList
     from image2image.qt._wsi._mask import CropDialog, MaskDialog
 
 
@@ -206,10 +206,29 @@ class ImageWsiWindow(SingleViewerMixin):
         for key in keys:
             self._image_widget.dataset_dlg.on_remove_dataset(key)
 
-    def on_update_modality(self, modality: Modality) -> None:
+    def on_update_resolution(self, key: str) -> None:
+        """Update resolution."""
+        reader = self.data_model.get_reader_for_key(key)
+        if not reader:
+            return
+        modality = self.registration_model.get_modality(name_or_path=reader.path)
+        if not modality:
+            return
+        modality.pixel_size = reader.resolution
+        item: QtModalityItem = self.modality_list.get_widget_for_item_model(modality)
+        if item:
+            item.resolution_label.setText(f"{reader.resolution:.3f}")
+        self.on_update_resolution_of_modality(modality)
+
+    def on_update_preprocessing_of_modality(self, modality: Modality) -> None:
+        """Preview image."""
+        self.registration_model.modalities[modality.name].preprocessing = modality.preprocessing
+        logger.trace(f"Updated modality: {modality.name}")
+
+    def on_update_resolution_of_modality(self, modality: Modality) -> None:
         """Preview image."""
         self.registration_model.modalities[modality.name].pixel_size = modality.pixel_size
-        self.registration_model.modalities[modality.name].preprocessing = modality.preprocessing
+        self._on_show_modalities()
         logger.trace(f"Updated modality: {modality.name}")
 
     def on_update_colormap(self, modality: Modality, color: np.ndarray):
@@ -413,7 +432,7 @@ class ImageWsiWindow(SingleViewerMixin):
     def _make_output_widgets(self, side_widget: Qw.QWidget) -> None:
         self.name_label = hp.make_line_edit(
             side_widget,
-            "Name",
+            "",
             tooltip="Name of the project",
             placeholder=f"e.g. project{self.PROJECT_SUFFIX}",
             func=self.on_validate_path,
@@ -540,6 +559,8 @@ class ImageWsiWindow(SingleViewerMixin):
             ]
         ):
             tooltip.append("- Current settings will not export any images as all <b>write</b> options are disabled.")
+        if not self.CONFIG.write_attached and self.registration_model and self.registration_model.has_attachments():
+            tooltip.append("- There are attachments in the project but they won't be exported.")
         if self.CONFIG.as_uint8:
             tooltip.append(
                 "- Images will be converted to uint8 to reduce file size. This can lead to data loss and should be used"

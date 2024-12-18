@@ -423,11 +423,11 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
 
     def _make_icon(self) -> None:
         """Make icon."""
-        from image2image.assets import ICON_ICO
-
-        icon = hp.get_icon_from_img(ICON_ICO)
-        if icon:
-            self.setWindowIcon(icon)
+    #     from image2image.assets import ICON_ICO
+    #
+    #     icon = hp.get_icon_from_img(ICON_ICO)
+    #     if icon:
+    #         self.setWindowIcon(icon)
 
     def _make_tools_menu(self, scalebar: bool = False, shortcut: bool = False) -> QMenu:
         """Make tools menu."""

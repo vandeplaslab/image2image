@@ -175,6 +175,7 @@ class ImageElastixWindow(ImageWsiWindow):
         connect(self._image_widget.dataset_dlg.evt_import_project, self._on_load_from_project, state=state)
         connect(self._image_widget.dataset_dlg.evt_files, self._on_pre_loading_images, state=state)
         connect(self._image_widget.dataset_dlg.evt_rejected_files, self.on_maybe_add_attachment, state=state)
+        connect(self._image_widget.dataset_dlg.evt_resolution, self.on_update_resolution, state=state)
 
         connect(self.view.viewer.events.status, self._status_changed, state=state)
         # connect(self.view.widget.canvas.events.key_press, self.keyPressEvent, state=state)
@@ -183,9 +184,9 @@ class ImageElastixWindow(ImageWsiWindow):
         connect(self.modality_list.evt_rename, self.on_rename_modality, state=state)
         connect(self.modality_list.evt_hide_others, self.on_hide_modalities, state=state)
         connect(self.modality_list.evt_preview_preprocessing, self.on_preview, state=state)
-        connect(self.modality_list.evt_resolution, self.on_update_modality, state=state)
         connect(self.modality_list.evt_show, self.on_show_modality, state=state)
-        connect(self.modality_list.evt_set_preprocessing, self.on_update_modality, state=state)
+        connect(self.modality_list.evt_resolution, self.on_update_resolution_of_modality, state=state)
+        connect(self.modality_list.evt_set_preprocessing, self.on_update_preprocessing_of_modality, state=state)
         connect(self.modality_list.evt_preview_transform_preprocessing, self.on_preview_transform, state=state)
         connect(self.modality_list.evt_preprocessing_close, self.on_preview_close, state=state)
         connect(self.modality_list.evt_color, self.on_update_colormap, state=state)
@@ -291,8 +292,9 @@ class ImageElastixWindow(ImageWsiWindow):
             with MeasureTimer() as timer:
                 reader = wrapper.get_reader_for_path(modality.path)
                 channel_axis, _ = reader.get_channel_axis_and_n_channels()
-                image = reader.pyramid[pyramid]
+                reader.resolution = modality.pixel_size
                 scale = reader.scale_for_pyramid(pyramid)
+                image = reader.pyramid[pyramid]
                 if pyramid == -1 and reader.n_in_pyramid == 1:
                     image, scale = check_image_size(image, scale, pyramid, channel_axis)
                 layer = self.view.get_layer(modality.name)
@@ -302,7 +304,7 @@ class ImageElastixWindow(ImageWsiWindow):
                     else f"pyramid={pyramid}"
                 )
                 # no need to re-process if the layer is already there
-                if layer and layer.metadata.get("preview_hash") == preprocessing_hash:
+                if layer and layer.metadata.get("preview_hash") == preprocessing_hash and not overwrite:
                     layer.visible = state
                     return
 
@@ -463,7 +465,8 @@ class ImageElastixWindow(ImageWsiWindow):
                     self.output_dir = project.output_dir
                     self.name_label.setText(project.name)
                     self._image_widget.on_close_dataset()
-                    paths = [modality.path for modality in project.modalities.values()]
+                    modalities = project.get_image_modalities(with_attachment=False)
+                    paths = [project.get_modality(modality).path for modality in modalities]
                     if paths:
                         self._image_widget.on_set_path(paths)
             except ValueError:
@@ -632,7 +635,7 @@ class ImageElastixWindow(ImageWsiWindow):
             PYRAMID_TO_LEVEL.keys(),
             tooltip="Index of the polygon to show in the fixed image.\nNegative values are used go from smallest to"
             " highest level.\nValue of 0 means that the highest resolution is shown which will be slow to pre-process.",
-            object_name="statusbar_combobox"
+            object_name="statusbar_combobox",
         )
         self.pyramid_level.currentIndexChanged.connect(self.on_update_pyramid_level)
         self.pyramid_level.setSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum)

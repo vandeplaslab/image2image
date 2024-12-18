@@ -236,7 +236,7 @@ class PreprocessingDialog(QtFramelessTool):
         if self._is_setting_config:
             return
         flip = self.flip_choices_group.checkedButton().text()
-        self.preprocessing.flip = {"None": None, "Horizontal": "h", "Vertical": "v"}[flip]
+        self.preprocessing.flip = {"None": None, "": None, "Horizontal": "h", "Vertical": "v"}[flip]
         # x = self.translate_x.value() * self.modality.pixel_size
         # y = self.translate_y.value() * self.modality.pixel_size
         # set values in physical units (microns)

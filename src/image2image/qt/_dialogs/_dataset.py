@@ -923,7 +923,7 @@ class SelectDataDialog(QtFramelessTool):
     # noinspection PyAttributeOutsideInit
     def make_panel(self) -> QFormLayout:
         """Make panel."""
-        _, header_layout = self._make_hide_handle(title="Images")
+        _, header_layout = self._make_hide_handle(title="Modalities")
 
         self.table = hp.make_table(self, self.TABLE_CONFIG)
         self.table.doubleClicked.connect(self.on_double_click)
@@ -993,7 +993,7 @@ class SelectDataDialog(QtFramelessTool):
         layout.setContentsMargins(6, 6, 6, 6)
         layout.addRow(header_layout)
 
-        layout.addRow(hp.make_label(self, "How to load data", bold=True))
+        layout.addRow(hp.make_label(self, "How to load image data", bold=True))
         layout.addRow(
             hp.make_h_layout(
                 hp.make_label(self, "Split CZI (recommended)", hide=not self.show_split_czi),
@@ -1007,7 +1007,7 @@ class SelectDataDialog(QtFramelessTool):
                 stretch_after=True,
             )
         )
-        layout.addRow(hp.make_label(self, "How to shape and scatter data", bold=True))
+        layout.addRow(hp.make_label(self, "How to load shape and scatter data", bold=True))
         layout.addRow(
             hp.make_h_layout(
                 hp.make_label(self, "Shape display"),
