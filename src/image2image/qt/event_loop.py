@@ -107,6 +107,7 @@ def get_app(
     # then they are all used.
     set_values = {k for k, v in locals().items() if v}
     kwargs = locals() if set_values else _defaults
+    kwargs["icon"] = icon or ICON_PNG
     global _app_ref
 
     with QMessageHandler():
