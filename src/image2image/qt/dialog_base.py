@@ -423,6 +423,7 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
 
     def _make_icon(self) -> None:
         """Make icon."""
+
     #     from image2image.assets import ICON_ICO
     #
     #     icon = hp.get_icon_from_img(ICON_ICO)
