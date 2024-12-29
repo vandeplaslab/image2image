@@ -8,7 +8,7 @@ from multiprocessing import freeze_support, set_start_method
 
 import click
 from click_groups import GroupedGroup
-from koyo.click import cli_parse_paths_sort
+from koyo.click import cli_parse_paths_sort, dev_options
 from koyo.system import IS_MAC, IS_PYINSTALLER
 from koyo.utilities import is_installed
 
@@ -28,19 +28,6 @@ AVAILABLE_TOOLS = [
 ]
 # if IS_MAC_ARM and IS_PYINSTALLER:
 #     AVAILABLE_TOOLS.pop(AVAILABLE_TOOLS.index("convert"))
-
-
-def dev_options(func: ty.Callable) -> ty.Callable:
-    """Setup dev options."""
-    if not IS_PYINSTALLER:
-        func = click.option(
-            "--dev",
-            help="Flat to indicate that CLI should run in development mode and catch all errors.",
-            default=False,
-            is_flag=True,
-            show_default=True,
-        )(func)
-    return func
 
 
 @click.version_option(__version__, prog_name="image2image")
