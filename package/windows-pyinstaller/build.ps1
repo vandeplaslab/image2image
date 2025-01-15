@@ -118,7 +118,7 @@ $filename = "image2image.spec"
 # Build bundle
 Write-Output "Filename: $filename"
 # if ($debug) {
-pyinstaller.exe --noconfirm --clean $filename
+pyinstaller.exe --noconfirm --clean $filename --hide-console hide-early
 
 # Copy runner script
 Copy-Item -Path "run_image2image.bat" -Destination "dist/"
@@ -127,12 +127,6 @@ if ($zip) {
     echo "Zipping files..."
     python zip.py
     echo "Zipped files"
-}
-
-if ($run) {
-    cd dist
-    Start-Process "run_autoims.bat"
-    cd ../
 }
 
 if ($run) {

@@ -102,7 +102,7 @@ def _make_exe(pyz: PYZ, analysis: Analysis, name: str):
         debug="all",
         strip=False,
         upx=True,
-        console=False,
+        console=True,  # False,
         bootloader_ignore_signals=False,
         icon=ICON_ICO,
     )
@@ -134,11 +134,11 @@ with MeasureTimer() as timer:
     print(f"COLLECT took {timer.format(timer.elapsed_since_last())}")
 
 
-# create launcher bat scripts
-for tool in ["viewer", "register", "convert", "crop", "elastix", "valis"]:
-    with open(f"dist/image2image/{tool}.bat", "w") as f:
-        f.write(f"@echo off\ncall image2image.exe --debug -t {tool}")
-        f.close()
+# # create launcher bat scripts
+# for tool in ["viewer", "register", "convert", "crop", "elastix", "valis"]:
+#     with open(f"dist/image2image/{tool}.bat", "w") as f:
+#         f.write(f"@echo off\ncall image2image.exe --debug -t {tool}")
+#         f.close()
 
 # Give information about build time
 time_end = time.time()
