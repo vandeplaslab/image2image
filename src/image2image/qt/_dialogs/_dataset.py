@@ -1012,8 +1012,8 @@ class SelectDataDialog(QtFramelessTool):
             hp.make_h_layout(
                 hp.make_label(self, "Shape display"),
                 self.shapes_combo,
-                hp.make_label(self, "Subsample shapes"),
                 hp.make_v_line(),
+                hp.make_label(self, "Subsample shapes"),
                 self.subsample_check,
                 hp.make_label(self, "Ratio"),
                 self.subsample_ratio,
