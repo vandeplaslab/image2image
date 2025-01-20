@@ -1530,6 +1530,9 @@ class ImageRegistrationWindow(Window):
             self._fixed_widget.on_close_dataset(force=True)
             self.on_clear("fixed", force=True)
             self.transform_model.clear(clear_data=False, clear_model=False, clear_initial=True)
+            self.on_run()
+            # self.fiducials_dlg.on_load()
+            # self.on_activate_initial()
 
     def on_close_menu(self) -> None:
         """Save menu."""

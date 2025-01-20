@@ -17,8 +17,8 @@ from loguru import logger
 from napari.layers import Image
 from qtextra.queue.popup import QUEUE, QueuePopup
 from qtextra.queue.task import Task
-from qtpy.QtCore import Qt
-from qtpy.QtGui import QKeyEvent
+from qtpy.QtCore import Qt, QRegularExpression
+from qtpy.QtGui import QKeyEvent, QRegularExpressionValidator
 from superqt import ensure_main_thread
 from superqt.utils import qdebounced
 
@@ -194,10 +194,13 @@ class ImageWsiWindow(SingleViewerMixin):
         """Validate project path."""
         name = self.name_label.text()
         object_name = ""
-        if not name:
+        try:
+            if not name:
+                object_name = "error"
+            if name and self.output_dir and (self.output_dir / name).with_suffix(self.PROJECT_SUFFIX).exists():
+                object_name = "warning"
+        except ValisConfig:
             object_name = "error"
-        if name and self.output_dir and (self.output_dir / name).with_suffix(self.PROJECT_SUFFIX).exists():
-            object_name = "warning"
         hp.set_object_name(self.name_label, object_name=object_name)
 
     def on_remove_modality(self, modality: Modality) -> None:
@@ -437,6 +440,7 @@ class ImageWsiWindow(SingleViewerMixin):
             placeholder=f"e.g. project{self.PROJECT_SUFFIX}",
             func=self.on_validate_path,
             func_changed=self.on_validate_path,
+            validator=QRegularExpressionValidator(QRegularExpression(r"^[a-zA-Z0-9_\-.,=]$")),
         )
         self.output_dir_label = hp.make_label(side_widget, "", tooltip="", enable_url=True)
         self.output_dir_btn = hp.make_qta_btn(
