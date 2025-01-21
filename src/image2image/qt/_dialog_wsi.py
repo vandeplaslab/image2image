@@ -17,11 +17,12 @@ from loguru import logger
 from napari.layers import Image
 from qtextra.queue.popup import QUEUE, QueuePopup
 from qtextra.queue.task import Task
-from qtpy.QtCore import Qt, QRegularExpression
+from qtpy.QtCore import QRegularExpression, Qt
 from qtpy.QtGui import QKeyEvent, QRegularExpressionValidator
 from superqt import ensure_main_thread
 from superqt.utils import qdebounced
 
+from image2image.config import ValisConfig
 from image2image.enums import LEVEL_TO_PYRAMID, PYRAMID_TO_LEVEL
 from image2image.models.data import DataModel
 from image2image.qt._dialog_mixins import SingleViewerMixin
@@ -30,7 +31,7 @@ if ty.TYPE_CHECKING:
     from qtextra._napari.image import NapariImageView
     from qtextra.widgets.qt_collapsible import QtCheckCollapsible
 
-    from image2image.config import ElastixConfig, ValisConfig
+    from image2image.config import ElastixConfig
     from image2image.qt._wsi._list import QtModalityItem, QtModalityList
     from image2image.qt._wsi._mask import CropDialog, MaskDialog
 
