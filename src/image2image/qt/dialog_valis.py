@@ -217,10 +217,17 @@ class ImageValisWindow(ImageWsiWindow):
         )
         self.hide_others_check = hp.make_checkbox(
             self,
-            "Hide others when previewing",
+            "Hide others",
             tooltip="When previewing, hide other images to reduce clutter.",
             checked=self.CONFIG.hide_others,
             func=self.on_hide_not_previewed_modalities,
+        )
+        self.auto_show_check = hp.make_checkbox(
+            self,
+            "Auto-show",
+            tooltip="Automatically show images after setting of pre-processing parameters",
+            checked=False,
+            func=self.on_show_modalities,
         )
 
         self.reference_choice = hp.make_combobox(
@@ -277,7 +284,9 @@ class ImageValisWindow(ImageWsiWindow):
         side_layout.addRow(self._image_widget)
         # Modalities
         side_layout.addRow(self.modality_list)
-        side_layout.addRow(hp.make_h_layout(self.use_preview_check, self.hide_others_check, margin=2, spacing=2))
+        side_layout.addRow(
+            hp.make_h_layout(self.use_preview_check, self.hide_others_check, self.auto_show_check, margin=2, spacing=2)
+        )
         # Registration paths
         side_layout.addRow(hp.make_h_line_with_text("Registration configuration"))
         side_layout.addRow(hp.make_label(self, "Reference"), self.reference_choice)

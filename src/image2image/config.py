@@ -151,6 +151,7 @@ class ElastixConfig(SingleAppConfig):
     )
     use_preview: bool = Field(True, title="Use preview", description="Use preview.", in_app=True)
     hide_others: bool = Field(False, title="Hide others", description="Hide others.", in_app=True)
+    auto_show: bool = Field(True, title="Auto show", description="Auto show.", in_app=True)
     open_when_finished: bool = Field(True, title="Open when finished", description="Open when finished.", in_app=True)
 
     # writing options
@@ -186,6 +187,7 @@ class ValisConfig(SingleAppConfig):
 
     use_preview: bool = Field(True, title="Use preview", description="Use preview.", in_app=True)
     hide_others: bool = Field(False, title="Hide others", description="Hide others.", in_app=True)
+    auto_show: bool = Field(True, title="Auto show", description="Auto show.", in_app=True)
     open_when_finished: bool = Field(True, title="Open when finished", description="Open when finished.", in_app=True)
 
     # Valis options

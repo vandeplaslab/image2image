@@ -21,10 +21,15 @@ class AboutDialog(QtFramelessPopup):
     # noinspection PyAttributeOutsideInit
     def make_panel(self):
         """Make panel."""
+        from koyo.utilities import get_version
         from qtextra.widgets.qt_svg import QtColoredSVGIcon
 
         from image2image import __version__
         from image2image.assets import ICON_SVG
+
+        package_text = "<br>"
+        for package in ["image2image", "image2image-io", "image2image-reg", "valis"]:
+            package_text += f"<b>{package} version:</b> {get_version(package)}<br>"
 
         links = {
             "project": "https://github.com/vandeplaslab/image2image",
@@ -41,6 +46,8 @@ class AboutDialog(QtFramelessPopup):
         <p><strong>GitHub:</strong>&nbsp;{hp.parse_link_to_link_tag(links["project"])}</p>
         <p><strong>Project's GitHub:</strong>&nbsp;{hp.parse_link_to_link_tag(links["github"])}</p>
         <p><strong>Author's website:</strong>&nbsp;{hp.parse_link_to_link_tag(links["website"])}</p>
+        <br>
+        {package_text}
         <br>
         <p>Developed in the Van de Plas lab</p>
         """

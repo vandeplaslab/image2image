@@ -55,6 +55,7 @@ class ImageWsiWindow(SingleViewerMixin):
     write_merged_check: Qw.QCheckBox
     as_uint8: Qw.QCheckBox
     use_preview_check: Qw.QCheckBox
+    auto_show_check: Qw.QCheckBox
     hide_others_check: Qw.QCheckBox
     modality_list: QtModalityList
     pyramid_level: Qw.QComboBox
@@ -321,14 +322,15 @@ class ImageWsiWindow(SingleViewerMixin):
 
     def _on_show_modalities(self) -> None:
         """Show modality images."""
-        self.CONFIG.update(use_preview=self.use_preview_check.isChecked())
+        self.CONFIG.update(use_preview=self.use_preview_check.isChecked(), auto_show=self.auto_show_check.isChecked())
         self.on_hide_not_previewed_modalities()
         self.modality_list.toggle_preview(self.CONFIG.use_preview)
         # if not self.CONFIG.hide_others:
         #     self.modality_list.toggle_visible([layer.name for layer in self.view.get_layers_of_type(Image)])
-        for _, modality, _widget in self.modality_list.item_model_widget_iter():
-            # self.on_show_modality(modality, state=widget.visible_btn.visible, overwrite=True)
-            self.on_show_modality(modality, state=True, overwrite=True)
+        if self.CONFIG.auto_show:
+            for _, modality, _widget in self.modality_list.item_model_widget_iter():
+                # self.on_show_modality(modality, state=widget.visible_btn.visible, overwrite=True)
+                self.on_show_modality(modality, state=True, overwrite=True)
 
     def on_hide_not_previewed_modalities(self) -> None:
         """Hide any modality that is not previewed."""
@@ -434,6 +436,9 @@ class ImageWsiWindow(SingleViewerMixin):
         self.on_close(force=True)
 
     def _make_output_widgets(self, side_widget: Qw.QWidget) -> None:
+        # regex = r"^[a-zA-Z0-9_\-.,=]"
+        regex = r"^[a-zA-Z0-9_\-.,=]{1,50}$"
+
         self.name_label = hp.make_line_edit(
             side_widget,
             "",
@@ -441,7 +446,7 @@ class ImageWsiWindow(SingleViewerMixin):
             placeholder=f"e.g. project{self.PROJECT_SUFFIX}",
             func=self.on_validate_path,
             func_changed=self.on_validate_path,
-            validator=QRegularExpressionValidator(QRegularExpression(r"^[a-zA-Z0-9_\-.,=]$")),
+            validator=QRegularExpressionValidator(QRegularExpression(regex)),
         )
         self.output_dir_label = hp.make_label(side_widget, "", tooltip="", enable_url=True)
         self.output_dir_btn = hp.make_qta_btn(

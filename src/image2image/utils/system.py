@@ -19,6 +19,10 @@ def get_system_info(as_html=False):
         import image2image_reg
     except ImportError:
         image2image_reg = None
+    try:
+        import valis
+    except ImportError:
+        valis = None
     from napari.utils.info import _sys_name
     from qtextra.helpers import hyper
 
@@ -38,6 +42,10 @@ def get_system_info(as_html=False):
         text += f"<b>image2image-reg</b>: {image2image_reg.__version__}<br><br>"
     else:
         text += "<b>image2image-reg</b>: not installed<br><br>"
+    if valis and hasattr(valis, "__version__"):
+        text += f"<b>valis-wsi</b>: {valis.__version__}<br><br>"
+    else:
+        text += "<b>valis-wsi</b>: not installed<br><br>"
 
     try:
         from qtpy import API_NAME, PYQT_VERSION, PYSIDE_VERSION, QtCore
@@ -115,4 +123,4 @@ def get_system_info(as_html=False):
 
 
 citation_text = "image2image contributors (2023). Van de Plas lab, Delft University of Technology."
-title_text = "<b>image2image - registration, visualisation and editing of multiple image types</b>"
+title_text = "image2image - registration, visualisation and editing of multiple image types"
