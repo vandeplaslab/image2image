@@ -25,7 +25,7 @@ class TransformData(_TransformData):
             _moving_paths,
             _moving_paths_missing,
             moving_points,
-            _moving_resolution,
+            moving_resolution,
             _moving_reader_kws,
         ) = load_transform_from_file(path, validate_paths=validate_paths)
         return cls(
@@ -33,4 +33,32 @@ class TransformData(_TransformData):
             moving_points=moving_points,
             transformation_type=transformation_type,
             fixed_resolution=fixed_resolution,
+            moving_resolution=moving_resolution,
         )
+
+    @classmethod
+    def recalculate(cls, path: PathLike) -> None:
+        """Recalculate and export."""
+        from koyo.json import read_json, write_json
+
+        # initialize model
+        obj = cls.from_i2r(path, validate_paths=False)
+
+        # create backup in case something goes wrong
+        backup_path = path.with_suffix(path.suffix + ".bak")
+        if not backup_path.exists():
+            backup_path.write_text(path.read_text())
+
+        # load configuration
+        config = read_json(path)
+        config["matrix_yx_px"] = obj.compute(yx=True, px=True).params.tolist()
+        config["matrix_yx_um"] = obj.compute(yx=True, px=False).params.tolist()
+        config["matrix_xy_px"] = obj.compute(yx=False, px=True).params.tolist()
+        config["matrix_xy_um"] = obj.compute(yx=False, px=False).params.tolist()
+        config["matrix_yx_px_inv"] = obj.compute(yx=True, px=True)._inv_matrix.tolist()
+        config["matrix_yx_um_inv"] = obj.compute(yx=True, px=False)._inv_matrix.tolist()
+        config["matrix_xy_px_inv"] = obj.compute(yx=False, px=True)._inv_matrix.tolist()
+        config["matrix_xy_um_inv"] = obj.compute(yx=False, px=False)._inv_matrix.tolist()
+
+        # export
+        write_json(path, config)
