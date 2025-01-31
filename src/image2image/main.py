@@ -167,10 +167,10 @@ def run(
 
         dlg = ImageMergeWindow(None, run_check_version=run_check_version, **kwargs)  # type: ignore[assignment]
         dlg.setMinimumSize(600, 400)
-    elif tool == "wsiprep":
-        from image2image.qt.dialog_wsiprep import ImageWsiPrepWindow
+    elif tool == "elastix3d":
+        from image2image.qt.dialog_elastix3d import ImageElastix3dWindow
 
-        dlg = ImageWsiPrepWindow(None, run_check_version=run_check_version, **kwargs)  # type: ignore[assignment]
+        dlg = ImageElastix3dWindow(None, run_check_version=run_check_version, **kwargs)  # type: ignore[assignment]
         dlg.setMinimumSize(1200, 800)
     elif tool == "elastix":
         from image2image.qt.dialog_elastix import ImageElastixWindow

@@ -622,7 +622,7 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
         )
         self.statusbar.addPermanentWidget(self.logger_btn)
 
-    def _make_scalebar_statusbar(self) -> None:
+    def _make_scalebar_statusbar(self, front: bool = True) -> None:
         self.scalebar_btn = hp.make_qta_btn(
             self,
             "ruler",
@@ -631,9 +631,12 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
             func_menu=self.on_show_scalebar,
             small=True,
         )
-        self.statusbar.insertPermanentWidget(0, self.scalebar_btn)
+        if front:
+            self.statusbar.insertPermanentWidget(0, self.scalebar_btn)
+        else:
+            self.statusbar.addPermanentWidget(self.scalebar_btn)
 
-    def _make_export_statusbar(self) -> None:
+    def _make_export_statusbar(self, front: bool=True) -> None:
         if self.view is None:
             raise ValueError("View is not initialized.")
 
@@ -646,7 +649,10 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
             func_menu=self.on_show_save_figure,
             small=True,
         )
-        self.statusbar.insertPermanentWidget(0, self.clipboard_btn)
+        if front:
+            self.statusbar.insertPermanentWidget(0, self.clipboard_btn)
+        else:
+            self.statusbar.addPermanentWidget(self.clipboard_btn)
 
         self.screenshot_btn = hp.make_qta_btn(
             self,
@@ -656,7 +662,10 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
             func_menu=self.on_show_save_figure,
             small=True,
         )
-        self.statusbar.insertPermanentWidget(0, self.screenshot_btn)
+        if front:
+            self.statusbar.insertPermanentWidget(0, self.screenshot_btn)
+        else:
+            self.statusbar.addPermanentWidget(self.screenshot_btn)
 
     def _make_statusbar(self) -> None:
         """Make statusbar."""
