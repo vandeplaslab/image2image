@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+# fix some issues
+import collections
 import sys
 import typing as ty
 from multiprocessing import freeze_support, set_start_method
@@ -14,8 +16,6 @@ from koyo.utilities import is_installed
 
 from image2image import __version__
 
-# fix some issues
-import collections
 if not hasattr(collections, "Callable"):
     collections.Callable = ty.Callable
 
