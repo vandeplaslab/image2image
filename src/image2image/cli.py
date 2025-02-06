@@ -8,16 +8,14 @@ from multiprocessing import freeze_support, set_start_method
 
 import click
 from click_groups import GroupedGroup
+import koyo.compat  # noqa
 from koyo.click import cli_parse_paths_sort, dev_options
 from koyo.system import IS_MAC, IS_PYINSTALLER
 from koyo.utilities import is_installed
 
 from image2image import __version__
 
-# fix some issues
-import collections
-if not hasattr(collections, "Callable"):
-    collections.Callable = ty.Callable
+
 
 
 AVAILABLE_TOOLS = [
