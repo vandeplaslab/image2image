@@ -16,8 +16,6 @@ from koyo.utilities import is_installed
 from image2image import __version__
 
 
-
-
 AVAILABLE_TOOLS = [
     "launcher",
     "register",

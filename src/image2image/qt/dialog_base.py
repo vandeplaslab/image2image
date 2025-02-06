@@ -636,7 +636,7 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
         else:
             self.statusbar.addPermanentWidget(self.scalebar_btn)
 
-    def _make_export_statusbar(self, front: bool=True) -> None:
+    def _make_export_statusbar(self, front: bool = True) -> None:
         if self.view is None:
             raise ValueError("View is not initialized.")
 

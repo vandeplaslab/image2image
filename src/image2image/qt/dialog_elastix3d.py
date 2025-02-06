@@ -1030,7 +1030,6 @@ class ImageElastix3dWindow(Window):
         """Make statusbar."""
         from qtextra._napari.image.components._viewer_key_bindings import toggle_grid
 
-
         self.statusbar = QStatusBar()  # noqa
         self.statusbar.setSizeGripEnabled(False)
 
