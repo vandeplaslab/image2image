@@ -3,7 +3,7 @@
 import typing as ty
 
 import qtextra.helpers as hp
-from qtextra._napari.common.component_controls.qt_scalebar_controls import QtScaleBarControls as _QtScaleBarControls
+from qtextraplot._napari.common.component_controls.qt_scalebar_controls import QtScaleBarControls as _QtScaleBarControls
 from qtpy.QtCore import Qt
 
 

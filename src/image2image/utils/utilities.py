@@ -20,7 +20,7 @@ if ty.TYPE_CHECKING:
     from napari._vispy.layers.shapes import VispyShapesLayer
     from napari.components import LayerList
     from napari.layers import Layer, Points, Shapes
-    from qtextra._napari.image.wrapper import NapariImageView
+    from qtextraplot._napari.image.wrapper import NapariImageView
     from vispy.color import Colormap as VispyColormap
 
 DRAG_DIST_THRESHOLD = 5

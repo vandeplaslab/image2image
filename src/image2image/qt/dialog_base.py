@@ -10,11 +10,11 @@ from image2image_io.config import CONFIG as READER_CONFIG
 from koyo.timer import MeasureTimer
 from loguru import logger
 from napari.layers import Image, Layer, Points, Shapes
-from qtextra._napari.mixins import ImageViewMixin
+from qtextraplot._napari.mixins import ImageViewMixin
 from qtextra.config import THEMES
 from qtextra.dialogs.qt_logger import QtLoggerDialog
 from qtextra.mixins import IndicatorMixin
-from qtextra.widgets.qt_image_button import QtThemeButton
+from qtextra.widgets.qt_button_icon import QtThemeButton
 from qtpy.QtCore import QProcess, Qt, Signal  # type: ignore[attr-defined]
 from qtpy.QtWidgets import QMainWindow, QMenu, QProgressBar, QStatusBar, QWidget
 from superqt.utils import create_worker, ensure_main_thread
@@ -32,7 +32,7 @@ from image2image.utils.utilities import (
 
 if ty.TYPE_CHECKING:
     from image2image_io.readers import BaseReader
-    from qtextra._napari.image.wrapper import NapariImageView
+    from qtextraplot._napari.image.wrapper import NapariImageView
 
 
 class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
@@ -699,7 +699,7 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
 
     def on_show_save_figure(self) -> None:
         """Show scale bar controls for the viewer."""
-        from qtextra._napari.common.widgets.screenshot_dialog import QtScreenshotDialog
+        from qtextraplot._napari.common.widgets.screenshot_dialog import QtScreenshotDialog
 
         if self.view is None:
             raise ValueError("View is not initialized.")

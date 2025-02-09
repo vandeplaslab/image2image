@@ -18,7 +18,7 @@ from napari.layers import Image, Points, Shapes
 from napari.layers.points.points import Mode
 from napari.layers.utils._link_layers import link_layers
 from napari.utils.events import Event
-from qtextra._napari.image.wrapper import NapariImageView
+from qtextraplot._napari.image.wrapper import NapariImageView
 from qtextra.dialogs.qt_close_window import QtConfirmCloseDialog
 from qtextra.utils.utilities import connect
 from qtextra.widgets.qt_mini_toolbar import QtMiniToolbar
@@ -45,7 +45,7 @@ from image2image.utils.utilities import (
 )
 
 if ty.TYPE_CHECKING:
-    from qtextra.widgets.qt_image_button import QtImagePushButton
+    from qtextra.widgets.qt_button_icon import QtImagePushButton
     from skimage.transform import ProjectiveTransform
 
     from image2image.qt._dialogs import FiducialsDialog
@@ -2023,7 +2023,7 @@ class ImageRegistrationWindow(Window):
 
     def dropEvent(self, event):
         """Override Qt method."""
-        from qtextra.widgets.qt_pick_option import QtScrollablePickOption
+        from qtextra.widgets.qt_select_one import QtScrollablePickOption
 
         self._setup_config()
         hp.update_property(self.centralWidget(), "drag", False)

@@ -13,7 +13,7 @@ from loguru import logger
 from qtextra import helpers as hp
 from qtextra.utils.table_config import TableConfig
 from qtextra.widgets.qt_dialog import QtFramelessTool
-from qtextra.widgets.qt_table_view import QtCheckableTableView
+from qtextra.widgets.qt_table_view_check import QtCheckableTableView
 from qtpy.QtCore import Qt
 from qtpy.QtWidgets import QFormLayout
 from superqt.utils import GeneratorWorker, create_worker, ensure_main_thread

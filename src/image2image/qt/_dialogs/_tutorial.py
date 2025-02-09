@@ -52,52 +52,52 @@ def show_merge_tutorial(widget: ImageMergeWindow) -> None:
                 "<br><br>Note. Some of the metadata might be lost during the process and we don't support"
                 " 3D or 4D+ images at the moment and are unlikely to do so in the future.",
                 widget=widget._image_widget,
-                position=Position.BOTTOM,
+                position=Position.CENTER,
             ),
             TutorialStep(
                 title="List of images",
                 message="Here is a list of images that will be merged to OME-TIFF format. You can edit image name,"
                 " channel names and select what should be retained (or removed).",
                 widget=widget.table,
-                position=Position.BOTTOM,
+                position=Position.TOP,
             ),
             TutorialStep(
                 title="Output directory",
                 message="Location where the image will be saved to.",
                 widget=widget.directory_btn,
-                position=Position.TOP,
+                position=Position.BOTTOM,
             ),
             TutorialStep(
                 title="Image name",
                 message="Name of the saved image. You don't have to put the .ome.tiff as it will be automatically added"
                 " when saving.",
                 widget=widget.name_edit,
-                position=Position.TOP,
+                position=Position.BOTTOM,
             ),
             TutorialStep(
                 title="Modify output settings",
                 message="You can control certain parameters of the OME-TIFF such as the tile size or if the image"
                 " data type should be changed to uint8 which greatly reduces file size.",
                 widget=widget.as_uint8,
-                position=Position.TOP,
+                position=Position.BOTTOM,
             ),
             TutorialStep(
                 title="Merge to OME-TIFF",
                 message="Click here to start the merging process.",
                 widget=widget.export_btn,
-                position=Position.TOP,
-            ),
-            TutorialStep(
-                title="Tutorial",
-                message="If you wish to see this tutorial again at a future date, you can click here to show it.",
-                widget=widget.tutorial_btn,
-                position=Position.TOP_RIGHT,
+                position=Position.BOTTOM,
             ),
             TutorialStep(
                 title="Feedback",
                 message="If you have some feedback, don't hesitate to send! You can do it directly in the app!",
                 widget=widget.feedback_btn,
-                position=Position.TOP_RIGHT,
+                position=Position.BOTTOM_RIGHT,
+            ),
+            TutorialStep(
+                title="Tutorial",
+                message="If you wish to see this tutorial again at a future date, you can click here to show it.",
+                widget=widget.tutorial_btn,
+                position=Position.BOTTOM_RIGHT,
             ),
         ]
     )
@@ -121,52 +121,55 @@ def show_convert_tutorial(widget: ImageConvertWindow) -> None:
                 " software.<br><br>Note. Some of the metadata might be lost during the process and we don't support"
                 " 3D or 4D+ images at the moment and are unlikely to do so in the future.",
                 widget=widget._image_widget,
-                position=Position.BOTTOM,
+                position=Position.CENTER,
             ),
             TutorialStep(
                 title="List of images",
                 message="Here is a list of images that will be converted to OME-TIFF format. If the CZI image has"
                 " multiple scenes (no. scenes), each scene will be converted to a separate OME-TIFF file.",
                 widget=widget.table,
-                position=Position.BOTTOM,
+                position=Position.TOP,
             ),
             TutorialStep(
                 title="Output directory",
                 message="Location where the image will be saved to.",
                 widget=widget.directory_btn,
-                position=Position.TOP,
+                position=Position.BOTTOM,
             ),
             TutorialStep(
                 title="Convert to OME-TIFF",
                 message="Click here to start the conversion process.",
                 widget=widget.export_btn,
-                position=Position.TOP,
+                position=Position.BOTTOM,
             ),
             TutorialStep(
                 title="Modify output settings",
                 message="You can control certain parameters of the OME-TIFF such as the tile size or if the image"
                 " data type should be changed to uint8 which greatly reduces file size.",
                 widget=widget.as_uint8,
-                position=Position.TOP,
+                position=Position.BOTTOM,
+                func=(widget.export_btn.cancel_btn.hide,),
             ),
             TutorialStep(
                 title="Cancel conversion",
                 message="You can always stop conversion process by clicking here. The task will be stopped once the"
                 " current step (e.g. scene) is finished.",
                 widget=widget.export_btn.cancel_btn,
-                position=Position.TOP_RIGHT,
-            ),
-            TutorialStep(
-                title="Tutorial",
-                message="If you wish to see this tutorial again at a future date, you can click here to show it.",
-                widget=widget.tutorial_btn,
-                position=Position.TOP_RIGHT,
+                position=Position.BOTTOM_RIGHT,
+                func=(widget.export_btn.cancel_btn.show,),
             ),
             TutorialStep(
                 title="Feedback",
                 message="If you have some feedback, don't hesitate to send! You can do it directly in the app!",
                 widget=widget.feedback_btn,
-                position=Position.TOP_RIGHT,
+                position=Position.BOTTOM_RIGHT,
+                func=(widget.export_btn.cancel_btn.hide,),
+            ),
+            TutorialStep(
+                title="Tutorial",
+                message="If you wish to see this tutorial again at a future date, you can click here to show it.",
+                widget=widget.tutorial_btn,
+                position=Position.BOTTOM_RIGHT,
             ),
         ]
     )
@@ -189,44 +192,47 @@ def show_fusion_tutorial(widget: ImageFusionWindow) -> None:
                 " try to use the <b>image2crop</b> app to crop a region of interest which can be used in the Fusion"
                 " toolbox.",
                 widget=widget._image_widget,
-                position=Position.BOTTOM,
+                position=Position.CENTER,
             ),
             TutorialStep(
                 title="List of images",
                 message="Here are all the images that will be converted to Fusion CSV format.",
                 widget=widget.table,
-                position=Position.BOTTOM,
+                position=Position.TOP,
             ),
             TutorialStep(
                 title="Output directory",
                 message="Location where the image will be saved to.",
                 widget=widget.directory_btn,
-                position=Position.TOP,
+                position=Position.BOTTOM,
             ),
             TutorialStep(
                 title="Convert to CSV",
                 message="Click here to start the conversion process.",
                 widget=widget.export_btn,
-                position=Position.TOP,
+                position=Position.BOTTOM,
+                func=(widget.export_btn.cancel_btn.hide,),
             ),
             TutorialStep(
                 title="Cancel conversion",
                 message="You can always stop conversion process by clicking here. The task should stop almost"
                 " immediately.",
                 widget=widget.export_btn.cancel_btn,
-                position=Position.TOP_RIGHT,
-            ),
-            TutorialStep(
-                title="Tutorial",
-                message="If you wish to see this tutorial again at a future date, you can click here to show it.",
-                widget=widget.tutorial_btn,
-                position=Position.TOP_RIGHT,
+                position=Position.BOTTOM_RIGHT,
+                func=(widget.export_btn.cancel_btn.show,),
             ),
             TutorialStep(
                 title="Feedback",
                 message="If you have some feedback, don't hesitate to send! You can do it directly in the app!",
                 widget=widget.feedback_btn,
-                position=Position.TOP_RIGHT,
+                position=Position.BOTTOM_RIGHT,
+                func=(widget.export_btn.cancel_btn.hide,),
+            ),
+            TutorialStep(
+                title="Tutorial",
+                message="If you wish to see this tutorial again at a future date, you can click here to show it.",
+                widget=widget.tutorial_btn,
+                position=Position.BOTTOM_RIGHT,
             ),
         ]
     )
@@ -241,34 +247,34 @@ def _generic_statusbar(
 
     return [
         TutorialStep(
-            title="Screenshot to clipboard",
-            message=CLIPBOARD,
-            widget=widget.clipboard_btn,
-            position=Position.TOP_RIGHT,
-        ),
-        TutorialStep(
             title="Save screenshot",
             message=SCREENSHOT,
             widget=widget.screenshot_btn,
-            position=Position.TOP_RIGHT,
+            position=Position.BOTTOM_RIGHT,
+        ),
+        TutorialStep(
+            title="Screenshot to clipboard",
+            message=CLIPBOARD,
+            widget=widget.clipboard_btn,
+            position=Position.BOTTOM_RIGHT,
         ),
         TutorialStep(
             title="Show scalebar",
             message=SCALE_BAR,
             widget=widget.scalebar_btn,
-            position=Position.TOP_RIGHT,
-        ),
-        TutorialStep(
-            title="Tutorial",
-            message=TUTORIAL,
-            widget=widget.tutorial_btn,
-            position=Position.TOP_RIGHT,
+            position=Position.BOTTOM_RIGHT,
         ),
         TutorialStep(
             title="Feedback",
             message=FEEDBACK,
             widget=widget.feedback_btn,
-            position=Position.TOP_RIGHT,
+            position=Position.BOTTOM_RIGHT,
+        ),
+        TutorialStep(
+            title="Tutorial",
+            message=TUTORIAL,
+            widget=widget.tutorial_btn,
+            position=Position.BOTTOM_RIGHT,
         ),
     ]
 
@@ -286,19 +292,19 @@ def show_register_tutorial(widget: ImageRegistrationWindow) -> None:
                 " image registration information between e.g. microscopy and IMS data. This is done by computing affine"
                 " transformation based on fiducial markers in the <b>fixed</b> and <b>moving</b> images.",
                 widget=widget.view_fixed.widget,
-                position=Position.BOTTOM,
+                position=Position.CENTER,
             ),
             TutorialStep(
                 title="Fixed image canvas",
                 message="This is where the <b>fixed</b> (or target) images will be displayed.",
                 widget=widget.view_fixed.widget,
-                position=Position.BOTTOM,
+                position=Position.TOP,
             ),
             TutorialStep(
                 title="Moving image canvas",
                 message="This is where the <b>moving</b> images will be displayed.",
                 widget=widget.view_moving.widget,
-                position=Position.TOP,
+                position=Position.BOTTOM,
             ),
             TutorialStep(
                 title="Open previous project",
@@ -310,25 +316,25 @@ def show_register_tutorial(widget: ImageRegistrationWindow) -> None:
                 title="Control what should be shown",
                 message="You can control what images should be loaded and  which image channels should be displayed.",
                 widget=widget._fixed_widget,
-                position=Position.LEFT_TOP,
+                position=Position.RIGHT_TOP,
             ),
             TutorialStep(
                 title="Add or remove image",
                 message=ADD_IMAGES,
                 widget=widget._fixed_widget.add_btn,
-                position=Position.LEFT_TOP,
+                position=Position.RIGHT_TOP,
             ),
             TutorialStep(
                 title="More options",
                 message=MORE_OPTIONS,
                 widget=widget._fixed_widget.more_btn,
-                position=Position.LEFT_TOP,
+                position=Position.RIGHT_TOP,
             ),
             TutorialStep(
                 title="Channel selection",
                 message="Control which image channels should be shown or hidden.",
                 widget=widget._fixed_widget.channel_btn,
-                position=Position.LEFT_TOP,
+                position=Position.RIGHT_TOP,
             ),
             TutorialStep(
                 title="View type",
@@ -336,21 +342,21 @@ def show_register_tutorial(widget: ImageRegistrationWindow) -> None:
                 " a good starting point as it ensures that each pixel in an image is visible. The <b>overlay</b>"
                 " view will show the ion image.",
                 widget=widget._moving_widget.view_type_choice,
-                position=Position.LEFT_TOP,
+                position=Position.RIGHT_TOP,
             ),
             TutorialStep(
                 title="Overlay",
                 message="You can display <b>one</b> <b>moving</b> image on top of the <b>fixed</b> image. If you've"
                 " loaded multiple, you can select which one should be displayed.",
                 widget=widget._moving_widget.transformed_choice,
-                position=Position.LEFT_TOP,
+                position=Position.RIGHT_TOP,
             ),
             TutorialStep(
                 title="Show fiducials table",
                 message="You can show/hide the fiducials table by clicking here. This can be useful when you want to "
                 " revisit previous points (<b>double-click</b> on the row to zoom-in) to edit or remove it.",
                 widget=widget.fiducials_btn,
-                position=Position.LEFT_TOP,
+                position=Position.RIGHT_TOP,
             ),
             TutorialStep(
                 title="Save project",
@@ -358,19 +364,19 @@ def show_register_tutorial(widget: ImageRegistrationWindow) -> None:
                 " transformations) and reload it in the future without all that faffing about! The transformation"
                 " data can also be used by e.g. <b>AutoIMS</b> or <b>image2viewer</b> app.",
                 widget=widget.export_project_btn,
-                position=Position.LEFT_TOP,
+                position=Position.RIGHT_TOP,
             ),
             TutorialStep(
                 title="Tutorial",
                 message=TUTORIAL,
                 widget=widget.tutorial_btn,
-                position=Position.TOP_RIGHT,
+                position=Position.BOTTOM_RIGHT,
             ),
             TutorialStep(
                 title="Feedback",
                 message=FEEDBACK,
                 widget=widget.feedback_btn,
-                position=Position.TOP_RIGHT,
+                position=Position.BOTTOM_RIGHT,
             ),
         ]
     )
@@ -390,39 +396,38 @@ def show_viewer_tutorial(widget: ImageViewerWindow) -> None:
                 message="We would like to show you around before you get started!<br>This app let's overlay multiple"
                 " images (such as microscopy or IMS), apply appropriate image transformation and export as figures.",
                 widget=widget.view.widget,
-                position=Position.RIGHT,
-                position_offset=(100, 0),
+                position=Position.CENTER,
             ),
             TutorialStep(
                 title="Open previous project",
                 message=OPEN_PROJECT,
                 widget=widget._image_widget.import_btn,
-                position=Position.BOTTOM_RIGHT,
-            ),
-            TutorialStep(
-                title="Control what should be shown",
-                message=MANAGE_SELECTION,
-                widget=widget._image_widget,
-                position=Position.LEFT_TOP,
+                position=Position.RIGHT_TOP,
             ),
             TutorialStep(
                 title="Add or remove image",
                 message=ADD_IMAGES,
                 widget=widget._image_widget.add_btn,
-                position=Position.LEFT_TOP,
+                position=Position.RIGHT_TOP,
+            ),
+            TutorialStep(
+                title="Control what should be shown",
+                message=MANAGE_SELECTION,
+                widget=widget._image_widget,
+                position=Position.RIGHT_TOP,
             ),
             TutorialStep(
                 title="Save project",
                 message="You can save the current state of the viewer (loaded images, pixel size and transformation"
                 " information) and reload it in the future without all that faffing about!",
                 widget=widget._image_widget.export_btn,
-                position=Position.LEFT_TOP,
+                position=Position.RIGHT_TOP,
             ),
             TutorialStep(
                 title="More options",
                 message=MORE_OPTIONS,
                 widget=widget._image_widget.more_btn,
-                position=Position.LEFT_TOP,
+                position=Position.RIGHT_TOP,
             ),
             TutorialStep(
                 title="Transform selection",
@@ -431,21 +436,21 @@ def show_viewer_tutorial(widget: ImageViewerWindow) -> None:
                 " right place as it has different pixel size, spatial orientation or position. You can load previous"
                 " transformation data here and apply it to appropriate dataset.",
                 widget=widget._image_widget.transform_btn,
-                position=Position.LEFT_TOP,
-            ),
-            TutorialStep(
-                title="Generate masks",
-                message="If you are planning on doing supervised learning in <b>AutoIMS</b>, you can generate"
-                " compatible masks right within image2viewer!",
-                widget=widget.export_mask_btn,
-                position=Position.LEFT_TOP,
+                position=Position.RIGHT_TOP,
             ),
             TutorialStep(
                 title="Create mask",
                 message="You can also create a mask withing image2image. These masks can be then used in"
                 " <b>AutoIMS</b> or other software such as <b>QuPath</b>.",
                 widget=widget.create_mask_btn,
-                position=Position.LEFT_TOP,
+                position=Position.RIGHT_TOP,
+            ),
+            TutorialStep(
+                title="Generate masks",
+                message="If you are planning on doing supervised learning in <b>AutoIMS</b>, you can generate"
+                " compatible masks right within image2viewer!",
+                widget=widget.export_mask_btn,
+                position=Position.RIGHT_TOP,
             ),
             *_generic_statusbar(widget),
         ]
@@ -468,31 +473,31 @@ def show_crop_tutorial(widget: ImageCropWindow) -> None:
                 " images for e.g. image fusion. You can draw any shape on the canvas but we will use the bounding box"
                 " to cut region out.",
                 widget=widget.view.widget,
-                position=Position.RIGHT,
+                position=Position.CENTER,
             ),
             TutorialStep(
                 title="Open previous project",
                 message=OPEN_PROJECT,
                 widget=widget._image_widget.import_btn,
-                position=Position.BOTTOM_RIGHT,
+                position=Position.RIGHT_TOP,
             ),
             TutorialStep(
                 title="Control what should be shown",
                 message=MANAGE_SELECTION,
                 widget=widget._image_widget.channel_btn,
-                position=Position.LEFT_TOP,
+                position=Position.RIGHT_TOP,
             ),
             TutorialStep(
                 title="Add or remove image",
                 message=ADD_IMAGES,
                 widget=widget._image_widget.add_btn,
-                position=Position.LEFT_TOP,
+                position=Position.RIGHT_TOP,
             ),
             TutorialStep(
                 title="More options",
                 message=MORE_OPTIONS,
                 widget=widget._image_widget.more_btn,
-                position=Position.LEFT_TOP,
+                position=Position.RIGHT_TOP,
             ),
             TutorialStep(
                 title="Image crop",
@@ -500,28 +505,28 @@ def show_crop_tutorial(widget: ImageCropWindow) -> None:
                 " `crop area` selection. Each time a new region is added, the list of available options updates."
                 " The displayed values correspond to the bounding box around the region of interest.",
                 widget=widget.index_choice,
-                position=Position.LEFT_TOP,
+                position=Position.RIGHT_TOP,
             ),
             TutorialStep(
                 title="Preview",
                 message="You can preview your selection by clicking here. This will extract each region of interest for"
                 " each of the loaded images.",
                 widget=widget.preview_crop_btn,
-                position=Position.LEFT_TOP,
+                position=Position.RIGHT_TOP,
             ),
             TutorialStep(
                 title="Export to OME-TIFF",
                 message="You can export each region of interest to specified directory. You will be prompted to select"
                 " one.",
                 widget=widget.crop_btn,
-                position=Position.LEFT_TOP,
+                position=Position.RIGHT_TOP,
             ),
             TutorialStep(
                 title="Save project",
                 message="You can save the current state of the viewer (loaded images, pixel size and transformation"
                 " information) and reload it in the future without all that faffing about!",
                 widget=widget._image_widget.export_btn,
-                position=Position.LEFT_TOP,
+                position=Position.RIGHT_TOP,
             ),
             *_generic_statusbar(widget),
         ]
@@ -545,25 +550,25 @@ def show_elastix_tutorial(widget: ImageElastixWindow) -> None:
                 " initialize the registration process, improved image pre-processing, easier masking, better data"
                 " organization and much more!",
                 widget=widget.view.widget,
-                position=Position.RIGHT,
+                position=Position.CENTER,
             ),
             TutorialStep(
                 title="Open previous project",
                 message=OPEN_PROJECT,
                 widget=widget._image_widget.import_btn,
-                position=Position.BOTTOM_RIGHT,
+                position=Position.RIGHT_TOP,
             ),
             TutorialStep(
                 title="Add images",
                 message=ADD_IMAGES,
                 widget=widget._image_widget.add_btn,
-                position=Position.LEFT_TOP,
+                position=Position.RIGHT_TOP,
             ),
             TutorialStep(
                 title="More options",
                 message=MORE_OPTIONS,
                 widget=widget._image_widget.more_btn,
-                position=Position.LEFT_TOP,
+                position=Position.RIGHT_TOP,
             ),
             TutorialStep(
                 title="Image list",
@@ -571,7 +576,7 @@ def show_elastix_tutorial(widget: ImageElastixWindow) -> None:
                 " name, pixel size as well as adjust the pre-processing parameters that will govern how the"
                 " registration is performed.",
                 widget=widget.modality_list,
-                position=Position.LEFT_BOTTOM,
+                position=Position.RIGHT_BOTTOM,
             ),
             TutorialStep(
                 title="Change display type",
@@ -579,7 +584,7 @@ def show_elastix_tutorial(widget: ImageElastixWindow) -> None:
                 " the value of this checkbox. Pre-processing can take a few seconds, depending on the pyramid"
                 " level option.",
                 widget=widget.use_preview_check,
-                position=Position.BOTTOM_RIGHT,
+                position=Position.TOP_RIGHT,
             ),
             TutorialStep(
                 title="Masking and cropping",
@@ -587,7 +592,7 @@ def show_elastix_tutorial(widget: ImageElastixWindow) -> None:
                 " that only part of the image is used in registration (but the entire image will be exported)"
                 " whereas cropping will crop the image first, and subsequently perform the registration.",
                 widget=widget.mask_btn,
-                position=Position.BOTTOM_RIGHT,
+                position=Position.TOP_RIGHT,
             ),
             TutorialStep(
                 title="Registration path",
@@ -596,51 +601,46 @@ def show_elastix_tutorial(widget: ImageElastixWindow) -> None:
                 " moved and therefore changed. The through modality can he helpful in aiding difficult registrations"
                 " where the source and target modalities are not similar.",
                 widget=widget.registration_map,
-                position=Position.LEFT,
+                position=Position.RIGHT,
             ),
             TutorialStep(
                 title="Project name",
                 message="You can specify the name of the project here. This will be used when saving the project.",
                 widget=widget.name_label,
-                position=Position.LEFT,
+                position=Position.RIGHT,
             ),
             TutorialStep(
                 title="Export options",
                 message="You can control how the data is exported by adjusting a few options hidden here.",
                 widget=widget.hidden_settings,
-                position=Position.LEFT_BOTTOM,
+                position=Position.RIGHT_BOTTOM,
                 func=(widget.hidden_settings.expand,),
             ),
             TutorialStep(
                 title="Save",
                 message="Click here to save the Elastix project to file.",
                 widget=widget.save_btn,
-                position=Position.TOP_RIGHT,
-                func=(
-                    widget.hidden_settings.collapse,
-                    # widget.save_btn.on_right_click,
-                ),
+                position=Position.BOTTOM_RIGHT,
+                func=(widget.hidden_settings.collapse,),
             ),
             TutorialStep(
                 title="Open in viewer",
                 message="Click here to open the <b>registered</b> project in the Viewer app (nothing will happen if the"
                 " registration has not been performed).",
                 widget=widget.viewer_btn,
-                position=Position.TOP_RIGHT,
-                # func=(widget.viewer_btn.on_right_click,),
+                position=Position.BOTTOM_RIGHT,
             ),
             TutorialStep(
                 title="Register images",
                 message="Click here to perform the image registration. There are a number of options available.",
                 widget=widget.run_btn,
-                position=Position.TOP_RIGHT,
-                # func=(widget.run_btn.click,),
+                position=Position.BOTTOM_RIGHT,
             ),
             TutorialStep(
                 title="Queue",
                 message="You can see registrations tasks in the queue. Click here to open the queue view.",
                 widget=widget.queue_btn,
-                position=Position.TOP_RIGHT,
+                position=Position.BOTTOM_RIGHT,
             ),
             *_generic_statusbar(widget),
         ]
@@ -665,25 +665,25 @@ def show_valis_tutorial(widget: ImageValisWindow) -> None:
                 "performs multi-step registration using linear and non-linear transformations. Please see here for"
                 f" more information {valis_ref}.",
                 widget=widget.view.widget,
-                position=Position.RIGHT,
+                position=Position.CENTER,
             ),
             TutorialStep(
                 title="Open previous project",
                 message=OPEN_PROJECT,
                 widget=widget._image_widget.import_btn,
-                position=Position.BOTTOM_RIGHT,
+                position=Position.RIGHT_TOP,
             ),
             TutorialStep(
                 title="Add images",
                 message=ADD_IMAGES,
                 widget=widget._image_widget.add_btn,
-                position=Position.LEFT_TOP,
+                position=Position.RIGHT_TOP,
             ),
             TutorialStep(
                 title="More options",
                 message=MORE_OPTIONS,
                 widget=widget._image_widget.more_btn,
-                position=Position.LEFT_TOP,
+                position=Position.RIGHT_TOP,
             ),
             TutorialStep(
                 title="Image list",
@@ -691,7 +691,7 @@ def show_valis_tutorial(widget: ImageValisWindow) -> None:
                 " name, pixel size as well as adjust the pre-processing parameters that will govern how the"
                 " registration is performed.",
                 widget=widget.modality_list,
-                position=Position.LEFT_BOTTOM,
+                position=Position.RIGHT,
             ),
             TutorialStep(
                 title="Change display type",
@@ -712,45 +712,40 @@ def show_valis_tutorial(widget: ImageValisWindow) -> None:
                 title="Project name",
                 message="You can specify the name of the project here. This will be used when saving the project.",
                 widget=widget.name_label,
-                position=Position.LEFT,
+                position=Position.RIGHT,
             ),
             TutorialStep(
                 title="Export options",
                 message="You can control how the data is exported by adjusting a few options hidden here.",
                 widget=widget.hidden_settings,
-                position=Position.LEFT_BOTTOM,
+                position=Position.RIGHT_BOTTOM,
                 func=(widget.hidden_settings.expand,),
             ),
             TutorialStep(
                 title="Save",
                 message="Click here to save the Elastix project to file.",
                 widget=widget.save_btn,
-                position=Position.TOP_RIGHT,
-                func=(
-                    widget.hidden_settings.collapse,
-                    # widget.save_btn.on_right_click,
-                ),
+                position=Position.BOTTOM_RIGHT,
+                func=(widget.hidden_settings.collapse,),
             ),
             TutorialStep(
                 title="Open in viewer",
                 message="Click here to open the <b>registered</b> project in the Viewer app (nothing will happen if the"
                 " registration has not been performed).",
                 widget=widget.viewer_btn,
-                position=Position.TOP_RIGHT,
-                # func=(widget.viewer_btn.on_right_click,),
+                position=Position.BOTTOM_RIGHT,
             ),
             TutorialStep(
                 title="Register images",
                 message="Click here to perform the image registration. There are a number of options available.",
                 widget=widget.run_btn,
-                position=Position.TOP_RIGHT,
-                # func=(widget.run_btn.click,),
+                position=Position.BOTTOM_RIGHT,
             ),
             TutorialStep(
                 title="Queue",
                 message="You can see registrations tasks in the queue. Click here to open the queue view.",
                 widget=widget.queue_btn,
-                position=Position.TOP_RIGHT,
+                position=Position.BOTTOM_RIGHT,
             ),
             *_generic_statusbar(widget),
         ]

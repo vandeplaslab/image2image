@@ -13,7 +13,7 @@ from koyo.timer import MeasureTimer
 from loguru import logger
 from napari.layers import Image, Shapes
 from napari.layers.shapes._shapes_constants import Box
-from qtextra._napari.common.layer_controls.qt_shapes_controls import QtShapesControls
+from qtextraplot._napari.common.layer_controls.qt_shapes_controls import QtShapesControls
 from qtextra.utils.utilities import connect
 from qtextra.widgets.qt_dialog import QtFramelessTool
 from qtpy.QtCore import Qt
@@ -24,9 +24,9 @@ from image2image.config import ELASTIX3D_CONFIG
 from image2image.utils.utilities import format_group_info, get_groups, groups_to_group_id, init_shapes_layer
 
 if ty.TYPE_CHECKING:
-    from qtextra._napari.image.wrapper import NapariImageView
+    from qtextraplot._napari.image.wrapper import NapariImageView
     from qtextra.utils.table_config import TableConfig
-    from qtextra.widgets.qt_table_view import QtCheckableTableView
+    from qtextra.widgets.qt_table_view_check import QtCheckableTableView
 
     from image2image.models.wsiprep import Registration, RegistrationGroup
     from image2image.qt.dialog_wsiprep import ImageWsiPrepWindow

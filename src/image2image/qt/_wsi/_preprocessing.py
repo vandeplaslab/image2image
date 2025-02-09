@@ -11,7 +11,7 @@ from loguru import logger
 from qtextra import helpers as hp
 from qtextra.utils.table_config import TableConfig
 from qtextra.widgets.qt_dialog import QtFramelessTool
-from qtextra.widgets.qt_table_view import FilterProxyModel, QtCheckableTableView
+from qtextra.widgets.qt_table_view_check import FilterProxyModel, QtCheckableTableView
 from qtpy.QtCore import Signal
 from qtpy.QtWidgets import QFormLayout, QWidget
 from superqt.utils import qdebounced

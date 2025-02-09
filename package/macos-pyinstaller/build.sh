@@ -153,9 +153,10 @@ then
     local_install+=("image2image-reg")
 fi
 
+qtextra=false
 if $update_deps
 then
-  local_install+=("qtextra")
+  qtextra=true
 fi
 
 # always install latest version of koyo
@@ -184,6 +185,34 @@ do
     fi
     echo "Installed package: " $pkg
 done
+
+# install qtextra
+if $qtextra
+then
+    echo "Installing qtextra..."
+    cd $(realpath $github_dir/qtextra) || exit 1
+    if $uv
+    then
+      uv pip uninstall qtextra
+      uv pip install -U "qtextra[console,sentry]"
+    else
+      pip install -U ".[console,sentry]"
+    fi
+    echo "Installed qtextra."
+    cd $start_dir
+
+    echo "Installing qtextraplot..."
+    cd $(realpath $github_dir/qtextraplot) || exit 1
+    if $uv
+    then
+      uv pip uninstall qtextraplot
+      uv pip install -U "qtextraplot[2d]"
+    else
+      pip install -U ".[2d]"
+    fi
+    echo "Installed qtextraplot."
+    cd $start_dir
+fi
 
 # iterate over the list
 for pkg in "${local_install[@]}"

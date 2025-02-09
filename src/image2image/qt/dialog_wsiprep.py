@@ -17,9 +17,9 @@ from natsort import natsorted
 from qtextra.dialogs.qt_close_window import QtConfirmCloseDialog
 from qtextra.utils.table_config import TableConfig
 from qtextra.utils.utilities import connect
-from qtextra.widgets.qt_image_button import QtThemeButton
+from qtextra.widgets.qt_button_icon import QtThemeButton
 from qtextra.widgets.qt_mini_toolbar import QtMiniToolbar
-from qtextra.widgets.qt_table_view import QtCheckableTableView
+from qtextra.widgets.qt_table_view_check import QtCheckableTableView
 from qtpy.QtCore import Qt
 from qtpy.QtWidgets import (
     QDialog,
@@ -1018,7 +1018,7 @@ class ImageWsiPrepWindow(Window):
 
     def on_show_grid(self) -> None:
         """Show scale bar controls for the viewer."""
-        from qtextra._napari.common.component_controls.qt_grid_controls import QtGridControls
+        from qtextraplot._napari.common.component_controls.qt_grid_controls import QtGridControls
 
         dlg = QtGridControls(self.view.viewer, self.view.widget)
         dlg.show_above_mouse()
@@ -1030,7 +1030,7 @@ class ImageWsiPrepWindow(Window):
 
     def _make_statusbar(self) -> None:
         """Make statusbar."""
-        from qtextra._napari.image.components._viewer_key_bindings import toggle_grid
+        from qtextraplot._napari.image.components._viewer_key_bindings import toggle_grid
 
         from image2image.qt._dialogs._sentry import send_feedback
 

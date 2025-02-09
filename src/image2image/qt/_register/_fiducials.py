@@ -10,7 +10,7 @@ from qtextra import helpers as hp
 from qtextra.utils.table_config import TableConfig
 from qtextra.utils.utilities import connect
 from qtextra.widgets.qt_dialog import QtFramelessTool
-from qtextra.widgets.qt_table_view import QtCheckableTableView
+from qtextra.widgets.qt_table_view_check import QtCheckableTableView
 from qtpy.QtCore import QModelIndex, Qt, Signal  # type: ignore[attr-defined]
 from qtpy.QtGui import QKeyEvent
 from qtpy.QtWidgets import QFormLayout

@@ -22,9 +22,9 @@ from image2image.qt.dialog_base import Window
 from image2image.utils.utilities import calculate_zoom, init_shapes_layer
 
 if ty.TYPE_CHECKING:
-    from qtextra._napari.image.wrapper import NapariImageView
+    from qtextraplot._napari.image.wrapper import NapariImageView
     from qtextra.utils.table_config import TableConfig
-    from qtextra.widgets.qt_click_label import QtClickLabel
+    from qtextra.widgets.qt_label_click import QtClickLabel
 
     from image2image.models.data import DataModel
     from image2image.qt._dialogs._select import LoadWidget

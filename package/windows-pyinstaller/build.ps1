@@ -91,9 +91,27 @@ if ($update_just_register) {
 }
 
 # only update dependencies
+$qtextra = $false
 if ($update_deps) {
-    $local_install.Add("qtextra")
+    $qtextra = $true
     $local_install.Add("koyo")
+}
+
+# install qtextra
+if ($qtextra) {
+    echo "Re-installing qtextra..."
+    $new_dir = Join-Path -Path $github_dir -ChildPath "qtextra" -Resolve
+    cd $new_dir
+    pip install ".[sentry,console]"
+    cd $start_dir
+    echo "Reinstalled qtextra"
+
+    echo "Re-installing qtextraplot..."
+    $new_dir = Join-Path -Path $github_dir -ChildPath "qtextraplot" -Resolve
+    cd $new_dir
+    pip install ".[2d]"
+    cd $start_dir
+    echo "Reinstalled qtextraplot"
 }
 
 # install local packages
@@ -105,12 +123,14 @@ foreach ($package in $local_install) {
     cd $start_dir
     echo "Reinstalled $package"
 }
+
 # install pip packages
 foreach ($package in $pip_install) {
     echo "Re-installing $package..."
     pip install -U $package
     echo "Reinstalled $package"
 }
+
 
 # Get path
 $filename = "image2image.spec"

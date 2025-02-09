@@ -12,7 +12,7 @@ from image2image_io.config import CONFIG as READER_CONFIG
 from koyo.typing import PathLike
 from loguru import logger
 from qtextra.utils.utilities import connect
-from qtextra.widgets.qt_icon_label import QtActiveIcon
+from qtextra.widgets.qt_label_icon import QtActiveIcon
 from qtpy.QtCore import Qt, Signal  # type: ignore[attr-defined]
 from qtpy.QtWidgets import QFormLayout, QWidget
 
@@ -27,7 +27,7 @@ from image2image.qt._dialogs import (
 )
 
 if ty.TYPE_CHECKING:
-    from qtextra._napari.image.wrapper import NapariImageView
+    from qtextraplot._napari.image.wrapper import NapariImageView
 
     from image2image.qt.dialog_base import Window
 

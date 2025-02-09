@@ -28,7 +28,7 @@ from image2image.models.data import DataModel
 from image2image.qt._dialog_mixins import SingleViewerMixin
 
 if ty.TYPE_CHECKING:
-    from qtextra._napari.image import NapariImageView
+    from qtextraplot._napari.image import NapariImageView
     from qtextra.widgets.qt_collapsible import QtCheckCollapsible
 
     from image2image.config import ElastixConfig

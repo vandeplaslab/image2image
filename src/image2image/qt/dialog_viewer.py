@@ -27,7 +27,7 @@ from image2image.utils.utilities import ensure_extension
 
 if ty.TYPE_CHECKING:
     from image2image_io.readers import ShapesReader
-    from qtextra._napari.image.wrapper import NapariImageView
+    from qtextraplot._napari.image.wrapper import NapariImageView
 
     from image2image.models.transform import TransformModel
 
@@ -107,7 +107,7 @@ class ImageViewerWindow(SingleViewerMixin):
 
     def on_maybe_select_resolution(self, keys: str) -> None:
         """Potentially select resolution."""
-        from qtextra.widgets.qt_pick_option import QtScrollablePickOption
+        from qtextra.widgets.qt_select_one import QtScrollablePickOption
 
         wrapper = self.data_model.get_wrapper()
         if wrapper:
@@ -234,7 +234,7 @@ class ImageViewerWindow(SingleViewerMixin):
     def on_create_mask(self) -> None:
         """Add shapes mask to the viewer."""
         from image2image_io.readers import ShapesReader
-        from qtextra.widgets.qt_pick_option import QtScrollablePickOption
+        from qtextra.widgets.qt_select_one import QtScrollablePickOption
 
         def _is_in_layers() -> bool:
             return f"{MASK_LAYER_NAME} | mask.tmp" in self.view.viewer.layers

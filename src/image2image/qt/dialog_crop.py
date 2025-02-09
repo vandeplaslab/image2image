@@ -30,7 +30,7 @@ from image2image.qt._dialogs._select import LoadWidget
 from image2image.utils.utilities import ensure_extension, init_shapes_layer, log_exception_or_error, write_project
 
 if ty.TYPE_CHECKING:
-    from qtextra._napari.image.wrapper import NapariImageView
+    from qtextraplot._napari.image.wrapper import NapariImageView
 
     from image2image.models.data import DataModel
 

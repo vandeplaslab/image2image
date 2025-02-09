@@ -2,7 +2,7 @@
 
 import typing as ty
 
-from qtextra.widgets.qt_icon_label import QtQtaLabel
+from qtextra.widgets.qt_label_icon import QtQtaLabel
 
 
 class QtModalityLabel(QtQtaLabel):

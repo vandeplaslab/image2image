@@ -11,7 +11,7 @@ from qtextra import helpers as hp
 from qtextra.utils.table_config import TableConfig
 from qtextra.utils.utilities import connect
 from qtextra.widgets.qt_dialog import QtFramelessTool
-from qtextra.widgets.qt_table_view import FilterProxyModel, QtCheckableTableView
+from qtextra.widgets.qt_table_view_check import FilterProxyModel, QtCheckableTableView
 from qtpy.QtCore import Qt, Signal  # type: ignore[attr-defined]
 from qtpy.QtWidgets import QFormLayout, QWidget
 from superqt.utils import ensure_main_thread
@@ -20,7 +20,7 @@ from image2image.config import STATE
 from image2image.utils.utilities import open_docs
 
 if ty.TYPE_CHECKING:
-    from qtextra._napari.image.wrapper import NapariImageView
+    from qtextraplot._napari.image.wrapper import NapariImageView
 
     from image2image.models.data import DataModel
     from image2image.qt._dialogs._select import LoadWidget

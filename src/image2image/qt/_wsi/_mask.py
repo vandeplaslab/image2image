@@ -13,7 +13,7 @@ from image2image_reg.models import Modality, Preprocessing
 from loguru import logger
 from napari.layers import Image, Shapes
 from napari.layers.shapes._shapes_constants import Box
-from qtextra._napari.common.layer_controls.qt_shapes_controls import QtShapesControls
+from qtextraplot._napari.common.layer_controls.qt_shapes_controls import QtShapesControls
 from qtextra.utils.utilities import connect
 from qtextra.widgets.qt_dialog import QtFramelessTool
 from qtpy.QtCore import Qt, Signal
@@ -23,7 +23,7 @@ from image2image.utils.utilities import init_shapes_layer, open_docs
 
 if ty.TYPE_CHECKING:
     from image2image_io.readers import BaseReader
-    from qtextra._napari.image.wrapper import NapariImageView
+    from qtextraplot._napari.image.wrapper import NapariImageView
 
     from image2image.qt.dialog_elastix import ImageElastixWindow
 

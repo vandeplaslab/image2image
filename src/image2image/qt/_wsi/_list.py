@@ -12,7 +12,7 @@ from image2image_reg.models import Modality, Preprocessing
 from koyo.color import get_next_color
 from koyo.typing import PathLike
 from loguru import logger
-from qtextra.widgets.qt_image_button import QtLockButton, QtVisibleButton
+from qtextra.widgets.qt_button_icon import QtLockButton, QtVisibleButton
 from qtextra.widgets.qt_list_widget import QtListItem, QtListWidget
 from qtpy.QtCore import QRegularExpression, Qt, Signal, Slot  # type: ignore[attr-defined]
 from qtpy.QtGui import QRegularExpressionValidator
