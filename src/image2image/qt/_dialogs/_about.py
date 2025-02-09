@@ -41,8 +41,9 @@ class AboutDialog(QtFramelessPopup):
         <p><h2><strong>image2image</strong></h2></p>
         <p><strong>Version:</strong> {__version__}</p>
         <p><strong>Author:</strong> Lukasz G. Migas</p>
-        <p><strong>Email:</strong> {hp.parse_link_to_link_tag("mailto:l.g.migas@tudelft.nl",
-                                                              "l.g.migas@tudelft.nl")}</p>
+        <p><strong>Email:</strong> {
+            hp.parse_link_to_link_tag("mailto:l.g.migas@tudelft.nl", "l.g.migas@tudelft.nl")
+        }</p>
         <p><strong>GitHub:</strong>&nbsp;{hp.parse_link_to_link_tag(links["project"])}</p>
         <p><strong>Project's GitHub:</strong>&nbsp;{hp.parse_link_to_link_tag(links["github"])}</p>
         <p><strong>Author's website:</strong>&nbsp;{hp.parse_link_to_link_tag(links["website"])}</p>

@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import typing as ty
 from contextlib import suppress
-from functools import partial
 from pathlib import Path
 
 import qtextra.helpers as hp
@@ -17,7 +16,6 @@ from natsort import natsorted
 from qtextra.dialogs.qt_close_window import QtConfirmCloseDialog
 from qtextra.utils.table_config import TableConfig
 from qtextra.utils.utilities import connect
-from qtextra.widgets.qt_button_icon import QtThemeButton
 from qtextra.widgets.qt_mini_toolbar import QtMiniToolbar
 from qtextra.widgets.qt_table_view_check import QtCheckableTableView
 from qtpy.QtCore import Qt
@@ -57,7 +55,7 @@ if ty.TYPE_CHECKING:
     from image2image.qt._wsiprep._wsiprep import GroupByDialog, MaskDialog
 
 
-class ImageWsiPrepWindow(Window):
+class ImageElastix3dWindow(Window):
     """Image viewer dialog."""
 
     image_layer: list[Image] | None = None
@@ -1032,31 +1030,29 @@ class ImageWsiPrepWindow(Window):
         """Make statusbar."""
         from qtextraplot._napari.image.components._viewer_key_bindings import toggle_grid
 
-        from image2image.qt._dialogs._sentry import send_feedback
-
         self.statusbar = QStatusBar()  # noqa
         self.statusbar.setSizeGripEnabled(False)
 
-        self.statusbar.addPermanentWidget(hp.make_v_line())
-        self.statusbar.addPermanentWidget(hp.make_label(self, "BF"))
-        self.bf_colormap = hp.make_btn(
-            self,
-            "",
-            tooltip="Brightfield colormap",
-            object_name="colorbar",
-            # func=self.on_make_colormap,
-        )
-        self.statusbar.addPermanentWidget(self.bf_colormap)
-        self.statusbar.addPermanentWidget(hp.make_label(self, "DF"))
-        self.df_colormap = hp.make_btn(
-            self,
-            "",
-            tooltip="Darkfield colormap",
-            object_name="colorbar",
-            # func=self.on_make_colormap,
-        )
-        self.statusbar.addPermanentWidget(self.df_colormap)
-        self.statusbar.addPermanentWidget(hp.make_v_line())
+        # self.statusbar.addPermanentWidget(hp.make_v_line())
+        # self.statusbar.addPermanentWidget(hp.make_label(self, "BF"))
+        # self.bf_colormap = hp.make_btn(
+        #     self,
+        #     "",
+        #     tooltip="Brightfield colormap",
+        #     object_name="colorbar",
+        #     # func=self.on_make_colormap,
+        # )
+        # self.statusbar.addPermanentWidget(self.bf_colormap)
+        # self.statusbar.addPermanentWidget(hp.make_label(self, "DF"))
+        # self.df_colormap = hp.make_btn(
+        #     self,
+        #     "",
+        #     tooltip="Darkfield colormap",
+        #     object_name="colorbar",
+        #     # func=self.on_make_colormap,
+        # )
+        # self.statusbar.addPermanentWidget(self.df_colormap)
+        # self.statusbar.addPermanentWidget(hp.make_v_line())
 
         self.common_contrast_limit = hp.make_checkbox(
             self,
@@ -1130,78 +1126,16 @@ class ImageWsiPrepWindow(Window):
         )
         self.statusbar.addPermanentWidget(self.grid_btn)
 
-        self.screenshot_btn = hp.make_qta_btn(
-            self,
-            "save",
-            tooltip="Save snapshot of the canvas to file. Right-click to show dialog with more options.",
-            func=self.view.widget.on_save_figure,
-            func_menu=self.on_show_save_figure,
-            small=True,
-        )
-        self.statusbar.addPermanentWidget(self.screenshot_btn)
-        self.clipboard_btn = hp.make_qta_btn(
-            self,
-            "screenshot",
-            tooltip="Take a snapshot of the canvas and copy it into your clipboard. Right-click to show dialog with"
-            " more options.",
-            func=self.view.widget.clipboard,
-            func_menu=self.on_show_save_figure,
-            small=True,
-        )
-        self.statusbar.addPermanentWidget(self.clipboard_btn)
-        self.scalebar_btn = hp.make_qta_btn(
-            self,
-            "ruler",
-            tooltip="Show scalebar.",
-            func=self.on_show_scalebar,
-            small=True,
-        )
-        self.statusbar.addPermanentWidget(self.scalebar_btn)
-
-        self.feedback_btn = hp.make_qta_btn(
-            self,
-            "feedback",
-            tooltip="Refresh task list ahead of schedule.",
-            func=partial(send_feedback, parent=self),
-            small=True,
-        )
-        self.statusbar.addPermanentWidget(self.feedback_btn)
-
-        self.theme_btn = QtThemeButton(self)
-        self.theme_btn.auto_connect()
-        with hp.qt_signals_blocked(self.theme_btn):
-            self.theme_btn.dark = self.CONFIG.theme == "dark"
-        self.theme_btn.clicked.connect(self.on_toggle_theme)  # noqa
-        self.theme_btn.set_small()
-
-        self.statusbar.addPermanentWidget(self.theme_btn)
-        self.statusbar.addPermanentWidget(
-            hp.make_qta_btn(
-                self,
-                "ipython",
-                tooltip="Open IPython console",
-                small=True,
-                func=self.on_show_console,
-            )
-        )
-        self.shortcuts_btn = hp.make_qta_btn(
-            self, "shortcut", tooltip="Show me shortcuts", func=self.on_show_shortcuts, small=True
-        )
-        self.statusbar.addPermanentWidget(self.shortcuts_btn)
-        self.tutorial_btn = hp.make_qta_btn(
-            self, "help", tooltip="Give me a quick tutorial!", func=self.on_show_tutorial, small=True
-        )
-        self.statusbar.addPermanentWidget(self.tutorial_btn)
-
-        self.update_status_btn = hp.make_btn(
-            self,
-            "Update available - click here to download!",
-            tooltip="Show information about available updates.",
-            func=self.on_show_update_info,
-        )
-        self.update_status_btn.setObjectName("update_btn")
-        self.update_status_btn.hide()
-        self.statusbar.addPermanentWidget(self.update_status_btn)
+        self._make_export_statusbar(front=False)
+        self._make_scalebar_statusbar(front=False)
+        self._make_theme_statusbar()
+        self._make_feedback_statusbar()
+        self._make_theme_statusbar()
+        self._make_shortcut_statusbar()
+        self._make_tutorial_statusbar()
+        self._make_logger_statusbar()
+        self._make_ipython_statusbar()
+        self._make_update_statusbar()
         self.setStatusBar(self.statusbar)
 
     def on_show_shortcuts(self):

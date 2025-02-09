@@ -8,21 +8,22 @@ from multiprocessing import freeze_support, set_start_method
 
 import click
 from click_groups import GroupedGroup
+import koyo.compat  # noqa
 from koyo.click import cli_parse_paths_sort, dev_options
 from koyo.system import IS_MAC, IS_PYINSTALLER
 from koyo.utilities import is_installed
-from loguru import logger
 
 from image2image import __version__
+
 
 AVAILABLE_TOOLS = [
     "launcher",
     "register",
     "viewer",
     "crop",
-    "wsiprep",
     "elastix",
     "valis",
+    "elastix3d",
     "fusion",
     "convert",
     "merge",
