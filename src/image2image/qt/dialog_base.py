@@ -10,11 +10,11 @@ from image2image_io.config import CONFIG as READER_CONFIG
 from koyo.timer import MeasureTimer
 from loguru import logger
 from napari.layers import Image, Layer, Points, Shapes
-from qtextraplot._napari.mixins import ImageViewMixin
 from qtextra.config import THEMES
 from qtextra.dialogs.qt_logger import QtLoggerDialog
 from qtextra.mixins import IndicatorMixin
 from qtextra.widgets.qt_button_icon import QtThemeButton
+from qtextraplot._napari.mixins import ImageViewMixin
 from qtpy.QtCore import QProcess, Qt, Signal  # type: ignore[attr-defined]
 from qtpy.QtWidgets import QMainWindow, QMenu, QProgressBar, QStatusBar, QWidget
 from superqt.utils import create_worker, ensure_main_thread

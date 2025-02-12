@@ -7,8 +7,8 @@ import typing as ty
 import qtextra.helpers as hp
 from image2image_reg.enums import NetworkTypes
 from loguru import logger
-from qtextraplot._visuals.mpl.views import ViewMplLine
 from qtextra.widgets.qt_dialog import QtFramelessTool
+from qtextraplot._visuals.mpl.views import ViewMplLine
 from qtpy.QtWidgets import QFormLayout, QWidget
 
 if ty.TYPE_CHECKING:
