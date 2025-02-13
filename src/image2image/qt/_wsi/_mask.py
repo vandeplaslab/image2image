@@ -13,9 +13,9 @@ from image2image_reg.models import Modality, Preprocessing
 from loguru import logger
 from napari.layers import Image, Shapes
 from napari.layers.shapes._shapes_constants import Box
-from qtextraplot._napari.common.layer_controls.qt_shapes_controls import QtShapesControls
 from qtextra.utils.utilities import connect
 from qtextra.widgets.qt_dialog import QtFramelessTool
+from qtextraplot._napari.common.layer_controls.qt_shapes_controls import QtShapesControls
 from qtpy.QtCore import Qt, Signal
 from qtpy.QtWidgets import QLayout
 

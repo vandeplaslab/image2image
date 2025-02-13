@@ -44,14 +44,14 @@ def parse_crop_info(data: tuple[int, int, int, int] | np.ndarray | None = None) 
         return (
             f"Shape: Polygon"
             f"\nNumber of points: {len(data)}"
-            f"\nHorizontal: {left:.0f}-{right:.0f} ({right-left:.0f})"
-            f"\nVertical: {top:.0f}-{bottom:.0f} ({bottom-top:.0f})"
+            f"\nHorizontal: {left:.0f}-{right:.0f} ({right - left:.0f})"
+            f"\nVertical: {top:.0f}-{bottom:.0f} ({bottom - top:.0f})"
         )
     left, right, top, bottom = data
     return (
         f"Shape: Rectangle"
-        f"\nHorizontal: {left:.0f}-{right:.0f} ({right-left:.0f})"
-        f"\nVertical: {top:.0f}-{bottom:.0f} ({bottom-top:.0f})"
+        f"\nHorizontal: {left:.0f}-{right:.0f} ({right - left:.0f})"
+        f"\nVertical: {top:.0f}-{bottom:.0f} ({bottom - top:.0f})"
     )
 
 

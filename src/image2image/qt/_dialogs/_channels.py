@@ -195,7 +195,7 @@ class OverlayChannelsDialog(QtFramelessTool):
             if wrapper:
                 existing_data = self.table.get_data()
                 got_prev_in = timer(since_last=True)
-                dataset_in_model = [dataset for dataset in self.model.dataset_names()]
+                dataset_in_model = list(self.model.dataset_names())
                 to_remove = []
                 datasets_in_table = set()
                 for index, row in enumerate(existing_data):
