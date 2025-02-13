@@ -109,7 +109,7 @@ class ShapesDialog(QtFramelessTool):
                 edge_color="white",
                 opacity=0.5,
             )
-            visual = self.view.widget.layer_to_visual[layer]
+            visual = self.view.widget.canvas.layer_to_visual[layer]
             init_shapes_layer(layer, visual)
             connect(self.mask_layer.events.set_data, self.on_update_crop_from_canvas, state=True)
 

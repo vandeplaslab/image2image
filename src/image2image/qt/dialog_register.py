@@ -18,10 +18,10 @@ from napari.layers import Image, Points, Shapes
 from napari.layers.points.points import Mode
 from napari.layers.utils._link_layers import link_layers
 from napari.utils.events import Event
-from qtextraplot._napari.image.wrapper import NapariImageView
 from qtextra.dialogs.qt_close_window import QtConfirmCloseDialog
 from qtextra.utils.utilities import connect
 from qtextra.widgets.qt_mini_toolbar import QtMiniToolbar
+from qtextraplot._napari.image.wrapper import NapariImageView
 from qtpy.QtCore import Qt, Signal  # type: ignore[attr-defined]
 from qtpy.QtGui import QKeyEvent
 from qtpy.QtWidgets import QDialog, QFormLayout, QHBoxLayout, QMenuBar, QSizePolicy, QVBoxLayout, QWidget
@@ -180,10 +180,10 @@ class ImageRegistrationWindow(Window):
                 size=self.fixed_point_size.value(),
                 name=FIXED_POINTS,
                 face_color="green",
-                edge_color="white",
+                border_color="white",
                 symbol="ring",
             )
-            visual = self.view_fixed.widget.layer_to_visual[layer]
+            visual = self.view_fixed.widget.canvas.layer_to_visual[layer]
             init_points_layer(layer, visual, False)
             connect(layer.events.data, self.on_run, state=True)
             connect(layer.events.add_point, partial(self.on_predict, "fixed"), state=True)
@@ -198,10 +198,10 @@ class ImageRegistrationWindow(Window):
                 size=self.moving_point_size.value(),
                 name=FIXED_TMP_POINTS,
                 face_color="green",
-                edge_color="white",
+                border_color="white",
                 symbol="ring",
             )
-            visual = self.view_fixed.widget.layer_to_visual[layer]
+            visual = self.view_fixed.widget.canvas.layer_to_visual[layer]
             init_points_layer(layer, visual, True)
         return self.view_fixed.layers[FIXED_TMP_POINTS]
 
@@ -216,7 +216,7 @@ class ImageRegistrationWindow(Window):
                 face_color="#00ff0000",
                 edge_color="white",
             )
-            visual = self.view_fixed.widget.layer_to_visual[layer]
+            visual = self.view_fixed.widget.canvas.layer_to_visual[layer]
             init_shapes_layer(layer, visual)
             layer.events.data.connect(self.on_fixed_zoom_finished)
         return self.view_fixed.layers[FIXED_TMP_ZOOM]
@@ -230,10 +230,10 @@ class ImageRegistrationWindow(Window):
                 size=self.moving_point_size.value(),
                 name=MOVING_POINTS,
                 face_color="green",
-                edge_color="white",
+                border_color="white",
                 symbol="ring",
             )
-            visual = self.view_moving.widget.layer_to_visual[layer]
+            visual = self.view_moving.widget.canvas.layer_to_visual[layer]
             init_points_layer(layer, visual, True)
             connect(layer.events.data, self.on_run, state=True)
             connect(layer.events.add_point, partial(self.on_predict, "moving"), state=True)
@@ -248,10 +248,10 @@ class ImageRegistrationWindow(Window):
                 size=self.moving_point_size.value(),
                 name=MOVING_TMP_POINTS,
                 face_color="green",
-                edge_color="white",
+                border_color="white",
                 symbol="ring",
             )
-            visual = self.view_moving.widget.layer_to_visual[layer]
+            visual = self.view_moving.widget.canvas.layer_to_visual[layer]
             init_points_layer(layer, visual, True)
         return self.view_moving.layers[MOVING_TMP_POINTS]
 
@@ -266,7 +266,7 @@ class ImageRegistrationWindow(Window):
                 face_color="#00ff0000",
                 edge_color="white",
             )
-            visual = self.view_moving.widget.layer_to_visual[layer]
+            visual = self.view_moving.widget.canvas.layer_to_visual[layer]
             init_shapes_layer(layer, visual)
             layer.events.data.connect(self.on_moving_zoom_finished)
         return self.view_moving.layers[MOVING_TMP_ZOOM]
@@ -860,10 +860,20 @@ class ImageRegistrationWindow(Window):
         moving_key = self._get_moving_key()
         if not moving_key:
             return
+
         # get warper
         reader = self.moving_model.get_reader_for_key(moving_key)
-        if reader.allow_extraction:
-            hp.warn_pretty(self, "Cannot transform image of this type - only applies to images and not IMS datasets.")
+        if not reader:
+            hp.warn_pretty(self, "Cannot transform image - reader instance was not found.")
+            return
+
+        if reader and reader.allow_extraction:
+            hp.warn_pretty(
+                self,
+                "Cannot transform dataset of this type. This can only be applied to images (e.g. OME-TIFF, CZI) and"
+                " not IMS datasets.",
+            )
+            return
 
         warper = ImageWarper(transform_model.to_dict(moving_key=moving_key), inv=True)
         base_dir = reader.path.parent
@@ -1464,7 +1474,7 @@ class ImageRegistrationWindow(Window):
         )
         self.transform_btn = hp.make_btn(
             side_widget,
-            "Transform and save...",
+            "Export transformed image...",
             tooltip="Transform image using the specified transformation matrix and save it as OME-TIFF.",
             func=self.on_transform_moving,
         )

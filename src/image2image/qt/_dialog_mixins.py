@@ -180,7 +180,7 @@ class SingleViewerMixin(Window):
                 edge_color="cyan",
                 edge_width=5,
             )
-            visual = self.view.widget.layer_to_visual[layer]
+            visual = self.view.widget.canvas.layer_to_visual[layer]
             init_shapes_layer(layer, visual)
             layer.events.data.connect(self.on_zoom_finished)
         return self.view.layers[TMP_ZOOM]

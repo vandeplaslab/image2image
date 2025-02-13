@@ -375,7 +375,7 @@ class ImageViewerWindow(SingleViewerMixin):
             func=self.on_save_masks,
         )
 
-        side_layout = hp.make_form_layout(side_widget)
+        side_layout = hp.make_form_layout(side_widget, margin=2)
         hp.style_form_layout(side_layout)
         side_layout.addRow(self._image_widget)
         side_layout.addRow(hp.make_h_line_with_text("Masks"))

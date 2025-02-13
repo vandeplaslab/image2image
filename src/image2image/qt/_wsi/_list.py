@@ -381,7 +381,7 @@ class QtModalityItem(QtListItem):
     @property
     def colormap(self) -> object:
         """Get colormap."""
-        from qtextra.utils.colormap import napari_colormap
+        from napari.utils.colormaps import ensure_colormap
 
         color = self.hex_color
         colors = {
@@ -393,7 +393,7 @@ class QtModalityItem(QtListItem):
             "#00ffff": "cyan",
             "#808080": "gray",
         }
-        return colors.get(color, napari_colormap(color, name=color))
+        return colors.get(color, ensure_colormap(color))
 
     def _on_lock_preprocessing(self, _state: bool = False) -> None:
         """Show image."""

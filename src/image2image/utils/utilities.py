@@ -333,10 +333,10 @@ def get_used_colors(layer_list: LayerList, kind: ty.Literal["shapes", "points"])
     used = []
     for layer in layer_list:
         if isinstance(layer, cls):
-            edge_color = getattr(layer, attr)
-            if len(edge_color) > 0:
-                edge_color = edge_color[0]
-                used.append(rgb_1_to_hex(edge_color))
+            color = getattr(layer, attr)
+            if len(color) > 0:
+                color = color[0]
+                used.append(rgb_1_to_hex(color))
     return list(set(used))
 
 
@@ -424,7 +424,7 @@ def init_points_layer(layer: Points, visual: VispyPointsLayer, snap: bool = True
     """Initialize points layer."""
     layer._drag_modes[PointsMode.ADD] = partial(add, snap=snap)
     layer._drag_modes[PointsMode.SELECT] = select
-    layer.edge_width = 0
+    layer.border_width = 0
     layer.events.add(move=Event, add_point=Event)
 
     # adjust the highlight
