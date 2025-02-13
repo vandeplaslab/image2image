@@ -1,22 +1,15 @@
-# Create Windows environment for development
-uv venv venv2 -p 3.10
-
-# Activate the virtual environment
-.\venv2\Scripts\Activate.ps1
-
 # Install the required packages
-uv pip install PySide2
-uv pip install -e .
+uv pip install -e ".[pyside6,dev]"
 
 # Install other packages
 cd ../image2image-io
-uv pip install -e ".[dev]"
+uv pip install -e .
 
 cd ../image2image-reg
 uv pip install -e .
 
 cd ../qtextra
-uv pip install -e ".[console,sentry,pyqt6]"
+uv pip install -e ".[sentry,console]"
 
 cd ../qtextraplot
 uv pip install -e ".[2d]"
