@@ -374,8 +374,8 @@ class PreprocessingDialog(QtFramelessTool):
         self.translate_x = hp.make_int_spin_box(
             self,
             value=0,
-            minimum=-10000,
-            maximum=10000,
+            minimum=-100_000,
+            maximum=100_000,
             step_size=10,
             suffix="µm",
             tooltip="Translate X",
@@ -400,8 +400,8 @@ class PreprocessingDialog(QtFramelessTool):
         self.translate_y = hp.make_int_spin_box(
             self,
             value=0,
-            minimum=-10000,
-            maximum=10000,
+            minimum=-100_000,
+            maximum=100_000,
             step_size=10,
             suffix="µm",
             tooltip="Translate Y",
