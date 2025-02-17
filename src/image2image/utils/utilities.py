@@ -16,10 +16,11 @@ from napari.layers.points.points import Mode as PointsMode
 from napari.utils.events import Event
 
 if ty.TYPE_CHECKING:
+    from napari._qt.layer_controls.qt_shapes_controls import QtShapesControls
     from napari._vispy.layers.points import VispyPointsLayer
     from napari._vispy.layers.shapes import VispyShapesLayer
     from napari.components import LayerList
-    from napari.layers import Layer, Points, Shapes
+    from napari.layers import Points, Shapes
     from qtextraplot._napari.image.wrapper import NapariImageView
     from vispy.color import Colormap as VispyColormap
 
@@ -431,9 +432,50 @@ def init_points_layer(layer: Points, visual: VispyPointsLayer, snap: bool = True
     visual._highlight_color = (1.0, 0.0, 0.0, 0.7)
 
 
-def init_shapes_layer(layer: Shapes, visual: VispyShapesLayer) -> None:
+def init_shapes_layer(layer: Shapes, visual: VispyShapesLayer | None = None) -> None:
     """Initialize shapes layer."""
     layer._highlight_color = (1.0, 0.0, 0.0, 0.7)
+
+
+def replace_shapes_layer(widget: QtShapesControls, layer: Shapes) -> None:
+    """Set new layer for this container."""
+    import weakref
+
+    from napari.utils.events import disconnect_events
+    from qtextra.helpers import disable_widgets
+
+    if layer == widget.layer:
+        return
+    disconnect_events(widget.layer.events, widget)
+
+    widget.layer = layer
+    # update values
+    widget._on_opacity_change()
+    # widget._on_mode_change()
+    widget._on_current_edge_color_change()
+    widget._on_current_face_color_change()
+    widget._on_edge_width_change()
+    widget._on_text_visibility_change()
+    widget._on_editable_or_visible_change()
+    for button in widget.button_group.buttons():
+        button.layer_ref = weakref.ref(layer)
+    for button in widget._EDIT_BUTTONS:
+        button.layer_ref = weakref.ref(layer)
+
+    # connect new events
+    widget.layer.events.mode.connect(widget._on_mode_change)
+    widget.layer.events.editable.connect(widget._on_editable_or_visible_change)
+    widget.layer.events.visible.connect(widget._on_editable_or_visible_change)
+    widget.layer.events.blending.connect(widget._on_blending_change)
+    widget.layer.events.opacity.connect(widget._on_opacity_change)
+    widget.layer.events.edge_width.connect(widget._on_edge_width_change)
+    widget.layer.events.current_edge_color.connect(widget._on_current_edge_color_change)
+    widget.layer.events.current_face_color.connect(widget._on_current_face_color_change)
+    widget.layer.text.events.visible.connect(widget._on_text_visibility_change)
+
+    disable_widgets(
+        widget.line_button, widget.path_button, widget.ellipse_button, widget.polyline_button, disabled=True
+    )
 
 
 def _get_text_format() -> dict[str, ty.Any]:
@@ -617,8 +659,7 @@ def get_cli_path(name: str) -> str:
             script_path = base_path / "image2image.exe"
         elif IS_MAC or IS_LINUX:
             script_path = base_path / name
-            if script_path.exists():
-                return str(script_path)
+            if script_path.exists():                return str(script_path)
             return str(script_path.parent / "image2image_")
         else:
             raise NotImplementedError(f"Unsupported OS: {sys.platform}")

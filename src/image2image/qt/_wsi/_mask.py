@@ -11,15 +11,15 @@ import numpy as np
 import qtextra.helpers as hp
 from image2image_reg.models import Modality, Preprocessing
 from loguru import logger
+from napari._qt.layer_controls.qt_shapes_controls import QtShapesControls
 from napari.layers import Image, Shapes
 from napari.layers.shapes._shapes_constants import Box
 from qtextra.utils.utilities import connect
 from qtextra.widgets.qt_dialog import QtFramelessTool
-from qtextraplot._napari.common.layer_controls.qt_shapes_controls import QtShapesControls
 from qtpy.QtCore import Qt, Signal
 from qtpy.QtWidgets import QLayout
 
-from image2image.utils.utilities import init_shapes_layer, open_docs
+from image2image.utils.utilities import init_shapes_layer, open_docs, replace_shapes_layer
 
 if ty.TYPE_CHECKING:
     from image2image_io.readers import BaseReader
@@ -115,7 +115,7 @@ class ShapesDialog(QtFramelessTool):
 
         layer = self.view.layers["Mask"]
         if hasattr(self, "layer_controls"):
-            self.layer_controls.set_layer(layer)
+            replace_shapes_layer(self.layer_controls, layer)
         return layer
 
     @property
@@ -307,7 +307,7 @@ class ShapesDialog(QtFramelessTool):
             self.layer_controls.line_button,
             self.layer_controls.path_button,
             self.layer_controls.ellipse_button,
-            self.layer_controls.editable_checkbox,
+            self.layer_controls.polyline_button,
             disabled=True,
         )
 

@@ -174,14 +174,12 @@ class SingleViewerMixin(Window):
         if TMP_ZOOM not in self.view.layers:
             layer = self.view.viewer.add_shapes(  # noqa
                 None,
-                # size=self.moving_point_size.value(),
                 name=TMP_ZOOM,
                 face_color="#00ff0000",
                 edge_color="cyan",
                 edge_width=5,
             )
-            visual = self.view.widget.canvas.layer_to_visual[layer]
-            init_shapes_layer(layer, visual)
+            init_shapes_layer(layer)
             layer.events.data.connect(self.on_zoom_finished)
         return self.view.layers[TMP_ZOOM]
 
