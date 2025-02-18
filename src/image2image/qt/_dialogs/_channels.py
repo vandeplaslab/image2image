@@ -333,7 +333,7 @@ class IterateWidget(QWidget):
         """Setup UI."""
         self.dataset_combo = hp.make_combobox(self, func=self.on_change_source)
         self.index_spinbox = hp.make_int_spin_box(self, min=0, max=1_000, func=self.on_change_index)
-        self.channel_combo = hp.make_combobox(self, func=self.on_change_channel)
+        self.channel_combo = hp.make_searchable_combobox(self, func=self.on_change_channel)
         # self.channel_label = hp.make_label(self, "", bold=True, alignment=Qt.AlignmentFlag.AlignCenter)
 
         layout = hp.make_form_layout(self)
