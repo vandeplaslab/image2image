@@ -659,7 +659,8 @@ def get_cli_path(name: str) -> str:
             script_path = base_path / "image2image.exe"
         elif IS_MAC or IS_LINUX:
             script_path = base_path / name
-            if script_path.exists():                return str(script_path)
+            if script_path.exists():
+                return str(script_path)
             return str(script_path.parent / "image2image_")
         else:
             raise NotImplementedError(f"Unsupported OS: {sys.platform}")
