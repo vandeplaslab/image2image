@@ -18,7 +18,7 @@ from qtpy.QtCore import QRegularExpression, Qt, Signal, Slot  # type: ignore[att
 from qtpy.QtGui import QRegularExpressionValidator
 from qtpy.QtWidgets import QDialog, QHBoxLayout, QListWidgetItem, QSizePolicy, QWidget
 
-from image2image.config import ELASTIX_CONFIG, VALIS_CONFIG, SingleAppConfig
+from image2image.config import get_elastix_config, get_valis_config, SingleAppConfig
 from image2image.qt._wsi._widgets import QtModalityLabel
 
 if ty.TYPE_CHECKING:
@@ -234,7 +234,7 @@ class QtModalityItem(QtListItem):
     @property
     def CONFIG(self) -> SingleAppConfig:
         """Return instance of configuration."""
-        return VALIS_CONFIG if self.valis else ELASTIX_CONFIG
+        return get_valis_config() if self.valis else get_elastix_config()
 
     @property
     def registration_model(self) -> ElastixReg:

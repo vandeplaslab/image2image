@@ -21,7 +21,7 @@ from qtpy.QtCore import Qt
 from qtpy.QtWidgets import QHBoxLayout, QVBoxLayout, QWidget
 
 from image2image import __version__
-from image2image.config import STATE, VALIS_CONFIG, ValisConfig
+from image2image.config import STATE, get_valis_config, ValisConfig
 from image2image.enums import ALLOWED_VALIS_FORMATS
 from image2image.qt._dialog_wsi import ImageWsiWindow
 from image2image.qt._dialogs._select import LoadWidget
@@ -32,7 +32,7 @@ from image2image.utils.valis import guess_preprocessing, hash_preprocessing
 if ty.TYPE_CHECKING:
     from image2image_reg.models import Modality, Preprocessing
 
-_q.N_PARALLEL = VALIS_CONFIG.n_parallel
+_q.N_PARALLEL = get_valis_config().n_parallel
 
 
 def make_registration_task(
@@ -110,7 +110,7 @@ class ImageValisWindow(ImageWsiWindow):
     def __init__(
         self, parent: QWidget | None, run_check_version: bool = True, project_dir: PathLike | None = None, **_kwargs
     ):
-        self.CONFIG: ValisConfig = VALIS_CONFIG
+        self.CONFIG: ValisConfig = get_valis_config()
         super().__init__(parent, run_check_version=run_check_version, project_dir=project_dir)
         self.WINDOW_CONSOLE_ARGS = (("view", "viewer"), "data_model", ("data_model", "wrapper"), "registration_model")
         if self.CONFIG.first_time:

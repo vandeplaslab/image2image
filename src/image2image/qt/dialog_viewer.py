@@ -13,13 +13,12 @@ from loguru import logger
 from napari.layers import Image, Points, Shapes
 from napari.utils.events import Event
 from qtextra.utils.utilities import connect
-from qtpy.QtCore import Qt
 from qtpy.QtGui import QKeyEvent
 from qtpy.QtWidgets import QDialog, QHBoxLayout, QVBoxLayout, QWidget
 from superqt.utils import qdebounced
 
 from image2image import __version__
-from image2image.config import VIEWER_CONFIG
+from image2image.config import get_viewer_config
 from image2image.enums import ALLOWED_PROJECT_VIEWER_FORMATS
 from image2image.qt._dialog_mixins import SingleViewerMixin
 from image2image.qt._dialogs._select import LoadWithTransformWidget
@@ -53,7 +52,7 @@ class ImageViewerWindow(SingleViewerMixin):
         image_dir: PathLike | None = None,
         **_kwargs: ty.Any,
     ):
-        self.CONFIG = VIEWER_CONFIG
+        self.CONFIG = get_viewer_config()
         super().__init__(parent, f"image2image: Viewer app (v{__version__})", run_check_version=run_check_version)
         if self.CONFIG.first_time:
             hp.call_later(self, self.on_show_tutorial, 10_000)
@@ -477,9 +476,6 @@ class ImageViewerWindow(SingleViewerMixin):
 
     def _handle_key_press(self, key: int) -> bool:
         ignore = False
-        if key == Qt.Key.Key_4:
-            self.on_toggle_zoom()
-            ignore = True
         return ignore
 
 

@@ -19,7 +19,7 @@ from superqt import ensure_main_thread
 from superqt.utils import GeneratorWorker, create_worker
 
 from image2image import __version__
-from image2image.config import FUSION_CONFIG
+from image2image.config import get_fusion_config
 from image2image.qt._dialogs._select import LoadWidget
 from image2image.qt.dialog_base import Window
 from image2image.utils.utilities import log_exception_or_error
@@ -45,7 +45,7 @@ class ImageFusionWindow(Window):
     )
 
     def __init__(self, parent: QWidget | None, run_check_version: bool = True, **kwargs: ty.Any):
-        self.CONFIG = FUSION_CONFIG
+        self.CONFIG = get_fusion_config()
         super().__init__(
             parent,
             f"image2image: Export images for MATLAB fusion (v{__version__})",

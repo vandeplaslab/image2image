@@ -64,11 +64,12 @@ def run(
     from qtextra.utils.context import _maybe_allow_interrupt
 
     import image2image.assets  # noqa: F401
-    from image2image.config import APP_CONFIG
+    from image2image.config import get_app_config
     from image2image.qt.event_loop import get_app
     from image2image.utils._appdirs import USER_LOG_DIR
 
     # setup file logger
+    dev_modules = ["qtextra", "qtextraplot", "koyo", "image2image", "image2image_io", "image2image_reg"]
     if log:
         from koyo.logging import set_loguru_log
 
@@ -94,7 +95,7 @@ def run(
             fmt=LOG_FMT if no_color else COLOR_LOG_FMT,
         )
         logger.configure(extra={"src": "CLI"})
-        for module in ["image2image", "image2image_io", "image2image_reg", "koyo", "qtextra"]:
+        for module in dev_modules:
             logger.enable(module)
         logger.info(f"Enabled logger - logging to '{log_path}' at level={level}")
 
@@ -114,7 +115,7 @@ def run(
         # setup theme
         for theme in THEMES.themes:
             THEMES[theme].font_size = "10pt"
-        THEMES.theme = APP_CONFIG.theme
+        THEMES.theme = get_app_config().theme
     except Exception as e:
         logger.exception(f"Failed to load config: {e}")
 
@@ -204,7 +205,7 @@ def run(
         logger.enable("qtextra")
         logging.getLogger("qtreload").setLevel(level)
 
-        dev_dlg = QDevPopup(dlg, modules=["qtextra", "image2image", "image2image_io", "image2image_reg", "koyo"])
+        dev_dlg = QDevPopup(dlg, modules=dev_modules)
         dev_dlg.qdev.evt_stylesheet.connect(lambda: THEMES.set_theme_stylesheet(dlg))
         if hasattr(dlg, "statusbar"):
             dlg.dev_btn = make_qta_btn(  # type: ignore[attr-defined]

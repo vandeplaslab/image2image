@@ -11,7 +11,6 @@ from koyo.timer import MeasureTimer
 from koyo.typing import PathLike
 from loguru import logger
 from napari.layers import Image, Layer, Points, Shapes
-from napari.utils.events import Event
 from qtextra.dialogs.qt_close_window import QtConfirmCloseDialog
 from qtextra.utils.utilities import connect
 from qtpy.QtCore import QModelIndex
@@ -19,7 +18,6 @@ from qtpy.QtWidgets import QDialog, QLabel, QMenuBar, QTableWidget
 from superqt import ensure_main_thread
 
 from image2image.qt.dialog_base import Window
-from image2image.utils.utilities import calculate_zoom, init_shapes_layer
 
 if ty.TYPE_CHECKING:
     from qtextra.utils.table_config import TableConfig
@@ -28,8 +26,6 @@ if ty.TYPE_CHECKING:
 
     from image2image.models.data import DataModel
     from image2image.qt._dialogs._select import LoadWidget
-
-TMP_ZOOM = "Temporary (zoom)"
 
 
 class SingleViewerMixin(Window):
@@ -167,47 +163,6 @@ class SingleViewerMixin(Window):
             else:
                 variables[arg] = getattr(self, arg)
         return variables
-
-    @property
-    def temporary_zoom_layer(self) -> Shapes:
-        """Fixed points layer."""
-        if TMP_ZOOM not in self.view.layers:
-            layer = self.view.viewer.add_shapes(  # noqa
-                None,
-                name=TMP_ZOOM,
-                face_color="#00ff0000",
-                edge_color="cyan",
-                edge_width=5,
-            )
-            init_shapes_layer(layer)
-            layer.events.data.connect(self.on_zoom_finished)
-        return self.view.layers[TMP_ZOOM]
-
-    def on_zoom_finished(self, event: Event) -> None:
-        """Zoom finished."""
-        if len(self.temporary_zoom_layer.data) == 0:
-            return
-        last_shape = self.temporary_zoom_layer.data[-1]
-        zoom, y, x = calculate_zoom(last_shape, self.view, None)
-        self.view.viewer.camera.center = (0.0, y, x)
-        self.view.viewer.camera.zoom = zoom
-        self.view.remove_layer(TMP_ZOOM)
-        if self._temporary_selection:
-            self.view.viewer.layers.selection.active = self._temporary_selection
-            self._temporary_selection = None
-
-    def on_toggle_zoom(self) -> None:
-        """Toggle zoom."""
-        if TMP_ZOOM in self.view.layers:
-            self.view.remove_layer(TMP_ZOOM)
-            if self._temporary_selection:
-                self.view.viewer.layers.selection.active = self._temporary_selection
-                self._temporary_selection = None
-        else:
-            self._temporary_selection = self.view.viewer.layers.selection.active
-            layer = self.temporary_zoom_layer
-            self._move_layer(self.view, layer, new_index=0)
-            layer.mode = "add_rectangle"
 
     def on_toggle_grid(self) -> None:
         """Toggle grid on/off in the viewer."""

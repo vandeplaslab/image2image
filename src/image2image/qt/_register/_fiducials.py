@@ -15,7 +15,7 @@ from qtpy.QtCore import QModelIndex, Qt, Signal  # type: ignore[attr-defined]
 from qtpy.QtGui import QKeyEvent
 from qtpy.QtWidgets import QFormLayout
 
-from image2image.config import REGISTER_CONFIG
+from image2image.config import get_register_config
 from image2image.utils.utilities import open_docs
 
 if ty.TYPE_CHECKING:
@@ -111,7 +111,7 @@ class FiducialsDialog(QtFramelessTool):
 
     def on_select_point(self, row: int):
         """Zoom in on point."""
-        REGISTER_CONFIG.zoom_factor = self.zoom_factor.value()
+        get_register_config().zoom_factor = self.zoom_factor.value()
 
         # zoom-in
         parent: ImageRegistrationWindow = self.parent()  # type: ignore[assignment]
@@ -127,7 +127,7 @@ class FiducialsDialog(QtFramelessTool):
                 view = parent.view_fixed
                 with view.viewer.camera.events.blocker():
                     view.viewer.camera.center = (0.0, y_fixed, x_fixed)
-                    view.viewer.camera.zoom = REGISTER_CONFIG.zoom_factor
+                    view.viewer.camera.zoom = get_register_config().zoom_factor
                 logger.debug(
                     f"Applied focus center=({y_fixed:.1f}, {x_fixed:.1f}) zoom={view.viewer.camera.zoom:.3f}"
                     " on fixed data"
@@ -144,7 +144,9 @@ class FiducialsDialog(QtFramelessTool):
                 view = parent.view_moving
                 with view.viewer.camera.events.blocker():
                     view.viewer.camera.center = (0.0, y_moving, x_moving)
-                    view.viewer.camera.zoom = REGISTER_CONFIG.zoom_factor * parent.transform_model.moving_to_fixed_ratio
+                    view.viewer.camera.zoom = (
+                        get_register_config().zoom_factor * parent.transform_model.moving_to_fixed_ratio
+                    )
                 logger.debug(
                     f"Applied focus center=({y_moving:.1f}, {x_moving:.1f}) zoom={view.viewer.camera.zoom:.3f}"
                     " on moving data"
@@ -199,7 +201,7 @@ class FiducialsDialog(QtFramelessTool):
             1,
             100,
             n_decimals=2,
-            default=REGISTER_CONFIG.zoom_factor,
+            default=get_register_config().zoom_factor,
             func=self.on_select_last_point,
             step_size=0.25,
         )

@@ -32,7 +32,7 @@ from qtpy.QtWidgets import (
 )
 from superqt.utils import create_worker
 
-from image2image.config import REGISTER_CONFIG, STATE, SingleAppConfig
+from image2image.config import STATE, SingleAppConfig, get_register_config
 from image2image.enums import ALLOWED_IMAGE_FORMATS, ALLOWED_IMAGE_FORMATS_WITH_GEOJSON
 from image2image.exceptions import MultiSceneCziError, UnsupportedFileFormatError
 from image2image.models.transform import TransformData
@@ -298,7 +298,7 @@ class ExtractChannelsDialog(QtDialog):
         path = hp.get_filename(
             self,
             title="Select peak list...",
-            base_dir=REGISTER_CONFIG.fixed_dir,
+            base_dir=get_register_config().fixed_dir,
             file_filter="CSV files (*.csv);;",
             multiple=False,
         )
@@ -610,16 +610,16 @@ class SelectDataDialog(QtFramelessTool):
         paths = hp.get_filename(
             self,
             title="Select data...",
-            base_dir=REGISTER_CONFIG.fixed_dir if self.is_fixed else REGISTER_CONFIG.moving_dir,
+            base_dir=get_register_config().fixed_dir if self.is_fixed else get_register_config().moving_dir,
             file_filter=self.available_formats_filter,
             multiple=True,
         )
         if paths:
             for path in paths:
                 if self.is_fixed:
-                    REGISTER_CONFIG.fixed_dir = str(Path(path).parent)
+                    get_register_config().fixed_dir = str(Path(path).parent)
                 else:
-                    REGISTER_CONFIG.moving_dir = str(Path(path).parent)
+                    get_register_config().moving_dir = str(Path(path).parent)
 
                 if self.n_max and self.model.n_paths >= self.n_max:
                     verb = "image" if self.n_max == 1 else "images"

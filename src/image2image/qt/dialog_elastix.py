@@ -19,7 +19,7 @@ from qtpy.QtCore import Qt
 from qtpy.QtWidgets import QHBoxLayout, QSizePolicy, QVBoxLayout, QWidget
 
 from image2image import __version__
-from image2image.config import ELASTIX_CONFIG
+from image2image.config import get_elastix_config
 from image2image.enums import ALLOWED_ELASTIX_FORMATS, ALLOWED_PROJECT_ELASTIX_FORMATS, PYRAMID_TO_LEVEL
 from image2image.qt._dialog_wsi import ImageWsiWindow
 from image2image.qt._dialogs._select import LoadWidget
@@ -34,7 +34,7 @@ if ty.TYPE_CHECKING:
 
 logger.enable("qtextra")
 
-_q.N_PARALLEL = ELASTIX_CONFIG.n_parallel
+_q.N_PARALLEL = get_elastix_config().n_parallel
 
 
 def make_registration_task(
@@ -132,7 +132,7 @@ class ImageElastixWindow(ImageWsiWindow):
         project_dir: PathLike | None = None,
         **_kwargs: ty.Any,
     ):
-        self.CONFIG = ELASTIX_CONFIG
+        self.CONFIG = get_elastix_config()
         super().__init__(parent, run_check_version=run_check_version, project_dir=project_dir)
         self.WINDOW_CONSOLE_ARGS = (("view", "viewer"), "data_model", ("data_model", "wrapper"), "registration_model")
 

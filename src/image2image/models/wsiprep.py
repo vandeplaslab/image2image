@@ -10,7 +10,7 @@ from loguru import logger
 from natsort import natsorted
 from pydantic import Field, validator
 
-from image2image.config import ELASTIX3D_CONFIG
+from image2image.config import get_elastix3d_config
 from image2image.models.base import BaseModel
 from image2image.models.utilities import _get_paths, _read_config_from_file
 from image2image.utils.transform import combined_transform
@@ -63,9 +63,9 @@ class RegistrationImage(BaseModel):
     def apply_rotate(self, which: str) -> None:
         """Apply rotation."""
         if which == "left":
-            self.rotate += ELASTIX3D_CONFIG.rotate_step_size
+            self.rotate += get_elastix3d_config().rotate_step_size
         else:
-            self.rotate -= ELASTIX3D_CONFIG.rotate_step_size
+            self.rotate -= get_elastix3d_config().rotate_step_size
         if self.rotate > 360:
             self.rotate -= 360
         elif self.rotate < 0:
@@ -76,13 +76,13 @@ class RegistrationImage(BaseModel):
     def apply_translate(self, which: str) -> None:
         """Apply rotation."""
         if which == "up":
-            self.translate_y -= ELASTIX3D_CONFIG.translate_step_size
+            self.translate_y -= get_elastix3d_config().translate_step_size
         elif which == "down":
-            self.translate_y += ELASTIX3D_CONFIG.translate_step_size
+            self.translate_y += get_elastix3d_config().translate_step_size
         elif which == "left":
-            self.translate_x -= ELASTIX3D_CONFIG.translate_step_size
+            self.translate_x -= get_elastix3d_config().translate_step_size
         else:
-            self.translate_x += ELASTIX3D_CONFIG.translate_step_size
+            self.translate_x += get_elastix3d_config().translate_step_size
 
     def affine(
         self, shape: tuple[int, int], scale: ty.Optional[tuple[float, float]] = None, only_translate: bool = False
@@ -151,7 +151,7 @@ class RegistrationGroup(BaseModel):
     def _validate_polygon(cls, v) -> ty.Optional[np.ndarray]:
         if isinstance(v, list):
             return np.asarray(v)
-        elif isinstance(v, np.ndarray):
+        if isinstance(v, np.ndarray):
             return v
         return None
 
@@ -350,7 +350,7 @@ class RegistrationGroup(BaseModel):
                 index_mode=index_mode,
                 direct=target_mode == "reference",
             )[0]
-        elif kind == "converge" and target_mode != "next":
+        if kind == "converge" and target_mode != "next":
             if not reference:
                 raise ValueError("Reference must be present to converge")
             return self._preview_converge_paths(

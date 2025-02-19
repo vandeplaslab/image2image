@@ -17,7 +17,7 @@ from superqt import ensure_main_thread
 from superqt.utils import GeneratorWorker, create_worker
 
 from image2image import __version__
-from image2image.config import CONVERT_CONFIG, STATE
+from image2image.config import get_convert_config, STATE
 from image2image.enums import ALLOWED_IMAGE_FORMATS_MICROSCOPY_ONLY
 from image2image.qt._dialog_mixins import NoViewerMixin
 from image2image.qt._dialogs._select import LoadWidget
@@ -78,7 +78,7 @@ class ImageConvertWindow(NoViewerMixin):
     _get_metadata = staticmethod(get_metadata)
 
     def __init__(self, parent: QWidget | None, run_check_version: bool = True, **kwargs: ty.Any):
-        self.CONFIG = CONVERT_CONFIG
+        self.CONFIG = get_convert_config()
         super().__init__(
             parent,
             f"image2image: Convert image to OME-TIFF (v{__version__})",

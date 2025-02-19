@@ -36,7 +36,7 @@ from superqt.utils import qdebounced
 from tqdm import tqdm
 
 from image2image import __version__
-from image2image.config import ELASTIX3D_CONFIG, Elastix3dConfig
+from image2image.config import get_elastix3d_config, Elastix3dConfig
 from image2image.enums import ALLOWED_IMAGE_FORMATS_TIFF_ONLY, ALLOWED_PROJECT_WSIPREP_FORMATS
 from image2image.models.wsiprep import (
     Registration,

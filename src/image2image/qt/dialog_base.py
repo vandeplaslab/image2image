@@ -19,7 +19,7 @@ from qtpy.QtCore import QProcess, Qt, Signal  # type: ignore[attr-defined]
 from qtpy.QtWidgets import QMainWindow, QMenu, QProgressBar, QStatusBar, QWidget
 from superqt.utils import create_worker, ensure_main_thread
 
-from image2image.config import APP_CONFIG, STATE, SingleAppConfig
+from image2image.config import get_app_config, STATE, SingleAppConfig
 from image2image.models.data import DataModel
 from image2image.qt._dialogs._update import check_version
 from image2image.utils._appdirs import USER_LOG_DIR
@@ -84,11 +84,11 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
     def on_toggle_theme(self) -> None:
         """Toggle theme."""
         THEMES.theme = "dark" if self.theme_btn.dark else "light"
-        APP_CONFIG.theme = THEMES.theme
+        get_app_config().theme = THEMES.theme
 
     def on_changed_theme(self) -> None:
         """Update theme of the app."""
-        APP_CONFIG.theme = THEMES.theme
+        get_app_config().theme = THEMES.theme
         THEMES.set_theme_stylesheet(self)
         # update console
         if self._console:
@@ -415,7 +415,7 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
 
         return {
             "window": self,
-            "APP_CONFIG": APP_CONFIG,
+            "APP_CONFIG": get_app_config(),
             "CONFIG": self.CONFIG,
             "READER_CONFIG": READER_CONFIG,
             "np": np,
@@ -560,7 +560,7 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
         self.theme_btn = QtThemeButton(self)
         self.theme_btn.auto_connect()
         with hp.qt_signals_blocked(self.theme_btn):
-            self.theme_btn.dark = APP_CONFIG.theme == "dark"
+            self.theme_btn.dark = get_app_config().theme == "dark"
         self.theme_btn.clicked.connect(self.on_toggle_theme)  # noqa
         self.theme_btn.set_small()
         self.statusbar.addPermanentWidget(self.theme_btn)

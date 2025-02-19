@@ -479,13 +479,13 @@ def replace_shapes_layer(widget: QtShapesControls, layer: Shapes) -> None:
 
 
 def _get_text_format() -> dict[str, ty.Any]:
-    from image2image.config import REGISTER_CONFIG
+    from image2image.config import get_register_config
 
     return {
         "text": "{name}",
-        "color": REGISTER_CONFIG.label_color,
+        "color": get_register_config().label_color,
         "anchor": "center",
-        "size": REGISTER_CONFIG.label_size,
+        "size": get_register_config().label_size,
     }
 
 

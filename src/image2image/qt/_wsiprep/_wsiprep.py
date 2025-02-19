@@ -20,7 +20,7 @@ from qtpy.QtCore import Qt
 from qtpy.QtWidgets import QLayout
 from tqdm import tqdm
 
-from image2image.config import ELASTIX3D_CONFIG
+from image2image.config import get_elastix3d_config
 from image2image.utils.utilities import format_group_info, get_groups, groups_to_group_id, init_shapes_layer
 
 if ty.TYPE_CHECKING:

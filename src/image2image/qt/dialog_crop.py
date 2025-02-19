@@ -23,7 +23,7 @@ from superqt import ensure_main_thread
 from superqt.utils import GeneratorWorker, create_worker, qdebounced
 
 from image2image import __version__
-from image2image.config import CROP_CONFIG
+from image2image.config import get_crop_config
 from image2image.enums import ALLOWED_PROJECT_CROP_FORMATS
 from image2image.qt._dialog_mixins import SingleViewerMixin
 from image2image.qt._dialogs._select import LoadWidget
@@ -70,7 +70,7 @@ class ImageCropWindow(SingleViewerMixin):
     _editing = False
 
     def __init__(self, parent: QWidget | None = None, run_check_version: bool = True, **kwargs: ty.Any):
-        self.CONFIG = CROP_CONFIG
+        self.CONFIG = get_crop_config()
         super().__init__(
             parent,
             f"image2image: Crop images app (v{__version__})",
@@ -612,9 +612,6 @@ class ImageCropWindow(SingleViewerMixin):
 
     def _handle_key_press(self, key: int) -> bool:
         ignore = False
-        if key == Qt.Key.Key_4:
-            self.on_toggle_zoom()
-            ignore = True
         return ignore
 
 

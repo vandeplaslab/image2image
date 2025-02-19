@@ -28,7 +28,7 @@ from qtpy.QtWidgets import QDialog, QFormLayout, QHBoxLayout, QMenuBar, QSizePol
 from superqt.utils import ensure_main_thread, qdebounced
 
 from image2image import __version__
-from image2image.config import REGISTER_CONFIG, RegisterConfig
+from image2image.config import RegisterConfig, get_register_config
 from image2image.enums import ALLOWED_PROJECT_EXPORT_REGISTER_FORMATS, ALLOWED_PROJECT_IMPORT_REGISTER_FORMATS
 from image2image.models.data import DataModel
 from image2image.models.transformation import Transformation
@@ -124,7 +124,7 @@ class ImageRegistrationWindow(Window):
     evt_moving_dropped = Signal("QEvent")
 
     def __init__(self, parent: QWidget | None, run_check_version: bool = True, **kwargs: ty.Any):
-        self.CONFIG: RegisterConfig = REGISTER_CONFIG
+        self.CONFIG: RegisterConfig = get_register_config()
         super().__init__(
             parent,
             f"image2image: Registration app (v{__version__})",
@@ -1913,14 +1913,6 @@ class ImageRegistrationWindow(Window):
             if not zoom:
                 self.on_shapes_mode(w, state=False)
 
-    def on_toggle_zoom(self, which: str | ty.Literal["fixed", "moving", "both"]) -> None:
-        """Toggle zoom."""
-        self.on_toggle_mode(which, mode=Mode.PAN_ZOOM, zoom=True)
-        views = ["fixed", "moving"] if which == "both" else [which]
-        for w in views:
-            self.on_shapes_mode(w)
-            self.on_zoom(w)
-
     @qdebounced(timeout=50, leading=True)
     def keyPressEvent(self, evt: QKeyEvent) -> None:
         """Key press event."""
@@ -1954,9 +1946,6 @@ class ImageRegistrationWindow(Window):
             ignore = True
         elif key == Qt.Key.Key_3:
             self.on_toggle_mode("both", mode=Mode.SELECT)
-        elif key == Qt.Key.Key_4:
-            self.on_toggle_zoom("both")
-            ignore = True
         elif key == Qt.Key.Key_Z:
             self.on_apply_focus()
             ignore = True

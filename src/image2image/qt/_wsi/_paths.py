@@ -11,7 +11,7 @@ from natsort import natsorted
 from qtpy.QtCore import Signal
 from qtpy.QtWidgets import QWidget
 
-from image2image.config import ELASTIX_CONFIG
+from image2image.config import get_elastix_config
 from image2image.enums import REGISTRATION_PATH_HELP
 
 if ty.TYPE_CHECKING:
@@ -119,7 +119,7 @@ class RegistrationPaths(QWidget):
         """Select from list of common annotations."""
         transformations = transformation.split(" » ")
         self.transformations = list(transformations)
-        ELASTIX_CONFIG.transformations = tuple(self.transformations)
+        get_elastix_config().transformations = tuple(self.transformations)
         self._update_transformation_path()
 
     def on_add_transformation(self) -> None:
@@ -127,13 +127,13 @@ class RegistrationPaths(QWidget):
         current = self._choice.currentText()
         self.transformations = list(self.transformations)  # ensure it's a list
         self.transformations.append(current)
-        ELASTIX_CONFIG.transformations = tuple(self.transformations)
+        get_elastix_config().transformations = tuple(self.transformations)
         self._update_transformation_path()
 
     def on_reset_transformation(self) -> None:
         """Reset transformation list."""
         self.transformations = []
-        ELASTIX_CONFIG.transformations = tuple(self.transformations)
+        get_elastix_config().transformations = tuple(self.transformations)
         self._update_transformation_path()
 
     def _update_transformation_path(self) -> None:
@@ -199,7 +199,7 @@ class RegistrationMap(QWidget):
         )
 
         self._registration_path = RegistrationPaths(self)
-        self._registration_path.registration_paths = ELASTIX_CONFIG.transformations
+        self._registration_path.registration_paths = get_elastix_config().transformations
         # self._warning_label = hp.make_label(self, "", color="warning", wrap=True)
         # self._warning_label.setVisible(False)
 

@@ -789,10 +789,7 @@ class ImageWsiWindow(SingleViewerMixin):
 
     def _handle_key_press(self, key: int) -> bool:
         ignore = False
-        if key == Qt.Key.Key_4:
-            self.on_toggle_zoom()
-            ignore = True
-        elif key == Qt.Key.Key_G:
+        if key == Qt.Key.Key_G:
             self.on_toggle_grid()
         elif key == Qt.Key.Key_H:
             self.hide_others_check.setChecked(not self.hide_others_check.isChecked())
