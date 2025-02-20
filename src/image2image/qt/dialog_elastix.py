@@ -7,6 +7,7 @@ from pathlib import Path
 
 import qtextra.helpers as hp
 import qtextra.queue.cli_queue as _q
+from image2image_io.utils.utilities import guess_rgb
 from image2image_reg.workflows.elastix import ElastixReg
 from koyo.secret import hash_parameters
 from koyo.timer import MeasureTimer
@@ -31,8 +32,6 @@ from image2image.utils.valis import guess_preprocessing, hash_preprocessing
 if ty.TYPE_CHECKING:
     from image2image_reg.models import Modality, Preprocessing
 
-
-logger.enable("qtextra")
 
 _q.N_PARALLEL = get_elastix_config().n_parallel
 
@@ -180,16 +179,16 @@ class ImageElastixWindow(ImageWsiWindow):
         connect(self.view.viewer.events.status, self._status_changed, state=state)
         # connect(self.view.widget.canvas.events.key_press, self.keyPressEvent, state=state)
 
-        connect(self.modality_list.evt_delete, self.on_remove_modality, state=state)
+        connect(self.modality_list.evt_show, self.on_show_modality, state=state)
         connect(self.modality_list.evt_rename, self.on_rename_modality, state=state)
+        connect(self.modality_list.evt_resolution, self.on_update_resolution_of_modality, state=state)
+        connect(self.modality_list.evt_color, self.on_update_colormap, state=state)
+        connect(self.modality_list.evt_delete, self.on_remove_modality, state=state)
         connect(self.modality_list.evt_hide_others, self.on_hide_modalities, state=state)
         connect(self.modality_list.evt_preview_preprocessing, self.on_preview, state=state)
-        connect(self.modality_list.evt_show, self.on_show_modality, state=state)
-        connect(self.modality_list.evt_resolution, self.on_update_resolution_of_modality, state=state)
         connect(self.modality_list.evt_set_preprocessing, self.on_update_preprocessing_of_modality, state=state)
         connect(self.modality_list.evt_preview_transform_preprocessing, self.on_preview_transform, state=state)
         connect(self.modality_list.evt_preprocessing_close, self.on_preview_close, state=state)
-        connect(self.modality_list.evt_color, self.on_update_colormap, state=state)
         connect(self.registration_map.evt_message, self.statusbar.showMessage)
 
         connect(QUEUE.evt_errored, self.on_registration_finished, state=state)
@@ -287,6 +286,23 @@ class ImageElastixWindow(ImageWsiWindow):
         from image2image_reg.utils.preprocessing import preprocess_preview
 
         pyramid = PYRAMID_TO_LEVEL[self.pyramid_level.currentText()]
+
+        preview = self.use_preview_check.isChecked()
+        layer = self.view.get_layer(modality.name)
+        preprocessing_hash = (
+            hash_preprocessing(modality.preprocessing, pyramid=pyramid) if preview else f"pyramid={pyramid}"
+        )
+
+        # ensure that the controls are shown
+        if widget := self.modality_list.get_widget_for_item_model(modality):
+            widget.visible_btn.set_state(state, trigger=False)
+
+        # no need to re-process if the layer is already there
+        if layer and layer.metadata.get("preview_hash") == preprocessing_hash and not overwrite:
+            layer.visible = state
+            logger.trace(f"Already processed image {modality.name} with {pyramid} pyramid level")
+            return
+
         wrapper = self.data_model.get_wrapper()
         if wrapper:
             with MeasureTimer() as timer:
@@ -297,23 +313,21 @@ class ImageElastixWindow(ImageWsiWindow):
                 image = reader.pyramid[pyramid]
                 if pyramid == -1 and reader.n_in_pyramid == 1:
                     image, scale = check_image_size(image, scale, pyramid, channel_axis)
-                layer = self.view.get_layer(modality.name)
-                preprocessing_hash = (
-                    hash_preprocessing(modality.preprocessing, pyramid=pyramid)
-                    if self.use_preview_check.isChecked()
-                    else f"pyramid={pyramid}"
-                )
-                # no need to re-process if the layer is already there
-                if layer and layer.metadata.get("preview_hash") == preprocessing_hash and not overwrite:
-                    layer.visible = state
-                    return
 
-                if self.use_preview_check.isChecked():
+                if preview:
                     image = preprocess_preview(image, reader.is_rgb, scale[0], modality.preprocessing)
                 else:
                     image = reader.get_channel(0, pyramid)
+
                 widget = self.modality_list.get_widget_for_item_model(modality)
-                colormap = "gray" if widget is None else widget.colormap
+                kws, overwrite = (
+                    ({"rgb": True}, True)
+                    if (reader.is_rgb and not preview)
+                    else (
+                        {"colormap": "gray" if widget is None else widget.colormap},
+                        overwrite if not reader.is_rgb else True,
+                    )
+                )
                 if overwrite and layer:
                     self.view.remove_layer(modality.name)
                 if not state:
@@ -325,9 +339,9 @@ class ImageElastixWindow(ImageWsiWindow):
                         name=modality.name,
                         scale=scale,
                         blending="additive",
-                        colormap=colormap,
                         metadata={"key": reader.key, "preview_hash": preprocessing_hash},
                         visible=state,
+                        **kws,
                     )
                 logger.trace(f"Processed image {modality.name} in {timer()} with {pyramid} pyramid level")
 
@@ -376,7 +390,15 @@ class ImageElastixWindow(ImageWsiWindow):
 
             self._mask_dlg = MaskDialog(self)
             self._mask_dlg.evt_mask.connect(self.modality_list.toggle_mask)
+            self._mask_dlg.evt_close.connect(self.on_remove_mask_dialog)
         self._mask_dlg.show_in_center_of_widget(self.mask_btn)
+
+    def on_remove_mask_dialog(self) -> None:
+        """Remove mask dialog."""
+        if self._mask_dlg:
+            self.view.remove_layer(self._mask_dlg.MASK_NAME)
+            self._mask_dlg = None
+            logger.trace("Removed mask dialog.")
 
     def on_open_crop_dialog(self) -> None:
         """Open crop dialog."""
@@ -569,13 +591,13 @@ class ImageElastixWindow(ImageWsiWindow):
             checked=False,
             func=self.on_hide_not_previewed_modalities,
         )
-        self.auto_show_check = hp.make_checkbox(
-            self,
-            "Auto-show",
-            tooltip="Automatically show images after setting of pre-processing parameters",
-            checked=False,
-            func=self.on_show_modalities,
-        )
+        # self.auto_show_check = hp.make_checkbox(
+        #     self,
+        #     "Auto-show",
+        #     tooltip="Automatically show images after setting of pre-processing parameters",
+        #     checked=False,
+        #     func=self.on_show_modalities,
+        # )
 
         side_layout = hp.make_form_layout(side_widget)
         hp.style_form_layout(side_layout)
@@ -589,7 +611,13 @@ class ImageElastixWindow(ImageWsiWindow):
         # Modalities
         side_layout.addRow(self.modality_list)
         side_layout.addRow(
-            hp.make_h_layout(self.use_preview_check, self.hide_others_check, self.auto_show_check, margin=2, spacing=2)
+            hp.make_h_layout(
+                self.use_preview_check,
+                self.hide_others_check,
+                # self.auto_show_check,
+                margin=2,
+                spacing=2,
+            )
         )
         side_layout.addRow(hp.make_h_layout(self.mask_btn, self.crop_btn, self.merge_btn, spacing=2))
         # Registration paths

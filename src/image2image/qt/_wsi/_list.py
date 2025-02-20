@@ -18,7 +18,7 @@ from qtpy.QtCore import QRegularExpression, Qt, Signal, Slot  # type: ignore[att
 from qtpy.QtGui import QRegularExpressionValidator
 from qtpy.QtWidgets import QDialog, QHBoxLayout, QListWidgetItem, QSizePolicy, QWidget
 
-from image2image.config import get_elastix_config, get_valis_config, SingleAppConfig
+from image2image.config import SingleAppConfig, get_elastix_config, get_valis_config
 from image2image.qt._wsi._widgets import QtModalityLabel
 
 if ty.TYPE_CHECKING:
@@ -155,10 +155,9 @@ class QtModalityItem(QtListItem):
         self.lock_btn.auto_connect()
         self.lock_btn.evt_toggled.connect(self._on_lock_preprocessing)
 
-        self.visible_btn = QtVisibleButton(self)
+        self.visible_btn = QtVisibleButton(self, state=True, auto_connect=True)
         self.visible_btn.setToolTip("Show/hide image from the canvas.")
         self.visible_btn.set_normal()
-        self.visible_btn.auto_connect()
         self.visible_btn.evt_toggled.connect(self._on_show_image)
 
         lay = QHBoxLayout()
@@ -402,7 +401,7 @@ class QtModalityItem(QtListItem):
 
     def _on_show_image(self, _state: bool = False) -> None:
         """Show image."""
-        self.evt_show.emit(self.item_model, self.visible_btn.visible)
+        self.evt_show.emit(self.item_model, self.visible_btn.state)
 
     def _on_change_color(self, _: ty.Any = None) -> None:
         """Change color."""
@@ -492,14 +491,14 @@ class QtModalityItem(QtListItem):
         self.crop_btn.setVisible(self.item_model.preprocessing.is_cropped())
         self.on_update_preprocessing(self.item_model.preprocessing)
 
-    def toggle_preview(self, disabled: bool) -> None:
+    def toggle_preview(self, state: bool) -> None:
         """Toggle name."""
-        hp.disable_widgets(self.preview_btn, disabled=disabled)
+        hp.disable_widgets(self.preview_btn, disabled=state)
 
-    def toggle_visible(self, visible: bool) -> None:
+    def toggle_visible(self, state: bool) -> None:
         """Toggle visibility icon."""
         with hp.qt_signals_blocked(self.visible_btn):
-            self.visible_btn.visible = not visible
+            self.visible_btn.state = not state
 
 
 class QtModalityList(QtListWidget):
@@ -578,7 +577,7 @@ class QtModalityList(QtListWidget):
         return widget
 
     @Slot(QListWidgetItem)  # type: ignore[misc]
-    def remove_item(self, item: QListWidgetItem, force: bool = False):
+    def remove_item(self, item: QListWidgetItem, force: bool = False) -> None:
         """Remove item from the list."""
         item_model: Modality = item.item_model
         if force or hp.confirm(
@@ -631,7 +630,7 @@ class QtModalityList(QtListWidget):
     def toggle_visible(self, names: list[str]) -> None:
         """Toggle visibility icon of items."""
         for _, model, widget in self.item_model_widget_iter():
-            widget.toggle_visible(model.name not in names)
+            widget.visible_btn.set_state(model.name not in names, trigger=False)
 
 
 # def get_next_color(n: int, other_colors: list[str] | None = None) -> str:

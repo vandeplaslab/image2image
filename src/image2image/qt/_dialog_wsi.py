@@ -15,6 +15,7 @@ from image2image_reg.workflows import ElastixReg, ValisReg
 from koyo.typing import PathLike
 from loguru import logger
 from napari.layers import Image
+from qtextra.config import THEMES
 from qtextra.queue.popup import QUEUE, QueuePopup
 from qtextra.queue.task import Task
 from qtpy.QtCore import QRegularExpression, Qt
@@ -55,7 +56,7 @@ class ImageWsiWindow(SingleViewerMixin):
     write_merged_check: Qw.QCheckBox
     as_uint8: Qw.QCheckBox
     use_preview_check: Qw.QCheckBox
-    auto_show_check: Qw.QCheckBox
+    # auto_show_check: Qw.QCheckBox
     hide_others_check: Qw.QCheckBox
     modality_list: QtModalityList
     pyramid_level: Qw.QComboBox
@@ -322,51 +323,50 @@ class ImageWsiWindow(SingleViewerMixin):
 
     def _on_show_modalities(self) -> None:
         """Show modality images."""
-        self.CONFIG.update(use_preview=self.use_preview_check.isChecked(), auto_show=self.auto_show_check.isChecked())
-        self.on_hide_not_previewed_modalities()
+        self.CONFIG.update(use_preview=self.use_preview_check.isChecked())
+        # self.on_hide_not_previewed_modalities()
         self.modality_list.toggle_preview(self.CONFIG.use_preview)
-        # if not self.CONFIG.hide_others:
-        #     self.modality_list.toggle_visible([layer.name for layer in self.view.get_layers_of_type(Image)])
-        if self.CONFIG.auto_show:
-            for _, modality, _widget in self.modality_list.item_model_widget_iter():
-                # self.on_show_modality(modality, state=widget.visible_btn.visible, overwrite=True)
-                self.on_show_modality(modality, state=True, overwrite=True)
+        for _, modality, widget in self.modality_list.item_model_widget_iter():
+            self.on_show_modality(modality, state=widget.visible_btn.state)  # , overwrite=True)
 
     def on_hide_not_previewed_modalities(self) -> None:
         """Hide any modality that is not previewed."""
         hide = self.hide_others_check.isChecked()
-        visible_modalities = []
-        # get modalities that are currently being pre-processed
+        visible_modalities, maybe_visible_modalities, hidden_modalities = [], [], []
+        widget: QtModalityItem
         for _, modality, widget in self.modality_list.item_model_widget_iter():
-            if widget._preprocessing_dlg is not None or not hide:
-                visible_modalities.append(modality.name)
-        # also get modalities that are being masked
-        if self._mask_dlg and self._mask_dlg.is_showing and self._mask_dlg.current_modality is not None:
-            visible_modalities.append(self._mask_dlg.current_modality.name)
-        # also get modalities that are being cropped
-        if self._crop_dlg and self._crop_dlg.is_showing and self._crop_dlg.current_modality is not None:
-            visible_modalities.append(self._crop_dlg.current_modality.name)
+            # if hide is enabled, we should only display the modality currently being pre-processed
+            if hide:
+                if widget._preprocessing_dlg is not None:
+                    visible_modalities.append(modality.name)
+                else:
+                    if widget.visible_btn.state:
+                        maybe_visible_modalities.append(modality.name)
+                    hidden_modalities.append(modality.name)
+            # otherwise, let's use the user selection
+            else:
+                if widget.visible_btn.state:
+                    visible_modalities.append(modality.name)
+                else:
+                    hidden_modalities.append(modality.name)
+        if not visible_modalities:
+            visible_modalities = maybe_visible_modalities
+            hidden_modalities = []
+
+        # actually show/hide widgets
         visible_modalities = list(set(visible_modalities))
-        self.on_hide_modalities(visible_modalities, hide=True)
-        logger.trace(f"Showing {visible_modalities} (hide-not-previewed).")
+        hidden_modalities = list(set(hidden_modalities))
+        for _, modality, widget in self.modality_list.item_model_widget_iter():
+            if modality.name in hidden_modalities:
+                widget.visible_btn.set_state(False, trigger=True)
+            if modality.name in visible_modalities:
+                widget.visible_btn.set_state(True, trigger=True)
 
     def on_hide_modalities(
         self, visible_modalities: Modality | list[Modality] | list[str], hide: bool | None = None
     ) -> None:
         """Hide other modalities."""
-        if hide is None:
-            hide = self.hide_others_check.isChecked()
-        self.CONFIG.update(hide_others=hide)
-        if not isinstance(visible_modalities, list):
-            visible_modalities = [visible_modalities]
-        layers_to_show = [mod.name if hasattr(mod, "name") else mod for mod in visible_modalities]
-        if hide and layers_to_show:
-            for layer in self.view.get_layers_of_type(Image):
-                layer.visible = layer.name in layers_to_show
-            logger.trace(f"Showing {layers_to_show} (hide-modalities)")
-        # self.modality_list.toggle_visible(
-        #     [layer.name for layer in self.view.get_layers_of_type_with_attr_value(Image, "visible", True)]
-        # )
+        self.on_hide_not_previewed_modalities()
 
     def on_open_in_viewer(self) -> None:
         """Open registration in viewer."""
@@ -381,9 +381,12 @@ class ImageWsiWindow(SingleViewerMixin):
         self.on_open_in_viewer()
         self.on_close(force=True)
 
-    def on_preview_close(self) -> None:
+    def on_preview_close(self, modality: Modality) -> None:
         """Preview was closed."""
-        self.on_show_modalities()
+        preview = self.use_preview_check.isChecked()
+        for _, modality_, widget in self.modality_list.item_model_widget_iter():
+            if modality.name == modality_.name:
+                self.on_show_modality(modality_, state=widget.visible_btn.state, overwrite=not preview)
 
     def on_rename_modality(self, widget, new_name: str) -> None:
         """Rename modality."""
@@ -514,7 +517,11 @@ class ImageWsiWindow(SingleViewerMixin):
         )
 
         hidden_settings = hp.make_advanced_collapsible(
-            side_widget, "Export options", allow_checkbox=False, allow_icon=False, icon="warning"
+            side_widget,
+            "Export options",
+            allow_checkbox=False,
+            allow_icon=False,
+            warning_icon=("warning", {"color": THEMES.get_theme_color("warning")}),
         )
         hidden_settings.addRow(hp.make_label(self, "Write/don't write"), self.write_check)
         hidden_settings.addRow(hp.make_label(self, "Write registered images"), self.write_registered_check)
@@ -531,6 +538,7 @@ class ImageWsiWindow(SingleViewerMixin):
                     "While this option reduces the amount of space an image takes on your disk, it can lead to data"
                     " loss and should be used with caution.",
                     normal=True,
+                    icon_name=("warning", {"color": THEMES.get_theme_color("warning")}),
                 ),
                 spacing=2,
                 stretch_id=(0,),

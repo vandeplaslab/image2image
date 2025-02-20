@@ -116,7 +116,7 @@ class PreprocessingDialog(QtFramelessTool):
     def lock(self, lock: bool) -> None:
         """Lock/unlock widgets."""
         hp.disable_widgets(
-            *self.flip_choices_group.buttons(),
+            *self.flip_choices_toggle.buttons,
             self.translate_x,
             self.translate_left,
             self.translate_right,
@@ -135,12 +135,10 @@ class PreprocessingDialog(QtFramelessTool):
         if not self.valis:
             return
         hp.disable_widgets(
-            *self.type_choice_group.buttons(),
-            self.mip_check,
+            *self.type_choice_toggle.buttons,
             self.equalize_check,
             self.contrast_check,
             self.invert_check,
-            self.uint8_check,
             disabled=self.method.currentText() != "I2RegPreprocessor",
         )
         hp.disable_widgets(
@@ -178,16 +176,14 @@ class PreprocessingDialog(QtFramelessTool):
             }.get(self.preprocessing.method, self.preprocessing.method)
             self.method.setCurrentText(method)
             image_type = {"BF": 0, "FL": 1}[self.preprocessing.image_type]
-            self.type_choice_group.button(image_type).setChecked(True)
+            self.type_choice_toggle.value = ["Brightfield", "Fluorescence"][image_type]
             # spectral
-            self.mip_check.setChecked(self.preprocessing.max_intensity_projection)
             self.contrast_check.setChecked(self.preprocessing.contrast_enhance)
             self.equalize_check.setChecked(self.preprocessing.equalize_histogram)
             self.invert_check.setChecked(self.preprocessing.invert_intensity)
-            self.uint8_check.setChecked(self.preprocessing.as_uint8)
             # spatial
             flip = {"None": 0, CoordinateFlip.HORIZONTAL: 1, CoordinateFlip.VERTICAL: 1}.get(self.preprocessing.flip, 0)
-            self.flip_choices_group.button(flip).setChecked(True)
+            self.flip_choices_toggle.value = ["None", "Horizontal", "Vertical"][flip]
             self.translate_x.setValue(self.preprocessing.translate_x)
             self.translate_y.setValue(self.preprocessing.translate_y)
             self.rotate_spin.setValue(self.preprocessing.rotate_counter_clockwise)
@@ -199,6 +195,7 @@ class PreprocessingDialog(QtFramelessTool):
         """Set selected channels."""
         channel_names = self.modality.channel_names
         channel_ids = self.preprocessing.channel_indices
+
         data = []
         for i, name in enumerate(channel_names):
             data.append([i in channel_ids, i, name])
@@ -215,19 +212,19 @@ class PreprocessingDialog(QtFramelessTool):
         """Update model."""
         if self._is_setting_config:
             return
-        image_type = self.type_choice_group.checkedButton().text()
+        image_type = self.type_choice_toggle.value
         method = self.method.currentText()
         if "(no preview)" in method:
             method = method.split(" (no preview)")[0]
             logger.warning(f"Method {method} does not support previewing.")
         self.preprocessing.method = method
         self.preprocessing.image_type = {"Brightfield": "BF", "Fluorescence": "FL"}[image_type]
-        self.preprocessing.max_intensity_projection = self.mip_check.isChecked()
+        self.preprocessing.max_intensity_projection = True
         self.preprocessing.contrast_enhance = self.contrast_check.isChecked()
         self.preprocessing.equalize_histogram = self.equalize_check.isChecked()
         self.preprocessing.invert_intensity = self.invert_check.isChecked()
         self.preprocessing.channel_indices, self.preprocessing.channel_names = self.get_selected_channels()
-        self.preprocessing.as_uint8 = self.uint8_check.isChecked()
+        self.preprocessing.as_uint8 = True
         self.evt_update.emit(self.preprocessing)
         self.on_preview_preprocessing()
 
@@ -235,7 +232,7 @@ class PreprocessingDialog(QtFramelessTool):
         """Update model."""
         if self._is_setting_config:
             return
-        flip = self.flip_choices_group.checkedButton().text()
+        flip = self.flip_choices_toggle.value
         self.preprocessing.flip = {"None": None, "": None, "Horizontal": "h", "Vertical": "v"}[flip]
         # x = self.translate_x.value() * self.modality.pixel_size
         # y = self.translate_y.value() * self.modality.pixel_size
@@ -251,19 +248,41 @@ class PreprocessingDialog(QtFramelessTool):
         """Set defaults."""
         from image2image_reg.models import Preprocessing
 
-        text = self.defaults_choice_group.checkedButton().text()
+        text = self.defaults_choice_toggle.value
         if not hp.confirm(
             self, f"Are you sure you want to set to <b>{text}</b> defaults? This will overwrite other settings."
         ):
             return
+        channel_names = self.preprocessing.channel_names
+        channel_indices = self.preprocessing.channel_indices
         if text == "Brightfield":
-            new_preprocessing = Preprocessing.brightfield(valis=self.valis)
+            new_preprocessing = Preprocessing.brightfield(
+                valis=self.valis, channel_names=channel_names, channel_indices=channel_indices
+            )
         elif text == "Fluorescence":
-            new_preprocessing = Preprocessing.fluorescence(valis=self.valis)
+            new_preprocessing = Preprocessing.fluorescence(
+                valis=self.valis, channel_names=channel_names, channel_indices=channel_indices
+            )
+        elif text == "H&E":
+            new_preprocessing = Preprocessing.he(
+                valis=self.valis, channel_names=channel_names, channel_indices=channel_indices
+            )
+        elif text == "PAS":
+            new_preprocessing = Preprocessing.pas(
+                valis=self.valis, channel_names=channel_names, channel_indices=channel_indices
+            )
+        elif text == "postAF":
+            new_preprocessing = Preprocessing.postaf(
+                valis=self.valis, channel_names=channel_names, channel_indices=channel_indices
+            )
+        elif text == "MIP":
+            new_preprocessing = Preprocessing.mip(
+                valis=self.valis, channel_names=channel_names, channel_indices=channel_indices
+            )
         else:
-            new_preprocessing = Preprocessing.basic(valis=self.valis)
-        new_preprocessing.channel_names = self.preprocessing.channel_names
-        new_preprocessing.channel_indices = self.preprocessing.channel_indices
+            new_preprocessing = Preprocessing.basic(
+                valis=self.valis, channel_names=channel_names, channel_indices=channel_indices
+            )
         self.preprocessing = new_preprocessing
         self.set_from_model()
         self.evt_update.emit(self.preprocessing)
@@ -311,8 +330,17 @@ class PreprocessingDialog(QtFramelessTool):
     def make_panel(self) -> QFormLayout:
         """Make panel."""
 
-        self.defaults_choice_lay, self.defaults_choice_group = hp.make_toggle_group(
-            self, "Basic", "Brightfield", "Fluorescence", func=self.on_set_defaults
+        self.defaults_choice_toggle = hp.make_toggle(
+            self,
+            "Basic",
+            "Brightfield",
+            "Fluorescence",
+            "H&E",
+            "PAS",
+            "postAF",
+            "MIP",
+            func=self.on_set_defaults,
+            tooltip="Select from one of the available defaults.",
         )
 
         # pre-processing method
@@ -325,14 +353,13 @@ class PreprocessingDialog(QtFramelessTool):
         self.method.setHidden(not self.valis)
 
         # intensity preprocessing
-        self.type_choice_lay, self.type_choice_group = hp.make_toggle_group(
+        self.type_choice_toggle = hp.make_toggle(
             self,
             "Brightfield",
             "Fluorescence",
             tooltip="Image type - this determines how certain pre-processing steps are conducted.",
             func=self.on_update_model,
         )
-        self.mip_check = hp.make_checkbox(self, "", tooltip="Max intensity projection", func=self.on_update_model)
         self.equalize_check = hp.make_checkbox(
             self, "", tooltip="Equalize histogram enhancement", func=self.on_update_model
         )
@@ -359,11 +386,10 @@ class PreprocessingDialog(QtFramelessTool):
                 ),
             )
 
-        self.uint8_check = hp.make_checkbox(self, "", func=self.on_update_model)
         self.channel_table.evt_checked.connect(self.on_update_model)
 
         # spatial preprocessing
-        self.flip_choices_lay, self.flip_choices_group = hp.make_toggle_group(
+        self.flip_choices_toggle = hp.make_toggle(
             self,
             "None",
             "Horizontal",
@@ -469,24 +495,23 @@ class PreprocessingDialog(QtFramelessTool):
                 wrap=True,
             )
         )
-        layout.addRow("Defaults", self.defaults_choice_lay)
+        layout.addRow(hp.make_h_line_with_text("Defaults", self))
+        layout.addRow(self.defaults_choice_toggle)
         if self.valis:
             layout.addRow(hp.make_h_line_with_text("Valis", self))
         method_label = hp.make_label(self, "Method")
         method_label.setHidden(not self.valis)
         layout.addRow(method_label, self.method)
         layout.addRow(hp.make_h_line_with_text("Intensity", self))
-        layout.addRow("Image type", self.type_choice_lay)
-        layout.addRow("Max. intensity projection", self.mip_check)
+        layout.addRow("Image type", self.type_choice_toggle)
         layout.addRow("Histogram equalization", self.equalize_check)
         layout.addRow("Contrast enhancement", self.contrast_check)
         layout.addRow("Invert intensity", self.invert_check)
-        layout.addRow("UInt8 (reduce data size)", self.uint8_check)
         layout.addRow(self.channel_table)
         if STATE.allow_filters:
             layout.addRow(hp.make_h_layout(self.filter_by_channel, stretch_id=(0,), spacing=1))
         layout.addRow(hp.make_h_line_with_text("Spatial", self))
-        layout.addRow("Flip", self.flip_choices_lay)
+        layout.addRow("Flip", self.flip_choices_toggle)
         layout.addRow(
             "Translate (x)",
             hp.make_h_layout(

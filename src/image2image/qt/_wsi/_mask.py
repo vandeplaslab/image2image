@@ -19,7 +19,7 @@ from qtextra.widgets.qt_dialog import QtFramelessTool
 from qtpy.QtCore import Qt, Signal
 from qtpy.QtWidgets import QLayout
 
-from image2image.utils.utilities import init_shapes_layer, open_docs, replace_shapes_layer
+from image2image.utils.utilities import init_shapes_layer, open_docs
 
 if ty.TYPE_CHECKING:
     from image2image_io.readers import BaseReader
@@ -60,12 +60,14 @@ def get_affine(reader: BaseReader, preprocessing: Preprocessing) -> tuple[np.nda
 class ShapesDialog(QtFramelessTool):
     """Dialog to mask a group."""
 
-    HIDE_WHEN_CLOSE = True
+    HIDE_WHEN_CLOSE = False
     is_showing = False
     _editing = False
     TITLE: str
     INFO_LABEL: str
     MASK_OR_CROP: str
+
+    MASK_NAME: str = "Mask"
 
     evt_mask = Signal(object)
     evt_preview_transform_preprocessing = Signal(Modality, Preprocessing)
@@ -100,11 +102,11 @@ class ShapesDialog(QtFramelessTool):
     @property
     def mask_layer(self) -> Shapes:
         """Crop layer."""
-        if "Mask" not in self.view.layers:
+        if self.MASK_NAME not in self.view.layers:
             layer = self.view.viewer.add_shapes(
                 None,
                 edge_width=5,
-                name="Mask",
+                name=self.MASK_NAME,
                 face_color="green",
                 edge_color="white",
                 opacity=0.5,
@@ -112,10 +114,8 @@ class ShapesDialog(QtFramelessTool):
             visual = self.view.widget.canvas.layer_to_visual[layer]
             init_shapes_layer(layer, visual)
             connect(self.mask_layer.events.set_data, self.on_update_crop_from_canvas, state=True)
-
-        layer = self.view.layers["Mask"]
-        if hasattr(self, "layer_controls"):
-            replace_shapes_layer(self.layer_controls, layer)
+        layer = self.view.layers[self.MASK_NAME]
+        self.view.select_one_layer(layer)
         return layer
 
     @property
@@ -336,7 +336,7 @@ class ShapesDialog(QtFramelessTool):
 
         layout = hp.make_form_layout()
         layout.setContentsMargins(6, 6, 6, 6)
-        layout.addRow(self._make_hide_handle(self.TITLE)[1])
+        layout.addRow(self._make_close_handle(self.TITLE)[1])
         layout.addRow(
             hp.make_label(self, self.INFO_LABEL, wrap=True, enable_url=True, alignment=Qt.AlignmentFlag.AlignCenter)
         )

@@ -444,6 +444,12 @@ def replace_shapes_layer(widget: QtShapesControls, layer: Shapes) -> None:
     from napari.utils.events import disconnect_events
     from qtextra.helpers import disable_widgets
 
+    def _replace_layer_in_button(btn):
+        if hasattr(btn, "layer_ref"):
+            btn.layer_ref = weakref.ref(layer)
+        else:
+            btn.layer = layer
+
     if layer == widget.layer:
         return
     disconnect_events(widget.layer.events, widget)
@@ -457,10 +463,12 @@ def replace_shapes_layer(widget: QtShapesControls, layer: Shapes) -> None:
     widget._on_edge_width_change()
     widget._on_text_visibility_change()
     widget._on_editable_or_visible_change()
-    for button in widget.button_group.buttons():
-        button.layer_ref = weakref.ref(layer)
+    # for button in widget.button_group.buttons():
+    #     _replace_layer_in_button(button)
+    for button in widget._MODE_BUTTONS.values():
+        _replace_layer_in_button(button)
     for button in widget._EDIT_BUTTONS:
-        button.layer_ref = weakref.ref(layer)
+        _replace_layer_in_button(button)
 
     # connect new events
     widget.layer.events.mode.connect(widget._on_mode_change)
