@@ -639,7 +639,7 @@ def _crop_regions(data_model: DataModel, polygon_or_bbox: list[tuple[int, int, i
     """Crop regions."""
     if isinstance(polygon_or_bbox, tuple):
         left, right, top, bottom = polygon_or_bbox
-        for path, reader, cropped in data_model.crop(left, right, top, bottom):
+        for path, reader, cropped in data_model.crop_bbox(left, right, top, bottom):
             yield path, reader, cropped, (left, right, top, bottom)
     else:
         for path, reader, cropped, (left, right, top, bottom) in data_model.crop_polygon(polygon_or_bbox):

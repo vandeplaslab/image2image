@@ -359,14 +359,14 @@ class DataModel(BaseModel):
         """Returns True if there is some data on the model."""
         return self.n_paths > 0
 
-    def crop(
+    def crop_bbox(
         self, left: int, right: int, top: int, bottom: int
     ) -> ty.Generator[tuple[Path, "BaseReader", np.ndarray], None, None]:
         """Crop image(s) to the specified region."""
         wrapper = self.wrapper
         if wrapper:
             for path, reader in wrapper.path_reader_iter():
-                cropped = reader.crop(left, right, top, bottom)
+                cropped = reader.crop_bbox(left, right, top, bottom)
                 yield path, reader, cropped
 
     def crop_polygon(
@@ -377,6 +377,16 @@ class DataModel(BaseModel):
         if wrapper:
             for path, reader in wrapper.path_reader_iter():
                 cropped, bbox = reader.crop_polygon(yx)
+                yield path, reader, cropped, bbox
+
+    def crop_polygon_mask(
+        self, yx: np.ndarray
+    ) -> ty.Generator[tuple[Path, "BaseReader", np.ndarray, tuple[int, int, int, int]], None, None]:
+        """Crop image(s) to the specified polygon region."""
+        wrapper = self.wrapper
+        if wrapper:
+            for path, reader in wrapper.path_reader_iter():
+                cropped, bbox = reader.crop_polygon_mask(yx)
                 yield path, reader, cropped, bbox
 
 
