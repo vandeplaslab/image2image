@@ -19,7 +19,7 @@ from qtpy.QtCore import QProcess, Qt, Signal  # type: ignore[attr-defined]
 from qtpy.QtWidgets import QMainWindow, QMenu, QProgressBar, QStatusBar, QWidget
 from superqt.utils import create_worker, ensure_main_thread
 
-from image2image.config import get_app_config, STATE, SingleAppConfig
+from image2image.config import STATE, SingleAppConfig, get_app_config
 from image2image.models.data import DataModel
 from image2image.qt._dialogs._update import check_version
 from image2image.utils._appdirs import USER_LOG_DIR

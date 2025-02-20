@@ -17,7 +17,7 @@ from superqt import ensure_main_thread
 from superqt.utils import GeneratorWorker, create_worker
 
 from image2image import __version__
-from image2image.config import get_merge_config, STATE
+from image2image.config import STATE, get_merge_config
 from image2image.enums import ALLOWED_IMAGE_FORMATS_TIFF_ONLY
 from image2image.qt._dialog_mixins import NoViewerMixin
 from image2image.qt._dialogs._select import LoadWidget

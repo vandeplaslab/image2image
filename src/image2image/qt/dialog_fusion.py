@@ -213,7 +213,7 @@ class ImageFusionWindow(Window):
             row = hp.find_in_table(self.table, self.TABLE_CONFIG.name, key)
             if row is not None:
                 item = self.table.item(row, self.TABLE_CONFIG.progress)
-                item.setText(f"{current/total:.1%} {remaining}")
+                item.setText(f"{current / total:.1%} {remaining}")
                 if current == total:
                     item.setText("Exported!")
                     self.on_toggle_export_btn()
