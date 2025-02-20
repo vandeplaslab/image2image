@@ -79,6 +79,14 @@ class RegistrationPaths(QWidget):
                 ),
                 hp.make_qta_btn(
                     self,
+                    "remove",
+                    func=self.on_remove_transformation,
+                    tooltip="Remove last transformation from the list.",
+                    standout=True,
+                    normal=True,
+                ),
+                hp.make_qta_btn(
+                    self,
                     "reset",
                     func=self.on_reset_transformation,
                     tooltip="Reset all transformations.",
@@ -129,6 +137,14 @@ class RegistrationPaths(QWidget):
         self.transformations.append(current)
         get_elastix_config().transformations = tuple(self.transformations)
         self._update_transformation_path()
+
+    def on_remove_transformation(self) -> None:
+        """Remove last transformation from the list."""
+        self.transformations = list(self.transformations)
+        if self.transformations:
+            self.transformations.pop()
+            get_elastix_config().transformations = tuple(self.transformations)
+            self._update_transformation_path()
 
     def on_reset_transformation(self) -> None:
         """Reset transformation list."""

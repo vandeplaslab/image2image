@@ -196,6 +196,9 @@ class PreprocessingDialog(QtFramelessTool):
         channel_names = self.modality.channel_names
         channel_ids = self.preprocessing.channel_indices
 
+        print(channel_names)
+        print(channel_ids)
+
         data = []
         for i, name in enumerate(channel_names):
             data.append([i in channel_ids, i, name])

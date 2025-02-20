@@ -21,7 +21,7 @@ from qtpy.QtCore import Qt
 from qtpy.QtWidgets import QHBoxLayout, QVBoxLayout, QWidget
 
 from image2image import __version__
-from image2image.config import STATE, get_valis_config, ValisConfig
+from image2image.config import STATE, ValisConfig, get_valis_config
 from image2image.enums import ALLOWED_VALIS_FORMATS
 from image2image.qt._dialog_wsi import ImageWsiWindow
 from image2image.qt._dialogs._select import LoadWidget
@@ -207,28 +207,7 @@ class ImageValisWindow(ImageWsiWindow):
         side_widget.setMaximumWidth(450)
 
         self.modality_list = QtModalityList(self, valis=True)
-
-        self.use_preview_check = hp.make_checkbox(
-            self,
-            "Use preview image",
-            tooltip="Use preview image for viewing instead of the first channel only.",
-            value=self.CONFIG.use_preview,
-            func=self.on_show_modalities,
-        )
-        self.hide_others_check = hp.make_checkbox(
-            self,
-            "Hide others",
-            tooltip="When previewing, hide other images to reduce clutter.",
-            checked=self.CONFIG.hide_others,
-            func=self.on_hide_not_previewed_modalities,
-        )
-        self.auto_show_check = hp.make_checkbox(
-            self,
-            "Auto-show",
-            tooltip="Automatically show images after setting of pre-processing parameters",
-            checked=False,
-            func=self.on_show_modalities,
-        )
+        self._make_visibility_options()
 
         self.reference_choice = hp.make_combobox(
             self,
@@ -285,7 +264,14 @@ class ImageValisWindow(ImageWsiWindow):
         # Modalities
         side_layout.addRow(self.modality_list)
         side_layout.addRow(
-            hp.make_h_layout(self.use_preview_check, self.hide_others_check, self.auto_show_check, margin=2, spacing=2)
+            hp.make_h_layout(
+                self.show_all_btn,
+                self.hide_all_btn,
+                self.use_preview_check,
+                self.hide_others_check,
+                margin=2,
+                spacing=2,
+            )
         )
         # Registration paths
         side_layout.addRow(hp.make_h_line_with_text("Registration configuration"))

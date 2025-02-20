@@ -11,7 +11,7 @@ import numpy as np
 import qtextra.helpers as hp
 from image2image_reg.models import Modality, Preprocessing
 from loguru import logger
-from napari._qt.layer_controls.qt_shapes_controls import QtShapesControls
+from napari._qt.layer_controls.qt_shapes_controls import QtShapesControls as _QtShapesControls
 from napari.layers import Image, Shapes
 from napari.layers.shapes._shapes_constants import Box
 from qtextra.utils.utilities import connect
@@ -55,6 +55,24 @@ def get_affine(reader: BaseReader, preprocessing: Preprocessing) -> tuple[np.nda
         flip_ud=preprocessing.flip == "v",
     )
     return affine, np.linalg.inv(affine)
+
+
+class QtShapesControls(_QtShapesControls):
+    """Slightly modified controls."""
+
+    def _on_editable_or_visible_change(self):
+        """Receive layer model editable/visible change event & enable/disable buttons."""
+        super()._on_editable_or_visible_change()
+        with suppress(AttributeError):
+            hp.disable_widgets(
+                self.line_button,
+                self.path_button,
+                self.ellipse_button,
+                self.polyline_button,
+                self.polygon_lasso_button,
+                self.transform_button,
+                disabled=True,
+            )
 
 
 class ShapesDialog(QtFramelessTool):
@@ -263,6 +281,8 @@ class ShapesDialog(QtFramelessTool):
     def on_increment_modality(self, increment_by: int) -> None:
         """Increment modality."""
         count = self.slide_choice.count()
+        if not count:
+            return
         index = self.slide_choice.currentIndex()
         index = (index + increment_by) % count
         self.slide_choice.setCurrentIndex(index)
@@ -302,14 +322,6 @@ class ShapesDialog(QtFramelessTool):
     def make_panel(self) -> QLayout:
         """Make panel."""
         self.layer_controls = QtShapesControls(self.mask_layer)
-        # disable certain modes
-        hp.disable_widgets(
-            self.layer_controls.line_button,
-            self.layer_controls.path_button,
-            self.layer_controls.ellipse_button,
-            self.layer_controls.polyline_button,
-            disabled=True,
-        )
 
         self.slide_choice = hp.make_combobox(self, tooltip="Select modality", func=self.on_select_modality)
         self.previous_btn = hp.make_qta_btn(
@@ -410,8 +422,9 @@ class MaskDialog(ShapesDialog):
 
     def on_dissociate_mask_from_modality(self) -> None:
         """Dissociate mask from modality."""
-        name = self.slide_choice.currentText()
-        modality = self._parent.registration_model.modalities[name]
+        modality = self.current_modality
+        if not modality:
+            return
         modality.preprocessing.mask_polygon = None
         modality.preprocessing.mask_bbox = None
         logger.trace(f"Removed mask for modality {name}")
@@ -465,8 +478,9 @@ class CropDialog(ShapesDialog):
 
     def on_dissociate_mask_from_modality(self) -> None:
         """Dissociate mask from modality."""
-        name = self.slide_choice.currentText()
-        modality = self._parent.registration_model.modalities[name]
+        modality = self.current_modality
+        if not modality:
+            return
         modality.preprocessing.crop_polygon = None
         modality.preprocessing.crop_bbox = None
         logger.trace(f"Removed crop for modality {name}")

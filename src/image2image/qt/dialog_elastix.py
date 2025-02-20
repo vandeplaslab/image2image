@@ -576,28 +576,7 @@ class ImageElastixWindow(ImageWsiWindow):
             self, "Merge...", tooltip="Specify images to merge...", func=self.on_open_merge_dialog
         )
         self.merge_btn.hide()
-
-        self.use_preview_check = hp.make_checkbox(
-            self,
-            "Use preview image",
-            tooltip="Use preview image for viewing instead of the first channel only.",
-            value=False,
-            func=self.on_show_modalities,
-        )
-        self.hide_others_check = hp.make_checkbox(
-            self,
-            "Hide others",
-            tooltip="When previewing, hide other images to reduce clutter.",
-            checked=False,
-            func=self.on_hide_not_previewed_modalities,
-        )
-        # self.auto_show_check = hp.make_checkbox(
-        #     self,
-        #     "Auto-show",
-        #     tooltip="Automatically show images after setting of pre-processing parameters",
-        #     checked=False,
-        #     func=self.on_show_modalities,
-        # )
+        self._make_visibility_options()
 
         side_layout = hp.make_form_layout(side_widget)
         hp.style_form_layout(side_layout)
@@ -612,9 +591,10 @@ class ImageElastixWindow(ImageWsiWindow):
         side_layout.addRow(self.modality_list)
         side_layout.addRow(
             hp.make_h_layout(
+                self.show_all_btn,
+                self.hide_all_btn,
                 self.use_preview_check,
                 self.hide_others_check,
-                # self.auto_show_check,
                 margin=2,
                 spacing=2,
             )

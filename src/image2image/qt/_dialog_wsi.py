@@ -14,7 +14,6 @@ from image2image_reg.models import Modality
 from image2image_reg.workflows import ElastixReg, ValisReg
 from koyo.typing import PathLike
 from loguru import logger
-from napari.layers import Image
 from qtextra.config import THEMES
 from qtextra.queue.popup import QUEUE, QueuePopup
 from qtextra.queue.task import Task
@@ -56,7 +55,6 @@ class ImageWsiWindow(SingleViewerMixin):
     write_merged_check: Qw.QCheckBox
     as_uint8: Qw.QCheckBox
     use_preview_check: Qw.QCheckBox
-    # auto_show_check: Qw.QCheckBox
     hide_others_check: Qw.QCheckBox
     modality_list: QtModalityList
     pyramid_level: Qw.QComboBox
@@ -316,6 +314,16 @@ class ImageWsiWindow(SingleViewerMixin):
         self.on_show_modalities()
         logger.trace(f"Updated pyramid level to {level}")
 
+    def on_show_all(self) -> None:
+        """Show all modalities."""
+        for _, _modality, widget in self.modality_list.item_model_widget_iter():
+            widget.visible_btn.set_state(True, trigger=True)
+
+    def on_hide_all(self) -> None:
+        """Hide all modalities."""
+        for _, _modality, widget in self.modality_list.item_model_widget_iter():
+            widget.visible_btn.set_state(False, trigger=True)
+
     @qdebounced(timeout=250)
     def on_show_modalities(self, _: ty.Any = None) -> None:
         """Show modality images."""
@@ -459,6 +467,24 @@ class ImageWsiWindow(SingleViewerMixin):
             func=self.on_set_output_dir,
             normal=True,
             standout=True,
+        )
+
+    def _make_visibility_options(self) -> None:
+        self.show_all_btn = hp.make_qta_btn(self, "visible_on", tooltip="Show all modalities", func=self.on_show_all)
+        self.hide_all_btn = hp.make_qta_btn(self, "visible_off", tooltip="Hide all modalities", func=self.on_hide_all)
+        self.use_preview_check = hp.make_checkbox(
+            self,
+            "Use preview image",
+            tooltip="Use preview image for viewing instead of the first channel only.",
+            value=self.CONFIG.use_preview,
+            func=self.on_show_modalities,
+        )
+        self.hide_others_check = hp.make_checkbox(
+            self,
+            "Hide others",
+            tooltip="When previewing, hide other images to reduce clutter.",
+            checked=self.CONFIG.hide_others,
+            func=self.on_hide_not_previewed_modalities,
         )
 
     def _make_hidden_widgets(self, side_widget: Qw.QWidget) -> QtCheckCollapsible:
