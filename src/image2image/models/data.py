@@ -359,25 +359,42 @@ class DataModel(BaseModel):
         """Returns True if there is some data on the model."""
         return self.n_paths > 0
 
-    def crop_bbox(
-        self, left: int, right: int, top: int, bottom: int
-    ) -> ty.Generator[tuple[Path, "BaseReader", np.ndarray], None, None]:
+    def crop_region(
+        self, bbox_or_polygon: ty.Union[tuple[int, int, int, int], np.ndarray]
+    ) -> ty.Generator[tuple[Path, "BaseReader", tuple[np.ndarray, tuple[int, int, int, int]]], None, None]:
         """Crop image(s) to the specified region."""
         wrapper = self.wrapper
         if wrapper:
             for path, reader in wrapper.path_reader_iter():
-                cropped = reader.crop_bbox(left, right, top, bottom)
-                yield path, reader, cropped
+                yield path, reader, reader.crop_region(bbox_or_polygon)
 
-    def crop_polygon(
+    def crop_bbox_iter(
+        self, left: int, right: int, top: int, bottom: int
+    ) -> ty.Generator[tuple[Path, "BaseReader", int, np.ndarray, tuple[int, int, int, int]], None, None]:
+        """Crop image(s) to the specified region."""
+        wrapper = self.wrapper
+        if wrapper:
+            for path, reader in wrapper.path_reader_iter():
+                channel_index = 0
+                for cropped_channel, bbox in reader.crop_bbox_iter(left, right, top, bottom):
+                    if cropped_channel is None:
+                        continue
+                    yield path, reader, channel_index, cropped_channel, bbox
+                    channel_index += 1
+
+    def crop_polygon_iter(
         self, yx: np.ndarray
-    ) -> ty.Generator[tuple[Path, "BaseReader", np.ndarray, tuple[int, int, int, int]], None, None]:
+    ) -> ty.Generator[tuple[Path, "BaseReader", int, np.ndarray, tuple[int, int, int, int]], None, None]:
         """Crop image(s) to the specified polygon region."""
         wrapper = self.wrapper
         if wrapper:
             for path, reader in wrapper.path_reader_iter():
-                cropped, bbox = reader.crop_polygon(yx)
-                yield path, reader, cropped, bbox
+                channel_index = 0
+                for cropped_channel, bbox in reader.crop_polygon_iter(yx):
+                    if cropped_channel is None:
+                        continue
+                    yield path, reader, channel_index, cropped_channel, bbox
+                    channel_index += 1
 
     def crop_polygon_mask(
         self, yx: np.ndarray

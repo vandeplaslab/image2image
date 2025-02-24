@@ -17,7 +17,7 @@ from superqt import ensure_main_thread
 from superqt.utils import GeneratorWorker, create_worker
 
 from image2image import __version__
-from image2image.config import get_convert_config, STATE
+from image2image.config import STATE, get_convert_config
 from image2image.enums import ALLOWED_IMAGE_FORMATS_MICROSCOPY_ONLY
 from image2image.qt._dialog_mixins import NoViewerMixin
 from image2image.qt._dialogs._select import LoadWidget
@@ -236,7 +236,7 @@ class ImageConvertWindow(NoViewerMixin):
                 hp.disable_widgets(self.export_btn.active_btn, disabled=True)
                 self.export_btn.active = True
 
-    def on_cancel(self):
+    def on_cancel(self) -> None:
         """Cancel processing."""
         if self.worker:
             self.worker.quit()
