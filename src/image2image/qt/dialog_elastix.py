@@ -578,8 +578,7 @@ class ImageElastixWindow(ImageWsiWindow):
         self.merge_btn.hide()
         self._make_visibility_options()
 
-        side_layout = hp.make_form_layout(side_widget)
-        hp.style_form_layout(side_layout)
+        side_layout = hp.make_form_layout(parent=side_widget)
         # side_layout.addRow(
         #     hp.make_btn(
         #         side_widget, "Import project...", tooltip="Load previous project", func=self.on_load_from_project

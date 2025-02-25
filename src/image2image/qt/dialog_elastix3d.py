@@ -98,7 +98,7 @@ class ImageElastix3dWindow(Window):
     )
 
     def __init__(self, parent: QWidget | None = None, run_check_version: bool = True, **kwargs: ty.Any):
-        self.CONFIG: Elastix3dConfig = ELASTIX3D_CONFIG
+        self.CONFIG: Elastix3dConfig = get_elastix3d_config()
         super().__init__(
             parent,
             f"image2image: Prepare your microscopy data for co-registration (v{__version__})",
@@ -869,10 +869,7 @@ class ImageElastix3dWindow(Window):
 
         side_widget = QWidget()  # noqa
         side_widget.setMinimumWidth(300)
-        side_layout = hp.make_form_layout(side_widget)
-        side_layout.setContentsMargins(0, 0, 0, 0)
-        side_layout.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.ExpandingFieldsGrow)
-        hp.style_form_layout(side_layout)
+        side_layout = hp.make_form_layout(parent=side_widget, margin=0)
         # project options
         side_layout.addRow(self.import_project_btn)
         side_layout.addRow(hp.make_h_line_with_text("or"))

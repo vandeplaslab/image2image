@@ -1479,8 +1479,7 @@ class ImageRegistrationWindow(Window):
             func=self.on_transform_moving,
         )
 
-        side_layout = hp.make_form_layout(side_widget)
-        hp.style_form_layout(side_layout)
+        side_layout = hp.make_form_layout(parent=side_widget)
         side_layout.addRow(self.import_project_btn)
         side_layout.addRow(hp.make_h_line_with_text("or"))
         side_layout.addRow(self._fixed_widget)
@@ -1644,7 +1643,6 @@ class ImageRegistrationWindow(Window):
         )
 
         layout = hp.make_form_layout()
-        hp.style_form_layout(layout)
         layout.addRow(hp.make_label(self, "Center (x)"), self.x_center)
         layout.addRow(hp.make_label(self, "Center (y)"), self.y_center)
         layout.addRow(hp.make_label(self, "Zoom"), self.zoom)

@@ -208,8 +208,7 @@ class SelectTransformDialog(QtFramelessTool):
 
         self.info = hp.make_label(self, "", enable_url=True)
 
-        layout = hp.make_form_layout(self)
-        hp.style_form_layout(layout)
+        layout = hp.make_form_layout(parent=self, margin=6)
         layout.setContentsMargins(6, 6, 6, 6)
         layout.addRow(header_layout)
         layout.addRow(

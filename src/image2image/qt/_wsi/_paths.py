@@ -62,7 +62,7 @@ class RegistrationPaths(QWidget):
         )
         self._path = hp.make_label(self, "<please select transformations>", wrap=True)
 
-        layout = hp.make_form_layout(self)
+        layout = hp.make_form_layout(parent=self)
         layout.setContentsMargins(2, 2, 2, 2)
         layout.setSpacing(2)
         layout.addRow(
@@ -219,7 +219,7 @@ class RegistrationMap(QWidget):
         # self._warning_label = hp.make_label(self, "", color="warning", wrap=True)
         # self._warning_label.setVisible(False)
 
-        layout = hp.make_form_layout(self)
+        layout = hp.make_form_layout(parent=self)
         layout.setContentsMargins(2, 2, 2, 2)
         layout.addRow(self._registration_path)
         layout.addRow(hp.make_label(self, "Source"), self._source_choice)

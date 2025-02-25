@@ -153,8 +153,7 @@ class ChannelRenameDialog(MixinDialog):
                 ),
             )
 
-        layout = hp.make_form_layout(self)
-        hp.style_form_layout(layout)
+        layout = hp.make_form_layout(parent=self)
         layout.addRow(self._make_hide_handle("Select and rename channels")[1])
         if STATE.allow_filters:
             layout.addRow(hp.make_h_layout(self.filter_by_name, spacing=1))
@@ -283,8 +282,7 @@ class MergeDialog(MixinDialog):
         )
         self.merge_btn = hp.make_btn(self, "Create merged channel", func=self.on_merge)
 
-        layout = hp.make_form_layout(self)
-        hp.style_form_layout(layout)
+        layout = hp.make_form_layout(parent=self)
         layout.addRow(self._make_hide_handle("Select and merge channels")[1])
         if STATE.allow_filters:
             layout.addRow(hp.make_h_layout(self.filter_by_name, spacing=1))

@@ -160,9 +160,7 @@ class PreprocessMovingDialog(QtFramelessTool):
         )
         self.flip_lr = hp.make_checkbox(self, "", func=self.on_flip_lr)
 
-        layout = hp.make_form_layout(self)
-        hp.style_form_layout(layout)
-        layout.setContentsMargins(6, 6, 6, 6)
+        layout = hp.make_form_layout(parent=self, margin=6)
         layout.addRow(header_layout)
         layout.addRow(
             "Rotate (counter-clockwise)",

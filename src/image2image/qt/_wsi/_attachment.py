@@ -56,7 +56,7 @@ class AttachWidget(QtDialog):
             self, *options, func=self.on_update, orientation="vertical"
         )
 
-        layout = hp.make_form_layout(self)
+        layout = hp.make_form_layout(parent=self)
         layout.addRow(
             hp.make_label(
                 self,
@@ -221,7 +221,7 @@ class AttachmentEditDialog(QtDialog):
 
         self.table = hp.make_table(self, self.TABLE_CONFIG)
 
-        layout = hp.make_form_layout(self)
+        layout = hp.make_form_layout(parent=self)
         layout.addRow(
             hp.make_label(
                 self,

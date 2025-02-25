@@ -139,9 +139,7 @@ class LoadWidget(QWidget):
         if self.select_channels:
             self.channel_btn = hp.make_btn(self, "Select channels...", func=self._on_select_channels)
 
-        layout = hp.make_form_layout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
-        hp.style_form_layout(layout)
+        layout = hp.make_form_layout(parent=self, margin=0)
         if self.INFO_TEXT:
             layout.addRow(self.info_text)
         layout.addRow(

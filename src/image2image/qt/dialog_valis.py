@@ -258,8 +258,7 @@ class ImageValisWindow(ImageWsiWindow):
             value=self.CONFIG.micro_fraction,
         )
 
-        side_layout = hp.make_form_layout(side_widget)
-        hp.style_form_layout(side_layout)
+        side_layout = hp.make_form_layout(parent=side_widget)
         side_layout.addRow(self._image_widget)
         # Modalities
         side_layout.addRow(self.modality_list)
