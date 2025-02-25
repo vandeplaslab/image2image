@@ -204,16 +204,18 @@ def extract_extension(available_formats: str) -> list[str]:
     return list(set(res))
 
 
-def log_exception_or_error(exc_or_error: Exception) -> None:
+def log_exception_or_error(exc_or_error: Exception, message: str = "") -> None:
     """Log exception or error and send it to Sentry."""
     from sentry_sdk import capture_exception, capture_message
 
+    message = f"{exc_or_error}" if not message else f"{message}: {exc_or_error}"
+
     if isinstance(exc_or_error, str):
         capture_message(exc_or_error)
-        logger.error(exc_or_error)
+        logger.error(message)
     else:
         capture_exception(exc_or_error)
-        logger.exception(exc_or_error)
+        logger.exception(message)
 
 
 def update_affine(matrix: np.ndarray, min_resolution: float, resolution: float) -> np.ndarray:

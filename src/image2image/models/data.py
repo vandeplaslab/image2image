@@ -228,8 +228,7 @@ class DataModel(BaseModel):
                                 self.paths[index] = new_path
                                 logger.trace(f"Updated path '{original_path}' to '{new_path}'")
                 except Exception as e:  # noqa
-                    log_exception_or_error(e)
-                    logger.error(f"Failed to load '{path}'")
+                    log_exception_or_error(e, f"Failed to load '{path}'")
                     self.remove_paths(path)
 
         # update resolution in the model

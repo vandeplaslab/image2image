@@ -11,7 +11,7 @@ from loguru import logger
 from qtextra import helpers as hp
 from qtextra.utils.table_config import TableConfig
 from qtextra.widgets.qt_dialog import QtFramelessTool
-from qtextra.widgets.qt_table_view_check import FilterProxyModel, QtCheckableTableView
+from qtextra.widgets.qt_table_view_check import MultiColumnSingleValueProxyModel, QtCheckableTableView
 from qtpy.QtCore import Signal
 from qtpy.QtWidgets import QFormLayout, QWidget
 from superqt.utils import qdebounced
@@ -377,7 +377,7 @@ class PreprocessingDialog(QtFramelessTool):
             self.TABLE_CONFIG.header, self.TABLE_CONFIG.no_sort_columns, self.TABLE_CONFIG.hidden_columns
         )
         if STATE.allow_filters:
-            self.table_proxy = FilterProxyModel(self)
+            self.table_proxy = MultiColumnSingleValueProxyModel(self)
             self.table_proxy.setSourceModel(self.channel_table.model())
             self.channel_table.model().table_proxy = self.table_proxy
             self.channel_table.setModel(self.table_proxy)

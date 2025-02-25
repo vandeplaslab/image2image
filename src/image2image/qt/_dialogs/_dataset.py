@@ -19,7 +19,7 @@ from qtextra import helpers as hp
 from qtextra.utils.table_config import TableConfig
 from qtextra.utils.utilities import connect
 from qtextra.widgets.qt_dialog import QtDialog, QtFramelessTool
-from qtextra.widgets.qt_table_view_check import FilterProxyModel, QtCheckableTableView
+from qtextra.widgets.qt_table_view_check import MultiColumnSingleValueProxyModel, QtCheckableTableView
 from qtpy.QtCore import QModelIndex, Qt, Signal  # type: ignore[attr-defined]
 from qtpy.QtGui import QDoubleValidator, QDropEvent
 from qtpy.QtWidgets import (
@@ -216,7 +216,7 @@ class SelectChannelsToLoadDialog(QtDialog):
             self.TABLE_CONFIG.header, self.TABLE_CONFIG.no_sort_columns, self.TABLE_CONFIG.hidden_columns
         )
         if STATE.allow_filters:
-            self.table_proxy = FilterProxyModel(self)
+            self.table_proxy = MultiColumnSingleValueProxyModel(self)
             self.table_proxy.setSourceModel(self.table.model())
             self.table.model().table_proxy = self.table_proxy
             self.table.setModel(self.table_proxy)
@@ -850,7 +850,8 @@ class SelectDataDialog(QtFramelessTool):
             hp.toast(self.parent(), "Unsupported file format", str(exception), icon="error")
         elif isinstance(exception, MultiSceneCziError):
             hp.toast(self.parent(), "Multi-scene CZI", str(exception), icon="error")
-        log_exception_or_error(exception)
+        else:
+            log_exception_or_error(exception)
         self.evt_loaded.emit(None, None)  # noqa
 
     def on_remove_dataset(self, key: str) -> None:

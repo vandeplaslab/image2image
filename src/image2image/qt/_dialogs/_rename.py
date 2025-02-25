@@ -6,7 +6,7 @@ from loguru import logger
 from qtextra import helpers as hp
 from qtextra.utils.table_config import TableConfig
 from qtextra.widgets.qt_dialog import QtFramelessTool
-from qtextra.widgets.qt_table_view_check import FilterProxyModel, QtCheckableTableView
+from qtextra.widgets.qt_table_view_check import MultiColumnSingleValueProxyModel, QtCheckableTableView
 from qtpy.QtCore import Qt, Signal  # type: ignore[attr-defined]
 from qtpy.QtWidgets import QDialog, QFormLayout, QWidget
 
@@ -141,7 +141,7 @@ class ChannelRenameDialog(MixinDialog):
         self.replace_with = hp.make_line_edit(self, placeholder="Replace with...")
         self.replace_btn = hp.make_btn(self, "Replace", func=self.on_replace)
         if STATE.allow_filters:
-            self.table_proxy = FilterProxyModel(self)
+            self.table_proxy = MultiColumnSingleValueProxyModel(self)
             self.table_proxy.setSourceModel(self.table.model())
             self.table.model().table_proxy = self.table_proxy
             self.table.setModel(self.table_proxy)
@@ -261,7 +261,7 @@ class MergeDialog(MixinDialog):
         self.table.evt_checked.connect(self.on_edit_state)
 
         if STATE.allow_filters:
-            self.table_proxy = FilterProxyModel(self)
+            self.table_proxy = MultiColumnSingleValueProxyModel(self)
             self.table_proxy.setSourceModel(self.table.model())
             self.table.model().table_proxy = self.table_proxy
             self.table.setModel(self.table_proxy)

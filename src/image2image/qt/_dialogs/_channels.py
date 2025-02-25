@@ -11,7 +11,7 @@ from qtextra import helpers as hp
 from qtextra.utils.table_config import TableConfig
 from qtextra.utils.utilities import connect
 from qtextra.widgets.qt_dialog import QtFramelessTool
-from qtextra.widgets.qt_table_view_check import FilterProxyModel, QtCheckableTableView
+from qtextra.widgets.qt_table_view_check import MultiColumnSingleValueProxyModel, QtCheckableTableView
 from qtpy.QtCore import Qt, Signal  # type: ignore[attr-defined]
 from qtpy.QtWidgets import QFormLayout, QWidget
 from superqt.utils import ensure_main_thread
@@ -250,7 +250,7 @@ class OverlayChannelsDialog(QtFramelessTool):
             self.TABLE_CONFIG.header, self.TABLE_CONFIG.no_sort_columns, self.TABLE_CONFIG.hidden_columns
         )
         if STATE.allow_filters:
-            self.table_proxy = FilterProxyModel(self)
+            self.table_proxy = MultiColumnSingleValueProxyModel(self)
             self.table_proxy.setSourceModel(self.table.model())
             self.table.model().table_proxy = self.table_proxy
             self.table.setModel(self.table_proxy)
