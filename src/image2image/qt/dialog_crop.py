@@ -502,7 +502,7 @@ class ImageCropWindow(SingleViewerMixin):
         )
         self.mask_btn.hide()
 
-        side_layout = hp.make_form_layout(settings_widget)
+        side_layout = hp.make_form_layout(parent=settings_widget)
         side_layout.addRow(self._image_widget)
         side_layout.addRow(hp.make_h_line_with_text("Image crop position"))
         side_layout.addRow(crop_layout)

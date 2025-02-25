@@ -108,7 +108,7 @@ class CloseDatasetDialog(QtDialog):
 
         # iterate over all available paths
         scroll_area, scroll_widget = hp.make_scroll_area(self)
-        scroll_layout = hp.make_form_layout(scroll_area)
+        scroll_layout = hp.make_form_layout(parent=scroll_area)
         wrapper = self.model.wrapper
         self.checkboxes = []
         if wrapper:
@@ -246,8 +246,7 @@ class SelectChannelsToLoadDialog(QtDialog):
         )
         self.warning_no_channels_label.hide()
 
-        layout = hp.make_form_layout(self)
-        hp.style_form_layout(layout)
+        layout = hp.make_form_layout(parent=self)
         layout.addRow(self.warning_no_channels_label)
         layout.addRow(self.warning_label)
         layout.addRow(self.table)
@@ -358,8 +357,7 @@ class ExtractChannelsDialog(QtDialog):
             self.TABLE_CONFIG.header, self.TABLE_CONFIG.no_sort_columns, self.TABLE_CONFIG.hidden_columns
         )
 
-        layout = hp.make_form_layout(self)
-        hp.style_form_layout(layout)
+        layout = hp.make_form_layout(parent=self)
         layout.addRow(
             hp.make_h_layout(
                 hp.make_label(self, "m/z"),
@@ -989,9 +987,7 @@ class SelectDataDialog(QtFramelessTool):
             func=self.on_update_config,
         )
 
-        layout = hp.make_form_layout()
-        hp.style_form_layout(layout)
-        layout.setContentsMargins(6, 6, 6, 6)
+        layout = hp.make_form_layout(margin=6)
         layout.addRow(header_layout)
 
         layout.addRow(hp.make_label(self, "How to load image data", bold=True))

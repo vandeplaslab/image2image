@@ -30,7 +30,6 @@ class ImportSelectDialog(QtDialog):
         self.moving_check.setHidden("moving_points" in self.disable)
 
         layout = hp.make_form_layout()
-        hp.style_form_layout(layout)
         layout.addRow(
             hp.make_label(
                 self, "Please select what should be imported.", alignment=Qt.AlignmentFlag.AlignHCenter, bold=True

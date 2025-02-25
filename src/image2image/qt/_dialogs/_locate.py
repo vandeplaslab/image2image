@@ -182,8 +182,7 @@ class LocateFilesDialog(QtDialog):
         self.show_valid_check = hp.make_checkbox(self, "Show valid", value=True, func=self.on_update_data_list)
         self.show_missing_check = hp.make_checkbox(self, "Show missing", value=True, func=self.on_update_data_list)
 
-        layout = hp.make_form_layout(self)
-        hp.style_form_layout(layout)
+        layout = hp.make_form_layout(parent=self)
         layout.addRow(
             hp.make_label(
                 self,

@@ -61,7 +61,6 @@ class ExportImageDialog(QtDialog):
         )
 
         layout = hp.make_form_layout()
-        hp.style_form_layout(layout)
         layout.addRow(self.info_label)
         layout.addRow("Tile size", self.tile_size)
         layout.addRow("Reduce file size", self.as_uint8)

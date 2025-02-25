@@ -271,9 +271,7 @@ class OverlayChannelsDialog(QtFramelessTool):
             self.iterate_widget.hide()
         self.info = hp.make_label(self, "", enable_url=True, alignment=Qt.AlignmentFlag.AlignHCenter)
 
-        layout = hp.make_form_layout(self)
-        hp.style_form_layout(layout)
-        layout.setContentsMargins(6, 6, 6, 6)
+        layout = hp.make_form_layout(parent=self, margin=6)
         layout.addRow(header_layout)
         layout.addRow(self.table)
         if STATE.allow_filters:
@@ -336,7 +334,7 @@ class IterateWidget(QWidget):
         self.channel_combo = hp.make_searchable_combobox(self, func=self.on_change_channel)
         # self.channel_label = hp.make_label(self, "", bold=True, alignment=Qt.AlignmentFlag.AlignCenter)
 
-        layout = hp.make_form_layout(self)
+        layout = hp.make_form_layout(parent=self)
         layout.addRow(hp.make_h_layout(self.dataset_combo, self.index_spinbox, stretch_id=(0,)))
         layout.addRow(self.channel_combo)
         layout.addRow(hp.make_btn(self, "Add to viewer", func=self.on_add_to_viewer, tooltip="Add image to viewer."))

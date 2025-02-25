@@ -316,9 +316,7 @@ class GuessDialog(QtFramelessTool):
 
         self.ok_btn = hp.make_btn(self, "OK", func=self.accept)
 
-        layout = hp.make_form_layout(self)
-        hp.style_form_layout(layout)
-        layout.setContentsMargins(6, 6, 6, 6)
+        layout = hp.make_form_layout(parent=self, margin=6)
         layout.addRow(header_layout)
         layout.addRow(
             hp.make_label(
