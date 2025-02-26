@@ -11,6 +11,7 @@ for module in [
     "pandas",
     "pydantic",
     "qtextra",
+    "qtextraplot",
 ]:
     # import module and get version
     mod = importlib.import_module(module)

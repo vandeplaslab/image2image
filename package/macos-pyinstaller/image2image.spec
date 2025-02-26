@@ -33,6 +33,7 @@ def _make_analysis(path: str):
         binaries=[],
         datas=[]
         + collect_data_files("qtextra")
+        + collect_data_files("qtextraplot")
         + collect_data_files("napari")
         + collect_data_files("xmlschema")
         + collect_data_files("ome_types")

@@ -162,3 +162,4 @@ _version.py
 .idea/misc.xml
 .idea/workspace.xml
 .idea/watcherTasks.xml
+package/macos-pyinstaller/image2image alias
