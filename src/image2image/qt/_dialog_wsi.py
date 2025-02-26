@@ -22,6 +22,7 @@ from qtpy.QtGui import QKeyEvent, QRegularExpressionValidator
 from superqt import ensure_main_thread
 from superqt.utils import qdebounced
 
+import image2image.constants as C
 from image2image.config import ValisConfig
 from image2image.enums import LEVEL_TO_PYRAMID, PYRAMID_TO_LEVEL
 from image2image.models.data import DataModel
@@ -536,8 +537,7 @@ class ImageWsiWindow(SingleViewerMixin):
         self.as_uint8 = hp.make_checkbox(
             self,
             "",
-            tooltip="Convert to uint8 to reduce file size with minimal data loss. This will result in change of the"
-            " dynamic range of the image to between 0-255.",
+            tooltip=C.UINT8_TIP,
             value=self.CONFIG.as_uint8,
             func=self.on_update_config,
         )
@@ -561,8 +561,7 @@ class ImageWsiWindow(SingleViewerMixin):
                 self.as_uint8,
                 hp.make_warning_label(
                     self,
-                    "While this option reduces the amount of space an image takes on your disk, it can lead to data"
-                    " loss and should be used with caution.",
+                    C.UINT8_WARNING,
                     normal=True,
                     icon_name=("warning", {"color": THEMES.get_theme_color("warning")}),
                 ),

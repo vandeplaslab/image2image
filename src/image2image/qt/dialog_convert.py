@@ -16,6 +16,7 @@ from qtpy.QtWidgets import QDialog, QHeaderView, QMenuBar, QTableWidget, QTableW
 from superqt import ensure_main_thread
 from superqt.utils import GeneratorWorker, create_worker
 
+import image2image.constants as C
 from image2image import __version__
 from image2image.config import STATE, get_convert_config
 from image2image.enums import ALLOWED_IMAGE_FORMATS_MICROSCOPY_ONLY
@@ -349,14 +350,7 @@ class ImageConvertWindow(NoViewerMixin):
             value=READER_CONFIG.split_czi,
         )
         hp.disable_widgets(self.split_czi, disabled=True)
-        self.as_uint8 = hp.make_checkbox(
-            self,
-            "",
-            tooltip="Convert to uint8 to reduce file size with minimal data loss. This will result in change of the"
-            " dynamic range of the image to between 0-255.",
-            checked=True,
-            value=self.CONFIG.as_uint8,
-        )
+        self.as_uint8 = hp.make_checkbox(self, "", tooltip=C.UINT8_TIP, checked=True, value=self.CONFIG.as_uint8)
         self.overwrite = hp.make_checkbox(
             self,
             "",

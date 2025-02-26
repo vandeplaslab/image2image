@@ -107,14 +107,15 @@ class LoadWidget(QWidget):
 
     def _setup_ui(self) -> QFormLayout:
         """Setup UI."""
-        if self.INFO_TEXT:
-            self.info_text = hp.make_label(
-                self,
-                self.INFO_TEXT,
-                bold=True,
-                wrap=True,
-                alignment=Qt.AlignmentFlag.AlignCenter,
-            )
+        self.info_text = hp.make_label(
+            self,
+            self.INFO_TEXT,
+            bold=True,
+            wrap=True,
+            alignment=Qt.AlignmentFlag.AlignCenter,
+        )
+        if not self.INFO_TEXT:
+            self.info_text.setVisible(False)
 
         self.active_icon = QtActiveIcon()
         self.import_btn = hp.make_qta_btn(
@@ -140,8 +141,7 @@ class LoadWidget(QWidget):
             self.channel_btn = hp.make_btn(self, "Select channels...", func=self._on_select_channels)
 
         layout = hp.make_form_layout(parent=self, margin=0)
-        if self.INFO_TEXT:
-            layout.addRow(self.info_text)
+        layout.addRow(self.info_text)
         layout.addRow(
             hp.make_h_layout(
                 self.import_btn,

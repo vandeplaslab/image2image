@@ -14,10 +14,11 @@ from image2image_io.config import CONFIG as READER_CONFIG
 from image2image_io.enums import ViewType
 from koyo.timer import MeasureTimer
 from loguru import logger
-from napari.layers import Image, Points, Shapes
+from napari.layers import Image, Points
 from napari.layers.points.points import Mode
 from napari.layers.utils._link_layers import link_layers
 from napari.utils.events import Event
+from qtextra.config import THEMES
 from qtextra.dialogs.qt_close_window import QtConfirmCloseDialog
 from qtextra.utils.utilities import connect
 from qtextra.widgets.qt_mini_toolbar import QtMiniToolbar
@@ -27,6 +28,7 @@ from qtpy.QtGui import QKeyEvent
 from qtpy.QtWidgets import QDialog, QFormLayout, QHBoxLayout, QMenuBar, QSizePolicy, QVBoxLayout, QWidget
 from superqt.utils import ensure_main_thread, qdebounced
 
+import image2image.constants as C
 from image2image import __version__
 from image2image.config import RegisterConfig, get_register_config
 from image2image.enums import ALLOWED_PROJECT_EXPORT_REGISTER_FORMATS, ALLOWED_PROJECT_IMPORT_REGISTER_FORMATS
@@ -37,11 +39,9 @@ from image2image.qt.dialog_base import Window
 from image2image.utils.utilities import (
     _get_text_data,
     _get_text_format,
-    calculate_zoom,
     ensure_extension,
     get_colormap,
     init_points_layer,
-    init_shapes_layer,
 )
 
 if ty.TYPE_CHECKING:
@@ -140,6 +140,7 @@ class ImageRegistrationWindow(Window):
         if self.CONFIG.first_time:
             hp.call_later(self, self.on_show_tutorial, 10_000)
         self._setup_config()
+        self.on_set_write_warning()
 
     @staticmethod
     def _setup_config() -> None:
@@ -171,6 +172,12 @@ class ImageRegistrationWindow(Window):
             return self.view_fixed.layers["Transformed"]
         return None
 
+    def on_layer_removed(self, event: Event, which: str) -> None:
+        """Layer removed."""
+        layer = event.value
+        connect(layer.events.data, self.on_run, state=False)
+        connect(layer.events.add_point, partial(self.on_predict, which), state=False)
+
     @property
     def fixed_points_layer(self) -> Points:
         """Fixed points layer."""
@@ -184,7 +191,8 @@ class ImageRegistrationWindow(Window):
                 symbol="ring",
             )
             visual = self.view_fixed.widget.canvas.layer_to_visual[layer]
-            init_points_layer(layer, visual, False)
+
+            init_points_layer(layer, visual, snap=False)
             connect(layer.events.data, self.on_run, state=True)
             connect(layer.events.add_point, partial(self.on_predict, "fixed"), state=True)
         return self.view_fixed.layers[FIXED_POINTS]
@@ -202,24 +210,8 @@ class ImageRegistrationWindow(Window):
                 symbol="ring",
             )
             visual = self.view_fixed.widget.canvas.layer_to_visual[layer]
-            init_points_layer(layer, visual, True)
+            init_points_layer(layer, visual, snap=True)
         return self.view_fixed.layers[FIXED_TMP_POINTS]
-
-    @property
-    def temporary_fixed_zoom_layer(self) -> Shapes:
-        """Fixed points layer."""
-        if FIXED_TMP_ZOOM not in self.view_fixed.layers:
-            layer = self.view_fixed.viewer.add_shapes(  # noqa
-                None,
-                # size=self.moving_point_size.value(),
-                name=FIXED_TMP_ZOOM,
-                face_color="#00ff0000",
-                edge_color="white",
-            )
-            visual = self.view_fixed.widget.canvas.layer_to_visual[layer]
-            init_shapes_layer(layer, visual)
-            layer.events.data.connect(self.on_fixed_zoom_finished)
-        return self.view_fixed.layers[FIXED_TMP_ZOOM]
 
     @property
     def moving_points_layer(self) -> Points:
@@ -255,54 +247,6 @@ class ImageRegistrationWindow(Window):
             init_points_layer(layer, visual, True)
         return self.view_moving.layers[MOVING_TMP_POINTS]
 
-    @property
-    def temporary_moving_zoom_layer(self) -> Shapes:
-        """Fixed points layer."""
-        if MOVING_TMP_ZOOM not in self.view_moving.layers:
-            layer = self.view_moving.viewer.add_shapes(  # noqa
-                None,
-                # size=self.moving_point_size.value(),
-                name=MOVING_TMP_ZOOM,
-                face_color="#00ff0000",
-                edge_color="white",
-            )
-            visual = self.view_moving.widget.canvas.layer_to_visual[layer]
-            init_shapes_layer(layer, visual)
-            layer.events.data.connect(self.on_moving_zoom_finished)
-        return self.view_moving.layers[MOVING_TMP_ZOOM]
-
-    def on_fixed_zoom_finished(self, event: Event) -> None:
-        """Zoom finished."""
-        if len(self.temporary_fixed_zoom_layer.data) == 0:
-            return
-        last_shape = self.temporary_fixed_zoom_layer.data[-1]
-        zoom, y, x = calculate_zoom(last_shape, self.view_fixed)
-        if zoom and x and y:
-            with self.zooming():
-                self.view_fixed.viewer.camera.center = (0.0, y, x)
-                self.view_fixed.viewer.camera.zoom = zoom
-        self.__on_sync_views("fixed", force=True)
-        self.view_fixed.remove_layer(FIXED_TMP_ZOOM)
-        self.view_moving.remove_layer(MOVING_TMP_ZOOM)
-        self.fixed_zoom_btn.setChecked(False)
-        self.on_toggle_mode("both", Mode.PAN_ZOOM)
-
-    def on_moving_zoom_finished(self, event: Event) -> None:
-        """Zoom finished."""
-        if len(self.temporary_moving_zoom_layer.data) == 0:
-            return
-        last_shape = self.temporary_moving_zoom_layer.data[-1]
-        zoom, y, x = calculate_zoom(last_shape, self.view_moving)
-        if zoom and x and y:
-            with self.zooming():
-                self.view_moving.viewer.camera.center = (0.0, y, x)
-                self.view_moving.viewer.camera.zoom = zoom
-                self.__on_sync_views("moving", force=True)
-        self.view_moving.remove_layer(MOVING_TMP_ZOOM)
-        self.view_fixed.remove_layer(FIXED_TMP_ZOOM)
-        self.moving_zoom_btn.setChecked(False)
-        self.on_toggle_mode("both", Mode.PAN_ZOOM)
-
     def setup_events(self, state: bool = True) -> None:
         """Additional setup."""
         # fixed widget
@@ -332,20 +276,16 @@ class ImageRegistrationWindow(Window):
         connect(self._moving_widget.evt_swap, self.on_swap, state=state)
         connect(self._moving_widget.evt_view_type, self.on_change_view_type, state=state)
         # views
-        connect(
-            self.view_fixed.viewer.camera.events,
-            # partial(self.on_sync_views, which="fixed"),
-            self.on_sync_views_fixed,
-            state=True,
-        )
-        connect(
-            self.view_moving.viewer.camera.events,
-            # partial(self.on_sync_views, which="moving"),
-            self.on_sync_views_moving,
-            state=True,
-        )
+        connect(self.view_fixed.viewer.camera.events, self.on_sync_views_fixed, state=state)
         connect(self.view_fixed.viewer.events.status, self._status_changed, state=state)
+        connect(
+            self.view_fixed.viewer.layers.events.removed, partial(self.on_layer_removed, which="fixed"), state=state
+        )
+        connect(self.view_moving.viewer.camera.events, self.on_sync_views_moving, state=state)
         connect(self.view_moving.viewer.events.status, self._status_changed, state=state)
+        connect(
+            self.view_moving.viewer.layers.events.removed, partial(self.on_layer_removed, which="moving"), state=state
+        )
         # temporary images
         connect(self._moving_widget.evt_update_temp, self.on_plot_temporary, state=state)
         connect(self._moving_widget.evt_remove_temp, self.on_remove_temporary, state=state)
@@ -597,16 +537,6 @@ class ImageRegistrationWindow(Window):
         self._move_layer(view, layer)
         return layer
 
-    def _select_zoom_layer(self, which: str) -> Shapes:
-        """Select layer."""
-        view, layer = (
-            (self.view_fixed, self.temporary_fixed_zoom_layer)
-            if which == "fixed"
-            else (self.view_moving, self.temporary_moving_zoom_layer)
-        )
-        self._move_layer(view, layer)
-        return layer
-
     def _get_points_mode_button(self, which: str, mode: Mode) -> QtImagePushButton | None:
         if which == "fixed":
             widgets = {
@@ -621,12 +551,6 @@ class ImageRegistrationWindow(Window):
                 Mode.PAN_ZOOM: self.moving_pan_btn,
             }
         return widgets.get(mode, None)
-
-    def on_shapes_mode(self, which: str, state: bool = True) -> None:
-        """Update mode."""
-        widget = self.fixed_zoom_btn if which == "fixed" else self.moving_zoom_btn
-        if widget:
-            widget.setChecked(state)
 
     def on_points_mode(self, which: str, evt: ty.Any = None, mode: Mode | None = None) -> None:
         """Update mode."""
@@ -664,12 +588,6 @@ class ImageRegistrationWindow(Window):
         layer.mode = "select" if widget.isChecked() else "pan_zoom"
         layer.selected_data = []
 
-    def on_zoom(self, which: str) -> None:
-        """Zoom."""
-        layer = self._select_zoom_layer(which)
-        widget = self.fixed_zoom_btn if which == "fixed" else self.moving_zoom_btn
-        layer.mode = "add_rectangle" if widget.isChecked() else "pan_zoom"
-
     def on_activate_initial(self) -> None:
         """Activate initial button."""
         hp.disable_widgets(self.initial_btn, self.guess_btn, disabled=has_any_points(self.moving_points_layer))
@@ -683,7 +601,7 @@ class ImageRegistrationWindow(Window):
 
         data = layer.data
         layer.data = np.delete(data, -1, 0)
-        self.on_run()
+        # self.on_run()
 
     def on_remove_selected(self, which: str, _evt: ty.Any = None) -> None:
         """Remove selected points from the image."""
@@ -695,7 +613,7 @@ class ImageRegistrationWindow(Window):
             layer.remove_selected()
         except IndexError:
             logger.warning(f"Failed to remove selected points from '{which}'.")
-        self.on_run()
+        # self.on_run()
 
     def on_clear(self, which: str, force: bool = True) -> None:
         """Remove point to the image."""
@@ -708,7 +626,7 @@ class ImageRegistrationWindow(Window):
             layer.data = np.zeros((0, 2))
             self.evt_predicted.emit()  # noqa
             self.on_clear_transformation()
-            self.on_run()
+            # self.on_run()
             view.remove_layer(layer)
 
     def on_clear_modality(self, which: str) -> None:
@@ -728,6 +646,7 @@ class ImageRegistrationWindow(Window):
             with suppress(ValueError):
                 self.view_fixed.layers.remove(self.transformed_moving_image_layer)
 
+    @qdebounced(timeout=200)
     @ensure_main_thread
     def on_run(self, _evt: ty.Any = None) -> None:
         """Compute transformation."""
@@ -895,13 +814,6 @@ class ImageRegistrationWindow(Window):
             transformer=warper,
         )
         hp.toast(self, "Image saved", f"Saved image {hp.hyper(filename, moving_key)} as OME-TIFF.", icon="info")
-
-    def on_export_settings(self) -> None:
-        """Open export settings."""
-        from image2image.qt._dialogs._save import ExportImageDialog
-
-        dlg = ExportImageDialog(self, self.moving_model, None, self.CONFIG)
-        dlg.exec_()
 
     def _get_currently_visible_moving_datasets(self) -> list[str]:
         """Get currently visible datasets from the moving view."""
@@ -1135,7 +1047,7 @@ class ImageRegistrationWindow(Window):
                 opacity=self.CONFIG.opacity_moving / 100,
             )
 
-    @qdebounced(timeout=200)
+    @qdebounced(timeout=200, leading=True)
     @ensure_main_thread
     def on_predict(self, which: str, evt: ty.Any = None) -> None:
         """Predict transformation from either image."""
@@ -1189,7 +1101,8 @@ class ImageRegistrationWindow(Window):
 
             self._update_layer_points(predict_for_layer, transformed_data)
             self.evt_predicted.emit()  # noqa
-            self._on_run()
+            with self.fixed_points_layer.events.data.blocker(), self.moving_points_layer.events.data.blocker():
+                self._on_run()
 
     @staticmethod
     def _update_layer_points(layer: Points, data: np.ndarray, block: bool = True) -> None:
@@ -1292,7 +1205,7 @@ class ImageRegistrationWindow(Window):
             self.transformed_moving_image_layer.visible = READER_CONFIG.show_transformed
 
     @qdebounced(timeout=50)
-    def on_toggle_transformed_image(self, _=None) -> None:
+    def on_toggle_transformed_image(self, _: ty.Any = None) -> None:
         """Toggle visibility of transformed image."""
         if self.transformed_moving_image_layer:
             self._moving_widget.toggle_transformed()
@@ -1301,7 +1214,7 @@ class ImageRegistrationWindow(Window):
             )
 
     @qdebounced(timeout=50)
-    def on_toggle_synchronization(self, _=None) -> None:
+    def on_toggle_synchronization(self, _: ty.Any = None) -> None:
         """Toggle synchronization of views."""
         self.CONFIG.update(sync_views=not self.CONFIG.sync_views)
         with hp.qt_signals_blocked(self.synchronize_zoom):
@@ -1309,7 +1222,7 @@ class ImageRegistrationWindow(Window):
         logger.trace(f"Synchronization of views is {'enabled' if self.CONFIG.sync_views else 'disabled'}.")
 
     @qdebounced(timeout=50)
-    def on_zoom_on_point(self, increment: int):
+    def on_zoom_on_point(self, increment: int) -> None:
         """Zoom-in on point."""
         n_max = self.fiducials_dlg.n_points
         current = self._current_index
@@ -1388,6 +1301,23 @@ class ImageRegistrationWindow(Window):
                 other_view.viewer.camera.zoom = zoom
                 other_view.viewer.camera.center = (0.0, transformed_center[0], transformed_center[1])
             logger.trace(f"Synchronized views: {from_which} -> {to_which}")
+
+    def on_update_config(self, _: ty.Any = None) -> None:
+        """Update values in config."""
+        self.CONFIG.as_uint8 = self.as_uint8.isChecked()
+        self.CONFIG.tile_size = int(self.tile_size.currentText())
+        self.on_set_write_warning()
+
+    def on_set_write_warning(self) -> None:
+        """Set warning."""
+        tooltip = []
+        if self.CONFIG.as_uint8:
+            tooltip.append(
+                "- Images will be converted to uint8 to reduce file size. This can lead to data loss and should be used"
+                " with caution."
+            )
+        self.hidden_settings.warning_label.setToolTip("<br>".join(tooltip))
+        self.hidden_settings.set_warning_visible(len(tooltip) > 0)
 
     # noinspection PyAttributeOutsideInit
     def _setup_ui(self) -> None:
@@ -1472,11 +1402,60 @@ class ImageRegistrationWindow(Window):
             tooltip="Export transformation to file. XML format is usable by MATLAB fusion.",
             func=self.on_save_to_project,
         )
-        self.transform_btn = hp.make_btn(
+
+        self.as_uint8 = hp.make_checkbox(
+            self,
+            "",
+            tooltip=C.UINT8_TIP,
+            value=self.CONFIG.as_uint8,
+            func=self.on_update_config,
+        )
+        self.tile_size = hp.make_combobox(
+            self,
+            ["256", "512", "1024", "2048", "4096"],
+            tooltip="Specify size of the tile. Default is 512",
+            default="512",
+            value=f"{self.CONFIG.tile_size}",
+            func=self.on_update_config,
+        )
+
+        self.hidden_settings = hidden_settings = hp.make_advanced_collapsible(
             side_widget,
-            "Export transformed image...",
-            tooltip="Transform image using the specified transformation matrix and save it as OME-TIFF.",
-            func=self.on_transform_moving,
+            "Export transformed image",
+            allow_checkbox=False,
+            allow_icon=False,
+            warning_icon=("warning", {"color": THEMES.get_theme_color("warning")}),
+        )
+        hidden_settings.addRow(
+            hp.make_label(
+                self,
+                "Here you can apply the affine transformation to the image (e.g. CZI or OME-TIFF) in case elastix or"
+                " valis methods are not providing desired results.",
+                wrap=True,
+            )
+        )
+        hidden_settings.addRow(hp.make_label(self, "Tile size"), self.tile_size)
+        hidden_settings.addRow(
+            hp.make_label(self, "Reduce data size"),
+            hp.make_h_layout(
+                self.as_uint8,
+                hp.make_warning_label(
+                    self,
+                    C.UINT8_WARNING,
+                    normal=True,
+                    icon_name=("warning", {"color": THEMES.get_theme_color("warning")}),
+                ),
+                spacing=2,
+                stretch_id=(0,),
+            ),
+        )
+        hidden_settings.addRow(
+            hp.make_btn(
+                side_widget,
+                "Export transformed image...",
+                tooltip="Transform image using the specified transformation matrix and save it as OME-TIFF.",
+                func=self.on_transform_moving,
+            )
         )
 
         side_layout = hp.make_form_layout(parent=side_widget)
@@ -1493,21 +1472,7 @@ class ImageRegistrationWindow(Window):
         side_layout.addRow("Enable prediction", self.enable_prediction_checkbox)
         side_layout.addRow(hp.make_btn(side_widget, "Compute transformation", func=self.on_run))
         side_layout.addRow(hp.make_h_layout(self.close_btn, self.export_project_btn, stretch_id=(1,), spacing=2))
-        side_layout.addRow(
-            hp.make_h_layout(
-                hp.make_qta_btn(
-                    self,
-                    "gear",
-                    tooltip="Update export settings",
-                    standout=True,
-                    normal=True,
-                    func=self.on_export_settings,
-                ),
-                self.transform_btn,
-                stretch_id=(1,),
-                spacing=2,
-            )
-        )
+        side_layout.addRow(hidden_settings)
         side_layout.addRow(hp.make_h_line_with_text("About transformation"))
         side_layout.addRow(hp.make_label(self, "Estimated error"), self.transform_error)
         side_layout.addRow(self.transform_info)
@@ -1629,10 +1594,10 @@ class ImageRegistrationWindow(Window):
         )
         # self.set_current_focus_btn = hp.make_btn(self, "Set current range", func=self.on_set_focus)
         self.x_center = hp.make_double_spin_box(
-            self, -1e5, 1e5, step_size=500, tooltip="Center of the area of interest along the x-axis."
+            self, -1e5, 1e5, step_size=500, tooltip="Center of the area of interest along the x-axis.", prefix="x = "
         )
         self.y_center = hp.make_double_spin_box(
-            self, -1e5, 1e5, step_size=500, tooltip="Center of the area of interest along the y-axis."
+            self, -1e5, 1e5, step_size=500, tooltip="Center of the area of interest along the y-axis.", prefix="y = "
         )
         self.zoom = hp.make_double_spin_box(self, -1e5, 1e5, step_size=0.5, n_decimals=4, tooltip="Zoom factor.")
         self.use_focus_btn = hp.make_btn(
@@ -1643,8 +1608,7 @@ class ImageRegistrationWindow(Window):
         )
 
         layout = hp.make_form_layout()
-        layout.addRow(hp.make_label(self, "Center (x)"), self.x_center)
-        layout.addRow(hp.make_label(self, "Center (y)"), self.y_center)
+        layout.addRow(hp.make_label(self, "Center"), hp.make_h_layout(self.x_center, self.y_center))
         layout.addRow(hp.make_label(self, "Zoom"), self.zoom)
         layout.addRow(hp.make_h_layout(self.lock_btn, self.use_focus_btn, stretch_id=1, spacing=2))
         return layout
@@ -1690,12 +1654,6 @@ class ImageRegistrationWindow(Window):
             "remove_single",
             func=lambda *args: self.on_remove("fixed"),
             tooltip="Remove last point from the fixed image.",
-        )
-        self.fixed_zoom_btn = toolbar.insert_qta_tool(
-            "zoom",
-            func=lambda *args: self.on_zoom("fixed"),
-            tooltip="Enable zooming interface, allowing selection of ROI in the image to zoom-in directly.",
-            checkable=True,
         )
         self.fixed_move_btn = toolbar.insert_qta_tool(
             "select_points",
@@ -1762,12 +1720,6 @@ class ImageRegistrationWindow(Window):
             "remove_single",
             func=lambda *args: self.on_remove("moving"),
             tooltip="Remove last point from the moving image.",
-        )
-        self.moving_zoom_btn = toolbar.insert_qta_tool(
-            "zoom",
-            func=lambda *args: self.on_zoom("moving"),
-            tooltip="Enable zooming interface, allowing selection of ROI in the image to zoom-in directly.",
-            checkable=True,
         )
         self.moving_move_btn = toolbar.insert_qta_tool(
             "select_points",
@@ -1895,9 +1847,7 @@ class ImageRegistrationWindow(Window):
         self.statusbar.insertPermanentWidget(14, self.moving_opacity)
         self.statusbar.insertPermanentWidget(15, hp.make_v_line())
 
-    def on_toggle_mode(
-        self, which: str | ty.Literal["fixed", "moving", "both"], mode: str | Mode, zoom: bool = False
-    ) -> None:
+    def on_toggle_mode(self, which: str | ty.Literal["fixed", "moving", "both"], mode: str | Mode) -> None:
         """Toggle mode."""
         which = ["fixed", "moving"] if which == "both" else [which]
         for w in which:
@@ -1908,8 +1858,6 @@ class ImageRegistrationWindow(Window):
                 self.on_add(w)
             elif mode == Mode.SELECT:
                 self.on_move(w)
-            if not zoom:
-                self.on_shapes_mode(w, state=False)
 
     @qdebounced(timeout=50, leading=True)
     def keyPressEvent(self, evt: QKeyEvent) -> None:

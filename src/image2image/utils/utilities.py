@@ -423,9 +423,13 @@ def select(layer, event):
     layer.events.move()
 
 
-def init_points_layer(layer: Points, visual: VispyPointsLayer, snap: bool = True) -> None:
+def init_points_layer(
+    layer: Points, visual: VispyPointsLayer, snap: bool = True, add_func: ty.Callable | None = None
+) -> None:
     """Initialize points layer."""
-    layer._drag_modes[PointsMode.ADD] = partial(add, snap=snap)
+    if add_func is None:
+        add_func = partial(add, snap=snap)
+    layer._drag_modes[PointsMode.ADD] = add_func
     layer._drag_modes[PointsMode.SELECT] = select
     layer.border_width = 0
     layer.events.add(move=Event, add_point=Event)
@@ -567,7 +571,7 @@ def calculate_zoom(
     return zoom, y_fixed, x_fixed
 
 
-def add(layer, event, snap=True) -> None:
+def add(layer: Points, event, snap: bool = True) -> None:
     """Add a new point at the clicked position."""
     start_pos = event.pos
     dist = 0

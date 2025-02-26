@@ -15,6 +15,7 @@ from koyo.utilities import pluralize
 from loguru import logger
 from napari.layers import Shapes
 from napari.layers.shapes._shapes_constants import Box
+from qtextra.config import THEMES
 from qtextra.utils.utilities import connect
 from qtpy.QtCore import Qt
 from qtpy.QtGui import QKeyEvent
@@ -22,6 +23,7 @@ from qtpy.QtWidgets import QHBoxLayout, QVBoxLayout, QWidget
 from superqt import ensure_main_thread
 from superqt.utils import GeneratorWorker, create_worker, qdebounced
 
+import image2image.constants as C
 from image2image import __version__
 from image2image.config import get_crop_config
 from image2image.enums import ALLOWED_PROJECT_CROP_FORMATS
@@ -79,6 +81,7 @@ class ImageCropWindow(SingleViewerMixin):
         )
         if self.CONFIG.first_time:
             hp.call_later(self, self.on_show_tutorial, 10_000)
+        self.on_set_write_warning()
 
     @staticmethod
     def _setup_config() -> None:
@@ -502,46 +505,56 @@ class ImageCropWindow(SingleViewerMixin):
         )
         self.mask_btn.hide()
 
+        self.as_uint8 = hp.make_checkbox(
+            settings_widget,
+            "",
+            tooltip=C.UINT8_TIP,
+            value=self.CONFIG.as_uint8,
+            func=self.on_update_config,
+        )
+        self.tile_size = hp.make_combobox(
+            settings_widget,
+            ["256", "512", "1024", "2048", "4096"],
+            tooltip="Specify size of the tile. Default is 512",
+            default="512",
+            value=f"{self.CONFIG.tile_size}",
+            func=self.on_update_config,
+        )
+
+        self.hidden_settings = hp.make_advanced_collapsible(
+            settings_widget,
+            "Export transformed image",
+            allow_checkbox=False,
+            allow_icon=False,
+            warning_icon=("warning", {"color": THEMES.get_theme_color("warning")}),
+        )
+        self.hidden_settings.addRow(hp.make_label(self, "Tile size"), self.tile_size)
+        self.hidden_settings.addRow(
+            hp.make_label(self, "Reduce data size"),
+            hp.make_h_layout(
+                self.as_uint8,
+                hp.make_warning_label(
+                    self,
+                    C.UINT8_WARNING,
+                    normal=True,
+                    icon_name=("warning", {"color": THEMES.get_theme_color("warning")}),
+                ),
+                spacing=2,
+                stretch_id=(0,),
+            ),
+        )
+
         side_layout = hp.make_form_layout(parent=settings_widget)
         side_layout.addRow(self._image_widget)
         side_layout.addRow(hp.make_h_line_with_text("Image crop position"))
         side_layout.addRow(crop_layout)
         side_layout.addRow(hp.make_h_layout(self.init_btn, self.reset_btn, spacing=2))
-        side_layout.addRow(hp.make_h_line_with_text("Crop"))
+        side_layout.addRow(hp.make_h_line_with_text("Export"))
+        side_layout.addRow(self.hidden_settings)
         side_layout.addRow(self.preview_crop_btn)
-        side_layout.addRow(
-            hp.make_h_layout(
-                hp.make_qta_btn(
-                    self,
-                    "gear",
-                    tooltip="Update export settings",
-                    standout=True,
-                    normal=True,
-                    func=self.on_export_settings,
-                ),
-                self.crop_btn,
-                stretch_id=(1,),
-                spacing=2,
-            )
-        )
-        # side_layout.addRow(hp.make_h_line_with_text("Mask"))
+        side_layout.addRow(self.crop_btn)
         side_layout.addRow(self.preview_mask_btn)
-        side_layout.addRow(
-            hp.make_h_layout(
-                hp.make_qta_btn(
-                    self,
-                    "gear",
-                    tooltip="Update export settings",
-                    standout=True,
-                    normal=True,
-                    func=self.on_export_settings,
-                    hide=True,
-                ),
-                self.mask_btn,
-                stretch_id=(1,),
-                spacing=2,
-            )
-        )
+        side_layout.addRow(self.mask_btn)
         side_layout.addRow(hp.make_h_line_with_text("Layer controls"))
         side_layout.addRow(self.view.widget.controls)
         side_layout.addRow(self.view.widget.layerButtons)
@@ -565,12 +578,22 @@ class ImageCropWindow(SingleViewerMixin):
         self._make_icon()
         self._make_statusbar()
 
-    def on_export_settings(self) -> None:
-        """Open export settings."""
-        from image2image.qt._dialogs._save import ExportImageDialog
+    def on_update_config(self, _: ty.Any = None) -> None:
+        """Update values in config."""
+        self.CONFIG.as_uint8 = self.as_uint8.isChecked()
+        self.CONFIG.tile_size = int(self.tile_size.currentText())
+        self.on_set_write_warning()
 
-        dlg = ExportImageDialog(self, self.data_model, None, self.CONFIG)
-        dlg.exec_()
+    def on_set_write_warning(self) -> None:
+        """Set warning."""
+        tooltip = []
+        if self.CONFIG.as_uint8:
+            tooltip.append(
+                "- Images will be converted to uint8 to reduce file size. This can lead to data loss and should be used"
+                " with caution."
+            )
+        self.hidden_settings.warning_label.setToolTip("<br>".join(tooltip))
+        self.hidden_settings.set_warning_visible(len(tooltip) > 0)
 
     def _get_console_variables(self) -> dict:
         variables = super()._get_console_variables()
