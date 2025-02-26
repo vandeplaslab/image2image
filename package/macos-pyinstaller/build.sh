@@ -194,7 +194,7 @@ then
     if $uv
     then
       uv pip uninstall qtextra
-      uv pip install -U "qtextra[console,sentry]"
+      uv pip install -U ".[console,sentry]"
     else
       pip install -U ".[console,sentry]"
     fi
@@ -206,7 +206,7 @@ then
     if $uv
     then
       uv pip uninstall qtextraplot
-      uv pip install -U "qtextraplot[2d]"
+      uv pip install -U ".[2d]"
     else
       pip install -U ".[2d]"
     fi
