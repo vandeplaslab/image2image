@@ -65,7 +65,7 @@ if ($update) {
 
 # update all dependencies and app
 if ($update_pip) {
-    $pip_install.Add("napari==0.4.19")
+    $pip_install.Add("napari==0.5.6")
     $pip_install.Add("pydantic<2")
     $pip_install.Add("pyside2")
     $pip_install.Add("pyinstaller")
