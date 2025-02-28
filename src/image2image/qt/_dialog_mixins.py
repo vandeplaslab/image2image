@@ -17,7 +17,7 @@ from qtpy.QtCore import QModelIndex
 from qtpy.QtWidgets import QDialog, QLabel, QMenuBar, QTableWidget
 from superqt import ensure_main_thread
 
-from image2image.qt.dialog_base import Window
+from image2image.qt._dialog_base import Window
 
 if ty.TYPE_CHECKING:
     from qtextra.utils.table_config import TableConfig

@@ -29,7 +29,7 @@ from image2image.qt._dialogs import (
 if ty.TYPE_CHECKING:
     from qtextraplot._napari.image.wrapper import NapariImageView
 
-    from image2image.qt.dialog_base import Window
+    from image2image.qt._dialog_base import Window
 
 
 logger = logger.bind(src="LoadDialog")

@@ -63,7 +63,7 @@ class Launcher(QtDialog):
     # noinspection PyAttributeOutsideInit
     def make_panel(self) -> QVBoxLayout:
         """Make panel."""
-        from image2image.qt.dialog_base import Window
+        from image2image.qt._dialog_base import Window
 
         layout = hp.make_form_layout()
         layout.setContentsMargins(2, 2, 2, 2)

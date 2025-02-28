@@ -220,8 +220,7 @@ class QtModalityItem(QtListItem):
         """Open directory where the image is located."""
         from koyo.path import open_directory_alt
 
-        path = Path(self.item_model.path)
-        open_directory_alt(path)
+        open_directory_alt(self.item_model.path)
 
     def on_remove(self) -> None:
         """Remove image/modality from the list."""
