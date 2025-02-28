@@ -16,8 +16,8 @@ from natsort import natsorted
 from qtextra.dialogs.qt_close_window import QtConfirmCloseDialog
 from qtextra.utils.table_config import TableConfig
 from qtextra.utils.utilities import connect
-from qtextra.widgets.qt_mini_toolbar import QtMiniToolbar
 from qtextra.widgets.qt_table_view_check import QtCheckableTableView
+from qtextra.widgets.qt_toolbar_mini import QtMiniToolbar
 from qtpy.QtCore import Qt
 from qtpy.QtWidgets import (
     QDialog,

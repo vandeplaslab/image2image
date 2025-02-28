@@ -21,7 +21,7 @@ from napari.utils.events import Event
 from qtextra.config import THEMES
 from qtextra.dialogs.qt_close_window import QtConfirmCloseDialog
 from qtextra.utils.utilities import connect
-from qtextra.widgets.qt_mini_toolbar import QtMiniToolbar
+from qtextra.widgets.qt_toolbar_mini import QtMiniToolbar
 from qtextraplot._napari.image.wrapper import NapariImageView
 from qtpy.QtCore import Qt, Signal  # type: ignore[attr-defined]
 from qtpy.QtGui import QKeyEvent
