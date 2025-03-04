@@ -247,39 +247,43 @@ class PreprocessingDialog(QtFramelessTool):
         self.evt_update.emit(self.preprocessing)
         self.on_preview_preprocessing_transform()
 
-    def on_set_defaults(self, _=None) -> None:
+    def on_set_defaults(self, text: str) -> None:
         """Set defaults."""
         from image2image_reg.models import Preprocessing
 
-        text = self.defaults_choice_toggle.value
         if not hp.confirm(
             self, f"Are you sure you want to set to <b>{text}</b> defaults? This will overwrite other settings."
         ):
             return
+        text = text.lower()
         channel_names = self.preprocessing.channel_names
         channel_indices = self.preprocessing.channel_indices
-        if text == "Brightfield":
+        if text == "brightfield":
             new_preprocessing = Preprocessing.brightfield(
                 valis=self.valis, channel_names=channel_names, channel_indices=channel_indices
             )
-        elif text == "Fluorescence":
+        elif text == "fluorescence":
             new_preprocessing = Preprocessing.fluorescence(
                 valis=self.valis, channel_names=channel_names, channel_indices=channel_indices
             )
-        elif text == "H&E":
+        elif text == "h&e":
             new_preprocessing = Preprocessing.he(
                 valis=self.valis, channel_names=channel_names, channel_indices=channel_indices
             )
-        elif text == "PAS":
+        elif text == "pas":
             new_preprocessing = Preprocessing.pas(
                 valis=self.valis, channel_names=channel_names, channel_indices=channel_indices
             )
-        elif text == "postAF":
+        elif text == "postaf(e)":
             new_preprocessing = Preprocessing.postaf(
-                valis=self.valis, channel_names=channel_names, channel_indices=channel_indices
+                valis=self.valis, channel_names=channel_names, channel_indices=channel_indices, which="egfp"
             )
-        elif text == "MIP":
-            new_preprocessing = Preprocessing.mip(
+        elif text == "postaf(b)":
+            new_preprocessing = Preprocessing.postaf(
+                valis=self.valis, channel_names=channel_names, channel_indices=channel_indices, which="brightfield"
+            )
+        elif text == "dapi":
+            new_preprocessing = Preprocessing.dapi(
                 valis=self.valis, channel_names=channel_names, channel_indices=channel_indices
             )
         else:
@@ -333,17 +337,25 @@ class PreprocessingDialog(QtFramelessTool):
     def make_panel(self) -> QFormLayout:
         """Make panel."""
 
-        self.defaults_choice_toggle = hp.make_toggle(
-            self,
-            "Basic",
-            "Brightfield",
-            "Fluorescence",
-            "H&E",
-            "PAS",
-            "postAF",
-            "MIP",
-            func=self.on_set_defaults,
-            tooltip="Select from one of the available defaults.",
+        button_layout = hp.make_h_layout(
+            hp.make_btn(self, "Basic", tooltip="Basic pre-processing.", func=lambda: self.on_set_defaults("Basic")),
+            hp.make_btn(
+                self, "Brightfield", tooltip="Basic pre-processing.", func=lambda: self.on_set_defaults("Brightfield")
+            ),
+            hp.make_btn(
+                self, "Fluorescence", tooltip="Basic pre-processing.", func=lambda: self.on_set_defaults("Fluorescence")
+            ),
+            hp.make_btn(self, "H&E", tooltip="Basic pre-processing.", func=lambda: self.on_set_defaults("H&E")),
+            hp.make_btn(self, "PAS", tooltip="Basic pre-processing.", func=lambda: self.on_set_defaults("PAS")),
+            hp.make_btn(
+                self, "postAF(B)", tooltip="Basic pre-processing.", func=lambda: self.on_set_defaults("postAF(B)")
+            ),
+            hp.make_btn(
+                self, "postAF(E)", tooltip="Basic pre-processing.", func=lambda: self.on_set_defaults("postAF(E)")
+            ),
+            hp.make_btn(self, "DAPI", tooltip="Basic pre-processing.", func=lambda: self.on_set_defaults("DAPI")),
+            spacing=1,
+            margin=1,
         )
 
         # pre-processing method
@@ -499,7 +511,7 @@ class PreprocessingDialog(QtFramelessTool):
             )
         )
         layout.addRow(hp.make_h_line_with_text("Defaults", self))
-        layout.addRow(self.defaults_choice_toggle)
+        layout.addRow(button_layout)
         if self.valis:
             layout.addRow(hp.make_h_line_with_text("Valis", self))
         method_label = hp.make_label(self, "Method")

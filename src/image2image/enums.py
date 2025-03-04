@@ -140,6 +140,7 @@ REGISTRATION_PATH_HELP = (
     "<b>mid</b> - Medium registration with more parameters or optimization steps<br>"
     "<b>expanded</b> - Slower registration with more optimization steps<br>"
     "<b>extreme</b> - Even slower registration with more optimization steps<br>"
+    "<br>Additionally, these suffixes will indicate which metric is used during the registration<br>"
     "<b>ams</b> - Advanced Mean Squares metric instead of Advanced Mattes Mutual Information<br>"
     "<b>anc</b> - Advanced Normalized Correlation metric instead of Advanced Mattes Mutual Information<br>"
 )

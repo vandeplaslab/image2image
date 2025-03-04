@@ -7,7 +7,6 @@ from pathlib import Path
 
 import qtextra.helpers as hp
 import qtextra.queue.cli_queue as _q
-from image2image_io.utils.utilities import guess_rgb
 from image2image_reg.workflows.elastix import ElastixReg
 from koyo.secret import hash_parameters
 from koyo.timer import MeasureTimer
@@ -174,14 +173,14 @@ class ImageElastixWindow(ImageWsiWindow):
         connect(self._image_widget.dataset_dlg.evt_import_project, self._on_load_from_project, state=state)
         connect(self._image_widget.dataset_dlg.evt_files, self._on_pre_loading_images, state=state)
         connect(self._image_widget.dataset_dlg.evt_rejected_files, self.on_maybe_add_attachment, state=state)
-        connect(self._image_widget.dataset_dlg.evt_resolution, self.on_update_resolution, state=state)
+        connect(self._image_widget.dataset_dlg.evt_resolution, self.on_update_resolution_from_table, state=state)
 
         connect(self.view.viewer.events.status, self._status_changed, state=state)
         # connect(self.view.widget.canvas.events.key_press, self.keyPressEvent, state=state)
 
         connect(self.modality_list.evt_show, self.on_show_modality, state=state)
         connect(self.modality_list.evt_rename, self.on_rename_modality, state=state)
-        connect(self.modality_list.evt_resolution, self.on_update_resolution_of_modality, state=state)
+        connect(self.modality_list.evt_resolution, self.on_update_resolution_from_list, state=state)
         connect(self.modality_list.evt_color, self.on_update_colormap, state=state)
         connect(self.modality_list.evt_delete, self.on_remove_modality, state=state)
         connect(self.modality_list.evt_hide_others, self.on_hide_modalities, state=state)
@@ -211,13 +210,8 @@ class ImageElastixWindow(ImageWsiWindow):
 
         if preprocessing is None:
             preprocessing = modality.preprocessing
-
+        preprocessing_hash = self._get_preprocessing_hash(modality, preprocessing)
         pyramid = PYRAMID_TO_LEVEL[self.pyramid_level.currentText()]
-        preprocessing_hash = (
-            hash_preprocessing(preprocessing, pyramid=pyramid)
-            if self.use_preview_check.isChecked()
-            else f"pyramid={pyramid}"
-        )
 
         wrapper = self.data_model.get_wrapper()
         if wrapper:
@@ -249,13 +243,8 @@ class ImageElastixWindow(ImageWsiWindow):
 
         if preprocessing is None:
             preprocessing = modality.preprocessing
-
+        preprocessing_hash = self._get_preprocessing_hash(modality, preprocessing)
         pyramid = PYRAMID_TO_LEVEL[self.pyramid_level.currentText()]
-        preprocessing_hash = (
-            hash_preprocessing(modality.preprocessing, pyramid=pyramid)
-            if self.use_preview_check.isChecked()
-            else f"pyramid={pyramid}"
-        )
 
         wrapper = self.data_model.get_wrapper()
         if wrapper:
@@ -285,13 +274,10 @@ class ImageElastixWindow(ImageWsiWindow):
         """Preview image."""
         from image2image_reg.utils.preprocessing import preprocess_preview
 
+        preprocessing_hash = self._get_preprocessing_hash(modality)
         pyramid = PYRAMID_TO_LEVEL[self.pyramid_level.currentText()]
-
         preview = self.use_preview_check.isChecked()
         layer = self.view.get_layer(modality.name)
-        preprocessing_hash = (
-            hash_preprocessing(modality.preprocessing, pyramid=pyramid) if preview else f"pyramid={pyramid}"
-        )
 
         # ensure that the controls are shown
         if widget := self.modality_list.get_widget_for_item_model(modality):
@@ -465,7 +451,7 @@ class ImageElastixWindow(ImageWsiWindow):
         except (ValueError, FileNotFoundError):
             hp.toast(self, "Error", "Could not save project to I2Reg format.", icon="error", position="top_left")
 
-    def on_load_from_project(self, _evt=None):
+    def on_load_from_project(self, _evt=None) -> None:
         """Load a previous project."""
         path_ = hp.get_filename(
             self, "Load I2Reg project", base_dir=self.CONFIG.output_dir, file_filter=ALLOWED_PROJECT_ELASTIX_FORMATS

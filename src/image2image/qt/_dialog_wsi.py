@@ -10,7 +10,7 @@ import numpy as np
 import qtextra.helpers as hp
 import qtpy.QtWidgets as Qw
 from image2image_io.config import CONFIG as READER_CONFIG
-from image2image_reg.models import Modality
+from image2image_reg.models import Modality, Preprocessing
 from image2image_reg.workflows import ElastixReg, ValisReg
 from koyo.typing import PathLike
 from loguru import logger
@@ -27,6 +27,7 @@ from image2image.config import ValisConfig
 from image2image.enums import LEVEL_TO_PYRAMID, PYRAMID_TO_LEVEL
 from image2image.models.data import DataModel
 from image2image.qt._dialog_mixins import SingleViewerMixin
+from image2image.utils.valis import hash_preprocessing
 
 if ty.TYPE_CHECKING:
     from qtextra.widgets.qt_collapsible import QtCheckCollapsible
@@ -211,7 +212,7 @@ class ImageWsiWindow(SingleViewerMixin):
         for key in keys:
             self._image_widget.dataset_dlg.on_remove_dataset(key)
 
-    def on_update_resolution(self, key: str) -> None:
+    def on_update_resolution_from_table(self, key: str) -> None:
         """Update resolution."""
         reader = self.data_model.get_reader_for_key(key)
         if not reader:
@@ -225,22 +226,42 @@ class ImageWsiWindow(SingleViewerMixin):
             item.resolution_label.setText(f"{reader.resolution:.3f}")
         self.on_update_resolution_of_modality(modality)
 
+    def on_update_resolution_from_list(self, modality: Modality) -> None:
+        """Update resolution."""
+        keys = self.data_model.get_key_for_path(modality.path)
+        for key in keys:
+            self._image_widget.dataset_dlg.on_set_resolution(key, modality.pixel_size)
+
     def on_update_preprocessing_of_modality(self, modality: Modality) -> None:
         """Preview image."""
         self.registration_model.modalities[modality.name].preprocessing = modality.preprocessing
-        logger.trace(f"Updated modality: {modality.name}")
+        logger.trace(f"Updated preprocessing of modality: {modality.name}")
 
     def on_update_resolution_of_modality(self, modality: Modality) -> None:
         """Preview image."""
         self.registration_model.modalities[modality.name].pixel_size = modality.pixel_size
         self._on_show_modalities()
-        logger.trace(f"Updated modality: {modality.name}")
+        logger.trace(f"Updated resolution of modality: {modality.name} ({modality.pixel_size})")
 
     def on_update_colormap(self, modality: Modality, color: np.ndarray):
         """Update colormap."""
         layer = self.view.get_layer(modality.name)
         if layer:
             layer.colormap = color
+
+    def _get_preprocessing_hash(
+        self, modality: Modality, preprocessing: Preprocessing | None = None, preview: bool | None = None
+    ) -> str:
+        preview = preview if preview is not None else self.use_preview_check.isChecked()
+        pyramid = PYRAMID_TO_LEVEL[self.pyramid_level.currentText()]
+        if preprocessing is None:
+            preprocessing = modality.preprocessing
+
+        return (
+            hash_preprocessing(preprocessing, pyramid=pyramid, pixel_size=modality.pixel_size)
+            if preview
+            else f"pyramid={pyramid}; pixel_size={modality.pixel_size}"
+        )
 
     def _on_pre_loading_images(self, filelist: list[str]) -> None:
         """Before files are loaded, we can check whether all files come from the same directory."""

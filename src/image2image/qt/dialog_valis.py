@@ -27,7 +27,7 @@ from image2image.qt._dialog_wsi import ImageWsiWindow
 from image2image.qt._dialogs._select import LoadWidget
 from image2image.qt._wsi._list import QtModalityList
 from image2image.utils.utilities import get_i2reg_path, pad_str
-from image2image.utils.valis import guess_preprocessing, hash_preprocessing
+from image2image.utils.valis import guess_preprocessing
 
 if ty.TYPE_CHECKING:
     from image2image_reg.models import Modality, Preprocessing
@@ -163,7 +163,7 @@ class ImageValisWindow(ImageWsiWindow):
         connect(self._image_widget.dataset_dlg.evt_import_project, self._on_load_from_project, state=state)
         connect(self._image_widget.dataset_dlg.evt_files, self._on_pre_loading_images, state=state)
         connect(self._image_widget.dataset_dlg.evt_rejected_files, self.on_maybe_add_attachment, state=state)
-        connect(self._image_widget.dataset_dlg.evt_resolution, self.on_update_resolution, state=state)
+        connect(self._image_widget.dataset_dlg.evt_resolution, self.on_update_resolution_from_table, state=state)
 
         connect(self.view.viewer.events.status, self._status_changed, state=state)
         # connect(self.view.widget.canvas.events.key_press, self.keyPressEvent, state=state)
@@ -173,7 +173,7 @@ class ImageValisWindow(ImageWsiWindow):
         connect(self.modality_list.evt_hide_others, self.on_hide_modalities, state=state)
         connect(self.modality_list.evt_preview_preprocessing, self.on_preview, state=state)
         connect(self.modality_list.evt_show, self.on_show_or_hide_modality, state=state)
-        connect(self.modality_list.evt_resolution, self.on_update_resolution_of_modality, state=state)
+        connect(self.modality_list.evt_resolution, self.on_update_resolution_from_list, state=state)
         connect(self.modality_list.evt_set_preprocessing, self.on_update_preprocessing_of_modality, state=state)
         connect(self.modality_list.evt_color, self.on_update_colormap, state=state)
         connect(self.modality_list.evt_preprocessing_close, self.on_preview_close, state=state)
@@ -573,11 +573,7 @@ class ImageValisWindow(ImageWsiWindow):
                 reader.resolution = modality.pixel_size
                 scale = reader.scale_for_pyramid(pyramid)
                 layer = self.view.get_layer(modality.name)
-                preprocessing_hash = (
-                    hash_preprocessing(modality.preprocessing, pyramid=pyramid)
-                    if self.use_preview_check.isChecked()
-                    else f"pyramid={pyramid}"
-                )
+                preprocessing_hash = self._get_preprocessing_hash(modality)
                 # no need to re-process if the layer is already there
                 if layer and layer.metadata.get("preview_hash") == preprocessing_hash and not overwrite:
                     layer.visible = state
@@ -616,7 +612,7 @@ class ImageValisWindow(ImageWsiWindow):
             preprocessing = modality.preprocessing
 
         pyramid = -1
-        preprocessing_hash = hash_preprocessing(modality.preprocessing, pyramid=pyramid)
+        preprocessing_hash = self._get_preprocessing_hash(modality, preprocessing)
 
         wrapper = self.data_model.get_wrapper()
         if wrapper:

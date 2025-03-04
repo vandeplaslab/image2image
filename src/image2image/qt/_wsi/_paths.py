@@ -8,7 +8,7 @@ from functools import partial
 import qtextra.helpers as hp
 from loguru import logger
 from natsort import natsorted
-from qtpy.QtCore import Signal
+from qtpy.QtCore import Qt, Signal
 from qtpy.QtWidgets import QWidget
 
 from image2image.config import get_elastix_config
@@ -62,7 +62,9 @@ class RegistrationPaths(QWidget):
             default="rigid",
             tooltip="Select registration type(s)...",
         )
-        self._path = hp.make_label(self, "<please select transformations>", wrap=True)
+        self._path = hp.make_label(
+            self, "<please select transformations>", wrap=True, alignment=Qt.AlignmentFlag.AlignHCenter
+        )
 
         layout = hp.make_form_layout(parent=self)
         layout.setContentsMargins(2, 2, 2, 2)
@@ -115,15 +117,24 @@ class RegistrationPaths(QWidget):
         """Select from list of common annotations."""
         menu = hp.make_menu(self)
         for option in [
+            # linear only
             "rigid » affine",
             "rigid_expanded » affine_expanded",
             "rigid_extreme » affine_extreme",
             "rigid_extreme » affine_extreme » affine_extreme",
+            None,
+            # linear + non-linear
             "rigid » affine » nl",
             "rigid_expanded » affine_expanded » nl_expanded",
+            "rigid_extreme » affine_extreme » nl_extreme",
+            None,
             "affine » nl",
             "affine_expanded » nl_expanded",
+            "affine_extreme » nl_extreme",
         ]:
+            if option is None:
+                menu.addSeparator()
+                continue
             hp.make_menu_item(self, option, menu=menu, func=partial(self._on_select_from_common, option))
         hp.show_below_widget(menu, self._choice)
 

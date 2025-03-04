@@ -71,7 +71,6 @@ class QtModalityItem(QtListItem):
             self,
             tooltip="Resolution of the modality.",
             func=self._on_update_resolution,
-            # validator=QRegularExpressionValidator(QRegularExpression(r"^\d*\.\d+$")),
             validator=QRegularExpressionValidator(QRegularExpression(r"^[0-9]+(\.[0-9]{1,3})?$")),
         )
         self.preprocessing_btn = hp.make_qta_btn(
@@ -163,17 +162,17 @@ class QtModalityItem(QtListItem):
         lay = QHBoxLayout()
         lay.setContentsMargins(0, 0, 0, 0)
         lay.setSpacing(0)
-        lay.addLayout(hp.make_v_layout(self.preprocessing_btn, self.preview_btn, self.color_btn, stretch_after=True))
         lay.addLayout(
             hp.make_v_layout(self.attach_image_btn, self.attach_geojson_btn, self.attach_points_btn, stretch_after=True)
         )
+        lay.addLayout(hp.make_v_layout(self.color_btn, self.preprocessing_btn, self.preview_btn, stretch_after=True))
         lay.addWidget(self.preprocessing_label, alignment=Qt.AlignmentFlag.AlignTop, stretch=True)
 
         layout = hp.make_form_layout()
         layout.setLabelAlignment(Qt.AlignmentFlag.AlignRight)
         layout.addRow(hp.make_label(self, "Name"), self.name_label)
         layout.addRow(hp.make_label(self, "Pixel size"), self.resolution_label)
-        layout.addRow(hp.make_label(self, "Process", alignment=Qt.AlignmentFlag.AlignTop), lay)
+        layout.addRow(lay)
 
         main_layout = QHBoxLayout(self)
         main_layout.setContentsMargins(1, 1, 1, 1)
