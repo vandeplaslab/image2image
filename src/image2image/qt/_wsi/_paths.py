@@ -23,6 +23,8 @@ logger = logger.bind(src="RegistrationMap")
 class RegistrationPaths(QWidget):
     """Widget for selecting registration paths."""
 
+    evt_override = Signal()
+
     def __init__(self, parent: QWidget | None = None):
         super().__init__(parent)
         self.transformations = []
@@ -68,6 +70,14 @@ class RegistrationPaths(QWidget):
         layout.addRow(
             hp.make_h_layout(
                 hp.make_qta_label(self, "help", hover=True, tooltip=REGISTRATION_PATH_HELP),
+                hp.make_qta_btn(
+                    self,
+                    "common",
+                    func=self.on_select_from_common,
+                    tooltip="Select from a list of commonly used transformation combinations.",
+                    standout=True,
+                    normal=True,
+                ),
                 self._choice,
                 hp.make_qta_btn(
                     self,
@@ -81,23 +91,16 @@ class RegistrationPaths(QWidget):
                     self,
                     "remove",
                     func=self.on_remove_transformation,
-                    tooltip="Remove last transformation from the list.",
+                    func_menu=self.on_reset_transformation,
+                    tooltip="Remove last transformation from the list.\nRight-click to reset all transformations.",
                     standout=True,
                     normal=True,
                 ),
                 hp.make_qta_btn(
                     self,
-                    "reset",
-                    func=self.on_reset_transformation,
-                    tooltip="Reset all transformations.",
-                    standout=True,
-                    normal=True,
-                ),
-                hp.make_qta_btn(
-                    self,
-                    "common",
-                    func=self.on_select_from_common,
-                    tooltip="Select from a list of commonly used transformation combinations.",
+                    "replace",
+                    func=self.evt_override.emit,
+                    tooltip="Override existing transformations on each set of paths using the existing selection.",
                     standout=True,
                     normal=True,
                 ),
@@ -115,6 +118,7 @@ class RegistrationPaths(QWidget):
             "rigid » affine",
             "rigid_expanded » affine_expanded",
             "rigid_extreme » affine_extreme",
+            "rigid_extreme » affine_extreme » affine_extreme",
             "rigid » affine » nl",
             "rigid_expanded » affine_expanded » nl_expanded",
             "affine » nl",
@@ -215,9 +219,8 @@ class RegistrationMap(QWidget):
         )
 
         self._registration_path = RegistrationPaths(self)
+        self._registration_path.evt_override.connect(self.on_override_paths)
         self._registration_path.registration_paths = get_elastix_config().transformations
-        # self._warning_label = hp.make_label(self, "", color="warning", wrap=True)
-        # self._warning_label.setVisible(False)
 
         layout = hp.make_form_layout(parent=self)
         layout.setContentsMargins(2, 2, 2, 2)
@@ -320,6 +323,22 @@ class RegistrationMap(QWidget):
         logger.trace(message)
         self.evt_message.emit(message)
 
+    def on_override_paths(self) -> None:
+        """Overwrite paths."""
+        registrations = self._registration_path.registration_paths
+        if not registrations:
+            return
+        registration_model: ElastixReg = self.registration_model
+        if not registration_model or not hp.confirm(
+            self, "Are you sure you want to overwrite all registration paths?", "Please confirm."
+        ):
+            return
+        for node in registration_model.registration_nodes:
+            node["params"] = registrations
+        self.populate_paths()
+        self.toggle_name()
+        self._log_message("Overwritten all registration paths.")
+
     def on_add_path(self) -> None:
         """Add path."""
         valid, source, target, through, *_, path = self._get_registration_path_data()
@@ -328,7 +347,6 @@ class RegistrationMap(QWidget):
             return
         registrations = self._registration_path.registration_paths
         if not registrations:
-            # self._warning_label.setText("Please select registration path.")
             return
         if not valid:
             hp.warn(self, "Please select source and target images.")
