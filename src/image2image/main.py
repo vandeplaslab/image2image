@@ -183,6 +183,12 @@ def run(
 
         dlg = ImageValisWindow(None, run_check_version=run_check_version, **kwargs)  # type: ignore[assignment]
         dlg.setMinimumSize(1200, 800)
+    elif tool == "napari":
+        from napari import Viewer
+
+        viewer = Viewer()
+        dlg = viewer.window
+        dlg = dlg._qt_window
     else:
         raise ValueError("Launcher is not implemented yet.")
 

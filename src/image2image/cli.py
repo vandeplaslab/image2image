@@ -7,14 +7,13 @@ import typing as ty
 from multiprocessing import freeze_support, set_start_method
 
 import click
-from click_groups import GroupedGroup
 import koyo.compat  # noqa
+from click_groups import GroupedGroup
 from koyo.click import cli_parse_paths_sort, dev_options
 from koyo.system import IS_MAC, IS_PYINSTALLER
 from koyo.utilities import is_installed
 
 from image2image import __version__
-
 
 AVAILABLE_TOOLS = [
     "launcher",
@@ -27,6 +26,7 @@ AVAILABLE_TOOLS = [
     "fusion",
     "convert",
     "merge",
+    "napari",
 ]
 # if IS_MAC_ARM and IS_PYINSTALLER:
 #     AVAILABLE_TOOLS.pop(AVAILABLE_TOOLS.index("convert"))

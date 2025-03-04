@@ -175,8 +175,11 @@ class ImageRegistrationWindow(Window):
     def on_layer_removed(self, event: Event, which: str) -> None:
         """Layer removed."""
         layer = event.value
-        connect(layer.events.data, self.on_run, state=False)
-        connect(layer.events.add_point, partial(self.on_predict, which), state=False)
+        try:
+            connect(layer.events.data, self.on_run, state=False)
+            connect(layer.events.add_point, partial(self.on_predict, which), state=False)
+        except AttributeError:
+            pass
 
     @property
     def fixed_points_layer(self) -> Points:
