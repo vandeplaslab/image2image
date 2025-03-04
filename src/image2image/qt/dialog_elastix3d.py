@@ -16,8 +16,8 @@ from natsort import natsorted
 from qtextra.dialogs.qt_close_window import QtConfirmCloseDialog
 from qtextra.utils.table_config import TableConfig
 from qtextra.utils.utilities import connect
-from qtextra.widgets.qt_toolbar_mini import QtMiniToolbar
 from qtextra.widgets.qt_table_view_check import QtCheckableTableView
+from qtextra.widgets.qt_toolbar_mini import QtMiniToolbar
 from qtpy.QtCore import Qt
 from qtpy.QtWidgets import (
     QDialog,
@@ -45,8 +45,8 @@ from image2image.models.wsiprep import (
     load_from_file,
     remove_if_not_present,
 )
-from image2image.qt._dialogs._select import LoadWidget
 from image2image.qt._dialog_base import Window
+from image2image.qt._dialogs._select import LoadWidget
 from image2image.utils.utilities import ensure_extension, get_contrast_limits, write_project
 
 if ty.TYPE_CHECKING:
