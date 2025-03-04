@@ -35,7 +35,7 @@ from image2image.enums import ALLOWED_PROJECT_EXPORT_REGISTER_FORMATS, ALLOWED_P
 from image2image.models.data import DataModel
 from image2image.models.transformation import Transformation
 from image2image.qt._dialogs._select import FixedWidget, MovingWidget
-from image2image.qt.dialog_base import Window
+from image2image.qt._dialog_base import Window
 from image2image.utils.utilities import (
     _get_text_data,
     _get_text_format,
