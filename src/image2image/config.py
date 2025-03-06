@@ -4,7 +4,7 @@ import typing as ty
 
 from koyo.config import BaseConfig
 from koyo.typing import PathLike
-from pydantic import Field, validator
+from pydantic import Field, field_validator
 
 from image2image.enums import ViewerOrientation
 from image2image.utils._appdirs import USER_CONFIG_DIR
@@ -71,13 +71,31 @@ class Config(BaseConfig):
 
     # visuals
     theme: str = Field(
-        "light", title="Theme", description="Theme of the application.", options=["light", "dark"], in_app=True
+        "light",
+        title="Theme",
+        description="Theme of the application.",
+        json_schema_extra={
+            "options": ["light", "dark"],
+            "in_app": True,
+        },
     )
 
     # telemetry
-    telemetry_enabled: bool = Field(True, title="Enable telemetry", description="Enable telemetry.", in_app=True)
+    telemetry_enabled: bool = Field(
+        True,
+        title="Enable telemetry",
+        description="Enable telemetry.",
+        json_schema_extra={
+            "in_app": True,
+        },
+    )
     telemetry_with_locals: bool = Field(
-        True, title="Send locals", description="Send locals with telemetry.", in_app=True
+        True,
+        title="Send locals",
+        description="Send locals with telemetry.",
+        json_schema_extra={
+            "in_app": True,
+        },
     )
 
 
@@ -88,21 +106,69 @@ class SingleAppConfig(BaseConfig):
 
     # paths
     output_dir: str = Field(
-        "", title="Output directory", description="Directory where output should be saved.", in_app=False
+        "",
+        title="Output directory",
+        description="Directory where output should be saved.",
+        json_schema_extra={
+            "in_app": False,
+        },
     )
-    last_dir: str = Field("", title="Last directory", description="Last directory used.", in_app=False)
+    last_dir: str = Field(
+        "",
+        title="Last directory",
+        description="Last directory used.",
+        json_schema_extra={
+            "in_app": False,
+        },
+    )
 
     # app
-    first_time: bool = Field(True, title="First time", description="First time running the viewer app.", in_app=True)
-    confirm_close: bool = Field(True, title="Confirm close", description="Confirm close viewer app.", in_app=True)
+    first_time: bool = Field(
+        True,
+        title="First time",
+        description="First time running the viewer app.",
+        json_schema_extra={
+            "in_app": True,
+        },
+    )
+    confirm_close: bool = Field(
+        True,
+        title="Confirm close",
+        description="Confirm close viewer app.",
+        json_schema_extra={
+            "in_app": True,
+        },
+    )
 
     # export
-    as_uint8: bool = Field(True, title="Convert to uint8", description="Convert to uint8.", in_app=True)
-    overwrite: bool = Field(False, title="Overwrite", description="Overwrite.", in_app=True)
-    tile_size: str = Field(512, title="Tile size", description="Tile size.", in_app=True)
+    as_uint8: bool = Field(
+        True,
+        title="Convert to uint8",
+        description="Convert to uint8.",
+        json_schema_extra={
+            "in_app": True,
+        },
+    )
+    overwrite: bool = Field(
+        False,
+        title="Overwrite",
+        description="Overwrite.",
+        json_schema_extra={
+            "in_app": True,
+        },
+    )
+    tile_size: str = Field(
+        512,
+        title="Tile size",
+        description="Tile size.",
+        json_schema_extra={
+            "in_app": True,
+        },
+    )
 
-    @validator("output_dir", "last_dir", pre=True, allow_reuse=True)
-    def _validate_path(value: PathLike) -> str:  # type: ignore[misc]
+    @field_validator("output_dir", "last_dir", mode="before")
+    @classmethod
+    def _validate_path(cls, value: PathLike) -> str:  # type: ignore[misc]
         """Validate path."""
         return str(value)
 
@@ -140,32 +206,115 @@ class ElastixConfig(SingleAppConfig):
         "",
         title="i2reg environment variable",
         description="Path to the environment variable that leads to i2reg.",
-        in_app=True,
+        json_schema_extra={
+            "in_app": True,
+        },
     )
     n_parallel: int = Field(
-        1, ge=1, le=8, title="Number of parallel processes", description="Number of parallel processes.", in_app=True
+        1,
+        ge=1,
+        le=8,
+        title="Number of parallel processes",
+        description="Number of parallel processes.",
+        json_schema_extra={
+            "in_app": True,
+        },
     )
 
     transformations: tuple[str] = Field(
-        ("rigid", "affine"), title="Transformations", description="Transformations.", in_app=True
+        ("rigid", "affine"),
+        title="Transformations",
+        description="Transformations.",
+        json_schema_extra={
+            "in_app": True,
+        },
     )
-    use_preview: bool = Field(True, title="Use preview", description="Use preview.", in_app=True)
-    hide_others: bool = Field(False, title="Hide others", description="Hide others.", in_app=True)
-    auto_show: bool = Field(True, title="Auto show", description="Auto show.", in_app=True)
-    open_when_finished: bool = Field(True, title="Open when finished", description="Open when finished.", in_app=True)
+    use_preview: bool = Field(
+        True,
+        title="Use preview",
+        description="Use preview.",
+        json_schema_extra={
+            "in_app": True,
+        },
+    )
+    hide_others: bool = Field(
+        False,
+        title="Hide others",
+        description="Hide others.",
+        json_schema_extra={
+            "in_app": True,
+        },
+    )
+    auto_show: bool = Field(
+        True,
+        title="Auto show",
+        description="Auto show.",
+        json_schema_extra={
+            "in_app": True,
+        },
+    )
+    open_when_finished: bool = Field(
+        True,
+        title="Open when finished",
+        description="Open when finished.",
+        json_schema_extra={
+            "in_app": True,
+        },
+    )
 
     # writing options
-    write_registered: bool = Field(True, title="Write registered", description="Write registered.", in_app=True)
-    write_not_registered: bool = Field(
-        True, title="Write not registered", description="Write not registered.", in_app=True
+    write_registered: bool = Field(
+        True,
+        title="Write registered",
+        description="Write registered.",
+        json_schema_extra={
+            "in_app": True,
+        },
     )
-    write_attached: bool = Field(True, title="Write attached", description="Write attached.", in_app=True)
-    write_merged: bool = Field(True, title="Write merged", description="Write merged.", in_app=True)
-    remove_merged: bool = Field(False, title="Remove merged", description="Remove merged.", in_app=True)
-    rename: bool = Field(True, title="Rename", description="Rename.", in_app=True)
+    write_not_registered: bool = Field(
+        True,
+        title="Write not registered",
+        description="Write not registered.",
+        json_schema_extra={
+            "in_app": True,
+        },
+    )
+    write_attached: bool = Field(
+        True,
+        title="Write attached",
+        description="Write attached.",
+        json_schema_extra={
+            "in_app": True,
+        },
+    )
+    write_merged: bool = Field(
+        True,
+        title="Write merged",
+        description="Write merged.",
+        json_schema_extra={
+            "in_app": True,
+        },
+    )
+    remove_merged: bool = Field(
+        False,
+        title="Remove merged",
+        description="Remove merged.",
+        json_schema_extra={
+            "in_app": True,
+        },
+    )
+    rename: bool = Field(
+        True,
+        title="Rename",
+        description="Rename.",
+        json_schema_extra={
+            "in_app": True,
+        },
+    )
 
-    @validator("env_i2reg", pre=True, allow_reuse=True)
-    def _validate_path(value: PathLike) -> str:  # type: ignore[misc]
+    @field_validator("env_i2reg", mode="before")
+    @classmethod
+    def _validate_path(cls, value: PathLike) -> str:  # type: ignore[misc]
         """Validate path."""
         return str(value)
 
@@ -179,37 +328,157 @@ class ValisConfig(SingleAppConfig):
         "",
         title="i2reg environment variable",
         description="Path to the environment variable that leads to i2reg.",
-        in_app=True,
+        json_schema_extra={
+            "in_app": True,
+        },
     )
     n_parallel: int = Field(
-        1, ge=1, le=8, title="Number of parallel processes", description="Number of parallel processes.", in_app=True
+        1,
+        ge=1,
+        le=8,
+        title="Number of parallel processes",
+        description="Number of parallel processes.",
+        json_schema_extra={
+            "in_app": True,
+        },
     )
 
-    use_preview: bool = Field(True, title="Use preview", description="Use preview.", in_app=True)
-    hide_others: bool = Field(False, title="Hide others", description="Hide others.", in_app=True)
-    auto_show: bool = Field(True, title="Auto show", description="Auto show.", in_app=True)
-    open_when_finished: bool = Field(True, title="Open when finished", description="Open when finished.", in_app=True)
+    use_preview: bool = Field(
+        True,
+        title="Use preview",
+        description="Use preview.",
+        json_schema_extra={
+            "in_app": True,
+        },
+    )
+    hide_others: bool = Field(
+        False,
+        title="Hide others",
+        description="Hide others.",
+        json_schema_extra={
+            "in_app": True,
+        },
+    )
+    auto_show: bool = Field(
+        True,
+        title="Auto show",
+        description="Auto show.",
+        json_schema_extra={
+            "in_app": True,
+        },
+    )
+    open_when_finished: bool = Field(
+        True,
+        title="Open when finished",
+        description="Open when finished.",
+        json_schema_extra={
+            "in_app": True,
+        },
+    )
 
     # Valis options
-    feature_detector: str = Field("vsgg", title="Feature detector", description="Feature detector.", in_app=True)
-    feature_matcher: str = Field("ransac", title="Feature matcher", description="Feature matcher.", in_app=True)
-    check_reflection: bool = Field(True, title="Check reflections", description="Check reflections.", in_app=True)
-    allow_non_rigid: bool = Field(False, title="Allow non-rigid", description="Allow non-rigid.", in_app=True)
-    allow_micro: bool = Field(False, title="Allow micro", description="Allow micro.", in_app=True)
-    micro_fraction: float = Field(0.1, title="Micro fraction", description="Micro fraction.", in_app=True)
+    feature_detector: str = Field(
+        "vsgg",
+        title="Feature detector",
+        description="Feature detector.",
+        json_schema_extra={
+            "in_app": True,
+        },
+    )
+    feature_matcher: str = Field(
+        "ransac",
+        title="Feature matcher",
+        description="Feature matcher.",
+        json_schema_extra={
+            "in_app": True,
+        },
+    )
+    check_reflection: bool = Field(
+        True,
+        title="Check reflections",
+        description="Check reflections.",
+        json_schema_extra={
+            "in_app": True,
+        },
+    )
+    allow_non_rigid: bool = Field(
+        False,
+        title="Allow non-rigid",
+        description="Allow non-rigid.",
+        json_schema_extra={
+            "in_app": True,
+        },
+    )
+    allow_micro: bool = Field(
+        False,
+        title="Allow micro",
+        description="Allow micro.",
+        json_schema_extra={
+            "in_app": True,
+        },
+    )
+    micro_fraction: float = Field(
+        0.1,
+        title="Micro fraction",
+        description="Micro fraction.",
+        json_schema_extra={
+            "in_app": True,
+        },
+    )
 
     # writing options
-    write_registered: bool = Field(True, title="Write registered", description="Write registered.", in_app=True)
-    write_not_registered: bool = Field(
-        True, title="Write not registered", description="Write not registered.", in_app=True
+    write_registered: bool = Field(
+        True,
+        title="Write registered",
+        description="Write registered.",
+        json_schema_extra={
+            "in_app": True,
+        },
     )
-    write_attached: bool = Field(True, title="Write attached", description="Write attached.", in_app=True)
-    write_merged: bool = Field(True, title="Write merged", description="Write merged.", in_app=True)
-    remove_merged: bool = Field(False, title="Remove merged", description="Remove merged.", in_app=True)
-    rename: bool = Field(True, title="Rename", description="Rename.", in_app=True)
+    write_not_registered: bool = Field(
+        True,
+        title="Write not registered",
+        description="Write not registered.",
+        json_schema_extra={
+            "in_app": True,
+        },
+    )
+    write_attached: bool = Field(
+        True,
+        title="Write attached",
+        description="Write attached.",
+        json_schema_extra={
+            "in_app": True,
+        },
+    )
+    write_merged: bool = Field(
+        True,
+        title="Write merged",
+        description="Write merged.",
+        json_schema_extra={
+            "in_app": True,
+        },
+    )
+    remove_merged: bool = Field(
+        False,
+        title="Remove merged",
+        description="Remove merged.",
+        json_schema_extra={
+            "in_app": True,
+        },
+    )
+    rename: bool = Field(
+        True,
+        title="Rename",
+        description="Rename.",
+        json_schema_extra={
+            "in_app": True,
+        },
+    )
 
-    @validator("env_i2reg", pre=True, allow_reuse=True)
-    def _validate_path(value: PathLike) -> str:  # type: ignore[misc]
+    @field_validator("env_i2reg", mode="before")
+    @classmethod
+    def _validate_path(cls, value: PathLike) -> str:  # type: ignore[misc]
         """Validate path."""
         return str(value)
 
@@ -225,17 +494,56 @@ class Elastix3dConfig(SingleAppConfig):
 
     USER_CONFIG_FILENAME = "config.elastix3d.json"
 
-    rotate_step_size: int = Field(15, title="Rotate by", description="Rotate by.", in_app=True)
-    translate_step_size: int = Field(250, title="Translate by", description="Translate by.", in_app=True)
-    view_mode: str = Field("group", title="View mode", description="View mode.", in_app=True)
-    project_mode: str = Field("2D (one reference per group)", description="Project mode.", in_app=True)
-    slide_tag: str = Field("slide", title="Slide tag", description="Slide tag.", in_app=True)
+    rotate_step_size: int = Field(
+        15,
+        title="Rotate by",
+        description="Rotate by.",
+        json_schema_extra={
+            "in_app": True,
+        },
+    )
+    translate_step_size: int = Field(
+        250,
+        title="Translate by",
+        description="Translate by.",
+        json_schema_extra={
+            "in_app": True,
+        },
+    )
+    view_mode: str = Field(
+        "group",
+        title="View mode",
+        description="View mode.",
+        json_schema_extra={
+            "in_app": True,
+        },
+    )
+    project_mode: str = Field(
+        "2D (one reference per group)",
+        description="Project mode.",
+        json_schema_extra={
+            "in_app": True,
+        },
+    )
+    slide_tag: str = Field(
+        "slide",
+        title="Slide tag",
+        description="Slide tag.",
+        json_schema_extra={
+            "in_app": True,
+        },
+    )
     project_prefix_tag: str = Field("", title="Project prefix")
     project_suffix_tag: str = Field("", title="Project suffix")
     project_tag: str = Field("group", title="Project group")
     pyramid_level: int = Field(-1, ge=-3, le=-1)
-    transformations: tuple[str] = Field(
-        ("rigid", "affine"), title="Transformations", description="Transformations.", in_app=True
+    transformations: tuple[str, ...] = Field(
+        ("rigid", "affine"),
+        title="Transformations",
+        description="Transformations.",
+        json_schema_extra={
+            "in_app": True,
+        },
     )
     common_intensity: bool = Field(True, title="Common intensity for all images")
 
@@ -245,68 +553,154 @@ class RegisterConfig(SingleAppConfig):
 
     USER_CONFIG_FILENAME = "config.register.json"
 
-    enable_prediction: bool = Field(True, title="Enable prediction", description="Enable prediction.", in_app=True)
-    sync_views: bool = Field(True, title="Sync views", description="Sync views.", in_app=False)
+    enable_prediction: bool = Field(
+        True,
+        title="Enable prediction",
+        description="Enable prediction.",
+        json_schema_extra={
+            "in_app": True,
+        },
+    )
+    sync_views: bool = Field(
+        True,
+        title="Sync views",
+        description="Sync views.",
+        json_schema_extra={
+            "in_app": False,
+        },
+    )
     zoom_factor: float = Field(
-        7.5, ge=0.5, le=100.0, step_size=0.25, n_decimals=2, title="Zoom factor", description="Zoom factor."
+        7.5,
+        ge=0.5,
+        le=100.0,
+        title="Zoom factor",
+        description="Zoom factor.",
+        json_schema_extra={
+            "step_size": 0.25,
+            "n_decimals": 2,
+        },
     )
     opacity_fixed: int = Field(
-        100, ge=0, le=100, step_size=10, title="Opacity (fixed)", description="Opacity of the fixed image", in_app=False
+        100,
+        ge=0,
+        le=100,
+        title="Opacity (fixed)",
+        description="Opacity of the fixed image",
+        json_schema_extra={
+            "in_app": False,
+            "step_size": 10,
+        },
     )
     opacity_moving: int = Field(
         75,
         ge=0,
         le=100,
-        step_size=10,
         title="Opacity (moving)",
         description="Opacity of the moving image",
-        in_app=False,
+        json_schema_extra={
+            "in_app": False,
+            "step_size": 10,
+        },
     )
     size_fixed: int = Field(
         3,
         ge=1,
         le=40,
-        step_size=1,
         title="Size (fixed)",
         description="Size of the points shown in the fixed image.",
-        in_app=False,
+        json_schema_extra={
+            "in_app": False,
+            "step_size": 1,
+        },
     )
     size_moving: int = Field(
         10,
         ge=1,
         le=40,
-        step_size=1,
         title="Size (moving)",
         description="Size of the points shown in the moving image.",
-        in_app=False,
+        json_schema_extra={
+            "in_app": False,
+            "step_size": 1,
+        },
     )
     label_size: int = Field(
         12,
         ge=4,
         le=60,
-        step_size=4,
         title="Label size",
         description="Size of the text associated with each label.",
-        in_app=False,
+        json_schema_extra={
+            "in_app": False,
+            "step_size": 4,
+        },
     )
     label_color: str = Field(
-        "#FFFF00", title="Label color", description="Color of the text associated with each label.", in_app=False
+        "#FFFF00",
+        title="Label color",
+        description="Color of the text associated with each label.",
+        json_schema_extra={
+            "in_app": False,
+        },
     )
     viewer_orientation: ViewerOrientation = Field(
-        ViewerOrientation.VERTICAL, title="Viewer orientation", description="Orientation of the viewer.", in_app=False
+        ViewerOrientation.VERTICAL,
+        title="Viewer orientation",
+        description="Orientation of the viewer.",
+        json_schema_extra={
+            "in_app": False,
+        },
     )
-    fixed_dir: str = Field("", title="Fixed directory", description="Directory with fixed images.", in_app=False)
-    moving_dir: str = Field("", title="Moving directory", description="Directory with moving images.", in_app=False)
+    fixed_dir: str = Field(
+        "",
+        title="Fixed directory",
+        description="Directory with fixed images.",
+        json_schema_extra={
+            "in_app": False,
+        },
+    )
+    moving_dir: str = Field(
+        "",
+        title="Moving directory",
+        description="Directory with moving images.",
+        json_schema_extra={
+            "in_app": False,
+        },
+    )
 
     # fiducial marker options
-    zoom_on_point: bool = Field(True, title="Fiducial zoom", description="Fiducial zoom.", in_app=False)
-    simplify_contours_distance: float = Field(
-        2.25, title="Simplify contour", description="Simplify contour.", in_app=False, le=10, ge=0
+    zoom_on_point: bool = Field(
+        True,
+        title="Fiducial zoom",
+        description="Fiducial zoom.",
+        json_schema_extra={
+            "in_app": False,
+        },
     )
-    zoom_scale: float = Field(0.01, title="Zoom scale", description="Zoom scale.", in_app=False, ge=0.0001, le=1)
+    simplify_contours_distance: float = Field(
+        2.25,
+        title="Simplify contour",
+        description="Simplify contour.",
+        le=10,
+        ge=0,
+        json_schema_extra={
+            "in_app": False,
+        },
+    )
+    zoom_scale: float = Field(
+        0.01,
+        title="Zoom scale",
+        description="Zoom scale.",
+        ge=0.0001,
+        le=1,
+        json_schema_extra={
+            "in_app": False,
+        },
+    )
 
-    @validator("viewer_orientation", pre=True, allow_reuse=True)
-    def _validate_orientation(value: ty.Union[str, ViewerOrientation]) -> ViewerOrientation:  # type: ignore[misc]
+    @field_validator("viewer_orientation", mode="before")
+    @classmethod
+    def _validate_orientation(cls, value: ty.Union[str, ViewerOrientation]) -> ViewerOrientation:  # type: ignore[misc]
         """Validate path."""
         return ViewerOrientation(value)
 

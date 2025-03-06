@@ -39,7 +39,7 @@ dependencies = [
     "rasterio",
     "pandas<2",
     "numpy<2",
-    "pydantic<2"
+    "pydantic>=2"
     # "qtextra",
     # "image2image-io"
 ]

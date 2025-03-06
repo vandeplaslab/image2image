@@ -11,7 +11,7 @@ from koyo.timer import MeasureTimer
 from koyo.typing import PathLike
 from koyo.utilities import clean_path
 from loguru import logger
-from pydantic import Field, validator
+from pydantic import Field, field_validator
 
 from image2image.models.base import BaseModel
 from image2image.models.transform import TransformData
@@ -35,7 +35,7 @@ class DataModel(BaseModel):
     is_fixed: bool = False
 
     # noinspection PyMethodFirstArgAssignment,PyMethodParameters
-    @validator("paths", pre=True, allow_reuse=True)
+    @field_validator("paths", mode="before")
     def _validate_path(value: ty.Union[PathLike, list[PathLike]]) -> list[Path]:  # type: ignore[misc]
         """Validate path."""
         if isinstance(value, (str, Path)):

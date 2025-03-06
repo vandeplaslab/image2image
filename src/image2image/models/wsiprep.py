@@ -8,7 +8,7 @@ import numpy as np
 from koyo.typing import PathLike
 from loguru import logger
 from natsort import natsorted
-from pydantic import Field, validator
+from pydantic import Field, field_validator
 
 from image2image.config import get_elastix3d_config
 from image2image.models.base import BaseModel
@@ -147,7 +147,7 @@ class RegistrationGroup(BaseModel):
     mask_bbox: ty.Optional[tuple[int, int, int, int]] = Field(None, title="Mask bounding box")
     mask_polygon: ty.Optional[np.ndarray] = Field(None, title="Mask polygon")
 
-    @validator("mask_polygon", pre=True, allow_reuse=True)
+    @field_validator("mask_polygon", mode="before")
     def _validate_polygon(cls, v) -> ty.Optional[np.ndarray]:
         if isinstance(v, list):
             return np.asarray(v)
