@@ -16,7 +16,7 @@ from qtextra.widgets.qt_button_icon import QtLockButton, QtVisibleButton
 from qtextra.widgets.qt_list_widget import QtListItem, QtListWidget
 from qtpy.QtCore import QRegularExpression, Qt, Signal, Slot  # type: ignore[attr-defined]
 from qtpy.QtGui import QRegularExpressionValidator
-from qtpy.QtWidgets import QDialog, QHBoxLayout, QListWidgetItem, QSizePolicy, QWidget
+from qtpy.QtWidgets import QDialog, QListWidgetItem, QSizePolicy, QWidget
 
 from image2image.config import SingleAppConfig, get_elastix_config, get_valis_config
 from image2image.qt._wsi._widgets import QtModalityLabel
@@ -118,7 +118,9 @@ class QtModalityItem(QtListItem):
         )
 
         self.preprocessing_label = hp.make_scrollable_label(
-            self, "<no pre-processing>", alignment=Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop
+            self,
+            "<no pre-processing>",
+            alignment=Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop,
         )
         self.preprocessing_label.evt_clicked.connect(self.on_open_preprocessing)
 
@@ -159,14 +161,28 @@ class QtModalityItem(QtListItem):
         self.visible_btn.set_normal()
         self.visible_btn.evt_toggled.connect(self._on_show_image)
 
-        lay = QHBoxLayout()
-        lay.setContentsMargins(0, 0, 0, 0)
-        lay.setSpacing(0)
+        lay = hp.make_h_layout(margin=0, spacing=0)
         lay.addLayout(
-            hp.make_v_layout(self.attach_image_btn, self.attach_geojson_btn, self.attach_points_btn, stretch_after=True)
+            hp.make_v_layout(
+                self.attach_image_btn,
+                self.attach_geojson_btn,
+                self.attach_points_btn,
+                stretch_after=True,
+            )
         )
-        lay.addLayout(hp.make_v_layout(self.color_btn, self.preprocessing_btn, self.preview_btn, stretch_after=True))
-        lay.addWidget(self.preprocessing_label, alignment=Qt.AlignmentFlag.AlignTop, stretch=True)
+        lay.addLayout(
+            hp.make_v_layout(
+                self.color_btn,
+                self.preprocessing_btn,
+                self.preview_btn,
+                stretch_after=True,
+            ),
+        )
+        lay.addWidget(
+            self.preprocessing_label,
+            alignment=Qt.AlignmentFlag.AlignTop,
+            stretch=True,
+        )
 
         layout = hp.make_form_layout()
         layout.setLabelAlignment(Qt.AlignmentFlag.AlignRight)
@@ -174,9 +190,7 @@ class QtModalityItem(QtListItem):
         layout.addRow(hp.make_label(self, "Pixel size"), self.resolution_label)
         layout.addRow(lay)
 
-        main_layout = QHBoxLayout(self)
-        main_layout.setContentsMargins(1, 1, 1, 1)
-        main_layout.setSpacing(1)
+        main_layout = hp.make_h_layout(parent=self, margin=1, spacing=1)
         main_layout.addLayout(
             hp.make_v_layout(
                 self.modality_icon,
@@ -188,6 +202,8 @@ class QtModalityItem(QtListItem):
                 self.crop_btn,
                 stretch_after=True,
                 widget_alignment=Qt.AlignmentFlag.AlignCenter,
+                margin=0,
+                spacing=1,
             ),
         )
         main_layout.addLayout(layout, stretch=True)
