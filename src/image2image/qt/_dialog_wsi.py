@@ -405,7 +405,10 @@ class ImageWsiWindow(SingleViewerMixin):
             path = self.registration_model.project_dir / "Images"
             if path.exists():
                 self.on_open_viewer("--image_dir", str(path))
+                hp.toast(self, "Opening viewer...")
                 logger.trace("Opening viewer.")
+            else:
+                logger.warning("No image registration model available.")
 
     def on_open_in_viewer_and_close_project(self) -> None:
         """Open registration in viewer and then close it."""
