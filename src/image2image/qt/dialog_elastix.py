@@ -12,6 +12,7 @@ from koyo.secret import hash_parameters
 from koyo.timer import MeasureTimer
 from koyo.typing import PathLike
 from loguru import logger
+from qtextra.config import THEMES
 from qtextra.queue.popup import QUEUE
 from qtextra.queue.task import Task
 from qtextra.utils.utilities import connect
@@ -517,11 +518,16 @@ class ImageElastixWindow(ImageWsiWindow):
             self.output_dir = None
             logger.trace("Closed project.")
 
-    def _setup_ui(self):
+    def _setup_ui(self) -> None:
         """Create panel."""
         self.view = self._make_image_view(
             self, add_toolbars=True, allow_extraction=False, disable_controls=False, disable_new_layers=True
         )
+        self.view.toolbar.tools_cross_btn.hide()
+        self.view.toolbar.tools_colorbar_btn.hide()
+        self.view.toolbar.tools_clip_btn.hide()
+        self.view.toolbar.tools_save_btn.hide()
+        self.view.toolbar.tools_scalebar_btn.hide()
         self.view.widget.canvas.events.key_press.connect(self.keyPressEvent)
         self.view.viewer.scale_bar.unit = "um"
 
@@ -564,12 +570,6 @@ class ImageElastixWindow(ImageWsiWindow):
         self._make_visibility_options()
 
         side_layout = hp.make_form_layout(parent=side_widget)
-        # side_layout.addRow(
-        #     hp.make_btn(
-        #         side_widget, "Import project...", tooltip="Load previous project", func=self.on_load_from_project
-        #     )
-        # )
-        # side_layout.addRow(hp.make_h_line_with_text("or"))
         side_layout.addRow(self._image_widget)
         # Modalities
         side_layout.addRow(self.modality_list)
@@ -585,26 +585,21 @@ class ImageElastixWindow(ImageWsiWindow):
         )
         side_layout.addRow(hp.make_h_layout(self.mask_btn, self.crop_btn, self.merge_btn, spacing=2))
         # Registration paths
-        side_layout.addRow(hp.make_h_line_with_text("Registration paths"))
-        side_layout.addRow(self.registration_map)
-        # Project
-        self._make_output_widgets(side_widget)
-        side_layout.addRow(hp.make_h_line_with_text("I2Reg project"))
-        side_layout.addRow(hp.make_label(side_widget, "Name"), self.name_label)
-        side_layout.addRow(
-            hp.make_h_layout(
-                hp.make_label(side_widget, "Output directory", alignment=Qt.AlignmentFlag.AlignLeft),
-                self.output_dir_btn,
-                stretch_id=(0,),
-                spacing=1,
-                margin=1,
-            ),
+        self.registration_settings = hp.make_advanced_collapsible(
+            side_widget,
+            "Registration paths",
+            allow_checkbox=False,
+            allow_icon=False,
+            warning_icon=("warning", {"color": THEMES.get_theme_color("warning")}),
         )
-        side_layout.addRow(self.output_dir_label)
+        self.registration_settings.addRow(self.registration_map)
+        side_layout.addRow(self.registration_settings)
+        # Project
+        self.project_settings = self._make_output_widgets(side_widget)
+        side_layout.addRow(self.project_settings)
         # Advanced options
         self.hidden_settings = self._make_hidden_widgets(side_widget)
         side_layout.addRow(self.hidden_settings)
-
         self._make_run_widgets(side_widget)
         # Execution buttons
         side_layout.addRow(
@@ -633,7 +628,7 @@ class ImageElastixWindow(ImageWsiWindow):
         super()._make_statusbar()
         self.pyramid_level = hp.make_combobox(
             self,
-            PYRAMID_TO_LEVEL.keys(),
+            list(PYRAMID_TO_LEVEL.keys()),
             tooltip="Index of the polygon to show in the fixed image.\nNegative values are used go from smallest to"
             " highest level.\nValue of 0 means that the highest resolution is shown which will be slow to pre-process.",
             object_name="statusbar_combobox",

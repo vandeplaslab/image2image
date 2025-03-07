@@ -600,14 +600,19 @@ def show_elastix_tutorial(widget: ImageElastixWindow) -> None:
                 " images. You can also optionally specify the <b>through</b> modality. The <b>source modality will be"
                 " moved and therefore changed. The through modality can he helpful in aiding difficult registrations"
                 " where the source and target modalities are not similar.",
-                widget=widget.registration_map,
+                widget=widget.registration_settings,
                 position=Position.RIGHT,
+                func=(widget.registration_settings.expand,),
             ),
             TutorialStep(
                 title="Project name",
                 message="You can specify the name of the project here. This will be used when saving the project.",
                 widget=widget.name_label,
                 position=Position.RIGHT,
+                func=(
+                    widget.registration_settings.collapse,
+                    widget.project_settings.expand,
+                ),
             ),
             TutorialStep(
                 title="Export options",
@@ -707,12 +712,17 @@ def show_valis_tutorial(widget: ImageValisWindow) -> None:
                 " If one is not specified, it will be automatically determined based on similarity to other images.",
                 widget=widget.reference_choice,
                 position=Position.BOTTOM_RIGHT,
+                func=(widget.registration_settings.expand,),
             ),
             TutorialStep(
                 title="Project name",
                 message="You can specify the name of the project here. This will be used when saving the project.",
                 widget=widget.name_label,
                 position=Position.RIGHT,
+                func=(
+                    widget.registration_settings.collapse,
+                    widget.project_settings.expand,
+                ),
             ),
             TutorialStep(
                 title="Export options",

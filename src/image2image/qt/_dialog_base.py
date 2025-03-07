@@ -713,7 +713,7 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
         if self.view is None:
             raise ValueError("View is not initialized.")
 
-        dlg = QtScreenshotDialog(self.view, self)
+        dlg = QtScreenshotDialog(self.view.widget, self)
         dlg.show_above_widget(self.screenshot_btn)
 
     def on_show_update_info(self) -> None:

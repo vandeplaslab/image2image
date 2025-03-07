@@ -4,7 +4,7 @@ import typing as ty
 
 from koyo.config import BaseConfig
 from koyo.typing import PathLike
-from pydantic import Field, field_validator
+from pydantic import Field, field_serializer, field_validator
 
 from image2image.enums import ViewerOrientation
 from image2image.utils._appdirs import USER_CONFIG_DIR
@@ -221,7 +221,7 @@ class ElastixConfig(SingleAppConfig):
         },
     )
 
-    transformations: tuple[str] = Field(
+    transformations: tuple[str, ...] = Field(
         ("rigid", "affine"),
         title="Transformations",
         description="Transformations.",
@@ -317,6 +317,19 @@ class ElastixConfig(SingleAppConfig):
     def _validate_path(cls, value: PathLike) -> str:  # type: ignore[misc]
         """Validate path."""
         return str(value)
+
+    @field_validator("transformations", mode="before")
+    @classmethod
+    def _validate_transformations(cls, value: tuple[str, ...]) -> tuple[str, ...]:  # type: ignore[misc]
+        """Validate path."""
+        if value is None:
+            return ()
+        return tuple(value)
+
+    @field_serializer("transformations", when_used="always")
+    def _serialize_transformations(self, value: tuple[str, ...]) -> tuple[str, ...]:
+        """Serialize transformations."""
+        return tuple(value)
 
 
 class ValisConfig(SingleAppConfig):
@@ -546,6 +559,19 @@ class Elastix3dConfig(SingleAppConfig):
         },
     )
     common_intensity: bool = Field(True, title="Common intensity for all images")
+
+    @field_validator("transformations", mode="before")
+    @classmethod
+    def _validate_transformations(cls, value: ty.Tuple[str, ...]) -> ty.Tuple[str, ...]:  # type: ignore[misc]
+        """Validate path."""
+        if value is None:
+            return ()
+        return tuple(value)
+
+    @field_serializer("transformations", when_used="always")
+    def _serialize_transformations(self, value: tuple[str, ...]) -> tuple[str, ...]:
+        """Serialize transformations."""
+        return tuple(value)
 
 
 class RegisterConfig(SingleAppConfig):

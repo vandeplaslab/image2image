@@ -14,10 +14,10 @@ from koyo.secret import hash_parameters
 from koyo.timer import MeasureTimer
 from koyo.typing import PathLike
 from loguru import logger
+from qtextra.config import THEMES
 from qtextra.queue.queue_widget import QUEUE
 from qtextra.queue.task import Task
 from qtextra.utils.utilities import connect
-from qtpy.QtCore import Qt
 from qtpy.QtWidgets import QHBoxLayout, QVBoxLayout, QWidget
 
 from image2image import __version__
@@ -188,6 +188,11 @@ class ImageValisWindow(ImageWsiWindow):
         self.view = self._make_image_view(
             self, add_toolbars=True, allow_extraction=False, disable_controls=False, disable_new_layers=True
         )
+        self.view.toolbar.tools_cross_btn.hide()
+        self.view.toolbar.tools_colorbar_btn.hide()
+        self.view.toolbar.tools_clip_btn.hide()
+        self.view.toolbar.tools_save_btn.hide()
+        self.view.toolbar.tools_scalebar_btn.hide()
         self.view.widget.canvas.events.key_press.connect(self.keyPressEvent)
         self.view.viewer.scale_bar.unit = "um"
 
@@ -273,28 +278,24 @@ class ImageValisWindow(ImageWsiWindow):
             )
         )
         # Registration paths
-        side_layout.addRow(hp.make_h_line_with_text("Registration configuration"))
-        side_layout.addRow(hp.make_label(self, "Reference"), self.reference_choice)
-        side_layout.addRow(hp.make_label(self, "Feature detector"), self.feature_choice)
-        side_layout.addRow(hp.make_label(self, "Feature matcher"), self.matcher_choice)
-        side_layout.addRow(hp.make_label(self, "Check for reflection"), self.reflection_check)
-        side_layout.addRow(hp.make_label(self, "Non-rigid registration"), self.non_rigid_check)
-        side_layout.addRow(hp.make_label(self, "Refine registration"), self.micro_check)
-        side_layout.addRow(hp.make_label(self, "Fraction"), self.micro_fraction)
-        # Project
-        self._make_output_widgets(side_widget)
-        side_layout.addRow(hp.make_h_line_with_text("Valis project"))
-        side_layout.addRow(hp.make_label(side_widget, "Name"), self.name_label)
-        side_layout.addRow(
-            hp.make_h_layout(
-                hp.make_label(side_widget, "Output directory", alignment=Qt.AlignmentFlag.AlignLeft),
-                self.output_dir_btn,
-                stretch_id=(0,),
-                spacing=1,
-                margin=1,
-            ),
+        self.registration_settings = hp.make_advanced_collapsible(
+            side_widget,
+            "Registration configuration",
+            allow_checkbox=False,
+            allow_icon=False,
+            warning_icon=("warning", {"color": THEMES.get_theme_color("warning")}),
         )
-        side_layout.addRow(self.output_dir_label)
+        self.registration_settings.addRow(hp.make_label(self, "Reference"), self.reference_choice)
+        self.registration_settings.addRow(hp.make_label(self, "Feature detector"), self.feature_choice)
+        self.registration_settings.addRow(hp.make_label(self, "Feature matcher"), self.matcher_choice)
+        self.registration_settings.addRow(hp.make_label(self, "Check for reflection"), self.reflection_check)
+        self.registration_settings.addRow(hp.make_label(self, "Non-rigid registration"), self.non_rigid_check)
+        self.registration_settings.addRow(hp.make_label(self, "Refine registration"), self.micro_check)
+        self.registration_settings.addRow(hp.make_label(self, "Fraction"), self.micro_fraction)
+        side_layout.addRow(self.registration_settings)
+        # Project
+        self.project_settings = self._make_output_widgets(side_widget)
+        side_layout.addRow(self.project_settings)
         # Advanced options
         self.hidden_settings = self._make_hidden_widgets(side_widget)
         side_layout.addRow(self.hidden_settings)

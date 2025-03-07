@@ -61,6 +61,7 @@ class ImageWsiWindow(SingleViewerMixin):
     modality_list: QtModalityList
     pyramid_level: Qw.QComboBox
     hidden_settings: QtCheckCollapsible
+    project_settings: QtCheckCollapsible
 
     _mask_dlg: MaskDialog | None = None
     _crop_dlg: CropDialog | None = None
@@ -202,9 +203,10 @@ class ImageWsiWindow(SingleViewerMixin):
                 object_name = "error"
             if name and self.output_dir and (self.output_dir / name).with_suffix(self.PROJECT_SUFFIX).exists():
                 object_name = "warning"
-        except ValisConfig:
+        except Exception:
             object_name = "error"
         hp.set_object_name(self.name_label, object_name=object_name)
+        self.project_settings.set_warning_visible(object_name != "")
 
     def on_remove_modality(self, modality: Modality) -> None:
         """Remove modality from the project."""
@@ -467,7 +469,7 @@ class ImageWsiWindow(SingleViewerMixin):
         self.on_save_to_project()
         self.on_close(force=True)
 
-    def _make_output_widgets(self, side_widget: Qw.QWidget) -> None:
+    def _make_output_widgets(self, side_widget: Qw.QWidget) -> QtCheckCollapsible:
         # regex = r"^[a-zA-Z0-9_\-.,=]"
         regex = r"^[a-zA-Z0-9_\-.,=]{1,50}$"
 
@@ -489,6 +491,26 @@ class ImageWsiWindow(SingleViewerMixin):
             normal=True,
             standout=True,
         )
+
+        project_settings = hp.make_advanced_collapsible(
+            side_widget,
+            f"{self.APP_NAME.capitalize()} project",
+            allow_checkbox=False,
+            allow_icon=False,
+            warning_icon=("warning", {"color": THEMES.get_theme_color("warning")}),
+        )
+        project_settings.addRow(hp.make_label(side_widget, "Name"), self.name_label)
+        project_settings.addRow(
+            hp.make_h_layout(
+                hp.make_label(side_widget, "Output directory", alignment=Qt.AlignmentFlag.AlignLeft),
+                self.output_dir_btn,
+                stretch_id=(0,),
+                spacing=1,
+                margin=1,
+            ),
+        )
+        project_settings.addRow(self.output_dir_label)
+        return project_settings
 
     def _make_visibility_options(self) -> None:
         self.show_all_btn = hp.make_qta_btn(self, "visible_on", tooltip="Show all modalities", func=self.on_show_all)

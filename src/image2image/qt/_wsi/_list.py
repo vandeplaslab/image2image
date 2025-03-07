@@ -16,7 +16,7 @@ from qtextra.widgets.qt_button_icon import QtLockButton, QtVisibleButton
 from qtextra.widgets.qt_list_widget import QtListItem, QtListWidget
 from qtpy.QtCore import QRegularExpression, Qt, Signal, Slot  # type: ignore[attr-defined]
 from qtpy.QtGui import QRegularExpressionValidator
-from qtpy.QtWidgets import QDialog, QListWidgetItem, QSizePolicy, QWidget
+from qtpy.QtWidgets import QDialog, QGridLayout, QListWidgetItem, QSizePolicy, QWidget
 
 from image2image.config import SingleAppConfig, get_elastix_config, get_valis_config
 from image2image.qt._wsi._widgets import QtModalityLabel
@@ -129,14 +129,14 @@ class QtModalityItem(QtListItem):
             normal=True,
             func=self.on_remove,
         )
-        self.mask_btn = hp.make_qta_btn(
+        self.mask_btn = hp.make_qta_label(
             self,
             "mask",
             normal=True,
             tooltip="When mask is applied to the image, this icon will be visible.",
         )
         self.mask_btn.setHidden(self.valis)
-        self.crop_btn = hp.make_qta_btn(
+        self.crop_btn = hp.make_qta_label(
             self,
             "crop",
             normal=True,
@@ -155,51 +155,33 @@ class QtModalityItem(QtListItem):
         self.visible_btn.set_normal()
         self.visible_btn.evt_toggled.connect(self._on_show_image)
 
-        lay = hp.make_h_layout(margin=0, spacing=0)
-        lay.addLayout(
-            hp.make_v_layout(
-                self.attach_image_btn,
-                self.attach_geojson_btn,
-                self.attach_points_btn,
-                stretch_after=True,
-            )
-        )
-        lay.addLayout(
-            hp.make_v_layout(
-                self.color_btn,
-                self.preprocessing_btn,
-                self.lock_btn,
-                stretch_after=True,
-            ),
-        )
-        lay.addWidget(
-            self.preprocessing_label,
-            alignment=Qt.AlignmentFlag.AlignTop,
-            stretch=True,
-        )
-
-        layout = hp.make_form_layout()
-        layout.setLabelAlignment(Qt.AlignmentFlag.AlignRight)
-        layout.addRow(hp.make_label(self, "Name"), self.name_label)
-        layout.addRow(hp.make_label(self, "Pixel size"), self.resolution_label)
-        layout.addRow(lay)
-
-        main_layout = hp.make_h_layout(parent=self, margin=1, spacing=1)
-        main_layout.addLayout(
-            hp.make_v_layout(
-                self.modality_icon,
-                self.open_dir_btn,
-                self.remove_btn,
-                self.visible_btn,
-                self.mask_btn,
-                self.crop_btn,
-                stretch_after=True,
-                widget_alignment=Qt.AlignmentFlag.AlignCenter,
-                margin=0,
-                spacing=1,
-            ),
-        )
-        main_layout.addLayout(layout, stretch=True)
+        grid = QGridLayout(self)
+        # widget, row, column, rowspan, colspan
+        grid.setSpacing(0)
+        grid.setContentsMargins(0, 0, 0, 0)
+        grid.setColumnStretch(3, True)
+        # column 1
+        grid.addWidget(self.modality_icon, 0, 0)
+        grid.addWidget(self.open_dir_btn, 1, 0)
+        grid.addWidget(self.remove_btn, 2, 0)
+        grid.addWidget(self.visible_btn, 3, 0)
+        grid.addWidget(self.mask_btn, 4, 0)
+        grid.addWidget(self.crop_btn, 5, 0)
+        # column 2
+        grid.addWidget(self.attach_image_btn, 2, 1)
+        grid.addWidget(self.attach_geojson_btn, 3, 1)
+        grid.addWidget(self.attach_points_btn, 4, 1)
+        # column 3
+        grid.addWidget(self.color_btn, 2, 2)
+        grid.addWidget(self.lock_btn, 3, 2)
+        grid.addWidget(self.preprocessing_btn, 4, 2)
+        # column 2-3
+        grid.addWidget(hp.make_label(self, "Name"), 0, 1, 1, 2)
+        grid.addWidget(hp.make_label(self, "Pixel size"), 1, 1, 1, 2)
+        # column 4
+        grid.addWidget(self.name_label, 0, 3)
+        grid.addWidget(self.resolution_label, 1, 3)
+        grid.addWidget(self.preprocessing_label, 2, 3, 3, 1)
 
         self.mode = False
         self._set_from_model()
