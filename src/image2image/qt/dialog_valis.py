@@ -437,7 +437,6 @@ class ImageValisWindow(ImageWsiWindow):
                     )
         # Populate table
         self.modality_list.populate()
-        self.modality_list.toggle_preview(self.use_preview_check.isChecked())
         self.populate_reference_list()
 
     def on_depopulate_list(self, keys: list[str]) -> None:

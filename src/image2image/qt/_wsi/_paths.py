@@ -38,8 +38,6 @@ class RegistrationPaths(QWidget):
                 "similarity",
                 "affine",
                 "nl",
-                "nl_reduced",
-                "nl_mid",
                 "nl2",
                 "rigid_expanded",  # Expanded
                 "similarity_expanded",
@@ -58,10 +56,17 @@ class RegistrationPaths(QWidget):
                 "affine_anc",
                 "nl_anc",
                 "fi_correction",  # Other
+                "nl_reduced",
+                "nl_mid",
             ],
             default="rigid",
             tooltip="Select registration type(s)...",
         )
+        self._choice.insertSeparator(self._choice.findText("nl2") + 1)  # after initials
+        self._choice.insertSeparator(self._choice.findText("nl_expanded") + 1)  # after expanded
+        self._choice.insertSeparator(self._choice.findText("nl_extreme") + 1)  # after extreme
+        self._choice.insertSeparator(self._choice.findText("nl_ams") + 1)  # after AMC metrics
+        self._choice.insertSeparator(self._choice.findText("nl_anc") + 1)  # after ANC metrics
         self._path = hp.make_label(
             self, "<please select transformations>", wrap=True, alignment=Qt.AlignmentFlag.AlignHCenter
         )

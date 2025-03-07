@@ -352,7 +352,6 @@ class ImageElastixWindow(ImageWsiWindow):
         # Populate table
         self.modality_list.populate()
         self.registration_map.populate()
-        self.modality_list.toggle_preview(self.use_preview_check.isChecked())
 
     def on_depopulate_list(self, keys: list[str]) -> None:
         """De-populate list."""

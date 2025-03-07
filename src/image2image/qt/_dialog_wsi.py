@@ -355,7 +355,6 @@ class ImageWsiWindow(SingleViewerMixin):
         """Show modality images."""
         self.CONFIG.update(use_preview=self.use_preview_check.isChecked())
         # self.on_hide_not_previewed_modalities()
-        self.modality_list.toggle_preview(self.CONFIG.use_preview)
         for _, modality, widget in self.modality_list.item_model_widget_iter():
             self.on_show_modality(modality, state=widget.visible_btn.state)  # , overwrite=True)
 

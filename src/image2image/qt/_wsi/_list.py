@@ -80,13 +80,6 @@ class QtModalityItem(QtListItem):
             func=self.on_open_preprocessing,
             normal=True,
         )
-        self.preview_btn = hp.make_qta_btn(
-            self,
-            "preview",
-            tooltip="Click here to set immediately preview image parameters.",
-            func=self.on_preview,
-            normal=True,
-        )
         self.color_btn = hp.make_swatch(self, color, tooltip="Click here to change color.")
         self.color_btn.evt_color_changed.connect(self._on_change_color)
         self.attach_image_btn = hp.make_qta_btn(
@@ -123,6 +116,7 @@ class QtModalityItem(QtListItem):
             alignment=Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop,
         )
         self.preprocessing_label.evt_clicked.connect(self.on_open_preprocessing)
+        hp.set_expanding_sizer_policy(self.preprocessing_label, vert=True)
 
         self.modality_icon = QtModalityLabel(self)
         self.open_dir_btn = hp.make_qta_btn(
@@ -174,7 +168,7 @@ class QtModalityItem(QtListItem):
             hp.make_v_layout(
                 self.color_btn,
                 self.preprocessing_btn,
-                self.preview_btn,
+                self.lock_btn,
                 stretch_after=True,
             ),
         )
@@ -197,7 +191,6 @@ class QtModalityItem(QtListItem):
                 self.open_dir_btn,
                 self.remove_btn,
                 self.visible_btn,
-                self.lock_btn,
                 self.mask_btn,
                 self.crop_btn,
                 stretch_after=True,
@@ -505,10 +498,6 @@ class QtModalityItem(QtListItem):
         self.crop_btn.setVisible(self.item_model.preprocessing.is_cropped())
         self.on_update_preprocessing(self.item_model.preprocessing)
 
-    def toggle_preview(self, state: bool) -> None:
-        """Toggle name."""
-        hp.disable_widgets(self.preview_btn, disabled=state)
-
     def toggle_visible(self, state: bool) -> None:
         """Toggle visibility icon."""
         with hp.qt_signals_blocked(self.visible_btn):
@@ -635,11 +624,6 @@ class QtModalityList(QtListWidget):
         """Toggle mask icon."""
         for _, _, widget in self.item_model_widget_iter():
             widget.toggle_crop()
-
-    def toggle_preview(self, disabled: bool) -> None:
-        """Toggle toggle button."""
-        for _, _, widget in self.item_model_widget_iter():
-            widget.toggle_preview(disabled)
 
     def toggle_visible(self, names: list[str]) -> None:
         """Toggle visibility icon of items."""
