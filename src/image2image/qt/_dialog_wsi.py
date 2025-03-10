@@ -178,21 +178,24 @@ class ImageWsiWindow(SingleViewerMixin):
         """Queue registration."""
         self._queue_registration_model(add_delayed=True, save=False)
 
-    def on_copy_to_clipboard(self, which: str = "both") -> None:
+    def on_copy_to_clipboard(self, which: str = "all") -> None:
         """Copy command to clipboard."""
-        # retrieve task
         task = self._queue_registration_model(add_delayed=False, save=False, cli=True)
         commands_ = [" ".join(command) for command in task.command_iter()]  # type: ignore[union-attr]
         commands = []
-        if which == "registration":
+        if which == "preprocess":
             commands = [commands_[0]]
-        elif which == "transformation" and len(commands_) == 2:
+        if which == "registration":
             commands = [commands_[1]]
-        elif which == "both":
+        elif which == "transformation" and len(commands_) == 3:
+            commands = [commands_[2]]
+        elif which == "all":
             commands = commands_
         if commands:
-            hp.copy_text_to_clipboard("; ".join(commands))
-            logger.trace(f"Copied command to clipboard: {commands}")
+            commands_str = "; ".join(commands)
+            commands_str = commands_str.replace("--no_color --debug", "--debug")
+            hp.copy_text_to_clipboard(commands_str)
+            logger.trace(f"Copied command to clipboard: {commands_str}")
 
     def on_validate_path(self, _: ty.Any = None) -> None:
         """Validate project path."""
@@ -741,9 +744,17 @@ class ImageWsiWindow(SingleViewerMixin):
         menu.addSeparator()
         hp.make_menu_item(
             self,
-            "Copy registration + transformation command to clipboard",
+            "Copy preprocessing, registration + transformation command to clipboard",
             menu=menu,
-            func=lambda: self.on_copy_to_clipboard("both"),
+            func=lambda: self.on_copy_to_clipboard("all"),
+            icon="cli",
+            tooltip="Copy the registration command to clipboard so it can be executed externally.",
+        )
+        hp.make_menu_item(
+            self,
+            "Copy preprocessing command to clipboard",
+            menu=menu,
+            func=lambda: self.on_copy_to_clipboard("preprocess"),
             icon="cli",
             tooltip="Copy the registration command to clipboard so it can be executed externally.",
         )

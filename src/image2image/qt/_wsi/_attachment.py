@@ -24,7 +24,7 @@ class AttachWidget(QtDialog):
     attachment_name: str = ""
     source_pixel_size: float = 1.0
 
-    def __init__(self, parent: QWidget, pixel_sizes: tuple[float, float], title: str = "Attach modality..."):
+    def __init__(self, parent: QWidget | None, pixel_sizes: tuple[float, float], title: str = "Attach modality..."):
         # pixel_sizes are specified as (default (unknown), modality)
         self._pixel_sizes = pixel_sizes
         super().__init__(parent, title=title)
@@ -91,10 +91,13 @@ class AttachmentEditDialog(QtDialog):
         .add("", "remove", "button", 0, sizing="contents")
     )
 
-    def __init__(self, parent: QWidget, modality: Modality, registration_model: ElastixReg | ValisReg):
+    def __init__(
+        self, parent: QWidget | None, modality: Modality, registration_model: ElastixReg | ValisReg, which: str = "all"
+    ):
         self.modality = modality
+        self.which = which
         self.registration_model = registration_model
-        self.name_mapping = {}
+        self.name_mapping: dict[tuple[str, str], str] = {}
         super().__init__(parent)
         self.setWindowFlags(self.windowFlags() | Qt.WindowType.WindowStaysOnTopHint)
         self.on_populate_table()
@@ -152,21 +155,24 @@ class AttachmentEditDialog(QtDialog):
             self.table.removeRow(0)
 
         # add images
-        attached_images = self.registration_model.get_attachment_list(self.modality.name, "image")
-        for image in attached_images:
-            modality = self.registration_model.get_modality(image)
-            _insert_row(modality.name, modality.path, modality.pixel_size, "image")
+        if self.which in ["all", "image"]:
+            attached_images = self.registration_model.get_attachment_list(self.modality.name, "image")
+            for image in attached_images:
+                modality = self.registration_model.get_modality(image)
+                _insert_row(modality.name, modality.path, modality.pixel_size, "image")
         # add shapes
-        attached_shapes = self.registration_model.get_attachment_list(self.modality.name, "geojson")
-        for name in attached_shapes:
-            shapes = self.registration_model.attachment_shapes[name]
-            _insert_row(name, shapes["files"], shapes["pixel_size"], "geojson")
+        if self.which in ["all", "shapes"]:
+            attached_shapes = self.registration_model.get_attachment_list(self.modality.name, "geojson")
+            for name in attached_shapes:
+                shapes = self.registration_model.attachment_shapes[name]
+                _insert_row(name, shapes["files"], shapes["pixel_size"], "geojson")
 
         # add shapes
-        attached_points = self.registration_model.get_attachment_list(self.modality.name, "points")
-        for name in attached_points:
-            points = self.registration_model.attachment_points[name]
-            _insert_row(name, points["files"], points["pixel_size"], "points")
+        if self.which in ["all", "points"]:
+            attached_points = self.registration_model.get_attachment_list(self.modality.name, "points")
+            for name in attached_points:
+                points = self.registration_model.attachment_points[name]
+                _insert_row(name, points["files"], points["pixel_size"], "points")
 
     def on_update_attachment(
         self,
@@ -174,7 +180,7 @@ class AttachmentEditDialog(QtDialog):
         attachment_type: str,
         resolution_edit: QLineEdit | None = None,
         name_edit: QLineEdit | None = None,
-    ):
+    ) -> None:
         """Update attachment."""
         new_name = name_edit.text() if name_edit else name
         new_resolution = float(resolution_edit.text()) if resolution_edit else None

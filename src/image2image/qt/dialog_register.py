@@ -376,7 +376,7 @@ class ImageRegistrationWindow(Window):
         logger.info(f"Loaded fixed data in {timer()}")
 
     def _plot_fixed_layers(self, channel_list: list[str] | None = None) -> None:
-        self.fixed_image_layer, _, _ = self._plot_image_layers(
+        self.fixed_image_layer, _, _ = self._plot_reader_layers(
             self.fixed_model, self.view_fixed, channel_list, "fixed view"
         )
         if isinstance(self.fixed_image_layer, list) and len(self.fixed_image_layer) > 1:

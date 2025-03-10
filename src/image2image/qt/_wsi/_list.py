@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import typing as ty
 from contextlib import suppress
+from functools import partial
 from pathlib import Path
 
 import numpy as np
@@ -88,7 +89,7 @@ class QtModalityItem(QtListItem):
             tooltip="Click here to attach Image file. (.czi, .tiff)<br>Right-click to remove images.",
             normal=True,
             func=self.on_attach_image,
-            func_menu=self.on_edit_attachment,
+            func_menu=partial(self.on_edit_attachment, "image"),
             properties={"with_count": True},
         )
         self.attach_geojson_btn = hp.make_qta_btn(
@@ -97,7 +98,7 @@ class QtModalityItem(QtListItem):
             tooltip="Click here to attach GeoJSON file (.geojson).<br>Right-click to remove shapes.",
             normal=True,
             func=self.on_attach_geojson,
-            func_menu=self.on_edit_attachment,
+            func_menu=partial(self.on_edit_attachment, which="shapes"),
             properties={"with_count": True},
         )
         self.attach_points_btn = hp.make_qta_btn(
@@ -106,7 +107,7 @@ class QtModalityItem(QtListItem):
             tooltip="Click here to attach points file (.csv, .txt).<br>Right-click to remove points.",
             normal=True,
             func=self.on_attach_points,
-            func_menu=self.on_edit_attachment,
+            func_menu=partial(self.on_edit_attachment, which="points"),
             properties={"with_count": True},
         )
 
@@ -253,31 +254,31 @@ class QtModalityItem(QtListItem):
         to_remove = hp.choose_from_list(self, options, text=f"Please choose <b>{kind}</b> attachment from the list.")
         return to_remove
 
-    def on_edit_attachment(self) -> None:
+    def on_edit_attachment(self, which: str = "all") -> None:
         """Remove Image file."""
         from image2image.qt._wsi._attachment import AttachmentEditDialog
 
         if not self.registration_model.has_attachments(self.item_model.name):
-            hp.toast(self, "Error", "No attachments found for this modality.", icon="warning")
+            hp.toast(hp.get_main_window(), "Error", "No attachments found for this modality.", icon="warning")
             return
 
-        dlg = AttachmentEditDialog(hp.get_main_window(), self.item_model, self.registration_model)
+        dlg = AttachmentEditDialog(hp.get_main_window(self), self.item_model, self.registration_model, which)
         dlg.show_in_center_of_screen(show=False)
-        dlg.raise_()
-        _ = dlg.exec_()
+        if dlg.exec_() == QDialog.DialogCode.Accepted:  # type: ignore[attr-defined]
+            pass
         self._set_from_model()
 
     def _get_attachment_metadata(self) -> tuple[str | None, float | None]:
         """Return attachment metadata."""
         from image2image.qt._wsi._attachment import AttachWidget
 
-        dlg = AttachWidget(self, pixel_sizes=(1.0, self.item_model.pixel_size))
+        dlg = AttachWidget(hp.get_main_window(self), pixel_sizes=(1.0, self.item_model.pixel_size))
         dlg.show_in_center_of_screen(show=False)
         if dlg.exec_() == QDialog.DialogCode.Accepted:  # type: ignore[attr-defined]
             return None, dlg.source_pixel_size
         return None, None
 
-    def auto_add_attachments(self, filelist: list[str]):
+    def auto_add_attachments(self, filelist: list[str]) -> None:
         """Add any attachment"""
         shapes, points = [], []
         for file in filelist:

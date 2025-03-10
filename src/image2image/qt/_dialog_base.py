@@ -133,7 +133,7 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
     ) -> None:
         if name not in view_wrapper.layers:
             logger.warning(f"Layer '{name}' not found in the view.")
-            self.image_layer, self.shape_layer, self.points_layer = self._plot_image_layers(
+            self.image_layer, self.shape_layer, self.points_layer = self._plot_reader_layers(
                 model, view_wrapper, [name], view_kind, True
             )
             return
@@ -160,14 +160,14 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
                     continue
                 if name not in view_wrapper.layers:
                     logger.warning(f"Layer '{name}' not found in the view.")
-                    self.image_layer, self.shape_layer, self.points_layer = self._plot_image_layers(
+                    self.image_layer, self.shape_layer, self.points_layer = self._plot_reader_layers(
                         model, view_wrapper, [name], view_kind, True
                     )
                     continue
                 view_wrapper.layers[name].visible = state
 
     @staticmethod
-    def _plot_image_layers(
+    def _plot_reader_layers(
         model: DataModel,
         view_wrapper: NapariImageView,
         channel_list: list[str] | None = None,
@@ -185,8 +185,8 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
         need_reset = len(view_wrapper.layers) == 0
         zoom = view_wrapper.viewer.camera.zoom
         center = view_wrapper.viewer.camera.center
-        for index, (name, array, reader) in enumerate(wrapper.channel_image_for_channel_names_iter(channel_list)):
-            name.split(" | ")[0]
+        image_index = 0
+        for _index, (name, array, reader) in enumerate(wrapper.channel_image_for_channel_names_iter(channel_list)):
             if name not in channel_list:
                 continue
             logger.trace(f"Adding '{name}' to view...")
@@ -229,7 +229,8 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
                         if any(v in name.lower() for v in ("brightfield", "bright")):
                             colormap = "gray"
                         else:
-                            colormap = get_colormap(index, view_wrapper.layers)
+                            colormap = get_colormap(image_index, view_wrapper.layers)
+                        image_index += 1
                         image_layer.append(
                             view_wrapper.viewer.add_image(
                                 array,
