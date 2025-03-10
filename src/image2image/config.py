@@ -304,12 +304,15 @@ class ElastixConfig(SingleAppConfig):
         },
     )
     rename: bool = Field(
-        True,
+        False,
         title="Rename",
         description="Rename.",
         json_schema_extra={
             "in_app": True,
         },
+    )
+    clip: ty.Literal["ignore", "clip", "remove", "part-remove"] = Field(
+        "remove", title="Clip", description="Clip.", json_schema_extra={"in_app": True}
     )
 
     @field_validator("env_i2reg", mode="before")
@@ -481,12 +484,15 @@ class ValisConfig(SingleAppConfig):
         },
     )
     rename: bool = Field(
-        True,
+        False,
         title="Rename",
         description="Rename.",
         json_schema_extra={
             "in_app": True,
         },
+    )
+    clip: ty.Literal["ignore", "clip", "remove", "part-remove"] = Field(
+        "remove", title="Clip", description="Clip.", json_schema_extra={"in_app": True}
     )
 
     @field_validator("env_i2reg", mode="before")

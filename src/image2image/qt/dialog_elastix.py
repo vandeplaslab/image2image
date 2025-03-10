@@ -45,6 +45,7 @@ def make_registration_task(
     remove_merged: bool = False,
     as_uint8: bool = False,
     rename: bool = True,
+    clip: str = "remove",
 ) -> Task:
     """Make registration task."""
     task_id = hash_parameters(
@@ -100,6 +101,8 @@ def make_registration_task(
             "--remove_merged" if remove_merged else "--no_remove_merged",
             "--as_uint8" if as_uint8 else "--no_as_uint8",
             "--rename" if rename else "--no_rename",
+            "--clip",
+            pad_str(clip),
         ]
         commands.append(write_command)
 

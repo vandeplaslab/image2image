@@ -56,6 +56,7 @@ class ImageWsiWindow(SingleViewerMixin):
     write_not_registered_check: Qw.QCheckBox
     write_merged_check: Qw.QCheckBox
     as_uint8: Qw.QCheckBox
+    clip_combo: Qw.QComboBox
     use_preview_check: Qw.QCheckBox
     hide_others_check: Qw.QCheckBox
     modality_list: QtModalityList
@@ -146,6 +147,7 @@ class ImageWsiWindow(SingleViewerMixin):
             write_not_registered=self.write_not_registered_check.isChecked(),
             write_merged=self.write_merged_check.isChecked(),
             as_uint8=self.as_uint8.isChecked(),
+            clip=self.clip_combo.currentText(),
             with_i2reg=not self.RUN_DISABLED,
         )
         if task:
@@ -408,7 +410,13 @@ class ImageWsiWindow(SingleViewerMixin):
             path = self.registration_model.project_dir / "Images"
             if path.exists():
                 self.on_open_viewer("--image_dir", str(path))
-                hp.toast(self, "Opening viewer...")
+                hp.toast(
+                    self,
+                    "Opening viewer...",
+                    f"Opening viewer for {hp.hyper(path, path.name)}.",
+                    icon="info",
+                    position="top_left",
+                )
                 logger.trace("Opening viewer.")
             else:
                 logger.warning("No image registration model available.")
@@ -582,6 +590,13 @@ class ImageWsiWindow(SingleViewerMixin):
             value=self.CONFIG.rename,
             func=self.on_update_config,
         )
+        self.clip_combo = hp.make_combobox(
+            self,
+            ["ignore", "clip", "remove", "part-remove"],
+            value=self.CONFIG.clip,
+            tooltip="What to do about points/shapes outside of the image when using non-linear transformation.",
+        )
+
         self.as_uint8 = hp.make_checkbox(
             self,
             "",
@@ -603,6 +618,7 @@ class ImageWsiWindow(SingleViewerMixin):
         hidden_settings.addRow(hp.make_label(self, "Write attached modalities"), self.write_attached_check)
         hidden_settings.addRow(hp.make_label(self, "Write merged images"), self.write_merged_check)
         hidden_settings.addRow(hp.make_label(self, "Rename images"), self.rename_check)
+        hidden_settings.addRow(hp.make_label(self, "Clip"), self.clip_combo)
         hidden_settings.addRow(
             hp.make_label(self, "Reduce data size"),
             hp.make_h_layout(
@@ -627,6 +643,7 @@ class ImageWsiWindow(SingleViewerMixin):
         self.CONFIG.write_merged = self.write_merged_check.isChecked()
         self.CONFIG.rename = self.rename_check.isChecked()
         self.CONFIG.as_uint8 = self.as_uint8.isChecked()
+        self.CONFIG.clip = self.clip_combo.currentText()
         self.on_set_write_warning()
 
     def on_toggle_write(self) -> None:
