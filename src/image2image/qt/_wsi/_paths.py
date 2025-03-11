@@ -198,6 +198,7 @@ class RegistrationMap(QWidget):
     """Registration map."""
 
     evt_message = Signal(str)
+    evt_valid = Signal(bool, list)
 
     def __init__(self, parent: QWidget | None = None):
         super().__init__(parent)
@@ -296,7 +297,7 @@ class RegistrationMap(QWidget):
                 icon="error",
             )
 
-    def on_path_choice(self, _=None) -> None:
+    def on_path_choice(self, _: ty.Any = None) -> None:
         """Handle path selection."""
         registration_model: ElastixReg = self.registration_model
         path = self._choice.currentText()
@@ -311,7 +312,7 @@ class RegistrationMap(QWidget):
                 node = registration_model.registration_nodes[index]
                 self._registration_path.registration_paths = node["params"]
 
-    def _get_registration_path_data(self):
+    def _get_registration_path_data(self) -> tuple[bool, str, str, str | None, str, str, str, str]:
         """Check registration path."""
         source = self._source_choice.currentText()
         target = self._target_choice.currentText()
@@ -325,7 +326,7 @@ class RegistrationMap(QWidget):
         valid = not any(v != "" for v in [source_on, target_on, through_on])
         return valid, source, target, through or None, source_on, target_on, through_on, path
 
-    def on_image_choice(self, _=None) -> None:
+    def on_image_choice(self, _: ty.Any = None) -> None:
         """Handle image selection."""
         valid, source, target, through, source_on, target_on, through_on, _ = self._get_registration_path_data()
         hp.set_object_name(self._source_choice, object_name=source_on)
@@ -359,7 +360,6 @@ class RegistrationMap(QWidget):
         """Add path."""
         valid, source, target, through, *_, path = self._get_registration_path_data()
         if not source and not target:
-            # self._warning_label.setText("Please select source and target images.")
             return
         registrations = self._registration_path.registration_paths
         if not registrations:
@@ -378,6 +378,7 @@ class RegistrationMap(QWidget):
         self.populate_paths()
         self._choice.setCurrentText(path)
         self.toggle_name()
+        self.validate()
 
     def on_remove_path(self) -> None:
         """Add path."""
@@ -389,6 +390,7 @@ class RegistrationMap(QWidget):
         registration_model.remove_registration_path(source, target, through)
         self.populate_paths()
         self.toggle_name()
+        self.validate()
         self._log_message(f"Removed registration path: {source} » {through} » {target}")
 
     def on_reset_paths(self) -> None:
@@ -399,6 +401,7 @@ class RegistrationMap(QWidget):
         registration_model.reset_registration_paths()
         self.populate_paths()
         self.toggle_name()
+        self.validate()
         self._log_message("Reset all registration paths.")
 
     def toggle_name(self) -> None:
@@ -410,12 +413,19 @@ class RegistrationMap(QWidget):
         self.populate_images()
         self.populate_paths()
         self.toggle_name()
+        self.validate()
 
     def depopulate(self) -> None:
         """Populate options."""
         self.populate_images()
         self.populate_paths()
         self.toggle_name()
+        self.validate()
+
+    def validate(self) -> None:
+        """Validate paths."""
+        is_valid, errors = self.registration_model.validate_paths()
+        self.evt_valid.emit(is_valid, errors)
 
     def populate_images(self) -> None:
         """Populate options."""
