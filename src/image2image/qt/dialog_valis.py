@@ -18,7 +18,7 @@ from qtextra.config import THEMES
 from qtextra.queue.queue_widget import QUEUE
 from qtextra.queue.task import Task
 from qtextra.utils.utilities import connect
-from qtpy.QtWidgets import QHBoxLayout, QVBoxLayout, QWidget
+from qtpy.QtWidgets import QWidget
 
 from image2image import __version__
 from image2image.config import STATE, ValisConfig, get_valis_config

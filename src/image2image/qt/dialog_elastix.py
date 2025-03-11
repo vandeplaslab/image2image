@@ -16,8 +16,7 @@ from qtextra.config import THEMES
 from qtextra.queue.popup import QUEUE
 from qtextra.queue.task import Task
 from qtextra.utils.utilities import connect
-from qtpy.QtCore import Qt
-from qtpy.QtWidgets import QHBoxLayout, QSizePolicy, QVBoxLayout, QWidget
+from qtpy.QtWidgets import QSizePolicy, QWidget
 
 from image2image import __version__
 from image2image.config import get_elastix_config
@@ -27,7 +26,7 @@ from image2image.qt._dialogs._select import LoadWidget
 from image2image.qt._wsi._list import QtModalityList
 from image2image.qt._wsi._paths import RegistrationMap
 from image2image.utils.utilities import check_image_size, get_i2reg_path, pad_str
-from image2image.utils.valis import guess_preprocessing, hash_preprocessing
+from image2image.utils.valis import guess_preprocessing
 
 if ty.TYPE_CHECKING:
     from image2image_reg.models import Modality, Preprocessing
@@ -193,6 +192,7 @@ class ImageElastixWindow(ImageWsiWindow):
         connect(self.modality_list.evt_preview_transform_preprocessing, self.on_preview_transform, state=state)
         connect(self.modality_list.evt_preprocessing_close, self.on_preview_close, state=state)
         connect(self.registration_map.evt_message, self.statusbar.showMessage)
+        connect(self.registration_map.evt_valid, self.on_validate_registrations)
 
         connect(QUEUE.evt_errored, self.on_registration_finished, state=state)
         connect(QUEUE.evt_finished, self.on_registration_finished, state=state)
@@ -619,6 +619,11 @@ class ImageElastixWindow(ImageWsiWindow):
         self._make_menu()
         self._make_icon()
         self._make_statusbar()
+
+    def on_validate_registrations(self, is_valid: bool, errors: list[str]) -> None:
+        """Update registration paths."""
+        self.registration_settings.warning_label.setToolTip("<br>".join(errors))
+        self.registration_settings.set_warning_visible(not is_valid)
 
     def _make_statusbar(self) -> None:
         super()._make_statusbar()
