@@ -155,7 +155,7 @@ class ImageElastixWindow(ImageWsiWindow):
         write_merged: bool = False,
         remove_merged: bool = False,
         as_uint8: bool = False,
-        rename: bool = True,
+        rename: bool = False,
         **_kwargs: ty.Any,
     ) -> Task:
         return make_registration_task(
