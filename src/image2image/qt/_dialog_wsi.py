@@ -147,6 +147,7 @@ class ImageWsiWindow(SingleViewerMixin):
             write_not_registered=self.write_not_registered_check.isChecked(),
             write_merged=self.write_merged_check.isChecked(),
             as_uint8=self.as_uint8.isChecked(),
+            rename=self.rename_check.isChecked(),
             clip=self.clip_combo.currentText(),
             with_i2reg=not self.RUN_DISABLED,
         )
