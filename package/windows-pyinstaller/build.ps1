@@ -53,8 +53,6 @@ echo "Current directory: " $start_dir.Path
 $github_dir = $start_dir | Split-Path | Split-Path | Split-Path
 echo "Github directory: " $github_dir
 
-[System.Collections.ArrayList]$local_install = @()
-[System.Collections.ArrayList]$pip_install = @()
 
 # update all dependencies and app
 if ($update) {
@@ -64,11 +62,13 @@ if ($update) {
 }
 
 # update all dependencies and app
+[System.Collections.ArrayList]$pip_install = @()
 if ($update_pip) {
     $pip_install.Add("napari==0.5.6")
-    $pip_install.Add("pydantic<2")
-    $pip_install.Add("pyside2")
+    $pip_install.Add("pydantic>=2")
+    $pip_install.Add("pyside6")
     $pip_install.Add("pyinstaller")
+    $pip_install.Add("numba<0.60")
 }
 
 # only update app
@@ -78,6 +78,7 @@ if ($update_app) {
     $update_just_register = $true
 }
 
+[System.Collections.ArrayList]$local_install = @()
 if ($update_just_app) {
     $local_install.Add("image2image")
 }
@@ -102,14 +103,14 @@ if ($qtextra) {
     echo "Re-installing qtextra..."
     $new_dir = Join-Path -Path $github_dir -ChildPath "qtextra" -Resolve
     cd $new_dir
-    pip install ".[sentry,console]"
+    uv pip install ".[sentry,console]"
     cd $start_dir
     echo "Reinstalled qtextra"
 
     echo "Re-installing qtextraplot..."
     $new_dir = Join-Path -Path $github_dir -ChildPath "qtextraplot" -Resolve
     cd $new_dir
-    pip install ".[2d]"
+    uv pip install ".[2d]"
     cd $start_dir
     echo "Reinstalled qtextraplot"
 }
@@ -119,7 +120,7 @@ foreach ($package in $local_install) {
     echo "Re-installing $package..."
     $new_dir = Join-Path -Path $github_dir -ChildPath $package -Resolve
     cd $new_dir
-    pip install .
+    uv pip install .
     cd $start_dir
     echo "Reinstalled $package"
 }
@@ -127,7 +128,7 @@ foreach ($package in $local_install) {
 # install pip packages
 foreach ($package in $pip_install) {
     echo "Re-installing $package..."
-    pip install -U $package
+    uv pip install -U $package
     echo "Reinstalled $package"
 }
 
@@ -138,8 +139,8 @@ $filename = "image2image.spec"
 # Build bundle
 Write-Output "Filename: $filename"
 # if ($debug) {
-pyinstaller.exe --noconfirm --clean $filename --hide-console hide-early
-
+pyinstaller.exe --noconfirm --clean $filename
+#  --hide-console hide-early
 # Copy runner script
 Copy-Item -Path "run_image2image.bat" -Destination "dist/"
 

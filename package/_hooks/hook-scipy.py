@@ -10,4 +10,5 @@ hiddenimports = [
     "scipy.special._ufuncs",
     "scipy.stats",
     "scipy._lib.messagestream",
+    "scipy._lib.array_api_compat.numpy.fft",
 ]

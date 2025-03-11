@@ -5,24 +5,19 @@ import time
 from pathlib import Path
 
 import debugpy._vendored
+import image2image
 import imagecodecs
 import napari
 import qtpy
+from image2image.assets import ICON_ICO
 from koyo.timer import MeasureTimer
 from PyInstaller.building.build_main import COLLECT, EXE, MERGE, PYZ, TOC, Analysis
 from PyInstaller.utils.hooks import (
     PY_IGNORE_EXTENSIONS,
-    collect_all,
     collect_data_files,
-    collect_dynamic_libs,
-    collect_submodules,
-    copy_metadata,
     get_package_paths,
     remove_prefix,
 )
-
-import image2image
-from image2image.assets import ICON_ICO
 
 time_start = time.time()
 block_cipher = None
@@ -56,13 +51,11 @@ def _make_analysis(path: str):
         binaries=[],
         datas=[]
         + collect_data_files("qtextra")
+        + collect_data_files("qtextraplot")
         + collect_data_files("napari")
         + collect_data_files("xmlschema")
         + collect_data_files("ome_types")
         + collect_data_files("distributed")
-        + collect_data_files("imzy")
-        + collect_data_files("vispy")
-        + collect_data_files("napari")
         + collect_data_files("image2image")
         + collect_data_files("freetype")
         + collect_data_files("xmlschema")
@@ -71,14 +64,9 @@ def _make_analysis(path: str):
         + [
             "pkg_resources",
             "six",
-            "psygnal",
-            "psygnal._signal",
-            "pyside2",
             "qtpy",
-            "vispy.app.backends._pyside2",
             "freetype",
             "magicgui.backends._qtpy",
-            "imzy",
         ],
         hookspath=[
             "../_hooks",
@@ -103,6 +91,7 @@ def _make_exe(pyz: PYZ, analysis: Analysis, name: str):
         strip=False,
         upx=True,
         console=True,  # False,
+        hide_console="hide-early",
         bootloader_ignore_signals=False,
         icon=ICON_ICO,
     )

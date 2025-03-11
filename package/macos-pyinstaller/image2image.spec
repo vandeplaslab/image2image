@@ -37,8 +37,6 @@ def _make_analysis(path: str):
         + collect_data_files("xmlschema")
         + collect_data_files("ome_types")
         + collect_data_files("distributed")
-        + collect_data_files("imzy")
-        + collect_data_files("napari")
         + collect_data_files("image2image")
         + collect_data_files("freetype")
         + collect_data_files("xmlschema")
@@ -47,15 +45,13 @@ def _make_analysis(path: str):
         + [
             "pkg_resources",
             "six",
-            "psygnal",
-            "psygnal._signal",
             "qtpy",
             "freetype",
             "magicgui.backends._qtpy",
-            "imzy",
         ],
         hookspath=[
             "../_hooks",
+
         ],
         runtime_hooks=[
             "../_runtimehooks/hook-bundle.py",
