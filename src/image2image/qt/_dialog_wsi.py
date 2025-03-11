@@ -506,7 +506,7 @@ class ImageWsiWindow(SingleViewerMixin):
         )
 
         project_settings = hp.make_group_box(self, f"{self.APP_NAME.capitalize()} project")
-        project_layout = hp.make_form_layout(parent=project_settings, margin=(2, 6, 2, 2))
+        project_layout = hp.make_form_layout(parent=project_settings, margin=(6, 6, 6, 6))
         project_layout.addRow(hp.make_label(side_widget, "Name"), self.name_label)
         project_layout.addRow(
             hp.make_h_layout(
