@@ -605,21 +605,18 @@ def show_elastix_tutorial(widget: ImageElastixWindow) -> None:
                 func=(widget.registration_settings.expand,),
             ),
             TutorialStep(
-                title="Project name",
-                message="You can specify the name of the project here. This will be used when saving the project.",
-                widget=widget.name_label,
-                position=Position.RIGHT,
-                func=(
-                    widget.registration_settings.collapse,
-                    widget.project_settings.expand,
-                ),
-            ),
-            TutorialStep(
                 title="Export options",
                 message="You can control how the data is exported by adjusting a few options hidden here.",
                 widget=widget.hidden_settings,
                 position=Position.RIGHT_BOTTOM,
                 func=(widget.hidden_settings.expand,),
+            ),
+            TutorialStep(
+                title="Project name",
+                message="You can specify the name of the project here. This will be used when saving the project.",
+                widget=widget.name_label,
+                position=Position.RIGHT,
+                func=(widget.registration_settings.collapse,),
             ),
             TutorialStep(
                 title="Save",
@@ -715,21 +712,18 @@ def show_valis_tutorial(widget: ImageValisWindow) -> None:
                 func=(widget.registration_settings.expand,),
             ),
             TutorialStep(
-                title="Project name",
-                message="You can specify the name of the project here. This will be used when saving the project.",
-                widget=widget.name_label,
-                position=Position.RIGHT,
-                func=(
-                    widget.registration_settings.collapse,
-                    widget.project_settings.expand,
-                ),
-            ),
-            TutorialStep(
                 title="Export options",
                 message="You can control how the data is exported by adjusting a few options hidden here.",
                 widget=widget.hidden_settings,
                 position=Position.RIGHT_BOTTOM,
                 func=(widget.hidden_settings.expand,),
+            ),
+            TutorialStep(
+                title="Project name",
+                message="You can specify the name of the project here. This will be used when saving the project.",
+                widget=widget.name_label,
+                position=Position.RIGHT,
+                func=(widget.registration_settings.collapse,),
             ),
             TutorialStep(
                 title="Save",

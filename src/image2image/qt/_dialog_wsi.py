@@ -62,7 +62,7 @@ class ImageWsiWindow(SingleViewerMixin):
     modality_list: QtModalityList
     pyramid_level: Qw.QComboBox
     hidden_settings: QtCheckCollapsible
-    project_settings: QtCheckCollapsible
+    project_settings: Qw.QGroupBox
 
     _mask_dlg: MaskDialog | None = None
     _crop_dlg: CropDialog | None = None
@@ -211,7 +211,6 @@ class ImageWsiWindow(SingleViewerMixin):
         except Exception:
             object_name = "error"
         hp.set_object_name(self.name_label, object_name=object_name)
-        self.project_settings.set_warning_visible(object_name != "")
 
     def on_remove_modality(self, modality: Modality) -> None:
         """Remove modality from the project."""
@@ -483,7 +482,7 @@ class ImageWsiWindow(SingleViewerMixin):
         self.on_save_to_project()
         self.on_close(force=True)
 
-    def _make_output_widgets(self, side_widget: Qw.QWidget) -> QtCheckCollapsible:
+    def _make_output_widgets(self, side_widget: Qw.QWidget) -> Qw.QGroupBox:
         # regex = r"^[a-zA-Z0-9_\-.,=]"
         regex = r"^[a-zA-Z0-9_\-.,=]{1,50}$"
 
@@ -506,15 +505,10 @@ class ImageWsiWindow(SingleViewerMixin):
             standout=True,
         )
 
-        project_settings = hp.make_advanced_collapsible(
-            side_widget,
-            f"{self.APP_NAME.capitalize()} project",
-            allow_checkbox=False,
-            allow_icon=False,
-            warning_icon=("warning", {"color": THEMES.get_theme_color("warning")}),
-        )
-        project_settings.addRow(hp.make_label(side_widget, "Name"), self.name_label)
-        project_settings.addRow(
+        project_settings = hp.make_group_box(self, f"{self.APP_NAME.capitalize()} project")
+        project_layout = hp.make_form_layout(parent=project_settings, margin=(2, 6, 2, 2))
+        project_layout.addRow(hp.make_label(side_widget, "Name"), self.name_label)
+        project_layout.addRow(
             hp.make_h_layout(
                 hp.make_label(side_widget, "Output directory", alignment=Qt.AlignmentFlag.AlignLeft),
                 self.output_dir_btn,
@@ -523,7 +517,7 @@ class ImageWsiWindow(SingleViewerMixin):
                 margin=1,
             ),
         )
-        project_settings.addRow(self.output_dir_label)
+        project_layout.addRow(self.output_dir_label)
         return project_settings
 
     def _make_visibility_options(self) -> None:
@@ -594,7 +588,11 @@ class ImageWsiWindow(SingleViewerMixin):
             self,
             ["ignore", "clip", "remove", "part-remove"],
             value=self.CONFIG.clip,
-            tooltip="What to do about points/shapes outside of the image when using non-linear transformation.",
+            tooltip="What to do about points/shapes outside of the image when using non-linear transformation.<br>"
+            "<b>ignore</b> will do nothing to points outside of the image.<br>"
+            "<b>clip</b> will clip points to the image size.<br>"
+            "<b>remove</b> will remove points outside of the image.<br>"
+            "<b>part-remove</b> will remove points outside of the image, but keep the part that is inside.",
         )
 
         self.as_uint8 = hp.make_checkbox(

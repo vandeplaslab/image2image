@@ -572,7 +572,7 @@ class ImageElastixWindow(ImageWsiWindow):
         self.merge_btn.hide()
         self._make_visibility_options()
 
-        side_layout = hp.make_form_layout(parent=side_widget)
+        side_layout = hp.make_form_layout(parent=side_widget, margin=3)
         side_layout.addRow(self._image_widget)
         # Modalities
         side_layout.addRow(self.modality_list)
@@ -597,32 +597,25 @@ class ImageElastixWindow(ImageWsiWindow):
         )
         self.registration_settings.addRow(self.registration_map)
         side_layout.addRow(self.registration_settings)
-        # Project
-        self.project_settings = self._make_output_widgets(side_widget)
-        side_layout.addRow(self.project_settings)
         # Advanced options
         self.hidden_settings = self._make_hidden_widgets(side_widget)
         side_layout.addRow(self.hidden_settings)
+        # Project
+        self.project_settings = self._make_output_widgets(side_widget)
+        side_layout.addRow(self.project_settings)
+        # Execution
         self._make_run_widgets(side_widget)
-        # Execution buttons
-        side_layout.addRow(
+        self.project_settings.layout().addRow(
             hp.make_h_layout(self.save_btn, self.viewer_btn, self.close_btn, self.run_btn, stretch_id=(3,), spacing=2)
         )
 
-        layout = QHBoxLayout()
-        layout.setSpacing(0)
+        widget = QWidget()  # noqa
+        self.setCentralWidget(widget)
+        layout = hp.make_h_layout(parent=widget, spacing=0, margin=0)
         layout.addWidget(self.view.widget, stretch=True)
         layout.addWidget(hp.make_v_line())
         layout.addWidget(side_widget)
 
-        widget = QWidget()  # noqa
-        self.setCentralWidget(widget)
-        main_layout = QVBoxLayout(widget)
-        main_layout.setSpacing(0)
-        main_layout.setContentsMargins(0, 0, 0, 0)
-        main_layout.addLayout(layout)
-
-        # extra settings
         self._make_menu()
         self._make_icon()
         self._make_statusbar()
