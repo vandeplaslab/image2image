@@ -4,11 +4,9 @@ import os
 from pathlib import Path
 
 import debugpy._vendored
-import image2image
 import imagecodecs
 import napari
 import qtpy
-from image2image.assets import ICON_ICO
 from koyo.timer import MeasureTimer
 from PyInstaller.building.build_main import COLLECT, EXE, MERGE, PYZ, TOC, Analysis
 from PyInstaller.utils.hooks import (
@@ -21,6 +19,9 @@ from PyInstaller.utils.hooks import (
     get_package_paths,
     remove_prefix,
 )
+
+import image2image
+from image2image.assets import ICON_ICO
 
 block_cipher = None
 DEBUG_MODE = os.getenv("PYINSTALLER_DEBUG", "all")
@@ -51,7 +52,6 @@ def _make_analysis(path: str):
         ],
         hookspath=[
             "../_hooks",
-
         ],
         runtime_hooks=[
             "../_runtimehooks/hook-bundle.py",
