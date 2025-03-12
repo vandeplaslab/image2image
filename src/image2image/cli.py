@@ -32,6 +32,46 @@ AVAILABLE_TOOLS = [
 #     AVAILABLE_TOOLS.pop(AVAILABLE_TOOLS.index("convert"))
 
 
+@click.group(
+    context_settings={
+        "help_option_names": ["-h", "--help"],
+        "max_content_width": 120,
+        "ignore_unknown_options": True,
+    },
+    invoke_without_command=True,
+    cls=GroupedGroup,
+)
+@click.option(
+    "-t",
+    "--tool",
+    type=click.Choice(AVAILABLE_TOOLS),
+    default="launcher",
+    show_default=True,
+)
+@click.option(
+    "-p",
+    "--project_dir",
+    help="Path to the Elastix/Valis project directory. It usually ends in .i2reg extension"
+    " (for 'elastix' or 'valis' tool).",
+    type=click.Path(exists=True, resolve_path=True, file_okay=False, dir_okay=True),
+    show_default=True,
+)
+@click.option(
+    "-f",
+    "--file",
+    help="Path to microscopy images (for 'viewer' tool).",
+    type=click.UNPROCESSED,
+    show_default=True,
+    multiple=True,
+    callback=cli_parse_paths_sort,
+)
+@click.option(
+    "-F",
+    "--file_dir",
+    help="Path to directory with microscopy images (for 'viewer' tool).",
+    type=click.Path(exists=True, resolve_path=True, file_okay=False, dir_okay=True),
+    show_default=True,
+)
 @click.version_option(__version__, prog_name="image2image")
 @dev_options
 @click.option(
@@ -53,46 +93,6 @@ AVAILABLE_TOOLS = [
     " information.",
 )
 @click.option("--info", is_flag=True, help="Print program information and exit.")
-@click.option(
-    "-d",
-    "--image_dir",
-    help="Path to directory with microscopy images (for 'viewer' tool).",
-    type=click.Path(exists=True, resolve_path=True, file_okay=False, dir_okay=True),
-    show_default=True,
-)
-@click.option(
-    "-i",
-    "--image_path",
-    help="Path to microscopy images (for 'viewer' tool).",
-    type=click.UNPROCESSED,
-    show_default=True,
-    multiple=True,
-    callback=cli_parse_paths_sort,
-)
-@click.option(
-    "-p",
-    "--project_dir",
-    help="Path to the Elastix/Valis project directory. It usually ends in .i2reg extension"
-    " (for 'elastix' or 'valis' tool).",
-    type=click.Path(exists=True, resolve_path=True, file_okay=False, dir_okay=True),
-    show_default=True,
-)
-@click.option(
-    "-t",
-    "--tool",
-    type=click.Choice(AVAILABLE_TOOLS),
-    default="launcher",
-    show_default=True,
-)
-@click.group(
-    context_settings={
-        "help_option_names": ["-h", "--help"],
-        "max_content_width": 120,
-        "ignore_unknown_options": True,
-    },
-    invoke_without_command=True,
-    cls=GroupedGroup,
-)
 @click.pass_context
 def cli(
     ctx: click.Context,
@@ -102,8 +102,8 @@ def cli(
     info: bool = False,
     dev: bool = False,
     project_dir: str | None = None,
-    image_path: str | list[str] | None = None,
-    image_dir: str | None = None,
+    file: str | list[str] | None = None,
+    file_dir: str | None = None,
     extras: ty.Any = None,
 ) -> None:
     """Launch image2image app.
@@ -153,32 +153,36 @@ def cli(
             no_color=no_color,
             dev=dev,
             tool=tool,
-            image_path=image_path,
-            image_dir=image_dir,
+            image_path=file,
+            image_dir=file_dir,
             project_dir=project_dir,
         )
-        return None
     return None
 
 
+merge = None
+if is_installed("image2image_io"):
+    from image2image_io.cli import convert, merge, thumbnail, transform
+
+    cli.add_command(convert, help_group="Utility")  # type: ignore[attr-defined]
+    cli.add_command(thumbnail, help_group="Utility")  # type: ignore[attr-defined]
+    cli.add_command(transform, help_group="Utility")  # type: ignore[attr-defined]
+
+
 if is_installed("image2image_reg"):
-    from image2image_io.cli import thumbnail, transform
-    from image2image_reg.cli import convert, elastix, merge, valis
+    from image2image_reg.cli import elastix, merge, valis
 
     # registration
     cli.add_command(elastix, help_group="Registration")  # type: ignore[attr-defined]
     if valis:
         cli.add_command(valis, help_group="Registration")  # type: ignore[attr-defined]
 
-    # utilities
-    cli.add_command(convert, help_group="Utility")  # type: ignore[attr-defined]
+if merge:
     cli.add_command(merge, help_group="Utility")  # type: ignore[attr-defined]
-    cli.add_command(thumbnail, help_group="Utility")  # type: ignore[attr-defined]
-    cli.add_command(transform, help_group="Utility")  # type: ignore[attr-defined]
 
 
 def main() -> None:
-    """Execute the "imimspy" command line program."""
+    """Execute the "i2i" command line program."""
     freeze_support()
     if sys.platform == "darwin":
         set_start_method("spawn", True)

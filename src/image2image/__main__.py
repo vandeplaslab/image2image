@@ -6,13 +6,10 @@ from multiprocessing import freeze_support, set_start_method
 
 
 def main() -> ty.Any:
-    """Main entry point for the ionglow CLI."""
-    from image2image.cli import cli
+    """Main entry point for the i2i CLI."""
+    from image2image.cli import main
 
-    freeze_support()
-    if sys.platform == "darwin":
-        set_start_method("spawn", True)
-    return cli.main(windows_expand_args=False)  # type: ignore[attr-defined]
+    return main()
 
 
 if __name__ == "__main__":

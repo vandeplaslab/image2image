@@ -409,7 +409,7 @@ class ImageWsiWindow(SingleViewerMixin):
         if self.registration_model:
             path = self.registration_model.project_dir / "Images"
             if path.exists():
-                self.on_open_viewer("--image_dir", str(path))
+                self.on_open_viewer("--file_dir", str(path))
                 hp.toast(
                     self,
                     "Opening viewer...",
@@ -461,7 +461,7 @@ class ImageWsiWindow(SingleViewerMixin):
         if self.CONFIG.open_when_finished:
             path = Path(task.task_name) / "Images"
             if path.exists() and len(list(path.glob("*.ome.tiff"))) > 0:
-                self.on_open_viewer("--image_dir", str(path))
+                self.on_open_viewer("--file_dir", str(path))
                 logger.trace("Registration finished - opening viewer.")
             else:
                 hp.toast(self, "Error", f"Failed to open viewer for {path!s}.", icon="error", position="top_left")
