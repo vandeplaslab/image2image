@@ -157,7 +157,7 @@ class SingleAppConfig(BaseConfig):
             "in_app": True,
         },
     )
-    tile_size: str = Field(
+    tile_size: int = Field(
         512,
         title="Tile size",
         description="Tile size.",

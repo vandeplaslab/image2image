@@ -8,7 +8,7 @@ from qtextra.widgets.qt_label_icon import QtQtaLabel
 class QtModalityLabel(QtQtaLabel):
     """Modality label."""
 
-    STATES = ("image", "geojson", "points")
+    STATES = ("image", "geojson", "points", "shapes")
 
     def __init__(self, *args: ty.Any, **kwargs: ty.Any):
         super().__init__(*args, **kwargs)

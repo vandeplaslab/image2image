@@ -21,7 +21,7 @@ from image2image import __version__
 from image2image.config import get_viewer_config
 from image2image.enums import ALLOWED_PROJECT_VIEWER_FORMATS
 from image2image.qt._dialog_mixins import SingleViewerMixin
-from image2image.qt._dialogs._select import LoadWithTransformWidget
+from image2image.qt._dialogs._select import LoadWidget
 from image2image.utils.utilities import ensure_extension
 
 if ty.TYPE_CHECKING:
@@ -87,22 +87,22 @@ class ImageViewerWindow(SingleViewerMixin):
     def setup_events(self, state: bool = True) -> None:
         """Setup events."""
         # wrapper
-        connect(self._image_widget.dataset_dlg.evt_loaded, self.on_load_image, state=state)
-        connect(self._image_widget.dataset_dlg.evt_closing, self.on_closing_image, state=state)
-        connect(self._image_widget.dataset_dlg.evt_import_project, self._on_load_from_project, state=state)
-        connect(self._image_widget.dataset_dlg.evt_export_project, self.on_save_to_project, state=state)
-        connect(self._image_widget.dataset_dlg.evt_resolution, self.on_update_transform, state=state)
-        connect(self._image_widget.dataset_dlg.evt_resolution, self.on_update_mask_reader, state=state)
-        connect(self._image_widget.dataset_dlg.evt_loaded_keys, self.on_maybe_select_resolution, state=state)
-        connect(self._image_widget.transform_dlg.evt_transform, self.on_update_transform, state=state)
-        connect(self._image_widget.evt_toggle_channel, self.on_toggle_channel, state=state)
-        connect(self._image_widget.evt_toggle_all_channels, self.on_toggle_all_channels, state=state)
+        connect(self._image_widget.dset_dlg.evt_loaded, self.on_load_image, state=state)
+        connect(self._image_widget.dset_dlg.evt_closing, self.on_closing_image, state=state)
+        connect(self._image_widget.dset_dlg.evt_import_project, self._on_load_from_project, state=state)
+        connect(self._image_widget.dset_dlg.evt_export_project, self.on_save_to_project, state=state)
+        connect(self._image_widget.dset_dlg.evt_resolution, self.on_update_transform, state=state)
+        connect(self._image_widget.dset_dlg.evt_resolution, self.on_update_mask_reader, state=state)
+        connect(self._image_widget.dset_dlg.evt_loaded_keys, self.on_maybe_select_resolution, state=state)
+        connect(self._image_widget.dset_dlg.evt_channel, self.on_toggle_channel, state=state)
+        connect(self._image_widget.dset_dlg.evt_channel_all, self.on_toggle_all_channels, state=state)
+        connect(self._image_widget.dset_dlg.evt_transform, self.on_update_transform, state=state)
+        connect(self._image_widget.dset_dlg.evt_iter_next, self.on_plot_temporary, state=state)
+        connect(self._image_widget.dset_dlg.evt_iter_remove, self.on_remove_temporary, state=state)
+        connect(self._image_widget.dset_dlg.evt_iter_add, self.on_add_temporary_to_viewer, state=state)
         # viewer
         connect(self.view.viewer.events.status, self._status_changed, state=state)
         # temporary images
-        connect(self._image_widget.evt_update_temp, self.on_plot_temporary, state=state)
-        connect(self._image_widget.evt_remove_temp, self.on_remove_temporary, state=state)
-        connect(self._image_widget.evt_add_channel, self.on_add_temporary_to_viewer, state=state)
 
     def on_maybe_select_resolution(self, keys: str) -> None:
         """Potentially select resolution."""
@@ -125,7 +125,6 @@ class ImageViewerWindow(SingleViewerMixin):
                 return
             # get resolution options
             options = get_resolution_options(wrapper)
-            which = None
             if options:
                 if len(options) > 1:
                     dlg = QtScrollablePickOption(
@@ -139,14 +138,14 @@ class ImageViewerWindow(SingleViewerMixin):
                     )
                     hp.show_in_center_of_screen(dlg)
                     if dlg.exec_() == QDialog.DialogCode.Accepted:  # type: ignore[attr-defined]
-                        which = dlg.option
+                        pass
                 elif len(options) == 1:
-                    which = next(iter(options.keys()))
+                    next(iter(options.keys()))
             elif image_keys:
-                which = min([v[1] for v in image_keys])
-            if which:
-                for key in shape_or_point_keys:
-                    self._image_widget.dataset_dlg.on_set_resolution(key, which)
+                min([v[1] for v in image_keys])
+            # if which:
+            #     for key in shape_or_point_keys:
+            #         self._image_widget.dataset_dlg.on_set_resolution(key, which)
 
     def on_load_from_project(self, _evt: ty.Any = None) -> None:
         """Load a previous project."""
@@ -281,7 +280,7 @@ class ImageViewerWindow(SingleViewerMixin):
                 reader = ShapesReader.create(MASK_FILENAME, channel_names=[MASK_LAYER_NAME])
                 self.data_model.add_paths([MASK_FILENAME])
                 wrapper.add(reader)
-                self._image_widget.dataset_dlg._on_loaded_dataset(self.data_model, select=False, keys=[reader.key])
+                self._image_widget.dset_dlg._on_loaded_dataset(self.data_model, select=False, keys=[reader.key])
                 if not is_available and _is_in_layers():
                     layer = self.view.get_layer(f"{MASK_LAYER_NAME} | mask.tmp")
                     connect(layer.events.set_data, self.on_update_mask_reader, state=True)
@@ -350,13 +349,14 @@ class ImageViewerWindow(SingleViewerMixin):
         side_widget.setMinimumWidth(400)
         side_widget.setMaximumWidth(400)
 
-        self._image_widget = LoadWithTransformWidget(
+        self._image_widget = LoadWidget(
             self,
             self.view,
             self.CONFIG,
             allow_geojson=True,
             project_extension=[".i2v.json", ".i2v.toml", ".i2r.json", ".i2r.toml"],
             allow_iterate=True,
+            allow_transform=True,
             allow_import_project=True,
             allow_export_project=True,
         )

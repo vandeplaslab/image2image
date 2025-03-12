@@ -9,6 +9,7 @@ from qtextra import helpers as hp
 from qtextra.widgets.qt_dialog import QtDialog
 from qtpy.QtWidgets import QFormLayout, QWidget
 
+import image2image.constants as C
 from image2image.config import SingleAppConfig
 
 if ty.TYPE_CHECKING:
@@ -54,8 +55,7 @@ class ExportImageDialog(QtDialog):
         self.as_uint8 = hp.make_checkbox(
             self,
             "",
-            tooltip="Convert to uint8 to reduce file size with minimal data loss. This will result in change of the"
-            " dynamic range of the image to between 0-255.",
+            tooltip=C.UINT8_TIP,
             checked=True,
             value=self.CONFIG.as_uint8,
         )

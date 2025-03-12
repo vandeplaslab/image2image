@@ -202,7 +202,7 @@ class SingleViewerMixin(Window):
         """Close fixed image."""
         self._close_model(model, self.view, "view")
 
-    def on_toggle_channel(self, name: str, state: bool) -> None:
+    def on_toggle_channel(self, state: bool, name: str) -> None:
         """Toggle channel."""
         self._toggle_channel(self.data_model, self.view, name, state, "view")
 
@@ -224,34 +224,21 @@ class SingleViewerMixin(Window):
                 layer.affine = wrapper.get_affine(reader, reader.resolution)
                 logger.trace(f"Updated affine for '{name}' with resolution={reader.resolution}.")
 
-    def on_plot_temporary(self, res: tuple[str, int]) -> None:
+    def on_plot_temporary(self, key: str, channel_index: int) -> None:
         """Plot temporary layer."""
-        key, channel_index = res
-        # with MeasureTimer() as timer:
         self._plot_temporary_layer(self.data_model, self.view, key, channel_index, True)
-        # logger.trace(f"Plotted temporary layer for '{key}' in {timer()}.")
 
-    def on_remove_temporary(self, _=None) -> None:
+    def on_remove_temporary(self, _key: str, _channel_index: int) -> None:
         """Remove temporary layer."""
         for layer in self.view.layers:
             if layer.name.startswith("temporary"):
                 self.view.remove_layer(layer.name)
                 logger.trace(f"Removed temporary layer '{layer.name}'.")
 
-    def on_add_temporary_to_viewer(self, res: tuple[str, int]) -> None:
+    def on_add_temporary_to_viewer(self, key: str, channel_index: int) -> None:
         """Add temporary layer to viewer."""
-        key, channel_index = res
-        indices = self._image_widget.channel_dlg.table.find_indices_of(
-            self._image_widget.channel_dlg.TABLE_CONFIG.dataset, key
-        )
-        index = self._image_widget.channel_dlg.table.find_index_of_value_with_indices(
-            self._image_widget.channel_dlg.TABLE_CONFIG.index, channel_index, indices
-        )
-        if index != -1:
-            self._image_widget.channel_dlg.table.set_value(
-                self._image_widget.channel_dlg.TABLE_CONFIG.check, index, True
-            )
-            logger.trace(f"Added image {channel_index} for '{key}' to viewer.")
+        self._image_widget.dset_dlg._list.sync_layers()
+        logger.trace(f"Added image {channel_index} for '{key}' to viewer.")
 
 
 class NoViewerMixin(Window):

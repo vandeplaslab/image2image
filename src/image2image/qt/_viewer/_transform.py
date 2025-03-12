@@ -22,8 +22,6 @@ from image2image.utils.utilities import open_docs
 if ty.TYPE_CHECKING:
     from qtextraplot._napari.image.wrapper import NapariImageView
 
-    from image2image.qt._dialogs._select import LoadWithTransformWidget
-
 
 logger = logger.bind(src="TransformDialog")
 
@@ -44,7 +42,7 @@ class SelectTransformDialog(QtFramelessTool):
 
     def __init__(
         self,
-        parent: "LoadWithTransformWidget",
+        parent,
         model: "DataModel",
         transform_model: "TransformModel",
         view: "NapariImageView",
@@ -58,9 +56,11 @@ class SelectTransformDialog(QtFramelessTool):
 
     def connect_events(self, state: bool = True) -> None:
         """Connect events."""
-        parent: LoadWithTransformWidget = self.parent()  # type: ignore[assignment]
-        connect(parent.dataset_dlg.evt_loaded, self.on_update_data_list, state=state)
-        connect(parent.dataset_dlg.evt_closed, self.on_update_data_list, state=state)
+        parent = self.parent()  # type: ignore[assignment]
+        # connect(parent.dataset_dlg.evt_loaded, self.on_update_data_list, state=state)
+        # connect(parent.dataset_dlg.evt_closed, self.on_update_data_list, state=state)
+        connect(parent.dset_dlg.evt_loaded, self.on_update_data_list, state=state)
+        connect(parent.dset_dlg.evt_closed, self.on_update_data_list, state=state)
 
     def show(self) -> None:
         """Force update of the data/transform list."""

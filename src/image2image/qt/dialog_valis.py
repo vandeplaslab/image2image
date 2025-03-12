@@ -203,7 +203,7 @@ class ImageValisWindow(ImageWsiWindow):
             self,
             self.view,
             self.CONFIG,
-            select_channels=False,
+            allow_channels=False,
             available_formats=ALLOWED_VALIS_FORMATS,
             project_extension=["valis.config.json", ".valis.json", ".valis"],
             allow_geojson=True,

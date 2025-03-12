@@ -195,12 +195,6 @@ class ImageConvertWindow(NoViewerMixin):
                 scenes[reader.path].add(reader.scene_index)
 
         output_dir = self.output_dir
-        self.CONFIG.update(
-            as_uint8=self.as_uint8.isChecked(),
-            overwrite=self.overwrite.isChecked(),
-            tile_size=int(self.tile_size.currentText()),
-        )
-        READER_CONFIG.split_czi = self.split_czi.isChecked()
 
         if paths:
             if STATE.is_mac_arm_pyinstaller:
@@ -296,6 +290,15 @@ class ImageConvertWindow(NoViewerMixin):
         hp.disable_widgets(self.export_btn.active_btn, disabled=disabled)
         self.export_btn.active = disabled
 
+    def on_update_config(self, _: ty.Any = None) -> None:
+        """Update configuration file."""
+        self.CONFIG.update(
+            as_uint8=self.as_uint8.isChecked(),
+            overwrite=self.overwrite.isChecked(),
+            tile_size=int(self.tile_size.currentText()),
+        )
+        READER_CONFIG.split_czi = self.split_czi.isChecked()
+
     def _setup_ui(self) -> None:
         """Create panel."""
         self.output_dir_label = hp.make_label(self, hp.hyper(self.output_dir), enable_url=True)
@@ -304,7 +307,7 @@ class ImageConvertWindow(NoViewerMixin):
             self,
             None,
             self.CONFIG,
-            select_channels=False,
+            allow_channels=False,
             available_formats=ALLOWED_IMAGE_FORMATS_MICROSCOPY_ONLY,
             show_split_czi=False,
         )
@@ -340,6 +343,7 @@ class ImageConvertWindow(NoViewerMixin):
             tooltip="Specify size of the tile. Default is 512",
             default="512",
             value=f"{self.CONFIG.tile_size}",
+            func=self.on_update_config,
         )
         self.split_czi = hp.make_checkbox(
             self,
@@ -348,15 +352,19 @@ class ImageConvertWindow(NoViewerMixin):
             "<br><b>option is disabled - please contact us if you would like to make this option available again</b>.",
             checked=True,
             value=READER_CONFIG.split_czi,
+            func=self.on_update_config,
         )
         hp.disable_widgets(self.split_czi, disabled=True)
-        self.as_uint8 = hp.make_checkbox(self, "", tooltip=C.UINT8_TIP, checked=True, value=self.CONFIG.as_uint8)
+        self.as_uint8 = hp.make_checkbox(
+            self, "", tooltip=C.UINT8_TIP, checked=True, value=self.CONFIG.as_uint8, func=self.on_update_config
+        )
         self.overwrite = hp.make_checkbox(
             self,
             "",
             tooltip="Overwrite existing files without having to delete them (e.g. if adding merged channels).",
             checked=True,
             value=self.CONFIG.overwrite,
+            func=self.on_update_config,
         )
         self.export_btn = hp.make_active_progress_btn(
             self,

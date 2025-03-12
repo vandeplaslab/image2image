@@ -168,7 +168,7 @@ class DataModel(BaseModel):
         self,
         transform_data: ty.Optional[dict[str, TransformData]] = None,
         resolution: ty.Optional[dict[str, float]] = None,
-        paths: ty.Union[PathLike, ty.Sequence[PathLike]] = None,
+        paths: ty.Optional[ty.Union[PathLike, ty.Sequence[PathLike]]] = None,
         reader_kws: ty.Optional[dict[str, dict]] = None,
     ) -> ty.Optional["ImageWrapper"]:
         """Read data from file."""
@@ -254,7 +254,7 @@ class DataModel(BaseModel):
     def get_reader_for_key(self, key: str) -> ty.Optional["BaseReader"]:
         """Get reader for the specified key."""
         wrapper = self.wrapper
-        if wrapper:
+        if wrapper and key in wrapper.data:
             return wrapper.data[key]
         return None
 

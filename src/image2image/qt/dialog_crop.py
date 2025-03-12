@@ -297,7 +297,6 @@ class ImageCropWindow(SingleViewerMixin):
 
         self.CONFIG.update(output_dir=output_dir_)
         if regions:
-            # list(crop_regions(self.data_model, Path(output_dir_), regions, tile_size=tile_size, as_uint8=as_uint8))
             self.worker_crop = create_worker(
                 export_crop_regions,
                 data_model=self.data_model,

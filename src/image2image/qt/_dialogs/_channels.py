@@ -72,8 +72,10 @@ class OverlayChannelsDialog(QtFramelessTool):
         """Connect events."""
         parent: LoadWidget = self.parent()  # type: ignore[assignment]
         # change of model events
-        connect(parent.dataset_dlg.evt_loaded, self.on_update_data_list, state=state)
-        connect(parent.dataset_dlg.evt_closed, self.on_update_data_list, state=state)
+        # connect(parent.dataset_dlg.evt_loaded, self.on_update_data_list, state=state)
+        # connect(parent.dataset_dlg.evt_closed, self.on_update_data_list, state=state)
+        connect(parent.dset_dlg.evt_loaded, self.on_update_data_list, state=state)
+        connect(parent.dset_dlg.evt_closed, self.on_update_data_list, state=state)
         # table events
         connect(self.table.evt_checked, self.on_toggle_channel, state=state)
         connect(self.view.layers.events, self.sync_layers, state=state)
@@ -143,44 +145,6 @@ class OverlayChannelsDialog(QtFramelessTool):
         verb = "is" if n_selected == 1 else "are"
         self.info.setText(
             f"Total number of channels: <b>{n_total}</b> out of which <b>{n_selected}</b> {verb} selected."
-        )
-
-    def on_update_data_list_old(self, model: "DataModel") -> None:
-        """On load."""
-        if not model:
-            return
-
-        with self.editing(), MeasureTimer() as timer:
-            self.model = model
-            data = []
-            wrapper = self.model.wrapper
-            if wrapper:
-                counter = Counter()
-                for name in wrapper.channel_names():
-                    channel_name, dataset = name.split(" | ")
-                    # checked, channel_id, channel_name, dataset, key
-                    data.append([False, counter[dataset], channel_name, dataset, name])
-                    counter[dataset] += 1
-
-            collected_in = timer(since_last=True)
-            existing_data = self.table.get_data()
-            got_prev_in = timer(since_last=True)
-            if existing_data:
-                for exist_row in existing_data:
-                    for new_row in data:
-                        if (
-                            exist_row[self.TABLE_CONFIG.channel_name] == new_row[self.TABLE_CONFIG.channel_name]
-                            and exist_row[self.TABLE_CONFIG.dataset] == new_row[self.TABLE_CONFIG.dataset]
-                        ):
-                            new_row[self.TABLE_CONFIG.check] = exist_row[self.TABLE_CONFIG.check]
-            self.table.reset_data()
-            self.table.add_data(data)
-            populated_in = timer(since_last=True)
-            self.table.enable_all_check = len(data) < 20
-            self.on_update_info()
-        logger.trace(
-            f"Updated channel table - {len(data)} rows in {timer()} (collected={collected_in}; previous={got_prev_in};"
-            f" updated={populated_in}."
         )
 
     def on_update_data_list(self, model: "DataModel") -> None:
@@ -340,8 +304,10 @@ class IterateWidget(QWidget):
         layout.addRow(hp.make_btn(self, "Add to viewer", func=self.on_add_to_viewer, tooltip="Add image to viewer."))
 
         parent: OverlayChannelsDialog = self.parent()
-        parent.parent().dataset_dlg.evt_loaded.connect(self.on_update_sources)
-        parent.parent().dataset_dlg.evt_closed.connect(self.on_update_sources)
+        # parent.parent().dataset_dlg.evt_loaded.connect(self.on_update_sources)
+        # parent.parent().dataset_dlg.evt_closed.connect(self.on_update_sources)
+        parent.parent().dset_dlg.evt_loaded.connect(self.on_update_sources)
+        parent.parent().dset_dlg.evt_closed.connect(self.on_update_sources)
         self.on_update_sources()
 
     def on_update_sources(self, *_args: ty.Any) -> None:

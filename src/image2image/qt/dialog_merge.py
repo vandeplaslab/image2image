@@ -16,6 +16,7 @@ from qtpy.QtWidgets import QDialog, QHeaderView, QMenuBar, QTableWidget, QTableW
 from superqt import ensure_main_thread
 from superqt.utils import GeneratorWorker, create_worker
 
+import image2image.constants as C
 from image2image import __version__
 from image2image.config import STATE, get_merge_config
 from image2image.enums import ALLOWED_IMAGE_FORMATS_TIFF_ONLY
@@ -215,12 +216,6 @@ class ImageMergeWindow(NoViewerMixin):
         #     metadata[path]["name"] = name_for_path
 
         output_dir = self.output_dir
-        self.CONFIG.update(
-            as_uint8=self.as_uint8.isChecked(),
-            overwrite=self.overwrite.isChecked(),
-            tile_size=int(self.tile_size.currentText()),
-        )
-
         if paths and STATE.is_mac_arm_pyinstaller:
             logger.warning("Merging process is running in the UI thread, meaning that the app will freeze!")
             merge_images(
@@ -306,10 +301,18 @@ class ImageMergeWindow(NoViewerMixin):
             filename = self.output_dir / f"{name}.ome.tiff"
             hp.update_widget_style(self.name_edit, "warning" if filename.exists() else "")
 
+    def on_update_config(self, _: ty.Any = None) -> None:
+        """Update configuration file."""
+        self.CONFIG.update(
+            as_uint8=self.as_uint8.isChecked(),
+            overwrite=self.overwrite.isChecked(),
+            tile_size=int(self.tile_size.currentText()),
+        )
+
     def _setup_ui(self):
         """Create panel."""
         self._image_widget = LoadWidget(
-            self, None, self.CONFIG, select_channels=False, available_formats=ALLOWED_IMAGE_FORMATS_TIFF_ONLY
+            self, None, self.CONFIG, allow_channels=False, available_formats=ALLOWED_IMAGE_FORMATS_TIFF_ONLY
         )
         self._image_widget.dataset_dlg.evt_closed.connect(self.on_cleanup_reader_metadata)
 
@@ -344,14 +347,15 @@ class ImageMergeWindow(NoViewerMixin):
             tooltip="Specify size of the tile. Default is 512",
             default="512",
             value=f"{self.CONFIG.tile_size}",
+            func=self.on_update_config,
         )
         self.as_uint8 = hp.make_checkbox(
             self,
             "",
-            tooltip="Convert to uint8 to reduce file size with minimal data loss. This will result in change of the"
-            " dynamic range of the image to between 0-255.",
+            tooltip=C.UINT8_TIP,
             checked=True,
             value=self.CONFIG.as_uint8,
+            func=self.on_update_config,
         )
         self.overwrite = hp.make_checkbox(
             self,
@@ -359,6 +363,7 @@ class ImageMergeWindow(NoViewerMixin):
             tooltip="Overwrite existing files without having to delete them (e.g. if adding merged channels).",
             checked=True,
             value=self.CONFIG.overwrite,
+            func=self.on_update_config,
         )
 
         self.directory_btn = hp.make_btn(

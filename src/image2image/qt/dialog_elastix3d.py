@@ -710,7 +710,7 @@ class ImageElastix3dWindow(Window):
             self,
             self.view,
             self.CONFIG,
-            select_channels=False,
+            allow_channels=False,
             available_formats=ALLOWED_IMAGE_FORMATS_TIFF_ONLY,
             project_extension=[".i2wsiprep.json", ".i2wsiprep.toml"],
         )

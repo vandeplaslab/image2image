@@ -137,6 +137,11 @@ def format_shape(shape: tuple[int, ...]) -> str:
     return " x ".join(f"{x:,}" for x in shape)
 
 
+def format_size(shape: tuple[int, ...], dtype: np.dtype) -> str:
+    """Format size in GB."""
+    return f"{np.prod(shape) * dtype.itemsize / 1e9:.2f} GB ({dtype.name})"
+
+
 def get_groups(filenames: list[str], keyword: str, by_slide: bool = False) -> dict[str, list[str]]:
     """Get groups."""
     groups: dict[str, list[str]] = {"no group": []}
