@@ -460,8 +460,10 @@ class QtDatasetList(QScrollArea):
     def remove_by_key(self, key: str) -> None:
         """Remove model."""
         widget = self.get_widget_for_key(key)
-        self._layout.removeWidget(widget)
-        widget.deleteLater()
+        if widget:
+            self._layout.removeWidget(widget)
+        if widget:
+            widget.deleteLater()
         self.widgets.pop(key, None)
         del widget
         self.evt_delete.emit(key)
