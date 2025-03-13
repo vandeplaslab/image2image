@@ -20,8 +20,7 @@ from image2image.config import SingleAppConfig
 from image2image.enums import VIEW_TYPE_TRANSLATIONS
 from image2image.models.data import DataModel
 from image2image.models.transform import TransformData, TransformModel
-from image2image.qt._dialogs import SelectTransformDialog
-from image2image.qt._dialogs._list import DatasetDialog
+from image2image.qt._dialogs._dataset import DatasetDialog
 
 if ty.TYPE_CHECKING:
     from qtextraplot._napari.image.wrapper import NapariImageView
@@ -34,15 +33,6 @@ logger = logger.bind(src="LoadDialog")
 
 class LoadWidget(QWidget):
     """Widget for loading data."""
-
-    evt_toggle_channel = Signal(str, bool)
-    evt_toggle_all_channels = Signal(bool, list)
-    evt_swap = Signal(str, str)
-
-    # temporary images
-    evt_update_temp = Signal(tuple)
-    evt_add_channel = Signal(tuple)
-    evt_remove_temp = Signal(tuple)
 
     IS_FIXED: bool = True
     INFO_TEXT = ""
@@ -102,7 +92,7 @@ class LoadWidget(QWidget):
 
         self._setup_ui()
 
-    def on_open_new_dataset_dialog(self) -> None:
+    def on_open_dataset_dialog(self) -> None:
         """Select transformation data."""
         self.dset_dlg.show()
 
@@ -135,7 +125,7 @@ class LoadWidget(QWidget):
         self.more_btn = hp.make_btn(
             self,
             "More options...",
-            func=self.on_open_new_dataset_dialog,
+            func=self.on_open_dataset_dialog,
             tooltip="Open dialog to add/remove images or adjust pixel size.",
         )
         layout = hp.make_form_layout(parent=self, margin=0)
@@ -209,10 +199,6 @@ class LoadWidget(QWidget):
             while self.model.n_paths > 0:
                 self.dset_dlg.on_close_dataset(force=True)
 
-    def on_open_dataset_dialog(self) -> None:
-        """Select channels from the list."""
-        # self.dataset_dlg.show()
-
 
 class FixedWidget(LoadWidget):
     """Widget for loading fixed data."""
@@ -240,8 +226,8 @@ class FixedWidget(LoadWidget):
             view,
             config,
             n_max,
-            allow_geojson,
-            allow_channels,
+            allow_geojson=allow_geojson,
+            allow_channels=allow_channels,
             allow_transform=allow_transform,
             allow_iterate=allow_iterate,
             project_extension=project_extension,
@@ -262,7 +248,7 @@ class MovingWidget(LoadWidget):
     INFO_TEXT = "Select 'moving' data..."
 
     # events
-    evt_toggle_dataset = Signal(str)
+    evt_dataset_select = Signal(str)
     evt_show_transformed = Signal(str)
     evt_view_type = Signal(object)
 
@@ -285,8 +271,8 @@ class MovingWidget(LoadWidget):
             view,
             config,
             n_max,
-            allow_geojson,
-            allow_channels,
+            allow_geojson=allow_geojson,
+            allow_channels=allow_channels,
             project_extension=project_extension,
             allow_transform=allow_transform,
             allow_iterate=allow_iterate,
@@ -295,14 +281,10 @@ class MovingWidget(LoadWidget):
         )
 
         # extra events
-        # connect(self.dataset_dlg.evt_loaded, self._on_update_choice)
-        # connect(self.dataset_dlg.evt_closed, self._on_clear_choice)
         connect(self.dset_dlg.evt_loaded, self._on_update_choice)
         connect(self.dset_dlg.evt_closed, self._on_clear_choice)
 
         if parent is not None and hasattr(parent, "evt_moving_dropped"):
-            # self.dataset_dlg._on_loaded_dataset = self.dataset_dlg._on_loaded_dataset_with_preselection
-            # connect(parent.evt_moving_dropped, self.dataset_dlg.on_drop)
             self.dset_dlg._on_loaded_dataset = self.dset_dlg._on_loaded_dataset_with_preselection
             connect(parent.evt_moving_dropped, self.dset_dlg.on_drop)
 
@@ -361,19 +343,12 @@ class MovingWidget(LoadWidget):
 
     def toggle_transformed(self) -> None:
         """Toggle visibility of transformed image."""
-        index = self.transformed_choice.currentIndex()
-        n = self.transformed_choice.count()
-        if n == 1:
-            return
-        index += 1
-        if index >= n:
-            index = 0
-        self.transformed_choice.setCurrentIndex(index)
+        hp.increment_combobox(self.transformed_choice, 1)
 
     def _on_toggle_dataset(self, value: str) -> None:
         """Toggle visibility of dataset."""
         self._on_update_transformed_choice()
-        self.evt_toggle_dataset.emit(value)
+        self.evt_dataset_select.emit(value)
 
     def _on_toggle_transformed(self, value: str) -> None:
         """Toggle visibility of transformed."""

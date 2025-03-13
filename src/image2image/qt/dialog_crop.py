@@ -95,12 +95,12 @@ class ImageCropWindow(SingleViewerMixin):
 
     def setup_events(self, state: bool = True) -> None:
         """Setup events."""
-        connect(self._image_widget.dataset_dlg.evt_import_project, self._on_load_from_project, state=state)
-        connect(self._image_widget.dataset_dlg.evt_export_project, self.on_save_to_project, state=state)
-        connect(self._image_widget.dataset_dlg.evt_loaded, self.on_load_image, state=state)
-        connect(self._image_widget.dataset_dlg.evt_closed, self.on_close_image, state=state)
-        connect(self._image_widget.evt_toggle_channel, self.on_toggle_channel, state=state)
-        connect(self._image_widget.evt_toggle_all_channels, self.on_toggle_all_channels, state=state)
+        connect(self._image_widget.dset_dlg.evt_import_project, self._on_load_from_project, state=state)
+        connect(self._image_widget.dset_dlg.evt_export_project, self.on_save_to_project, state=state)
+        connect(self._image_widget.dset_dlg.evt_loaded, self.on_load_image, state=state)
+        connect(self._image_widget.dset_dlg.evt_closed, self.on_close_image, state=state)
+        connect(self._image_widget.dset_dlg.evt_channel, self.on_toggle_channel, state=state)
+        connect(self._image_widget.dset_dlg.evt_channel_all, self.on_toggle_all_channels, state=state)
         connect(self.view.viewer.events.status, self._status_changed, state=state)
 
     @ensure_main_thread

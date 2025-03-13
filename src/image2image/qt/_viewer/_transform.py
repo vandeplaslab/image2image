@@ -57,8 +57,6 @@ class SelectTransformDialog(QtFramelessTool):
     def connect_events(self, state: bool = True) -> None:
         """Connect events."""
         parent = self.parent()  # type: ignore[assignment]
-        # connect(parent.dataset_dlg.evt_loaded, self.on_update_data_list, state=state)
-        # connect(parent.dataset_dlg.evt_closed, self.on_update_data_list, state=state)
         connect(parent.dset_dlg.evt_loaded, self.on_update_data_list, state=state)
         connect(parent.dset_dlg.evt_closed, self.on_update_data_list, state=state)
 

@@ -311,7 +311,7 @@ class ImageConvertWindow(NoViewerMixin):
             available_formats=ALLOWED_IMAGE_FORMATS_MICROSCOPY_ONLY,
             show_split_czi=False,
         )
-        self._image_widget.dataset_dlg.evt_closed.connect(self.on_cleanup_reader_metadata)
+        self._image_widget.dset_dlg.evt_closed.connect(self.on_cleanup_reader_metadata)
 
         columns = self.TABLE_CONFIG.to_columns()
         self.table = QTableWidget(self)

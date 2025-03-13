@@ -314,7 +314,7 @@ class ImageMergeWindow(NoViewerMixin):
         self._image_widget = LoadWidget(
             self, None, self.CONFIG, allow_channels=False, available_formats=ALLOWED_IMAGE_FORMATS_TIFF_ONLY
         )
-        self._image_widget.dataset_dlg.evt_closed.connect(self.on_cleanup_reader_metadata)
+        self._image_widget.dset_dlg.evt_closed.connect(self.on_cleanup_reader_metadata)
 
         columns = self.TABLE_CONFIG.to_columns()
         self.table = QTableWidget(self)

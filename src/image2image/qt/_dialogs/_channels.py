@@ -72,8 +72,6 @@ class OverlayChannelsDialog(QtFramelessTool):
         """Connect events."""
         parent: LoadWidget = self.parent()  # type: ignore[assignment]
         # change of model events
-        # connect(parent.dataset_dlg.evt_loaded, self.on_update_data_list, state=state)
-        # connect(parent.dataset_dlg.evt_closed, self.on_update_data_list, state=state)
         connect(parent.dset_dlg.evt_loaded, self.on_update_data_list, state=state)
         connect(parent.dset_dlg.evt_closed, self.on_update_data_list, state=state)
         # table events
@@ -131,11 +129,11 @@ class OverlayChannelsDialog(QtFramelessTool):
         with self.view.layers.events.blocker(self.sync_layers):
             if index == -1:
                 channel_names = self.channel_list()
-                parent.evt_toggle_all_channels.emit(state, channel_names)  # noqa
+                parent.evt_channel_all.emit(state, channel_names)  # noqa
             else:
                 channel_name = self.table.get_value(self.TABLE_CONFIG.channel_name, index)
                 dataset = self.table.get_value(self.TABLE_CONFIG.dataset, index)
-                parent.evt_toggle_channel.emit(f"{channel_name} | {dataset}", state)  # noqa
+                parent.evt_channel.emit(f"{channel_name} | {dataset}", state)  # noqa
         self.on_update_info()
 
     def on_update_info(self) -> None:
@@ -304,8 +302,6 @@ class IterateWidget(QWidget):
         layout.addRow(hp.make_btn(self, "Add to viewer", func=self.on_add_to_viewer, tooltip="Add image to viewer."))
 
         parent: OverlayChannelsDialog = self.parent()
-        # parent.parent().dataset_dlg.evt_loaded.connect(self.on_update_sources)
-        # parent.parent().dataset_dlg.evt_closed.connect(self.on_update_sources)
         parent.parent().dset_dlg.evt_loaded.connect(self.on_update_sources)
         parent.parent().dset_dlg.evt_closed.connect(self.on_update_sources)
         self.on_update_sources()

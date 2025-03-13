@@ -72,8 +72,8 @@ class GroupByDialog(WsiPrepMixin):
 
     def connect_events(self, state: bool = True) -> None:
         """Connect events."""
-        connect(self.parent()._image_widget.dataset_dlg.evt_loaded, self.on_preview_group_by, state=state)
-        connect(self.parent()._image_widget.dataset_dlg.evt_closed, self.on_preview_group_by, state=state)
+        connect(self.parent()._image_widget.dset_dlg.evt_loaded, self.on_preview_group_by, state=state)
+        connect(self.parent()._image_widget.dset_dlg.evt_closed, self.on_preview_group_by, state=state)
 
     def _get_groups(self, by_slide: bool = False) -> tuple[dict[str, list[str]], dict[str, int]]:
         """Return mapping between image key and group ID."""
@@ -502,10 +502,10 @@ class ConfigDialog(WsiPrepMixin):
 
     def connect_events(self, state: bool = True) -> None:
         """Connect events."""
-        connect(self.parent()._image_widget.dataset_dlg.evt_loaded, self._update_indexing_mode, state=state)
-        connect(self.parent()._image_widget.dataset_dlg.evt_loaded, self.on_preview, state=state)
-        connect(self.parent()._image_widget.dataset_dlg.evt_closed, self._update_indexing_mode, state=state)
-        connect(self.parent()._image_widget.dataset_dlg.evt_closed, self.on_preview, state=state)
+        connect(self.parent()._image_widget.dset_dlg.evt_loaded, self._update_indexing_mode, state=state)
+        connect(self.parent()._image_widget.dset_dlg.evt_loaded, self.on_preview, state=state)
+        connect(self.parent()._image_widget.dset_dlg.evt_closed, self._update_indexing_mode, state=state)
+        connect(self.parent()._image_widget.dset_dlg.evt_closed, self.on_preview, state=state)
 
     @property
     def output_dir(self) -> Path:

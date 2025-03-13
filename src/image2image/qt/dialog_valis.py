@@ -161,12 +161,12 @@ class ImageValisWindow(ImageWsiWindow):
 
     def setup_events(self, state: bool = True) -> None:
         """Setup events."""
-        connect(self._image_widget.dataset_dlg.evt_loaded, self.on_load_image, state=state)
-        connect(self._image_widget.dataset_dlg.evt_closing, self.on_remove_image, state=state)
-        connect(self._image_widget.dataset_dlg.evt_import_project, self._on_load_from_project, state=state)
-        connect(self._image_widget.dataset_dlg.evt_files, self._on_pre_loading_images, state=state)
-        connect(self._image_widget.dataset_dlg.evt_rejected_files, self.on_maybe_add_attachment, state=state)
-        connect(self._image_widget.dataset_dlg.evt_resolution, self.on_update_resolution_from_table, state=state)
+        connect(self._image_widget.dset_dlg.evt_loaded, self.on_load_image, state=state)
+        connect(self._image_widget.dset_dlg.evt_closing, self.on_remove_image, state=state)
+        connect(self._image_widget.dset_dlg.evt_import_project, self._on_load_from_project, state=state)
+        connect(self._image_widget.dset_dlg.evt_files, self._on_pre_loading_images, state=state)
+        connect(self._image_widget.dset_dlg.evt_rejected_files, self.on_maybe_add_attachment, state=state)
+        connect(self._image_widget.dset_dlg.evt_resolution, self.on_update_resolution_from_table, state=state)
 
         connect(self.view.viewer.events.status, self._status_changed, state=state)
         # connect(self.view.widget.canvas.events.key_press, self.keyPressEvent, state=state)
@@ -203,9 +203,9 @@ class ImageValisWindow(ImageWsiWindow):
             self,
             self.view,
             self.CONFIG,
-            allow_channels=False,
             available_formats=ALLOWED_VALIS_FORMATS,
             project_extension=["valis.config.json", ".valis.json", ".valis"],
+            allow_channels=False,
             allow_geojson=True,
             allow_import_project=True,
         )

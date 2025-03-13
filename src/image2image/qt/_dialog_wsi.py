@@ -217,7 +217,7 @@ class ImageWsiWindow(SingleViewerMixin):
         """Remove modality from the project."""
         keys = self.data_model.get_key_for_path(modality.path)
         for key in keys:
-            self._image_widget.dataset_dlg.on_remove_dataset(key)
+            self._image_widget.dset_dlg.on_remove_dataset(key)
 
     def on_update_resolution_from_table(self, key: str) -> None:
         """Update resolution."""
@@ -237,7 +237,7 @@ class ImageWsiWindow(SingleViewerMixin):
         """Update resolution."""
         keys = self.data_model.get_key_for_path(modality.path)
         for key in keys:
-            self._image_widget.dataset_dlg.on_set_resolution(key, modality.pixel_size)
+            self._image_widget.dset_dlg.on_set_resolution(key, modality.pixel_size)
 
     def on_update_preprocessing_of_modality(self, modality: Modality) -> None:
         """Preview image."""

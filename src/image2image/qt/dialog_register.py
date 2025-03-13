@@ -253,31 +253,39 @@ class ImageRegistrationWindow(Window):
     def setup_events(self, state: bool = True) -> None:
         """Additional setup."""
         # fixed widget
-        connect(self._fixed_widget.dataset_dlg.evt_import_project, self._on_load_from_project, state=state)
-        connect(self._fixed_widget.dataset_dlg.evt_loading, partial(self.on_indicator, which="fixed"), state=state)
-        connect(self._fixed_widget.dataset_dlg.evt_loaded, self.on_load_fixed, state=state)
-        connect(self._fixed_widget.dataset_dlg.evt_closed, self.on_close_fixed, state=state)
-        connect(self._fixed_widget.evt_toggle_channel, partial(self.on_toggle_channel, which="fixed"), state=state)
+        connect(self._fixed_widget.dset_dlg.evt_import_project, self._on_load_from_project, state=state)
+        connect(self._fixed_widget.dset_dlg.evt_loading, partial(self.on_indicator, which="fixed"), state=state)
+        connect(self._fixed_widget.dset_dlg.evt_loaded, self.on_load_fixed, state=state)
+        connect(self._fixed_widget.dset_dlg.evt_closed, self.on_close_fixed, state=state)
+        connect(self._fixed_widget.dset_dlg.evt_channel, partial(self.on_toggle_channel, which="fixed"), state=state)
         connect(
-            self._fixed_widget.evt_toggle_all_channels, partial(self.on_toggle_all_channels, which="fixed"), state=state
+            self._fixed_widget.dset_dlg.evt_channel_all,
+            partial(self.on_toggle_all_channels, which="fixed"),
+            state=state,
         )
-        connect(self._fixed_widget.evt_swap, self.on_swap, state=state)
 
         # moving widget
-        connect(self._moving_widget.dataset_dlg.evt_import_project, self._on_load_from_project, state=state)
-        connect(self._moving_widget.dataset_dlg.evt_loading, partial(self.on_indicator, which="moving"), state=state)
-        connect(self._moving_widget.dataset_dlg.evt_loaded, self.on_load_moving, state=state)
-        connect(self._moving_widget.dataset_dlg.evt_closed, self.on_close_moving, state=state)
-        connect(self._moving_widget.evt_toggle_channel, partial(self.on_toggle_channel, which="moving"), state=state)
+        connect(self._moving_widget.dset_dlg.evt_import_project, self._on_load_from_project, state=state)
+        connect(self._moving_widget.dset_dlg.evt_loading, partial(self.on_indicator, which="moving"), state=state)
+        connect(self._moving_widget.dset_dlg.evt_loaded, self.on_load_moving, state=state)
+        connect(self._moving_widget.dset_dlg.evt_closed, self.on_close_moving, state=state)
         connect(self._moving_widget.evt_show_transformed, self.on_toggle_transformed_moving, state=state)
-        connect(self._moving_widget.evt_toggle_dataset, self.on_toggle_dataset, state=state)
+        connect(self._moving_widget.evt_dataset_select, self.on_toggle_dataset, state=state)
         connect(
-            self._moving_widget.evt_toggle_all_channels,
+            self._moving_widget.dset_dlg.evt_channel,
+            partial(self.on_toggle_channel, which="moving"),
+            state=state,
+        )
+        connect(
+            self._moving_widget.dset_dlg.evt_channel_all,
             partial(self.on_toggle_all_channels, which="moving"),
             state=state,
         )
-        connect(self._moving_widget.evt_swap, self.on_swap, state=state)
         connect(self._moving_widget.evt_view_type, self.on_change_view_type, state=state)
+        connect(self._moving_widget.dset_dlg.evt_iter_next, self.on_plot_temporary, state=state)
+        connect(self._moving_widget.dset_dlg.evt_iter_remove, self.on_remove_temporary, state=state)
+        connect(self._moving_widget.dset_dlg.evt_iter_add, self.on_add_temporary_to_viewer, state=state)
+
         # views
         connect(self.view_fixed.viewer.camera.events, self.on_sync_views_fixed, state=state)
         connect(self.view_fixed.viewer.events.status, self._status_changed, state=state)
@@ -289,10 +297,6 @@ class ImageRegistrationWindow(Window):
         connect(
             self.view_moving.viewer.layers.events.removed, partial(self.on_layer_removed, which="moving"), state=state
         )
-        # temporary images
-        connect(self._moving_widget.evt_update_temp, self.on_plot_temporary, state=state)
-        connect(self._moving_widget.evt_remove_temp, self.on_remove_temporary, state=state)
-        connect(self._moving_widget.evt_add_channel, self.on_add_temporary_to_viewer, state=state)
 
     def on_plot_temporary(self, res: tuple[str, int]) -> None:
         """Plot temporary layer."""
@@ -382,7 +386,7 @@ class ImageRegistrationWindow(Window):
         if isinstance(self.fixed_image_layer, list) and len(self.fixed_image_layer) > 1:
             link_layers(self.fixed_image_layer, attributes=("opacity",))
 
-    def on_toggle_channel(self, name: str, state: bool, which: str) -> None:
+    def on_toggle_channel(self, state: bool, name: str, which: str) -> None:
         """Toggle channel."""
         view = self.view_fixed if which == "fixed" else self.view_moving
         if name not in view.layers:
@@ -487,15 +491,6 @@ class ImageRegistrationWindow(Window):
             channel_list = self._moving_widget.channel_dlg.channel_list()
             self._plot_moving_layers(channel_list)
             self.on_apply(update_data=True)
-
-    def on_swap(self, key: str, source: str) -> None:
-        """Swap fixed and moving images."""
-        # # swap image from 'fixed' to 'moving' or vice versa
-        # if source == "fixed":
-        #     wrapper = self.fixed_model.wrapper
-        #     if not wrapper:
-        #         return
-        #     wrapper = wrapper.pop
 
     def on_toggle_dataset(self, value: str) -> None:
         """Toggle dataset."""
@@ -856,9 +851,9 @@ class ImageRegistrationWindow(Window):
 
                 # reset all widgets
                 if config["fixed_image"]:
-                    self._fixed_widget.dataset_dlg.on_close_dataset(force=True)
+                    self._fixed_widget.dset_dlg.on_close_dataset(force=True)
                 if config["moving_image"]:
-                    self._moving_widget.dataset_dlg.on_close_dataset(force=True)
+                    self._moving_widget.dset_dlg.on_close_dataset(force=True)
 
                 # load data from config file
                 try:
@@ -1342,14 +1337,12 @@ class ImageRegistrationWindow(Window):
             self,
             self.view_fixed,
             self.CONFIG,
-            allow_swap=False,
             project_extension=[".i2r.json", ".i2r.toml"],
         )
         self._moving_widget = MovingWidget(
             self,
             self.view_moving,
             self.CONFIG,
-            allow_swap=False,
             project_extension=[".i2r.json", ".i2r.toml"],
             allow_iterate=True,
         )
@@ -1559,22 +1552,6 @@ class ImageRegistrationWindow(Window):
             menu=menu_tools,
             func=self.on_show_fiducials,
             icon="fiducial",
-            insert=True,
-        )
-        hp.make_menu_item(
-            self,
-            "Select moving channels...",
-            menu=menu_tools,
-            func=self._moving_widget._on_select_channels,
-            icon="moving",
-            insert=True,
-        )
-        hp.make_menu_item(
-            self,
-            "Select fixed channels...",
-            menu=menu_tools,
-            func=self._fixed_widget._on_select_channels,
-            icon="fixed",
             insert=True,
         )
 

@@ -139,7 +139,18 @@ def format_shape(shape: tuple[int, ...]) -> str:
 
 def format_size(shape: tuple[int, ...], dtype: np.dtype) -> str:
     """Format size in GB."""
-    return f"{np.prod(shape) * dtype.itemsize / 1e9:.2f} GB ({dtype.name})"
+    from koyo.utilities import human_readable_byte_size
+
+    count = np.prod(shape) if len(shape) > 1 else shape[0]
+    n_bytes = count * dtype.itemsize
+    return f"{human_readable_byte_size(n_bytes)} ({dtype.name})"
+
+
+def ensure_list(value: ty.Any) -> list[ty.Any]:
+    """Ensure that value is a list."""
+    if not isinstance(value, list):
+        return [value]
+    return value
 
 
 def get_groups(filenames: list[str], keyword: str, by_slide: bool = False) -> dict[str, list[str]]:

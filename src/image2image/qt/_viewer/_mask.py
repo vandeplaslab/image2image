@@ -63,8 +63,8 @@ class MasksDialog(QtFramelessTool):
         self.setMinimumHeight(400)
         self.on_load()
 
-        parent._image_widget.dataset_dlg.evt_loaded.connect(self.on_load)
-        parent._image_widget.dataset_dlg.evt_closed.connect(self.on_load)
+        parent._image_widget.dset_dlg.evt_loaded.connect(self.on_load)
+        parent._image_widget.dset_dlg.evt_closed.connect(self.on_load)
 
     def on_load(self) -> None:
         """Load data."""

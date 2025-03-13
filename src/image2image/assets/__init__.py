@@ -12,10 +12,6 @@ ICON_SVG = str(HERE / "icon.svg")
 ICON_ICO = str(HERE / ("icon.icns" if IS_MAC else "icon.ico"))
 ICON_PNG = str(HERE / "icon.png")
 
-# ICONS_PATH = HERE / "icons"
-# ICONS_PATH.mkdir(exist_ok=True)
-# update_icons({x.stem: str(x) for x in ICONS_PATH.iterdir() if x.suffix == ".svg"})
-
 
 STYLES_PATH = HERE / "stylesheets"
 STYLES_PATH.mkdir(exist_ok=True)
@@ -48,6 +44,7 @@ update_icon_mapping(
         "keep_image": "mdi6.check-circle-outline",
         "remove_image": "mdi6.close-circle-outline",
         "env": "fa5s.bookmark",
+        "iterate": "mdi.view-carousel-outline",
         # modality
         "image": "mdi6.image",
         "geojson": "msc.json",
