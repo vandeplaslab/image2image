@@ -13,31 +13,29 @@ import image2image.constants as C
 from image2image.config import SingleAppConfig
 
 if ty.TYPE_CHECKING:
-    from image2image.models.data import DataModel
+    from image2image_io.readers import BaseReader
 
 
 class ExportImageDialog(QtDialog):
     """Dialog that lets you select what should be imported."""
 
-    def __init__(self, parent: QWidget, model: DataModel, key: str | None, config: SingleAppConfig):
+    def __init__(self, parent: QWidget, reader: BaseReader, config: SingleAppConfig):
         self.CONFIG = config
-        self.model = model
-        self.key = key
+        self.reader = reader
         super().__init__(parent)
 
     # noinspection PyAttributeOutsideInit
     def make_panel(self) -> QFormLayout:
         """Make panel."""
         info = ""
-        if self.key:
-            reader = self.model.get_reader_for_key(self.key)
-            info = (
-                f"<b>RGB</b>: {reader.is_rgb}<br>"
-                f"<b>Number of channels</b>: {reader.n_channels}<br>"
-                f"<b>Image shape</b>: {reader.image_shape}<br>"
-                f"<b>Resolution</b>: {reader.resolution}<br>"
-                f"<b>Data type</b>: {reader.dtype}<br>"
-            )
+        reader = self.reader
+        info = (
+            f"<b>RGB</b>: {reader.is_rgb}<br>"
+            f"<b>Number of channels</b>: {reader.n_channels}<br>"
+            f"<b>Image shape</b>: {reader.image_shape}<br>"
+            f"<b>Resolution</b>: {reader.resolution}<br>"
+            f"<b>Data type</b>: {reader.dtype}<br>"
+        )
         self.info_label = hp.make_label(
             self,
             info,
@@ -76,20 +74,19 @@ class ExportImageDialog(QtDialog):
         """Accept."""
         self.CONFIG.tile_size = int(self.tile_size.currentText())
         self.CONFIG.as_uint8 = self.as_uint8.isChecked()
-        if self.key:
-            reader = self.model.get_reader_for_key(self.key)
-            base_dir = reader.path.parent
-            filename = f"{reader.path.stem}-exported".replace(".ome", "") + ".ome.tiff"
-            # export image
-            filename = hp.get_save_filename(
-                self,
-                "Save image filename...",
-                base_dir,
-                base_filename=filename,
-                file_filter="OME-TIFF (*.ome.tiff);;",
-            )
-            if not filename or Path(filename).exists():
-                return None
-            filename = reader.to_ome_tiff(filename, as_uint8=self.CONFIG.as_uint8, tile_size=self.CONFIG.tile_size)
-            hp.toast(self, "Image saved", f"Saved image {hp.hyper(filename, self.key)} as OME-TIFF.", icon="info")
+        reader = self.reader
+        base_dir = reader.path.parent
+        filename = f"{reader.path.stem}-exported".replace(".ome", "") + ".ome.tiff"
+        # export image
+        filename = hp.get_save_filename(
+            self,
+            "Save image filename...",
+            base_dir,
+            base_filename=filename,
+            file_filter="OME-TIFF (*.ome.tiff);;",
+        )
+        if not filename or Path(filename).exists():
+            return None
+        filename = reader.to_ome_tiff(filename, as_uint8=self.CONFIG.as_uint8, tile_size=self.CONFIG.tile_size)
+        hp.toast(self, "Image saved", f"Saved image {hp.hyper(filename, reader.key)} as OME-TIFF.", icon="info")
         return super().accept()

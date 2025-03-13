@@ -14,7 +14,7 @@ from napari.layers import Image, Points, Shapes
 from napari.utils.events import Event
 from qtextra.utils.utilities import connect
 from qtpy.QtGui import QKeyEvent
-from qtpy.QtWidgets import QDialog, QHBoxLayout, QVBoxLayout, QWidget
+from qtpy.QtWidgets import QDialog, QWidget
 from superqt.utils import qdebounced
 
 from image2image import __version__
@@ -124,6 +124,7 @@ class ImageViewerWindow(SingleViewerMixin):
                 return
             # get resolution options
             options = get_resolution_options(wrapper)
+            which: float | None = None
             if options:
                 if len(options) > 1:
                     dlg = QtScrollablePickOption(
@@ -133,15 +134,18 @@ class ImageViewerWindow(SingleViewerMixin):
                         " the table.",
                         options,
                         orientation="vertical",
-                        max_width=self.width() - 100,
+                        max_width=min(600, self.width() - 100),
                     )
                     hp.show_in_center_of_screen(dlg)
                     if dlg.exec_() == QDialog.DialogCode.Accepted:  # type: ignore[attr-defined]
-                        pass
+                        which = dlg.option
                 elif len(options) == 1:
-                    next(iter(options.keys()))
+                    which = next(iter(options.keys()))
             elif image_keys:
-                min([v[1] for v in image_keys])
+                which = min([v[1] for v in image_keys])
+            if which:
+                for key in shape_or_point_keys:
+                    self._image_widget.dset_dlg.on_set_resolution(key, which)
 
     def on_load_from_project(self, _evt: ty.Any = None) -> None:
         """Load a previous project."""
@@ -157,7 +161,7 @@ class ImageViewerWindow(SingleViewerMixin):
 
             path = Path(path_)
             if any(v in path.name for v in [".i2r.json", ".i2r.toml"]):
-                self._image_widget.transform_dlg._on_add_transform(path)
+                self._image_widget.dset_dlg._on_add_transform(path)
                 return
 
             self.CONFIG.update(output_dir=str(path.parent))
@@ -252,7 +256,7 @@ class ImageViewerWindow(SingleViewerMixin):
             " images, you should use the resolution of the image you are currently viewing.",
             options,
             orientation="vertical",
-            max_width=self.width() - 100,
+            max_width=min(600, self.width() - 100),
         )
         hp.show_in_center_of_screen(dlg)
         which = None
@@ -274,6 +278,7 @@ class ImageViewerWindow(SingleViewerMixin):
             if MASK_FILENAME not in wrapper.data:
                 is_available = _is_in_layers()
                 reader = ShapesReader.create(MASK_FILENAME, channel_names=[MASK_LAYER_NAME])
+                reader.display_type = "shapes"
                 self.data_model.add_paths([MASK_FILENAME])
                 wrapper.add(reader)
                 self._image_widget.dset_dlg._on_loaded_dataset(self.data_model, select=False, keys=[reader.key])
@@ -333,7 +338,7 @@ class ImageViewerWindow(SingleViewerMixin):
         dlg = MasksDialog(self)
         dlg.show()
 
-    def _setup_ui(self):
+    def _setup_ui(self) -> None:
         """Create panel."""
         self.view = self._make_image_view(
             self, add_toolbars=False, allow_extraction=False, disable_controls=True, disable_new_layers=True
@@ -381,52 +386,18 @@ class ImageViewerWindow(SingleViewerMixin):
         side_layout.addRow(self.view.widget.layers)
         side_layout.addRow(self.view.widget.viewerButtons)
 
-        layout = QHBoxLayout()
-        layout.addWidget(self.view.widget, stretch=True)
-        layout.addWidget(hp.make_v_line())
-        layout.addWidget(side_widget)
-
         widget = QWidget()
         self.setCentralWidget(widget)
 
-        main_layout = QVBoxLayout(widget)
-        main_layout.setSpacing(0)
-        main_layout.setContentsMargins(0, 0, 0, 0)
-        main_layout.addLayout(layout, stretch=True)
+        layout = hp.make_h_layout(parent=widget, margin=3, spacing=2)
+        layout.addWidget(self.view.widget, stretch=True)
+        layout.addWidget(hp.make_v_line())
+        layout.addWidget(side_widget)
 
         # extra settings
         self._make_menu()
         self._make_icon()
         self._make_statusbar()
-
-    # def _make_focus_layout(self) -> QFormLayout:
-    #     self.lock_btn = hp.make_lock_btn(
-    #         self,
-    #         func=self.on_lock,
-    #         normal=True,
-    #         tooltip="Lock the area of interest. Press <b>L</b> on your keyboard to lock.",
-    #     )
-    #     # self.set_current_focus_btn = hp.make_btn(self, "Set current range", func=self.on_set_focus)
-    #     self.x_center = hp.make_double_spin_box(
-    #         self, -1e5, 1e5, step_size=500, tooltip="Center of the area of interest along the x-axis."
-    #     )
-    #     self.y_center = hp.make_double_spin_box(
-    #         self, -1e5, 1e5, step_size=500, tooltip="Center of the area of interest along the y-axis."
-    #     )
-    #     self.zoom = hp.make_double_spin_box(self, -1e5, 1e5, step_size=0.5, n_decimals=4, tooltip="Zoom factor.")
-    #     self.use_focus_btn = hp.make_btn(
-    #         self,
-    #         "Zoom-in",
-    #         func=self.on_apply_focus,
-    #         tooltip="Zoom-in to an area of interest. Press <b>Z</b> on your keyboard to zoom-in.",
-    #     )
-    #
-    #     layout = hp.make_form_layout()
-    #     layout.addRow(hp.make_label(self, "Center (x)"), self.x_center)
-    #     layout.addRow(hp.make_label(self, "Center (y)"), self.y_center)
-    #     layout.addRow(hp.make_label(self, "Zoom"), self.zoom)
-    #     layout.addRow(hp.make_h_layout(self.lock_btn, self.use_focus_btn, stretch_id=1))
-    #     return layout
 
     def _get_console_variables(self) -> dict:
         variables = super()._get_console_variables()
@@ -448,7 +419,7 @@ class ImageViewerWindow(SingleViewerMixin):
         self.CONFIG.update(first_time=False)
 
     @qdebounced(timeout=50, leading=True)
-    def keyPressEvent(self, evt: QKeyEvent) -> None:
+    def keyPressEvent(self, evt: QKeyEvent) -> None:  # type: ignore[override]
         """Key press event."""
         if hasattr(evt, "native"):
             evt = evt.native

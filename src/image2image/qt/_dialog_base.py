@@ -207,7 +207,8 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
                 current_scale = reader.scale if scale else (1, 1)
                 try:
                     if reader.reader_type == "shapes" and hasattr(reader, "to_shapes_kwargs"):
-                        if READER_CONFIG.shape_display == "points" and hasattr(reader, "to_points_kwargs"):
+                        display_type = reader.display_type or READER_CONFIG.shape_display
+                        if display_type == "points" and hasattr(reader, "to_points_kwargs"):
                             face_color = get_next_color(0, view_wrapper.layers, "points")
                             kws = reader.to_points_kwargs(name=name, affine=current_affine, face_color=face_color)
                             logger.trace(f"Adding '{name}' to {view_kind} with {len(kws['data']):,} points...")

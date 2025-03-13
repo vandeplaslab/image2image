@@ -237,8 +237,18 @@ class SingleViewerMixin(Window):
 
     def on_add_temporary_to_viewer(self, key: str, channel_index: int) -> None:
         """Add temporary layer to viewer."""
-        self._image_widget.dset_dlg._list.sync_layers()
-        logger.trace(f"Added image {channel_index} for '{key}' to viewer.")
+        reader = self.data_model.get_reader_for_key(key)
+        layer = self.temporary_layers.get(key, None)
+        if layer and reader:
+            channel_name = reader.channel_names[channel_index]
+            layer_name = f"{channel_name} | {key}"
+            if layer_name in self.view.layers:
+                logger.warning(f"Temporary layer '{key}' is already added to viewer.")
+                return
+            layer = self.temporary_layers.pop(key, None)
+            layer.name = layer_name
+            self._image_widget.dset_dlg._list.sync_layers()
+            logger.trace(f"Added image {channel_index} for '{key}' to viewer.")
 
 
 class NoViewerMixin(Window):

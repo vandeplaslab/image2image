@@ -118,7 +118,7 @@ QStatusBar QCheckBox::indicator {
 /*}*/
 
 
-QtModalityItem {
+QtDatasetItem, QtModalityItem {
     border: 2px solid {{ highlight }};
 }
 

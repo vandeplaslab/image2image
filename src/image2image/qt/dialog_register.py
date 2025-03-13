@@ -1007,7 +1007,7 @@ class ImageRegistrationWindow(Window):
                     self.transformed_moving_image_layer.data = moving_image_layer.data
                     self.transformed_moving_image_layer.colormap = colormap
                     self.transformed_moving_image_layer.reset_contrast_limits()
-                    self.transformed_moving_image_layer.contrast_limits = contrast_limits
+                    self.transformed_moving_image_layer.contrast_limits = contrast_limits"p[p"
             except (ValueError, TypeError, KeyError):
                 update = False
                 self.view_fixed.remove_layer(self.transformed_moving_image_layer)

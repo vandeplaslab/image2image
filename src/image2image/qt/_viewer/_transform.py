@@ -128,7 +128,7 @@ class SelectTransformDialog(QtFramelessTool):
         self.table.reset_data()
         self.table.add_data(data)
 
-    def on_add_transform(self):
+    def on_add_transform(self) -> None:
         """Load transformation matrix."""
         from image2image.config import get_viewer_config
         from image2image.enums import ALLOWED_PROJECT_EXPORT_REGISTER_FORMATS

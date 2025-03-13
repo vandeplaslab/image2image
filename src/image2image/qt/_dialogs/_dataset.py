@@ -1136,7 +1136,7 @@ class DatasetDialog(QtFramelessTool):
     # noinspection PyAttributeOutsideInit
     def make_panel(self) -> QFormLayout:
         """Make panel."""
-        _, header_layout = self._make_hide_handle(title="Modalities")
+        _, header_layout = self._make_hide_handle(title="Datasets")
 
         self._list = QtDatasetList(self, self.allow_channels, self.allow_transform, self.allow_iterate)
 
@@ -1225,7 +1225,7 @@ class DatasetDialog(QtFramelessTool):
             hp.make_h_layout(
                 hp.make_label(self, "Split CZI (recommended)", hide=not self.show_split_czi),
                 self.split_czi_check,
-                hp.make_v_line(),
+                hp.make_v_line(hide=not self.show_split_czi),
                 hp.make_label(self, "Split Bruker .d (recommended)"),
                 self.split_roi_check,
                 hp.make_v_line(),
@@ -1251,7 +1251,7 @@ class DatasetDialog(QtFramelessTool):
         )
         layout.addRow(hp.make_h_line())
         layout.addRow(self._list)
-        layout.addRow(hp.make_h_line())
+        layout.addRow(hp.make_h_line_with_text("Filter table"))
         layout.addRow(
             hp.make_h_layout(
                 self.reader_type_toggle,
@@ -1333,19 +1333,6 @@ class DatasetDialog(QtFramelessTool):
         if not isinstance(path_or_paths, list):
             path_or_paths = [path_or_paths]
 
-        # self._on_loaded_dataset(
-        #     self.model.load(
-        #         paths=path_or_paths,
-        #         transform_data=transform_data,
-        #         resolution=resolution,
-        #         reader_kws=reader_kws,
-        #         # _start_thread=True,
-        #         # _connect={
-        #         #     "returned": self._on_loaded_dataset,
-        #         #     "errored": self._on_failed_dataset,
-        #         # },
-        #     )
-        # )
         create_worker(
             self.model.load,
             paths=path_or_paths,
@@ -1432,7 +1419,7 @@ class DatasetDialog(QtFramelessTool):
                 model.just_added_keys = just_added
                 channel_list_ = list(wrapper.channel_names_for_names(just_added))
                 if channel_list_:
-                    dlg = SelectChannelsToLoadDialog(self, model)
+                    dlg = SelectChannelsToLoadDialog(self, model)  # type: ignore[assignment]
                     dlg.show_in_center_of_screen()
                     if dlg.exec_():  # type: ignore
                         channel_list = dlg.channels

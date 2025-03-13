@@ -104,9 +104,8 @@ class LoadWidget(QWidget):
             bold=True,
             wrap=True,
             alignment=Qt.AlignmentFlag.AlignCenter,
+            visible=self.INFO_TEXT != "",
         )
-        if not self.INFO_TEXT:
-            self.info_text.setVisible(False)
 
         self.active_icon = QtActiveIcon()
         self.import_btn = hp.make_qta_btn(
@@ -124,10 +123,11 @@ class LoadWidget(QWidget):
         )
         self.more_btn = hp.make_btn(
             self,
-            "More options...",
+            "Select channels...",
             func=self.on_open_dataset_dialog,
             tooltip="Open dialog to add/remove images or adjust pixel size.",
         )
+
         layout = hp.make_form_layout(parent=self, margin=0)
         layout.addRow(self.info_text)
         layout.addRow(
