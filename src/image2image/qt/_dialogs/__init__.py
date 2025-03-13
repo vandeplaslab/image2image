@@ -11,7 +11,6 @@ from image2image.qt._dialogs._locate import LocateFilesDialog
 from image2image.qt._dialogs._misc import ImportSelectDialog
 from image2image.qt._dialogs._sysinfo import open_sysinfo
 from image2image.qt._register._fiducials import FiducialsDialog
-from image2image.qt._viewer._transform import SelectTransformDialog
 
 __all__ = [
     "AboutDialog",
@@ -22,7 +21,6 @@ __all__ = [
     "ImportSelectDialog",
     "LocateFilesDialog",
     "SelectChannelsToLoadDialog",
-    "SelectTransformDialog",
     "open_about",
     "open_sysinfo",
 ]
