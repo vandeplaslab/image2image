@@ -199,6 +199,10 @@ class LoadWidget(QWidget):
             while self.model.n_paths > 0:
                 self.dset_dlg.on_close_dataset(force=True)
 
+    def channel_list(self) -> list[str]:
+        """List of visible channels."""
+        return self.dset_dlg.channel_list()
+
 
 class FixedWidget(LoadWidget):
     """Widget for loading fixed data."""

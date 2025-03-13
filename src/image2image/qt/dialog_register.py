@@ -298,14 +298,11 @@ class ImageRegistrationWindow(Window):
             self.view_moving.viewer.layers.events.removed, partial(self.on_layer_removed, which="moving"), state=state
         )
 
-    def on_plot_temporary(self, res: tuple[str, int]) -> None:
+    def on_plot_temporary(self, key: str, channel_index: int) -> None:
         """Plot temporary layer."""
-        key, channel_index = res
-        # with MeasureTimer() as timer:
         self._plot_temporary_layer(self.moving_model, self.view_moving, key, channel_index, True)
-        # logger.trace(f"Plotted temporary layer for '{key}' in {timer()}.")
 
-    def on_remove_temporary(self, _=None) -> None:
+    def on_remove_temporary(self, _: ty.Any = None) -> None:
         """Remove temporary layer."""
         for view in [self.view_fixed, self.view_moving]:
             for layer in view.layers:
@@ -313,19 +310,18 @@ class ImageRegistrationWindow(Window):
                     view.remove_layer(layer.name)
                     logger.trace(f"Removed temporary layer '{layer.name}'.")
 
-    def on_add_temporary_to_viewer(self, res: tuple[str, int]) -> None:
+    def on_add_temporary_to_viewer(self, key: str, channel_index: int) -> None:
         """Add temporary layer to viewer."""
-        key, channel_index = res
-        indices = self._moving_widget.channel_dlg.table.find_indices_of(
-            self._moving_widget.channel_dlg.TABLE_CONFIG.dataset, key
-        )
-        index = self._moving_widget.channel_dlg.table.find_index_of_value_with_indices(
-            self._moving_widget.channel_dlg.TABLE_CONFIG.index, channel_index, indices
-        )
-        if index != -1:
-            self._moving_widget.channel_dlg.table.set_value(
-                self._moving_widget.channel_dlg.TABLE_CONFIG.check, index, True
-            )
+        reader = self.data_model.get_reader_for_key(key)
+        layer = self.temporary_layers.get(key, None)
+        if layer and reader:
+            channel_name = reader.channel_names[channel_index]
+            layer_name = f"{channel_name} | {key}"
+            if layer_name in self.view_moving.layers:
+                logger.warning(f"Temporary layer '{key}' is already added to viewer.")
+                return
+            layer = self.temporary_layers.pop(key, None)
+            layer.name = layer_name
             logger.trace(f"Added image {channel_index} for '{key}' to viewer.")
 
     def on_indicator(self, which: str, state: bool = True) -> None:
@@ -488,7 +484,7 @@ class ImageRegistrationWindow(Window):
     def on_change_view_type(self, _view_type: str) -> None:
         """Change view type."""
         if self.moving_model.n_paths:
-            channel_list = self._moving_widget.channel_dlg.channel_list()
+            channel_list = self._moving_widget.channel_list()
             self._plot_moving_layers(channel_list)
             self.on_apply(update_data=True)
 
@@ -1007,7 +1003,7 @@ class ImageRegistrationWindow(Window):
                     self.transformed_moving_image_layer.data = moving_image_layer.data
                     self.transformed_moving_image_layer.colormap = colormap
                     self.transformed_moving_image_layer.reset_contrast_limits()
-                    self.transformed_moving_image_layer.contrast_limits = contrast_limits"p[p"
+                    self.transformed_moving_image_layer.contrast_limits = contrast_limits
             except (ValueError, TypeError, KeyError):
                 update = False
                 self.view_fixed.remove_layer(self.transformed_moving_image_layer)
@@ -1236,7 +1232,7 @@ class ImageRegistrationWindow(Window):
     def on_adjust_transformed_opacity(self, increase_by: int) -> None:
         """Toggle visibility of transformed image."""
         self.moving_opacity.setValue(self.moving_opacity.value() + increase_by)
-        hp.toast(self, "Opacity", f"Adjusted opacity to {self.moving_opacity.value()}.")
+        hp.notification(self, "Opacity", f"Adjusted opacity to {self.moving_opacity.value()}.")
 
     def on_update_settings(self) -> None:
         """Update config."""
@@ -1910,12 +1906,12 @@ class ImageRegistrationWindow(Window):
     def on_increment_dataset(self, increment: int) -> None:
         """Increase the dataset index."""
         hp.increment_combobox(self._moving_widget.dataset_choice, increment)
-        hp.toast(self, "Dataset", f"Switched to dataset {self._moving_widget.dataset_choice.currentText()}.")
+        hp.notification(self, "Dataset", f"Switched to dataset {self._moving_widget.dataset_choice.currentText()}.")
 
     def on_toggle_transformed_view_type(self) -> None:
         """Toggle between image and random."""
         hp.increment_combobox(self._moving_widget.view_type_choice, 1)
-        hp.toast(self, "View type", f"Switched to {self._moving_widget.view_type_choice.currentText()}.")
+        hp.notification(self, "View type", f"Switched to {self._moving_widget.view_type_choice.currentText()}.")
 
     def close(self, force=False):
         """Override to handle closing app or just the window."""

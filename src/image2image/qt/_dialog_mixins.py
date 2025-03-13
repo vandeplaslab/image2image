@@ -247,7 +247,6 @@ class SingleViewerMixin(Window):
                 return
             layer = self.temporary_layers.pop(key, None)
             layer.name = layer_name
-            self._image_widget.dset_dlg._list.sync_layers()
             logger.trace(f"Added image {channel_index} for '{key}' to viewer.")
 
 

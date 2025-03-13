@@ -190,11 +190,11 @@ class QtDatasetItem(QFrame):
     def _set_from_model(self, _: ty.Any = None) -> None:
         """Update UI elements."""
         reader = self.get_model()
-        self.setToolTip(f"<b>Modality</b>: {reader.name}<br><b>Path</b>: {reader.path}")
+        self.setToolTip(f"<b>Modality</b>: {reader.clean_key}<br><b>Path</b>: {reader.path}")
 
         # metadata information
         self.modality_icon.state = reader.reader_type
-        self.name_label.setText(reader.name)
+        self.name_label.setText(reader.clean_key)
         self.modality_icon.state = reader.reader_type
         self.resolution_label.setText(f"{reader.resolution:.3f}")
         self.shape_label.setText(format_shape(reader.shape))
@@ -224,6 +224,13 @@ class QtDatasetItem(QFrame):
             index = self.table.get_row_id(TABLE_CONFIG.channel_name, channel_name)
             if index != -1:
                 self.table.set_value(TABLE_CONFIG.check, index, state)
+
+    def channel_list(self) -> list[str]:
+        """Channel list."""
+        channel_list = []
+        for index in self.table.get_all_checked():
+            channel_list.append(f"{self.table.get_value(TABLE_CONFIG.channel_name, index)} | {self.key}")
+        return channel_list
 
     @qdebounced(timeout=500, leading=False)
     def on_update_resolution(self) -> None:
@@ -263,12 +270,17 @@ class QtDatasetItem(QFrame):
 
     def on_save(self) -> None:
         """Save data."""
-        from image2image.qt._dialogs._save import ExportImageDialog
 
         reader = self.get_model()
-        if reader and reader.reader_type == "image":
-            dlg = ExportImageDialog(self, reader, self.config)
-            dlg.exec()
+        if reader:
+            from image2image.qt._dialogs._save import ExportImageDialog
+
+            # export images as OME-TIFF
+            if reader.reader_type == "image":
+                dlg = ExportImageDialog(self, reader, self.config)
+                dlg.exec()
+            # # export shapes as GeoJSON
+            # elif reader.reader_type == "shapes":
 
     def on_extract(self) -> None:
         """Extract data."""
@@ -527,7 +539,7 @@ class QtDatasetList(QScrollArea):
             channel_name, dataset = name.split(" | ")
             widget = self.get_widget_for_key(dataset)
             if widget:
-                widget.select_channel(channel_name, False)
+                widget.select_channel(channel_name, layer.visible)
 
     @qdebounced(timeout=500, leading=False)
     def on_sync_layers(self, event: Event) -> None:

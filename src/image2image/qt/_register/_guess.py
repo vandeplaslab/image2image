@@ -200,7 +200,7 @@ class GuessDialog(QtFramelessTool):
         # update color so it's easier to see which point they are trying to edit
         colors = ["yellow"] * len(contour)
         colors[point_index] = "cyan"
-        parent.temporary_moving_points_layer.edge_color = colors
+        parent.temporary_moving_points_layer.border_color = colors
 
         if self.zoom_in.isChecked():
             y, x = contour[point_index]

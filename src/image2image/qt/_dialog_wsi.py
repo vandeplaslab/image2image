@@ -257,10 +257,14 @@ class ImageWsiWindow(SingleViewerMixin):
             layer.colormap = color
 
     def _get_preprocessing_hash(
-        self, modality: Modality, preprocessing: Preprocessing | None = None, preview: bool | None = None
+        self,
+        modality: Modality,
+        preprocessing: Preprocessing | None = None,
+        preview: bool | None = None,
+        pyramid: int | None = None,
     ) -> str:
         preview = preview if preview is not None else self.use_preview_check.isChecked()
-        pyramid = PYRAMID_TO_LEVEL[self.pyramid_level.currentText()]
+        pyramid = pyramid or PYRAMID_TO_LEVEL[self.pyramid_level.currentText()]
         if preprocessing is None:
             preprocessing = modality.preprocessing
 

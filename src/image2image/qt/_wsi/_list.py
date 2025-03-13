@@ -13,11 +13,19 @@ from image2image_reg.models import Modality, Preprocessing
 from koyo.color import get_next_color
 from koyo.typing import PathLike
 from loguru import logger
+
+# from napari._qt.layer_controls.qt_image_controls_base import (
+#     QContrastLimitsPopup,
+#     _QDoubleRangeSlider,
+#     range_to_decimals,
+# )
+from napari.layers import Image
 from qtextra.widgets.qt_button_icon import QtLockButton, QtVisibleButton
 from qtextra.widgets.qt_list_widget import QtListItem, QtListWidget
 from qtpy.QtCore import QRegularExpression, Qt, Signal, Slot  # type: ignore[attr-defined]
 from qtpy.QtGui import QRegularExpressionValidator
 from qtpy.QtWidgets import QDialog, QGridLayout, QListWidgetItem, QSizePolicy, QWidget
+from superqt import QLabeledDoubleSlider
 
 from image2image.config import SingleAppConfig, get_elastix_config, get_valis_config
 from image2image.qt._wsi._widgets import QtModalityLabel
@@ -59,6 +67,7 @@ class QtModalityItem(QtListItem):
     def __init__(self, item: QListWidgetItem, parent: QWidget | None = None, color="#808080", valis: bool = False):
         super().__init__(parent)
         self.setMouseTracking(True)
+        self._parent = parent
         self.valis = valis
         self.item = item
 
@@ -156,6 +165,25 @@ class QtModalityItem(QtListItem):
         self.visible_btn.set_normal()
         self.visible_btn.evt_toggled.connect(self._on_show_image)
 
+        self.opacity_slider = QLabeledDoubleSlider(Qt.Orientation.Horizontal, parent=self)
+        self.opacity_slider.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self.opacity_slider.setMinimum(0.0)
+        self.opacity_slider.setMaximum(1.0)
+        self.opacity_slider.setSingleStep(0.01)
+        self.opacity_slider.setValue(1.0)
+        self.opacity_slider.valueChanged.connect(self.on_change_opacity)
+
+        # self.contrast_slider = _QDoubleRangeSlider(Qt.Orientation.Horizontal, self)
+        # # decimals = range_to_decimals(
+        # #     self.layer.contrast_limits_range, self.layer.dtype
+        # # )
+        # # self.contrastLimitsSlider.setRange(*self.layer.contrast_limits_range)
+        # # self.contrastLimitsSlider.setSingleStep(10**-decimals)
+        # # self.contrastLimitsSlider.setValue(self.layer.contrast_limits)
+        # self.contrast_slider.valueChanged.connect(self.on_change_contrast_limits)
+        # self.contrast_slider.rangeChanged.connect(self.on_change_contrast_limits_range)
+        # self.contrast_slider.setToolTip("Right click for detailed slider popup.")
+
         grid = QGridLayout(self)
         # widget, row, column, rowspan, colspan
         grid.setSpacing(0)
@@ -169,24 +197,69 @@ class QtModalityItem(QtListItem):
         grid.addWidget(self.mask_btn, 4, 0)
         grid.addWidget(self.crop_btn, 5, 0)
         # column 2
-        grid.addWidget(self.attach_image_btn, 2, 1)
-        grid.addWidget(self.attach_geojson_btn, 3, 1)
-        grid.addWidget(self.attach_points_btn, 4, 1)
+        grid.addWidget(self.attach_image_btn, 3, 1)
+        grid.addWidget(self.attach_geojson_btn, 4, 1)
+        grid.addWidget(self.attach_points_btn, 5, 1)
         # column 3
-        grid.addWidget(self.color_btn, 2, 2)
-        grid.addWidget(self.lock_btn, 3, 2)
-        grid.addWidget(self.preprocessing_btn, 4, 2)
+        grid.addWidget(self.color_btn, 3, 2)
+        grid.addWidget(self.lock_btn, 4, 2)
+        grid.addWidget(self.preprocessing_btn, 5, 2)
         # column 2-3
         grid.addWidget(hp.make_label(self, "Name"), 0, 1, 1, 2)
         grid.addWidget(hp.make_label(self, "Pixel size"), 1, 1, 1, 2)
+        grid.addWidget(hp.make_label(self, "Opacity"), 2, 1, 1, 2)
+        # grid.addWidget(hp.make_label(self, "Contrast limits"), 3, 1, 1, 2)
         # column 4
         grid.addWidget(self.name_label, 0, 3)
         grid.addWidget(self.resolution_label, 1, 3)
-        grid.addWidget(self.preprocessing_label, 2, 3, 3, 1)
+        grid.addWidget(self.opacity_slider, 2, 3)
+        # grid.addWidget(self.contrast_slider, 3, 3)
+        grid.addWidget(self.preprocessing_label, 3, 3, 3, 1)
 
         self.mode = False
         self._set_from_model()
         self._old_hex_color = self.hex_color
+
+    @property
+    def layer(self) -> Image | None:
+        """Get image layer."""
+        layers = self._parent.view.layers
+        if self.item_model.name in layers:
+            layer = layers[self.item_model.name]
+            # decimals = range_to_decimals(layer.contrast_limits_range, layer.dtype)
+            # with hp.qt_signals_blocked(self.contrast_slider):
+            #     self.contrast_slider.setRange(*layer.contrast_limits_range)
+            #     self.contrast_slider.setSingleStep(10**-decimals)
+            #     self.contrast_slider.setValue(layer.contrast_limits)
+            return layer
+        return None
+
+    def on_change_opacity(self, value: float) -> None:
+        """Update opacity."""
+        if not self.layer:
+            return
+        layer = self.layer
+        layer.opacity = value
+
+    # def show_clim_popupup(self) -> None:
+    #     """Show popup."""
+    #     if not self.layer:
+    #         return
+    #     clim_popup = QContrastLimitsPopup(self.layer, self)
+    #     clim_popup.setParent(self)
+    #     clim_popup.move_to("top", min_length=650)
+    #     clim_popup.show()
+    # def on_change_contrast_limits(self, value) -> None:
+    #     """Update contrast limits."""
+    #     if not self.layer:
+    #         return
+    #     self.layer.contrast_limits = value
+    #
+    # def on_change_contrast_limits_range(self, value) -> None:
+    #     """Update contrast limits."""
+    #     if not self.layer:
+    #         return
+    #     self.layer.contrast_limits_range = value
 
     def _set_from_model(self, _: ty.Any = None) -> None:
         """Update UI elements."""
@@ -507,6 +580,8 @@ class QtModalityList(QtListWidget):
 
     def __init__(self, parent: QWidget, valis: bool = False):
         super().__init__(parent)
+        self.view = parent.view
+
         self.setSpacing(1)
         # self.setSelectionsMode(QListWidget.SingleSelection)
         self.setMinimumHeight(12)

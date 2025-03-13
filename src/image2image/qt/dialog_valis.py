@@ -568,7 +568,7 @@ class ImageValisWindow(ImageWsiWindow):
                 reader.resolution = modality.pixel_size
                 scale = reader.scale_for_pyramid(pyramid)
                 layer = self.view.get_layer(modality.name)
-                preprocessing_hash = self._get_preprocessing_hash(modality)
+                preprocessing_hash = self._get_preprocessing_hash(modality, pyramid=pyramid)
                 # no need to re-process if the layer is already there
                 if layer and layer.metadata.get("preview_hash") == preprocessing_hash and not overwrite:
                     layer.visible = state
@@ -607,7 +607,7 @@ class ImageValisWindow(ImageWsiWindow):
             preprocessing = modality.preprocessing
 
         pyramid = -1
-        preprocessing_hash = self._get_preprocessing_hash(modality, preprocessing)
+        preprocessing_hash = self._get_preprocessing_hash(modality, preprocessing, pyramid=pyramid)
 
         wrapper = self.data_model.get_wrapper()
         if wrapper:
