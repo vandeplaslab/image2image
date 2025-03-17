@@ -13,6 +13,7 @@ from koyo.timer import MeasureTimer
 from loguru import logger
 from qtextra.utils.table_config import TableConfig
 from qtextra.widgets.qt_table_view_check import MultiColumnSingleValueProxyModel, QtCheckableTableView
+from qtextra.widgets.qt_toolbar_mini import QtMiniToolbar
 from qtpy.QtCore import QRegularExpression, Qt, Signal, Slot  # type: ignore[attr-defined]
 from qtpy.QtGui import QRegularExpressionValidator
 from qtpy.QtWidgets import QDialog, QFrame, QGridLayout, QScrollArea, QSizePolicy, QWidget
@@ -459,6 +460,10 @@ class QtDatasetList(QScrollArea):
 
     def remove_by_key(self, key: str) -> None:
         """Remove model."""
+        self._remove_by_key(key)
+        self.evt_delete.emit(key)
+
+    def _remove_by_key(self, key: str) -> None:
         widget = self.get_widget_for_key(key)
         if widget:
             self._layout.removeWidget(widget)
@@ -466,7 +471,6 @@ class QtDatasetList(QScrollArea):
             widget.deleteLater()
         self.widgets.pop(key, None)
         del widget
-        self.evt_delete.emit(key)
 
     def set_resolution(self, key: str, resolution: float) -> None:
         """Update resolution"""
@@ -485,8 +489,9 @@ class QtDatasetList(QScrollArea):
             for key in keys:  # type: ignore[var-annotated]
                 reader = wrapper.get_reader_for_key(key)
                 if not reader:
-                    self.remove_by_key(key)
-        logger.debug("Populated modality list.")
+                    self._remove_by_key(key)
+        self.validate()
+        logger.debug("Populated dataset list.")
 
     def validate(self) -> None:
         """Validate visibilities."""
@@ -622,3 +627,7 @@ class QtDatasetList(QScrollArea):
                 if transform_name == "Identity matrix":
                     continue
                 self.transform_model.remove_transform(transform_name)
+
+
+class QtDatasetToolbar(QtMiniToolbar):
+    """Mini toolbar."""

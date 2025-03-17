@@ -123,7 +123,7 @@ class ImageValisWindow(ImageWsiWindow):
     def _setup_config() -> None:
         READER_CONFIG.only_last_pyramid = True
         READER_CONFIG.init_pyramid = False
-        READER_CONFIG.split_czi = False
+        READER_CONFIG.split_czi = True
 
     @staticmethod
     def make_registration_task(
@@ -207,6 +207,7 @@ class ImageValisWindow(ImageWsiWindow):
             project_extension=["valis.config.json", ".valis.json", ".valis"],
             allow_channels=False,
             allow_geojson=True,
+            confirm_czi=True,
             allow_import_project=True,
         )
 
@@ -429,6 +430,7 @@ class ImageValisWindow(ImageWsiWindow):
                         pixel_size=reader.resolution,
                         channel_names=reader.channel_names,
                         preprocessing=preprocessing,
+                        reader_kws=reader.reader_kws,
                         raise_on_error=False,
                     )
         # Populate table

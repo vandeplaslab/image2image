@@ -128,8 +128,9 @@ def run(
             install_error_monitor()
 
         # install segfault handler
-        maybe_submit_segfault(USER_LOG_DIR)
-        install_segfault_handler(USER_LOG_DIR)
+        segfault_filename = f"segfault_{tool}.log"
+        maybe_submit_segfault(USER_LOG_DIR, segfault_filename)
+        install_segfault_handler(USER_LOG_DIR, segfault_filename)
 
         args = sys.argv
         if args and ("image2image" in args or "image2image" in args[0]):
@@ -189,8 +190,7 @@ def run(
             from napari import Viewer
 
             viewer = Viewer()
-            dlg = viewer.window
-            dlg = dlg._qt_window
+            dlg = viewer.window._qt_window
         else:
             raise ValueError("Launcher is not implemented yet.")
 

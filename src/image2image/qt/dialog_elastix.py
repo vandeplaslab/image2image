@@ -351,6 +351,7 @@ class ImageElastixWindow(ImageWsiWindow):
                         pixel_size=reader.resolution,
                         channel_names=reader.channel_names,
                         preprocessing=preprocessing,
+                        reader_kws=reader.reader_kws,
                         raise_on_error=False,
                     )
         # Populate table
@@ -543,6 +544,7 @@ class ImageElastixWindow(ImageWsiWindow):
             project_extension=[".i2wsireg.json", ".i2wsireg.toml", ".config.json", ".wsireg", ".i2reg"],
             allow_geojson=True,
             allow_import_project=True,
+            confirm_czi=True,
         )
 
         side_widget = QWidget()

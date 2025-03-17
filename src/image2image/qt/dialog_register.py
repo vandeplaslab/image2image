@@ -1952,7 +1952,7 @@ class ImageRegistrationWindow(Window):
         dlg = QtScrollablePickOption(
             self,
             "Please select which view would you like to add the image(s) to?",
-            {"fixed": "Fixed image", "moving": "Moving image"},
+            {"Fixed image": "fixed", "Moving image": "moving"},
             orientation="vertical",
         )
         which = None

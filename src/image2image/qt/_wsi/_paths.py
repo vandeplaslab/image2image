@@ -424,7 +424,7 @@ class RegistrationMap(QWidget):
 
     def validate(self) -> None:
         """Validate paths."""
-        is_valid, errors = self.registration_model.validate_paths()
+        is_valid, errors = self.registration_model.validate_paths(log=False)
         self.evt_valid.emit(is_valid, errors)
 
     def populate_images(self) -> None:

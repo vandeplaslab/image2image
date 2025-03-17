@@ -444,7 +444,7 @@ class ImageViewerWindow(SingleViewerMixin):
         return ignore
 
 
-def get_resolution_options(wrapper) -> dict[float, str]:
+def get_resolution_options(wrapper) -> dict[str, float]:
     """Get resolution options."""
     resolutions: dict[float, list[str]] = {}
     for reader in wrapper.reader_iter():
@@ -453,12 +453,13 @@ def get_resolution_options(wrapper) -> dict[float, str]:
         if reader.resolution not in resolutions:
             resolutions[reader.resolution] = []
         resolutions[reader.resolution].append(reader.name)
-    options = {1.0: "Apply no scaling."}
+
+    options = {"Apply no scaling.": 1.0}
     for resolution, names in resolutions.items():
         datasets = ", ".join(names)
         if len(datasets) > 120:
             datasets = f"{datasets[:120]}..."
-        options[resolution] = f"{resolution:.3f}µm\nLike: {datasets}"
+        options[f"{resolution:.3f}µm\nLike: {datasets}"] = resolution
     return options
 
 

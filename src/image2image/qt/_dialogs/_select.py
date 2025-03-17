@@ -51,6 +51,7 @@ class LoadWidget(QWidget):
         allow_transform: bool = False,
         project_extension: list[str] | None = None,
         show_split_czi: bool = True,
+        confirm_czi: bool = False,
         allow_import_project: bool = False,
         allow_export_project: bool = False,
     ):
@@ -84,6 +85,7 @@ class LoadWidget(QWidget):
             available_formats=available_formats,
             project_extension=project_extension,
             show_split_czi=show_split_czi,
+            confirm_czi=confirm_czi,
         )
         self.dset_dlg.evt_loading.connect(lambda: self.active_icon.set_active(True))
         self.dset_dlg.evt_loaded.connect(lambda _: self.active_icon.set_active(False))

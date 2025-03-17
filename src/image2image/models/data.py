@@ -152,7 +152,7 @@ class DataModel(BaseModel):
 
     def load(
         self,
-        paths: ty.Union[PathLike, ty.Sequence[PathLike]],
+        paths: ty.Union[PathLike, ty.Sequence[PathLike], ty.Sequence[dict[str, ty.Any]]],
         transform_data: ty.Optional[dict[str, TransformData]] = None,
         resolution: ty.Optional[dict[str, float]] = None,
         reader_kws: ty.Optional[dict[str, dict]] = None,
@@ -168,7 +168,7 @@ class DataModel(BaseModel):
         self,
         transform_data: ty.Optional[dict[str, TransformData]] = None,
         resolution: ty.Optional[dict[str, float]] = None,
-        paths: ty.Optional[ty.Union[PathLike, ty.Sequence[PathLike]]] = None,
+        paths: ty.Optional[ty.Union[PathLike, ty.Sequence[PathLike], ty.Sequence[dict[str, ty.Any]]]] = None,
         reader_kws: ty.Optional[dict[str, dict]] = None,
     ) -> ty.Optional["ImageWrapper"]:
         """Read data from file."""
@@ -189,7 +189,13 @@ class DataModel(BaseModel):
             return self.wrapper
 
         just_added_keys = []
-        for path in paths:
+        for path_or_dict in paths:
+            if isinstance(path_or_dict, dict):
+                path = path_or_dict["path"]
+                scene_index = path_or_dict.get("scene_index", None)
+            else:
+                path = path_or_dict
+                scene_index = None
             path = Path(path)
             if self.wrapper is None or not self.wrapper.is_loaded(path):
                 logger.trace(f"Loading '{path}'...")
@@ -205,6 +211,8 @@ class DataModel(BaseModel):
                 if resolution and not resolution_:
                     logger.trace(f"Failed to retrieve resolution for '{path}'")
                 reader_kws_ = reader_kws.get(path.name, None) if reader_kws else None
+                if scene_index is not None and reader_kws_ is None:
+                    reader_kws_ = {"scene_index": scene_index}
 
                 # read data
                 try:

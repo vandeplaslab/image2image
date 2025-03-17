@@ -25,7 +25,7 @@ from superqt.utils import create_worker
 from image2image.config import STATE, SingleAppConfig, get_register_config
 from image2image.enums import ALLOWED_IMAGE_FORMATS, ALLOWED_IMAGE_FORMATS_WITH_GEOJSON
 from image2image.exceptions import MultiSceneCziError, UnsupportedFileFormatError
-from image2image.qt._dialogs._list import QtDatasetList
+from image2image.qt._dialogs._list import QtDatasetList, QtDatasetToolbar
 from image2image.utils.utilities import extract_extension, log_exception_or_error, open_docs
 
 if ty.TYPE_CHECKING:
@@ -431,6 +431,7 @@ class DatasetDialog(QtFramelessTool):
         allow_iterate: bool = False,
         allow_transform: bool = False,
         allow_channels: bool = True,
+        confirm_czi: bool = False,
         available_formats: str | None = None,
         project_extension: list[str] | None = None,
         show_split_czi: bool = True,
@@ -448,6 +449,7 @@ class DatasetDialog(QtFramelessTool):
         self.available_formats = available_formats
         self.project_extension = project_extension
         self.show_split_czi = show_split_czi
+        self.confirm_czi = confirm_czi
 
         super().__init__(parent)
         self.n_max = n_max
@@ -473,6 +475,7 @@ class DatasetDialog(QtFramelessTool):
         _, header_layout = self._make_hide_handle(title="Datasets")
 
         self._list = QtDatasetList(self, self.allow_channels, self.allow_transform, self.allow_iterate)
+        self._toolbar = QtDatasetToolbar(self._list, self.CONFIG)
 
         self.split_czi_check = hp.make_checkbox(
             self,
@@ -656,7 +659,7 @@ class DatasetDialog(QtFramelessTool):
 
     def _on_load_dataset(
         self,
-        path_or_paths: PathLike | ty.Sequence[PathLike],
+        path_or_paths: PathLike | ty.Sequence[PathLike] | ty.Sequence[dict[str, ty.Any]],
         transform_data: dict[str, TransformData] | None = None,
         resolution: dict[str, float] | None = None,
         reader_kws: dict[str, dict] | None = None,
@@ -853,21 +856,60 @@ class DatasetDialog(QtFramelessTool):
             else:
                 filenames.append(url.toString())
         # clear filenames by removing those that might not be permitted
-        filenames_ = []
-        other_files_ = []
+        kept_filenames = []
+        confirm_filenames = []
+        rejected_filenames = []
         for filename in filenames:
             if self.project_extension and any(filename.endswith(ext) for ext in self.project_extension):
                 self.evt_import_project.emit(filename)
             elif filename.endswith(allowed_extensions):
-                filenames_.append(filename)
+                if self.confirm_czi and filename.endswith(".czi"):
+                    confirm_filenames.append(filename)
+                else:
+                    kept_filenames.append(filename)
             else:
-                other_files_.append(filename)
-                # logger.warning(
-                #     f"File '{filename}' is not in a supported format. Permitted: {', '.join(allowed_extensions)}"
-                # )
-        if filenames_:
-            logger.trace(f"Dropped {filenames_} file(s)...")
-            self.evt_files.emit(filenames_)
-            self._on_load_dataset(filenames_)
-        if other_files_:
-            self.evt_rejected_files.emit(other_files_)
+                rejected_filenames.append(filename)
+
+        self._handle_filenames(kept_filenames)
+        self._handle_confirm_czi_filenames(confirm_filenames)
+
+        if rejected_filenames:
+            self.evt_rejected_files.emit(rejected_filenames)
+
+    def _handle_filenames(self, kept_filenames: list[str]) -> None:
+        """Handle filenames."""
+        if not kept_filenames:
+            return
+        logger.trace(f"Dropped {kept_filenames} file(s)...")
+        self.evt_files.emit(kept_filenames)
+        self._on_load_dataset(kept_filenames)
+
+    def _handle_confirm_czi_filenames(self, confirm_filenames: list[str]) -> None:
+        """Handle filenames."""
+        from image2image_io.readers import get_czi_metadata
+        from qtextra.widgets.qt_select_one import QtScrollablePickOption
+
+        if not confirm_filenames:
+            return
+        logger.trace(f"Dropped {confirm_filenames} CZI file(s)...")
+        kept_filenames: list[dict] = []
+        for path in confirm_filenames:
+            metadata = get_czi_metadata(path)
+            if len(metadata) == 1:
+                kept_filenames.append(path)
+            else:
+                dlg = QtScrollablePickOption(
+                    self,
+                    "Please select the <b>CZI scene</b> you would like to load.<br>Only a <b>single</b> scene can"
+                    " be loaded from a multi-scene CZI file in a single project.",
+                    metadata,
+                    orientation="vertical",
+                    max_width=min(600, self.width() - 100),
+                )
+                hp.show_in_center_of_screen(dlg)
+                if dlg.exec_() == QDialog.DialogCode.Accepted:
+                    kept_filenames.append(dlg.option)
+        if not kept_filenames:
+            return
+        self.evt_files.emit(kept_filenames)
+        self._on_load_dataset(kept_filenames)

@@ -361,7 +361,7 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
                 if view_wrapper.remove_layer(name, silent=True):
                     logger.trace(f"Removed '{name}' from {view_kind}.")
         except Exception as e:  # noqa: BLE001
-            log_exception_or_error(e)
+            log_exception_or_error(exc)
 
     @staticmethod
     def _close_model(
@@ -380,8 +380,8 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
                     and view_wrapper.remove_layer(name, silent=True)
                 ):
                     logger.trace(f"Removed '{name}' from {view_kind}.")
-        except Exception as e:  # noqa: BLE001
-            log_exception_or_error(e)
+        except Exception as exc:  # noqa: BLE001
+            log_exception_or_error(exc)
 
     @staticmethod
     def _move_layer(view: NapariImageView, layer: Layer, new_index: int = -1, select: bool = True) -> None:

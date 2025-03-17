@@ -87,7 +87,7 @@ class ImageWsiWindow(SingleViewerMixin):
     def _setup_config() -> None:
         READER_CONFIG.only_last_pyramid = True
         READER_CONFIG.init_pyramid = False
-        READER_CONFIG.split_czi = False
+        READER_CONFIG.split_czi = True
 
     @staticmethod
     def make_registration_task(**kwargs: ty.Any) -> Task:
@@ -209,7 +209,7 @@ class ImageWsiWindow(SingleViewerMixin):
                 object_name = "error"
             if name and self.output_dir and (self.output_dir / name).with_suffix(self.PROJECT_SUFFIX).exists():
                 object_name = "warning"
-        except Exception:
+        except Exception:  # noqa
             object_name = "error"
         hp.set_object_name(self.name_label, object_name=object_name)
 
@@ -274,13 +274,14 @@ class ImageWsiWindow(SingleViewerMixin):
             else f"pyramid={pyramid}; pixel_size={modality.pixel_size}"
         )
 
-    def _on_pre_loading_images(self, filelist: list[str]) -> None:
+    def _on_pre_loading_images(self, filelist: list[str | dict[str, ty.Any]]) -> None:
         """Before files are loaded, we can check whether all files come from the same directory."""
         # if path is already defined, let's not do anything
         if self.output_dir_label.text():
             return
         common_output_dir = []
-        for path in filelist:
+        for path_or_dict in filelist:
+            path = path_or_dict if isinstance(path_or_dict, str) else path_or_dict["path"]
             path = Path(path)
             if path.is_file():
                 path = path.parent
