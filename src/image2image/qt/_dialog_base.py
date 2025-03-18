@@ -360,7 +360,7 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
             for name in channel_names:
                 if view_wrapper.remove_layer(name, silent=True):
                     logger.trace(f"Removed '{name}' from {view_kind}.")
-        except Exception as e:  # noqa: BLE001
+        except Exception:  # noqa: BLE001
             log_exception_or_error(exc)
 
     @staticmethod
