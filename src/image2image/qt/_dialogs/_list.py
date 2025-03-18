@@ -14,7 +14,7 @@ from loguru import logger
 from qtextra.utils.table_config import TableConfig
 from qtextra.widgets.qt_table_view_check import MultiColumnSingleValueProxyModel, QtCheckableTableView
 from qtextra.widgets.qt_toolbar_mini import QtMiniToolbar
-from qtpy.QtCore import QRegularExpression, Qt, Signal, Slot  # type: ignore[attr-defined]
+from qtpy.QtCore import QEvent, QRegularExpression, Qt, Signal, Slot  # type: ignore[attr-defined]
 from qtpy.QtGui import QRegularExpressionValidator
 from qtpy.QtWidgets import QDialog, QFrame, QGridLayout, QScrollArea, QSizePolicy, QWidget
 from superqt.utils import create_worker, qdebounced
@@ -91,7 +91,8 @@ class QtDatasetItem(QFrame):
             validator=QRegularExpressionValidator(QRegularExpression(r"^[0-9]+(\.[0-9]{1,3})?$")),
             object_name="discreet_line_edit",
         )
-        self.resolution_label.setSizePolicy(QSizePolicy.Policy.MinimumExpanding, QSizePolicy.Policy.MinimumExpanding)
+        self.resolution_label.setFixedWidth(100)
+
         self.shape_label = hp.make_label(self, "", tooltip="Shape of the modality.")
         self.dtype_label = hp.make_label(self, "", tooltip="Data type of the modality.")
         self.size_label = hp.make_label(self, "", tooltip="Uncompressed size of the modality in GB.")
@@ -164,6 +165,18 @@ class QtDatasetItem(QFrame):
 
         # set from model
         self._set_from_model()
+        self.resolution_label.installEventFilter(self)
+
+    def eventFilter(self, recv, event):
+        """Event filter."""
+        if (
+            event.type() == QEvent.FocusOut
+            and not self.resolution_label.hasFocus()
+            and self.resolution_label.text() == ""
+        ):
+            reader = self.get_model()
+            self.resolution_label.setText(f"{reader.resolution:.3f}")
+        return super().eventFilter(recv, event)
 
     def get_model(self) -> BaseReader:
         """Get model."""
@@ -192,7 +205,6 @@ class QtDatasetItem(QFrame):
         """Update UI elements."""
         reader = self.get_model()
         self.setToolTip(f"<b>Modality</b>: {reader.clean_key}<br><b>Path</b>: {reader.path}")
-
         # metadata information
         self.modality_icon.state = reader.reader_type
         self.name_label.setText(reader.clean_key)
@@ -202,7 +214,9 @@ class QtDatasetItem(QFrame):
         self.size_label.setText(format_size(reader.shape, reader.dtype))
         self.save_btn.setVisible(reader.reader_type == "image")
         self.extract_btn.setVisible(reader.allow_extraction)
-        self.iterate_btn.setVisible(reader.reader_type == "image" and self.allow_iterate)
+        self.iterate_btn.setVisible(
+            self.allow_iterate and reader.reader_type == "image" and len(reader.channel_names) > 1
+        )
         self.transform_btn.setVisible(reader.reader_type == "image" and self.allow_transform)
         # channel information
         self._update_channel_list(reader)
@@ -211,7 +225,6 @@ class QtDatasetItem(QFrame):
         """On load."""
         with self.editing():
             data = []
-            # existing_data = self.table.get_data()
             for index, channel_name in enumerate(reader.channel_names):
                 # checked, channel_id, channel_name, dataset
                 data.append([False, index, channel_name, reader.key])
@@ -631,3 +644,59 @@ class QtDatasetList(QScrollArea):
 
 class QtDatasetToolbar(QtMiniToolbar):
     """Mini toolbar."""
+
+    def __init__(self, parent: DatasetDialog):
+        super().__init__(parent, orientation=Qt.Orientation.Horizontal, add_spacer=False)
+
+        # must place them in reverse
+        self.add_qta_tool("toggle_on", tooltip="Check all visible channels in each dataset.", func=self.on_check_all)
+        self.add_qta_tool(
+            "toggle_off", tooltip="Uncheck all visible channels in each dataset.", func=self.on_uncheck_all
+        )
+        self.add_separator()
+        self.add_widget(
+            hp.make_toggle(
+                self,
+                "image",
+                "shapes",
+                "points",
+                func=self.dataset_list.on_filter_by_reader_type,
+                tooltip="Filter by type of reader.",
+                exclusive=False,
+                value=["image", "shapes", "points"],
+            )
+        )
+        self.add_widget(
+            hp.make_line_edit(
+                self, placeholder="Type in dataset name...", func_changed=self.dataset_list.on_filter_by_dataset_name
+            ),
+            stretch=True,
+        )
+        self.add_widget(
+            hp.make_line_edit(
+                self, placeholder="Type in channel name...", func_changed=self.dataset_list.on_filter_by_channel_name
+            ),
+            stretch=True,
+        )
+
+    @property
+    def dataset_list(self) -> QtDatasetList:
+        """Dataset list."""
+        return self.parent()._list
+
+    def on_check_all(self, event: Event) -> None:
+        """Check all visible channels."""
+        for widget in self.dataset_list.widget_iter():
+            n = widget.table.row_visible_count()
+            if n < 10 or hp.confirm(
+                self,
+                f"Are you sure you want to check all visible channels?<br>"
+                f"There are <b>{n}</b> channels in the table which might take a bit of time to load.",
+                "Check all channels",
+            ):
+                widget.table.check_all_rows()
+
+    def on_uncheck_all(self, event: Event) -> None:
+        """Uncheck all visible channels."""
+        for widget in self.dataset_list.widget_iter():
+            widget.table.uncheck_all_rows()

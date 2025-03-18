@@ -475,7 +475,7 @@ class DatasetDialog(QtFramelessTool):
         _, header_layout = self._make_hide_handle(title="Datasets")
 
         self._list = QtDatasetList(self, self.allow_channels, self.allow_transform, self.allow_iterate)
-        self._toolbar = QtDatasetToolbar(self._list, self.CONFIG)
+        self._toolbar = QtDatasetToolbar(self)
 
         self.split_czi_check = hp.make_checkbox(
             self,
@@ -537,23 +537,6 @@ class DatasetDialog(QtFramelessTool):
             func=self.on_update_config,
         )
 
-        self.reader_type_toggle = hp.make_toggle(
-            self,
-            "image",
-            "shapes",
-            "points",
-            func=self._list.on_filter_by_reader_type,
-            tooltip="Filter by type of reader.",
-            exclusive=False,
-            value=["image", "shapes", "points"],
-        )
-        self.filter_by_dataset_name = hp.make_line_edit(
-            self, placeholder="Type in dataset name...", func_changed=self._list.on_filter_by_dataset_name
-        )
-        self.filter_by_channel_name = hp.make_line_edit(
-            self, placeholder="Type in channel name...", func_changed=self._list.on_filter_by_channel_name
-        )
-
         layout = hp.make_form_layout(margin=6)
         layout.addRow(header_layout)
 
@@ -586,19 +569,16 @@ class DatasetDialog(QtFramelessTool):
                 stretch_after=True,
             )
         )
-        layout.addRow(hp.make_h_line())
+        layout.addRow(hp.make_h_line_with_text("Actions"))
+        layout.addRow(self._toolbar)
         layout.addRow(self._list)
-        layout.addRow(hp.make_h_line_with_text("Filter table"))
         layout.addRow(
             hp.make_h_layout(
-                self.reader_type_toggle,
-                self.filter_by_dataset_name,
-                self.filter_by_channel_name,
                 hp.make_url_btn(self, func=lambda: open_docs(dialog="dataset-metadata")),
                 spacing=2,
                 margin=2,
                 alignment=Qt.AlignmentFlag.AlignVCenter,
-                stretch_id=(1, 2),
+                stretch_before=True,
             )
         )
         return layout

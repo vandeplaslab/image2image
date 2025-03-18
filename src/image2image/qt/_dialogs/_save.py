@@ -6,6 +6,7 @@ import typing as ty
 from pathlib import Path
 
 from qtextra import helpers as hp
+from qtextra.config import THEMES
 from qtextra.widgets.qt_dialog import QtDialog
 from qtpy.QtWidgets import QFormLayout, QWidget
 
@@ -27,13 +28,12 @@ class ExportImageDialog(QtDialog):
     # noinspection PyAttributeOutsideInit
     def make_panel(self) -> QFormLayout:
         """Make panel."""
-        info = ""
         reader = self.reader
         info = (
             f"<b>RGB</b>: {reader.is_rgb}<br>"
             f"<b>Number of channels</b>: {reader.n_channels}<br>"
-            f"<b>Image shape</b>: {reader.image_shape}<br>"
-            f"<b>Resolution</b>: {reader.resolution}<br>"
+            f"<b>Image shape</b>:({reader.image_shape[0]:,}, {reader.image_shape[1]:,})<br>"
+            f"<b>Resolution</b>: {reader.resolution} µm<br>"
             f"<b>Data type</b>: {reader.dtype}<br>"
         )
         self.info_label = hp.make_label(
@@ -61,7 +61,20 @@ class ExportImageDialog(QtDialog):
         layout = hp.make_form_layout()
         layout.addRow(self.info_label)
         layout.addRow("Tile size", self.tile_size)
-        layout.addRow("Reduce file size", self.as_uint8)
+        layout.addRow(
+            hp.make_label(self, "Reduce data size"),
+            hp.make_h_layout(
+                self.as_uint8,
+                hp.make_warning_label(
+                    self,
+                    C.UINT8_WARNING,
+                    normal=True,
+                    icon_name=("warning", {"color": THEMES.get_theme_color("warning")}),
+                ),
+                spacing=2,
+                stretch_id=(0,),
+            ),
+        )
         layout.addRow(
             hp.make_h_layout(
                 hp.make_btn(self, "OK", func=self.accept),
