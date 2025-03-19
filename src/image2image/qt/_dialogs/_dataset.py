@@ -641,7 +641,8 @@ class DatasetDialog(QtFramelessTool):
                 self.evt_closed.emit(self.model)  # noqa
             self.on_populate_table()
             return True
-        hp.notification(hp.get_main_window(), "No datasets", "There are no datasets to close.")
+        if not force:
+            hp.notification(hp.get_main_window(), "No datasets", "There are no datasets to close.")
         return False
 
     def _on_load_dataset(
