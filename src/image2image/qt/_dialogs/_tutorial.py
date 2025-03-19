@@ -23,7 +23,7 @@ ADD_IMAGES = (
     " opened if the file format is supported.."
 )
 MANAGE_SELECTION = "You can control what images should be loaded, which image channels should be displayed"
-MORE_OPTIONS = "You can change the spatial pixel size or optionally extract ion images here."
+MORE_OPTIONS = "You can change select which channels should be shown, update the pixel size or extract ion images here."
 CLIPBOARD = (
     "You can take a screenshot of the canvas and copy it to the clipboard by clicking here! If you right-click"
     " on the button, a few extra options will be shown."
@@ -37,7 +37,7 @@ TUTORIAL = "If you wish to see this tutorial again at a future date, you can cli
 FEEDBACK = "If you have some feedback, don't hesitate to send! You can do it directly in the app!"
 
 
-def show_merge_tutorial(widget: ImageMergeWindow) -> None:
+def show_merge_tutorial(widget: ImageMergeWindow) -> bool:
     """Show tutorial."""
     from qtextra.widgets.qt_tutorial import Position, QtTutorial, TutorialStep
 
@@ -103,9 +103,10 @@ def show_merge_tutorial(widget: ImageMergeWindow) -> None:
     )
     tut.setFocus()
     tut.show()
+    return True
 
 
-def show_convert_tutorial(widget: ImageConvertWindow) -> None:
+def show_convert_tutorial(widget: ImageConvertWindow) -> bool:
     """Show tutorial."""
     from qtextra.widgets.qt_tutorial import Position, QtTutorial, TutorialStep
 
@@ -175,9 +176,10 @@ def show_convert_tutorial(widget: ImageConvertWindow) -> None:
     )
     tut.setFocus()
     tut.show()
+    return True
 
 
-def show_fusion_tutorial(widget: ImageFusionWindow) -> None:
+def show_fusion_tutorial(widget: ImageFusionWindow) -> bool:
     """Show tutorial."""
     from qtextra.widgets.qt_tutorial import Position, QtTutorial, TutorialStep
 
@@ -238,6 +240,7 @@ def show_fusion_tutorial(widget: ImageFusionWindow) -> None:
     )
     tut.setFocus()
     tut.show()
+    return True
 
 
 def _generic_statusbar(
@@ -249,7 +252,7 @@ def _generic_statusbar(
         TutorialStep(
             title="Save screenshot",
             message=SCREENSHOT,
-            widget=widget.screenshot_btn,
+            widget=widget.screenshot_btn,  # type: ignore[has-type]
             position=Position.BOTTOM_RIGHT,
         ),
         TutorialStep(
@@ -279,7 +282,7 @@ def _generic_statusbar(
     ]
 
 
-def show_register_tutorial(widget: ImageRegistrationWindow) -> None:
+def show_register_tutorial(widget: ImageRegistrationWindow) -> bool:
     """Show tutorial."""
     from qtextra.widgets.qt_tutorial import Position, QtTutorial, TutorialStep
 
@@ -325,15 +328,9 @@ def show_register_tutorial(widget: ImageRegistrationWindow) -> None:
                 position=Position.RIGHT_TOP,
             ),
             TutorialStep(
-                title="More options",
+                title="Control what should be shown",
                 message=MORE_OPTIONS,
                 widget=widget._fixed_widget.more_btn,
-                position=Position.RIGHT_TOP,
-            ),
-            TutorialStep(
-                title="Channel selection",
-                message="Control which image channels should be shown or hidden.",
-                widget=widget._fixed_widget.channel_btn,
                 position=Position.RIGHT_TOP,
             ),
             TutorialStep(
@@ -382,11 +379,25 @@ def show_register_tutorial(widget: ImageRegistrationWindow) -> None:
     )
     tut.setFocus()
     tut.show()
+    return True
 
 
-def show_viewer_tutorial(widget: ImageViewerWindow) -> None:
+def show_viewer_tutorial(widget: ImageViewerWindow) -> bool:
     """Show tutorial."""
     from qtextra.widgets.qt_tutorial import Position, QtTutorial, TutorialStep
+
+    def get_transform_widget():
+        """Find the transform widget."""
+        button = None
+        for widget_ in widget._image_widget.dset_dlg._list.widget_iter():
+            button = widget_.transform_btn
+            if button.isVisible():
+                return button
+        return button
+
+    transform_btn = get_transform_widget()
+    if not transform_btn:
+        return None
 
     tut = QtTutorial(widget)
     tut.set_steps(
@@ -411,12 +422,6 @@ def show_viewer_tutorial(widget: ImageViewerWindow) -> None:
                 position=Position.RIGHT_TOP,
             ),
             TutorialStep(
-                title="Control what should be shown",
-                message=MANAGE_SELECTION,
-                widget=widget._image_widget,
-                position=Position.RIGHT_TOP,
-            ),
-            TutorialStep(
                 title="Save project",
                 message="You can save the current state of the viewer (loaded images, pixel size and transformation"
                 " information) and reload it in the future without all that faffing about!",
@@ -424,7 +429,7 @@ def show_viewer_tutorial(widget: ImageViewerWindow) -> None:
                 position=Position.RIGHT_TOP,
             ),
             TutorialStep(
-                title="More options",
+                title="Control what should be shown",
                 message=MORE_OPTIONS,
                 widget=widget._image_widget.more_btn,
                 position=Position.RIGHT_TOP,
@@ -435,21 +440,23 @@ def show_viewer_tutorial(widget: ImageViewerWindow) -> None:
                 "canvas. Usually you've already co-registered your microscopy images but the IMS data won't lie in the"
                 " right place as it has different pixel size, spatial orientation or position. You can load previous"
                 " transformation data here and apply it to appropriate dataset.",
-                widget=widget._image_widget.transform_btn,
+                widget=transform_btn,
                 position=Position.RIGHT_TOP,
+                func=(widget._image_widget.dset_dlg.show_in_center_of_screen,),
             ),
             TutorialStep(
                 title="Create mask",
                 message="You can also create a mask withing image2image. These masks can be then used in"
                 " <b>AutoIMS</b> or other software such as <b>QuPath</b>.",
-                widget=widget.create_mask_btn,
+                widget=widget.create_mask_btn,  # type: ignore[has-type]
                 position=Position.RIGHT_TOP,
+                func=(widget._image_widget.dset_dlg.hide,),
             ),
             TutorialStep(
                 title="Generate masks",
                 message="If you are planning on doing supervised learning in <b>AutoIMS</b>, you can generate"
                 " compatible masks right within image2viewer!",
-                widget=widget.export_mask_btn,
+                widget=widget.export_mask_btn,  # type: ignore[has-type]
                 position=Position.RIGHT_TOP,
             ),
             *_generic_statusbar(widget),
@@ -457,9 +464,10 @@ def show_viewer_tutorial(widget: ImageViewerWindow) -> None:
     )
     tut.setFocus()
     tut.show()
+    return True
 
 
-def show_crop_tutorial(widget: ImageCropWindow) -> None:
+def show_crop_tutorial(widget: ImageCropWindow) -> bool:
     """Show tutorial."""
     from qtextra.widgets.qt_tutorial import Position, QtTutorial, TutorialStep
 
@@ -484,7 +492,7 @@ def show_crop_tutorial(widget: ImageCropWindow) -> None:
             TutorialStep(
                 title="Control what should be shown",
                 message=MANAGE_SELECTION,
-                widget=widget._image_widget.channel_btn,
+                widget=widget._image_widget.more_btn,
                 position=Position.RIGHT_TOP,
             ),
             TutorialStep(
@@ -494,31 +502,25 @@ def show_crop_tutorial(widget: ImageCropWindow) -> None:
                 position=Position.RIGHT_TOP,
             ),
             TutorialStep(
-                title="More options",
-                message=MORE_OPTIONS,
-                widget=widget._image_widget.more_btn,
-                position=Position.RIGHT_TOP,
-            ),
-            TutorialStep(
                 title="Image crop",
                 message="You can specify as many regions of interest as you wish. These are accessible by changing the"
                 " `crop area` selection. Each time a new region is added, the list of available options updates."
                 " The displayed values correspond to the bounding box around the region of interest.",
-                widget=widget.index_choice,
+                widget=widget.index_choice,  # type: ignore[has-type]
                 position=Position.RIGHT_TOP,
             ),
             TutorialStep(
                 title="Preview",
                 message="You can preview your selection by clicking here. This will extract each region of interest for"
                 " each of the loaded images.",
-                widget=widget.preview_crop_btn,
+                widget=widget.preview_crop_btn,  # type: ignore[has-type]
                 position=Position.RIGHT_TOP,
             ),
             TutorialStep(
                 title="Export to OME-TIFF",
                 message="You can export each region of interest to specified directory. You will be prompted to select"
                 " one.",
-                widget=widget.crop_btn,
+                widget=widget.crop_btn,  # type: ignore[has-type]
                 position=Position.RIGHT_TOP,
             ),
             TutorialStep(
@@ -533,9 +535,10 @@ def show_crop_tutorial(widget: ImageCropWindow) -> None:
     )
     tut.setFocus()
     tut.show()
+    return True
 
 
-def show_elastix_tutorial(widget: ImageElastixWindow) -> None:
+def show_elastix_tutorial(widget: ImageElastixWindow) -> bool:
     """Show tutorial."""
     from qtextra.widgets.qt_tutorial import Position, QtTutorial, TutorialStep
 
@@ -649,9 +652,10 @@ def show_elastix_tutorial(widget: ImageElastixWindow) -> None:
     )
     tut.setFocus()
     tut.show()
+    return True
 
 
-def show_valis_tutorial(widget: ImageValisWindow) -> None:
+def show_valis_tutorial(widget: ImageValisWindow) -> bool:
     """Show tutorial."""
     from qtextra.helpers import hyper
     from qtextra.widgets.qt_tutorial import Position, QtTutorial, TutorialStep
@@ -756,3 +760,4 @@ def show_valis_tutorial(widget: ImageValisWindow) -> None:
     )
     tut.setFocus()
     tut.show()
+    return True

@@ -252,14 +252,16 @@ class ImageCropWindow(SingleViewerMixin):
             self.worker_crop = None
 
     @ensure_main_thread()
-    def _on_preview_crop_yield(self, args: tuple[str, str, np.ndarray, int, int]) -> None:
+    def _on_preview_crop_yield(self, args: tuple[str, str, np.ndarray, float, int, int]) -> None:
         self.__on_preview_crop_yield(args)
 
-    def __on_preview_crop_yield(self, args: tuple[str, str, np.ndarray, int, int]) -> None:
-        name, channel_name, array, current, total = args
+    def __on_preview_crop_yield(self, args: tuple[str, str, np.ndarray, float, int, int]) -> None:
+        name, channel_name, array, resolution, current, total = args
         self.preview_crop_btn.setRange(0, total)
         self.preview_crop_btn.setValue(current)
-        self.view.viewer.add_image(array, name=f"{name}-{channel_name}")
+        if array.size == 0:
+            return
+        self.view.viewer.add_image(array, name=f"{name}-{channel_name}", scale=(resolution, resolution))
         self._move_layer(self.view, self.crop_layer)
 
     @ensure_main_thread()
@@ -664,27 +666,33 @@ def _crop_regions_iter(
     """Crop regions."""
     if isinstance(polygon_or_bbox, tuple):
         left, right, top, bottom = polygon_or_bbox
-        for path, reader, channel_index, cropped_channel, (left, right, top, bottom) in data_model.crop_bbox_iter(
-            left, right, top, bottom
-        ):
+        for path, reader, channel_index, channel_name, cropped_channel, (
+            left,
+            right,
+            top,
+            bottom,
+        ) in data_model.crop_bbox_iter(left, right, top, bottom):
             yield (
                 path,
                 reader,
                 channel_index,
-                reader.channel_names[channel_index],
+                channel_name,
                 cropped_channel,
                 (left, right, top, bottom),
             )
     else:
         assert isinstance(polygon_or_bbox, np.ndarray), f"Invalid type: {type(polygon_or_bbox)}"
-        for path, reader, channel_index, cropped_channel, (left, right, top, bottom) in data_model.crop_polygon_iter(
-            polygon_or_bbox
-        ):
+        for path, reader, channel_index, channel_name, cropped_channel, (
+            left,
+            right,
+            top,
+            bottom,
+        ) in data_model.crop_polygon_iter(polygon_or_bbox):
             yield (
                 path,
                 reader,
                 channel_index,
-                reader.channel_names[channel_index],
+                channel_name,
                 cropped_channel,
                 (left, right, top, bottom),
             )
@@ -760,15 +768,15 @@ def export_crop_regions(
 
 def preview_crop_regions(
     data_model: DataModel, regions: list[tuple[int, int, int, int] | np.ndarray]
-) -> ty.Generator[tuple[str, str, np.ndarray, int, int], None, None]:
+) -> ty.Generator[tuple[str, str, np.ndarray, float, int, int], None, None]:
     """Preview images."""
     n = len(regions)
     for current, polygon_or_bbox in enumerate(regions, start=1):
-        for path, _reader, _channel_index, channel_name, cropped, (left, right, top, bottom) in _crop_regions_iter(
+        for path, reader, _channel_index, channel_name, cropped, (left, right, top, bottom) in _crop_regions_iter(
             data_model, polygon_or_bbox
         ):
             name = f"{path.stem}_x={left}-{right}_y={top}-{bottom}".replace(".ome", "")
-            yield name, channel_name, cropped, current, n
+            yield name, channel_name, cropped, reader.resolution, current, n
 
 
 if __name__ == "__main__":  # pragma: no cover

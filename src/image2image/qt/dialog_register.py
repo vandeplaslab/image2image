@@ -1969,8 +1969,8 @@ class ImageRegistrationWindow(Window):
         """Quick tutorial."""
         from image2image.qt._dialogs._tutorial import show_register_tutorial
 
-        show_register_tutorial(self)
-        self.CONFIG.update(first_time=False)
+        if show_register_tutorial(self):
+            self.CONFIG.update(first_time=False)
 
 
 if __name__ == "__main__":  # pragma: no cover

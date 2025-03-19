@@ -639,8 +639,8 @@ class ImageValisWindow(ImageWsiWindow):
         """Quick tutorial."""
         from image2image.qt._dialogs._tutorial import show_valis_tutorial
 
-        show_valis_tutorial(self)
-        self.CONFIG.update(first_time=False)
+        if show_valis_tutorial(self):
+            self.CONFIG.update(first_time=False)
 
 
 if __name__ == "__main__":  # pragma: no cover

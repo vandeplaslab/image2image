@@ -404,8 +404,8 @@ class ImageFusionWindow(Window):
         """Quick tutorial."""
         from image2image.qt._dialogs._tutorial import show_fusion_tutorial
 
-        show_fusion_tutorial(self)
-        self.CONFIG.update(first_time=False)
+        if show_fusion_tutorial(self):
+            self.CONFIG.update(first_time=False)
 
     def dropEvent(self, event: QDropEvent) -> None:
         """Drop event."""

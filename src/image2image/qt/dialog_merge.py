@@ -507,8 +507,8 @@ class ImageMergeWindow(NoViewerMixin):
         """Quick tutorial."""
         from image2image.qt._dialogs._tutorial import show_merge_tutorial
 
-        show_merge_tutorial(self)
-        self.CONFIG.update(first_time=False)
+        if show_merge_tutorial(self):
+            self.CONFIG.update(first_time=False)
 
     def dropEvent(self, event: QDropEvent) -> None:
         """Drop event."""

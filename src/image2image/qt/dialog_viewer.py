@@ -415,8 +415,15 @@ class ImageViewerWindow(SingleViewerMixin):
         """Quick tutorial."""
         from image2image.qt._dialogs._tutorial import show_viewer_tutorial
 
-        show_viewer_tutorial(self)
-        self.CONFIG.update(first_time=False)
+        if show_viewer_tutorial(self):
+            self.CONFIG.update(first_time=False)
+        else:
+            hp.notification(
+                self,
+                "Please load some data first",
+                "Please load data first before opening the tutorial. You can just drag-and-drop images into the"
+                " viewer.",
+            )
 
     @qdebounced(timeout=50, leading=True)
     def keyPressEvent(self, evt: QKeyEvent) -> None:  # type: ignore[override]

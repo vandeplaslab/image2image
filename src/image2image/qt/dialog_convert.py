@@ -489,8 +489,8 @@ class ImageConvertWindow(NoViewerMixin):
         """Quick tutorial."""
         from image2image.qt._dialogs._tutorial import show_convert_tutorial
 
-        show_convert_tutorial(self)
-        self.CONFIG.update(first_time=False)
+        if show_convert_tutorial(self):
+            self.CONFIG.update(first_time=False)
 
     def close(self, force=False):
         """Override to handle closing app or just the window."""
