@@ -19,7 +19,7 @@ from qtextra.widgets.qt_dialog import QtDialog, QtFramelessTool
 from qtextra.widgets.qt_table_view_check import MultiColumnSingleValueProxyModel, QtCheckableTableView
 from qtpy.QtCore import QModelIndex, Qt, Signal  # type: ignore[attr-defined]
 from qtpy.QtGui import QDropEvent
-from qtpy.QtWidgets import QDialog, QFormLayout, QVBoxLayout, QWidget
+from qtpy.QtWidgets import QCheckBox, QDialog, QFormLayout, QLabel, QVBoxLayout, QWidget
 from superqt.utils import create_worker
 
 from image2image.config import STATE, SingleAppConfig, get_register_config
@@ -38,11 +38,12 @@ if ty.TYPE_CHECKING:
 class CloseDatasetDialog(QtDialog):
     """Dialog where user can select which path(s) should be removed."""
 
-    max_length: int = 0
-
     def __init__(self, parent: QWidget, model: DataModel):
+        self.checkboxes: list[QCheckBox] = []
+        self.labels: list[QLabel] = []
+        self.index_to_path: dict[int, str] = {}
         self.model = model
-
+        self.max_length: int = 0
         super().__init__(parent, title="Remove datasets")
         self.keys = self.get_keys()
         self.setMinimumWidth(self.max_length * 7 + 50)
@@ -72,18 +73,19 @@ class CloseDatasetDialog(QtDialog):
     def get_keys(self) -> list[str]:
         """Return state."""
         keys = []
-        for checkbox in self.checkboxes:
+        for index, checkbox in enumerate(self.checkboxes):
             if checkbox.isChecked():
-                text = checkbox.text()
-                key = text.split("\n")[0]
-                keys.append(key)
+                text = self.index_to_path[index]
+                keys.append(text.split("\n")[0])
         return keys
 
-    def on_filter(self):
+    def on_filter(self) -> None:
         """Filter."""
-        text = self.filter_by_name.text()
-        for checkbox in self.checkboxes:
-            checkbox.show() if text in checkbox.text() else checkbox.hide()
+        text = self.filter_by_name.text().lower()
+        for index, (checkbox, label) in enumerate(zip(self.checkboxes, self.labels)):
+            visible = text in self.index_to_path[index].lower()
+            checkbox.setHidden(not visible)
+            label.setHidden(not visible)
 
     # noinspection PyAttributeOutsideInit
     def make_panel(self) -> QVBoxLayout:
@@ -104,16 +106,14 @@ class CloseDatasetDialog(QtDialog):
         scroll_area, scroll_widget = hp.make_scroll_area(self)
         scroll_layout = hp.make_form_layout(parent=scroll_area)
         wrapper = self.model.wrapper
-        self.checkboxes = []
         max_length = 0
         if wrapper:
             for reader in wrapper.reader_iter():
                 # make checkbox for each path
+                self.index_to_path[len(self.checkboxes)] = f"{reader.key}\n{reader.path}"
                 self.checkboxes.append(hp.make_checkbox(scroll_area, value=False, clicked=self.on_apply))
-                scroll_layout.addRow(
-                    self.checkboxes[-1],
-                    hp.make_label(scroll_area, f"<b>{reader.key}</b><br>{reader.path}", enable_url=True),
-                )
+                self.labels.append(hp.make_label(scroll_area, f"<b>{reader.key}</b><br>{reader.path}", enable_url=True))
+                scroll_layout.addRow(self.checkboxes[-1], self.labels[-1])
                 max_length = max(max_length, len(str(reader.path)))
 
         self.max_length = max_length
@@ -641,7 +641,7 @@ class DatasetDialog(QtFramelessTool):
                 self.evt_closed.emit(self.model)  # noqa
             self.on_populate_table()
             return True
-        logger.warning("There are no dataset to close.")
+        hp.notification(hp.get_main_window(), "No datasets", "There are no datasets to close.")
         return False
 
     def _on_load_dataset(

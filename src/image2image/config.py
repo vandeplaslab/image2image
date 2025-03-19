@@ -172,6 +172,11 @@ class SingleAppConfig(BaseConfig):
         """Validate path."""
         return str(value)
 
+    @field_serializer("output_dir", "last_dir", when_used="always")
+    def _serialize_path(self, value: PathLike) -> str:
+        """Serialize transformations."""
+        return str(value)
+
     @field_validator("tile_size", mode="before")
     @classmethod
     def _validate_tile_size(cls, value: ty.Union[int, str]) -> int:  # type: ignore[misc]
@@ -325,6 +330,11 @@ class ElastixConfig(SingleAppConfig):
     @classmethod
     def _validate_path(cls, value: PathLike) -> str:  # type: ignore[misc]
         """Validate path."""
+        return str(value)
+
+    @field_serializer("output_dir", "last_dir", "env_i2reg", when_used="always")
+    def _serialize_path(self, value: PathLike) -> str:
+        """Serialize transformations."""
         return str(value)
 
     @field_validator("transformations", mode="before")
@@ -505,6 +515,11 @@ class ValisConfig(SingleAppConfig):
     @classmethod
     def _validate_path(cls, value: PathLike) -> str:  # type: ignore[misc]
         """Validate path."""
+        return str(value)
+
+    @field_serializer("output_dir", "last_dir", "env_i2reg", when_used="always")
+    def _serialize_path(self, value: PathLike) -> str:
+        """Serialize transformations."""
         return str(value)
 
 
