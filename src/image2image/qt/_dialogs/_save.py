@@ -83,7 +83,7 @@ class ExportImageDialog(QtDialog):
         )
         return layout
 
-    def accept(self):
+    def accept(self) -> None:
         """Accept."""
         self.CONFIG.tile_size = int(self.tile_size.currentText())
         self.CONFIG.as_uint8 = self.as_uint8.isChecked()

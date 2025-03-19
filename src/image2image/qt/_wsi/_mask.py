@@ -16,7 +16,7 @@ from napari.layers import Image, Shapes
 from napari.layers.shapes._shapes_constants import Box
 from qtextra.utils.utilities import connect
 from qtextra.widgets.qt_dialog import QtFramelessTool
-from qtpy.QtCore import Qt, Signal
+from qtpy.QtCore import QEvent, Qt, Signal
 from qtpy.QtWidgets import QLayout
 
 from image2image.utils.utilities import init_shapes_layer, open_docs
@@ -60,7 +60,9 @@ def get_affine(reader: BaseReader, preprocessing: Preprocessing) -> tuple[np.nda
 class QtShapesControls(_QtShapesControls):
     """Slightly modified controls."""
 
-    def _on_editable_or_visible_change(self):
+    DISABLE_POLYGON = False
+
+    def _on_editable_or_visible_change(self) -> None:
         """Receive layer model editable/visible change event & enable/disable buttons."""
         super()._on_editable_or_visible_change()
         with suppress(AttributeError):
@@ -73,19 +75,29 @@ class QtShapesControls(_QtShapesControls):
                 self.transform_button,
                 disabled=True,
             )
+            if self.DISABLE_POLYGON:
+                hp.disable_widgets(
+                    self.polygon_button,
+                    self.vertex_insert_button,
+                    self.vertex_remove_button,
+                    self.direct_button,
+                    disabled=True,
+                )
 
 
 class ShapesDialog(QtFramelessTool):
     """Dialog to mask a group."""
 
     HIDE_WHEN_CLOSE = False
-    is_showing = False
+
     _editing = False
+    is_showing = False
+
     TITLE: str
     INFO_LABEL: str
     MASK_OR_CROP: str
-
     MASK_NAME: str = "Mask"
+    MAX_SHAPES: int = -1
 
     evt_mask = Signal(object)
     evt_preview_transform_preprocessing = Signal(Modality, Preprocessing)
@@ -165,6 +177,11 @@ class ShapesDialog(QtFramelessTool):
         n = len(self.mask_layer.data)
         if n == 0:
             return
+
+        # if self.MAX_SHAPES != -1 and n > self.MAX_SHAPES:
+        #     hp.notification(
+        #         hp.get_main_window(), "Cannot add more shapes", "Maximum number of shapes reached", icon="error"
+        #     )
         if self.auto_update.isChecked() and self.is_current_masked():
             self.on_associate_mask_with_modality()
 
@@ -175,7 +192,13 @@ class ShapesDialog(QtFramelessTool):
         n = len(self.mask_layer.data)
         if n == 0:
             return None, 0, 0, 0, 0, None
+
         for index in range(n):
+            if self.MAX_SHAPES != -1 and n > self.MAX_SHAPES:
+                hp.notification(
+                    hp.get_main_window(), "Cannot add more shapes", "Maximum number of shapes reached", icon="error"
+                )
+                break
             array = self.mask_layer.data[index]
             shape_type = self.mask_layer.shape_type[index]
             rect = self.mask_layer.interaction_box(index)
@@ -233,7 +256,8 @@ class ShapesDialog(QtFramelessTool):
                 bottom = top + height
                 data.append(
                     (
-                        np.asarray([(top, left), (top, right), (bottom, right), (bottom, left)]) * reader.resolution,
+                        np.asarray([(top, left), (top, right), (bottom, right), (bottom, left)])
+                        * (reader.resolution if self.MASK_OR_CROP == "mask" else 1.0),
                         "rectangle",
                     )
                 )
@@ -265,7 +289,6 @@ class ShapesDialog(QtFramelessTool):
                 yx = yx * inv_resolution
                 yx_.append(np.round(yx).astype(np.int32)[:, ::-1])
             else:
-                print("??", right - left, bottom - top)
                 bbox = np.asarray([left, top, (right - left), (bottom - top)])
                 bbox_.append(tuple(np.round(bbox * inv_resolution).astype(int)))
         return yx_ or None, bbox_ or None
@@ -318,10 +341,18 @@ class ShapesDialog(QtFramelessTool):
                 self.mask_layer.data = data or []
                 logger.trace(f"Copied mask from {copy_from}")
 
+    def eventFilter(self, recv, event):
+        """Event filter."""
+        if event.type() == QEvent.Enter:
+            self.mask_layer  # noqa
+        return super().eventFilter(recv, event)
+
     # noinspection PyAttributeOutsideInit
     def make_panel(self) -> QLayout:
         """Make panel."""
         self.layer_controls = QtShapesControls(self.mask_layer)
+        self.layer_controls.DISABLE_POLYGON = self.MASK_OR_CROP == "crop"
+        self.layer_controls.installEventFilter(self)
 
         self.slide_choice = hp.make_combobox(self, tooltip="Select modality", func=self.on_select_modality)
         self.previous_btn = hp.make_qta_btn(
@@ -440,6 +471,7 @@ class CropDialog(ShapesDialog):
         " by cropping the image ahead of registration."
     )
     MASK_OR_CROP = "crop"
+    MAX_SHAPES = 1
 
     def _check_if_has_mask(self, modality: Modality) -> bool:
         """Check if modality has mask."""
@@ -483,5 +515,5 @@ class CropDialog(ShapesDialog):
             return
         modality.preprocessing.crop_polygon = None
         modality.preprocessing.crop_bbox = None
-        logger.trace(f"Removed crop for modality {name}")
+        logger.trace(f"Removed crop for modality {modality.name}")
         self.evt_mask.emit(modality)

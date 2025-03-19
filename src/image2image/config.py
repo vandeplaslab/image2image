@@ -172,6 +172,12 @@ class SingleAppConfig(BaseConfig):
         """Validate path."""
         return str(value)
 
+    @field_validator("tile_size", mode="before")
+    @classmethod
+    def _validate_tile_size(cls, value: ty.Union[int, str]) -> int:  # type: ignore[misc]
+        """Validate path."""
+        return int(value)
+
 
 class ViewerConfig(SingleAppConfig):
     """Configuration for the viewer app."""
@@ -315,7 +321,7 @@ class ElastixConfig(SingleAppConfig):
         "remove", title="Clip", description="Clip.", json_schema_extra={"in_app": True}
     )
 
-    @field_validator("env_i2reg", mode="before")
+    @field_validator("output_dir", "last_dir", "env_i2reg", mode="before")
     @classmethod
     def _validate_path(cls, value: PathLike) -> str:  # type: ignore[misc]
         """Validate path."""
@@ -495,7 +501,7 @@ class ValisConfig(SingleAppConfig):
         "remove", title="Clip", description="Clip.", json_schema_extra={"in_app": True}
     )
 
-    @field_validator("env_i2reg", mode="before")
+    @field_validator("output_dir", "last_dir", "env_i2reg", mode="before")
     @classmethod
     def _validate_path(cls, value: PathLike) -> str:  # type: ignore[misc]
         """Validate path."""

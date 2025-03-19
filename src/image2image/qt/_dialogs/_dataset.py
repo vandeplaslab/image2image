@@ -38,12 +38,15 @@ if ty.TYPE_CHECKING:
 class CloseDatasetDialog(QtDialog):
     """Dialog where user can select which path(s) should be removed."""
 
+    max_length: int = 0
+
     def __init__(self, parent: QWidget, model: DataModel):
         self.model = model
 
-        super().__init__(parent)
+        super().__init__(parent, title="Remove datasets")
         self.keys = self.get_keys()
-        self.setMinimumWidth(800)
+        self.setMinimumWidth(self.max_length * 7 + 50)
+        self.setMinimumHeight(len(self.checkboxes) * 50 + 120)
         self.setMaximumHeight(800)
         self.on_apply()
 
@@ -102,18 +105,21 @@ class CloseDatasetDialog(QtDialog):
         scroll_layout = hp.make_form_layout(parent=scroll_area)
         wrapper = self.model.wrapper
         self.checkboxes = []
+        max_length = 0
         if wrapper:
             for reader in wrapper.reader_iter():
                 # make checkbox for each path
-                checkbox = hp.make_checkbox(
-                    scroll_area, f"{reader.key}\n{reader.path}\n", value=False, clicked=self.on_apply
+                self.checkboxes.append(hp.make_checkbox(scroll_area, value=False, clicked=self.on_apply))
+                scroll_layout.addRow(
+                    self.checkboxes[-1],
+                    hp.make_label(scroll_area, f"<b>{reader.key}</b><br>{reader.path}", enable_url=True),
                 )
-                scroll_layout.addRow(checkbox)
-                self.checkboxes.append(checkbox)
+                max_length = max(max_length, len(str(reader.path)))
 
+        self.max_length = max_length
         self.ok_btn = hp.make_btn(self, "OK", func=self.accept)
 
-        layout = hp.make_v_layout()
+        layout = hp.make_v_layout(spacing=2, margin=4)
         layout.addWidget(
             hp.make_label(
                 self,
@@ -124,10 +130,11 @@ class CloseDatasetDialog(QtDialog):
                 wrap=True,
             )
         )
-        layout.addWidget(scroll_widget, stretch=True)
         layout.addWidget(hp.make_h_line())
-        layout.addWidget(self.filter_by_name)
+        layout.addWidget(scroll_widget, stretch=True)
         layout.addWidget(self.all_check)
+        layout.addLayout(hp.make_h_line_with_text("Filter"))
+        layout.addWidget(self.filter_by_name)
         layout.addLayout(
             hp.make_h_layout(
                 self.ok_btn,

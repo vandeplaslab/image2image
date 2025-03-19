@@ -378,7 +378,11 @@ class ImageWsiWindow(SingleViewerMixin):
         for _, modality, widget in self.modality_list.item_model_widget_iter():
             # if hide is enabled, we should only display the modality currently being pre-processed
             if hide:
-                if widget._preprocessing_dlg is not None:
+                if (
+                    widget._preprocessing_dlg is not None
+                    or (self._crop_dlg is not None and self._crop_dlg.current_modality == modality)
+                    or (self._mask_dlg is not None and self._mask_dlg.current_modality == modality)
+                ):
                     visible_modalities.append(modality.name)
                 else:
                     if widget.visible_btn.state:
@@ -390,6 +394,7 @@ class ImageWsiWindow(SingleViewerMixin):
                     visible_modalities.append(modality.name)
                 else:
                     hidden_modalities.append(modality.name)
+
         if not visible_modalities:
             visible_modalities = maybe_visible_modalities
             hidden_modalities = []

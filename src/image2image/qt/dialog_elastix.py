@@ -396,9 +396,16 @@ class ImageElastixWindow(ImageWsiWindow):
             from image2image.qt._wsi._mask import CropDialog
 
             self._crop_dlg = CropDialog(self)
-            connect(self._crop_dlg.evt_mask, self.modality_list.toggle_crop, state=True)
-            connect(self._crop_dlg.evt_preview_transform_preprocessing, self.on_preview_transform, state=True)
+            self._crop_dlg.evt_mask.connect(self.modality_list.toggle_crop)
+            self._crop_dlg.evt_close.connect(self.on_remove_crop_dialog)
         self._crop_dlg.show_in_center_of_widget(self)
+
+    def on_remove_crop_dialog(self) -> None:
+        """Remove mask dialog."""
+        if self._crop_dlg:
+            self.view.remove_layer(self._crop_dlg.MASK_NAME)
+            self._crop_dlg = None
+            logger.trace("Removed mask dialog.")
 
     def on_open_merge_dialog(self) -> None:
         """Open merge dialog."""
@@ -567,7 +574,7 @@ class ImageElastixWindow(ImageWsiWindow):
             " takes place...",
             func=self.on_open_crop_dialog,
         )
-        hp.disable_widgets(self.crop_btn, disabled=True)
+        # hp.disable_widgets(self.crop_btn, disabled=True)
         self.merge_btn = hp.make_btn(
             self, "Merge...", tooltip="Specify images to merge...", func=self.on_open_merge_dialog
         )

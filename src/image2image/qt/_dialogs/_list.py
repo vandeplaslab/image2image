@@ -125,7 +125,6 @@ class QtDatasetItem(QFrame):
         hp.set_font(self.table)
         self.table.setup_model(TABLE_CONFIG.header, TABLE_CONFIG.no_sort_columns, TABLE_CONFIG.hidden_columns)
         self.table.evt_checked.connect(self.on_toggle_channel)
-        self.table.setVisible(self.allow_channels)
 
         self.table_proxy = MultiColumnSingleValueProxyModel(self)
         self.table_proxy.setSourceModel(self.table.model())
@@ -137,7 +136,7 @@ class QtDatasetItem(QFrame):
         grid.setSpacing(1)
         grid.setContentsMargins(0, 0, 0, 0)
         grid.setColumnStretch(7, True)
-        grid.setRowStretch(2, True)
+        grid.setRowStretch(2 if self.allow_channels else 3, True)
         # column 1
         layout = hp.make_v_layout(
             self.modality_icon,
@@ -162,6 +161,20 @@ class QtDatasetItem(QFrame):
         grid.addWidget(self.size_label, 1, 6, 1, 1)
         # row 3
         grid.addWidget(self.table, 2, 1, 5, 7)
+        if not self.allow_channels:
+            self.table.setVisible(self.allow_channels)
+            grid.addWidget(
+                hp.make_label(
+                    self,
+                    "Channels cannot be selected in this app",
+                    object_name="header_label",
+                    alignment=Qt.AlignmentFlag.AlignCenter,
+                ),
+                3,
+                1,
+                5,
+                7,
+            )
 
         # set from model
         self._set_from_model()
