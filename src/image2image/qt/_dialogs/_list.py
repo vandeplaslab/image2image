@@ -550,7 +550,11 @@ class QtDatasetList(QScrollArea):
                 continue
             if check_reader and reader.reader_type not in self._reader_type_filters:
                 visible = False
-            if check_dataset_name and visible and not any(filter_ in reader.name for filter_ in self._dataset_filters):
+            if (
+                check_dataset_name
+                and visible
+                and not any(filter_ in reader.name.lower() for filter_ in self._dataset_filters)
+            ):
                 visible = False
             widget.setVisible(visible)
 
@@ -659,7 +663,7 @@ class QtDatasetToolbar(QtMiniToolbar):
     """Mini toolbar."""
 
     def __init__(self, parent: DatasetDialog):
-        super().__init__(parent, orientation=Qt.Orientation.Horizontal, add_spacer=False)
+        super().__init__(parent, orientation=Qt.Orientation.Horizontal, add_spacer=False, spacing=2)
 
         # must place them in reverse
         self.add_qta_tool("toggle_on", tooltip="Check all visible channels in each dataset.", func=self.on_check_all)
@@ -700,6 +704,8 @@ class QtDatasetToolbar(QtMiniToolbar):
     def on_check_all(self, event: Event) -> None:
         """Check all visible channels."""
         for widget in self.dataset_list.widget_iter():
+            if not widget.isVisible():
+                continue
             n = widget.table.row_visible_count()
             if n < 10 or hp.confirm(
                 self,
@@ -712,4 +718,6 @@ class QtDatasetToolbar(QtMiniToolbar):
     def on_uncheck_all(self, event: Event) -> None:
         """Uncheck all visible channels."""
         for widget in self.dataset_list.widget_iter():
+            if not widget.isVisible():
+                continue
             widget.table.uncheck_all_rows()
