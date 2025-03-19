@@ -28,8 +28,7 @@ def get_update_info() -> tuple[str, str | None, str, PathLike | None]:
             download_url = download_data["download_url"]
             path_to_file = Path.home() / "Downloads" / download_data["filename"]
             download_info = (
-                f"Download latest version <b>v{download_data['version']}</b> from"
-                f" <a href='{download_url}'>here</a>."
+                f"Download latest version <b>v{download_data['version']}</b> from <a href='{download_url}'>here</a>."
             )
 
     return format_version(data), download_url, download_info, path_to_file
