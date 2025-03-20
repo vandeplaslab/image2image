@@ -37,7 +37,7 @@ class TransformData(_TransformData):
         )
 
     @classmethod
-    def recalculate(cls, path: PathLike) -> None:
+    def recalculate(cls, path: PathLike, with_backup: bool = True) -> None:
         """Recalculate and export."""
         from koyo.json import read_json, write_json
 
@@ -45,9 +45,10 @@ class TransformData(_TransformData):
         obj = cls.from_i2r(path, validate_paths=False)
 
         # create backup in case something goes wrong
-        backup_path = path.with_suffix(path.suffix + ".bak")
-        if not backup_path.exists():
-            backup_path.write_text(path.read_text())
+        if with_backup:
+            backup_path = path.with_suffix(path.suffix + ".bak")
+            if not backup_path.exists():
+                backup_path.write_text(path.read_text())
 
         # load configuration
         config = read_json(path)

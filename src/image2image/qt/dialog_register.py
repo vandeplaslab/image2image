@@ -1950,15 +1950,22 @@ class ImageRegistrationWindow(Window):
         self._setup_config()
         hp.update_property(self.centralWidget(), "drag", False)
 
-        dlg = QtScrollablePickOption(
-            self,
-            "Please select which view would you like to add the image(s) to?",
-            {"Fixed image": "fixed", "Moving image": "moving"},
-            orientation="vertical",
-        )
         which = None
-        if dlg.exec_() == QDialog.DialogCode.Accepted:  # type: ignore[attr-defined]
-            which = dlg.option
+        files = event.mimeData().urls()
+        if files and len(files) == 1:
+            url = files[0]
+            file = Path(url.toLocalFile() if url.isLocalFile() else url.toString())
+            if len(file.suffixes) == 2 and file.suffixes[0] == ".i2r":
+                which = "fixed"
+        else:
+            dlg = QtScrollablePickOption(
+                self,
+                "Please select which view would you like to add the image(s) to?",
+                {"Fixed image": "fixed", "Moving image": "moving"},
+                orientation="vertical",
+            )
+            if dlg.exec_() == QDialog.DialogCode.Accepted:  # type: ignore[attr-defined]
+                which = dlg.option
         if which == "fixed":
             self.evt_fixed_dropped.emit(event)
         elif which == "moving":

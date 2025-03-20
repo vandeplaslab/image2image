@@ -6,7 +6,6 @@ import typing as ty
 
 import numpy as np
 from loguru import logger
-from napari.layers.points.points import Mode
 from qtextra import helpers as hp
 from qtextra.utils.utilities import connect
 from qtextra.widgets.qt_dialog import QtFramelessTool
@@ -212,6 +211,8 @@ class GuessDialog(QtFramelessTool):
 
     def on_enable_selection(self) -> None:
         """Detect fiducials."""
+        from napari.layers.points.points import Mode
+
         if not self.contours:
             return
         contour_index = self.contour_index

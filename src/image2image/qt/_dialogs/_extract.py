@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import typing as ty
+
 from koyo.utilities import pluralize
 from loguru import logger
 from qtextra import helpers as hp
@@ -12,7 +14,9 @@ from qtpy.QtCore import Qt
 from qtpy.QtWidgets import QFormLayout
 
 from image2image.config import get_register_config
-from image2image.qt._dialogs import DatasetDialog
+
+if ty.TYPE_CHECKING:
+    from image2image.qt._dialogs import DatasetDialog
 
 
 class ExtractChannelsDialog(QtDialog):
