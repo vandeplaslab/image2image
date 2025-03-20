@@ -1233,7 +1233,7 @@ class ImageRegistrationWindow(Window):
     def on_adjust_transformed_opacity(self, increase_by: int) -> None:
         """Toggle visibility of transformed image."""
         self.moving_opacity.setValue(self.moving_opacity.value() + increase_by)
-        hp.notification(self, "Opacity", f"Adjusted opacity to {self.moving_opacity.value()}.")
+        hp.notification(self, "Opacity", f"Adjusted opacity to {self.moving_opacity.value()}.", position="top_right")
 
     def on_update_settings(self) -> None:
         """Update config."""
@@ -1907,12 +1907,22 @@ class ImageRegistrationWindow(Window):
     def on_increment_dataset(self, increment: int) -> None:
         """Increase the dataset index."""
         hp.increment_combobox(self._moving_widget.dataset_choice, increment)
-        hp.notification(self, "Dataset", f"Switched to dataset {self._moving_widget.dataset_choice.currentText()}.")
+        hp.notification(
+            self,
+            "Dataset",
+            f"Switched to dataset {self._moving_widget.dataset_choice.currentText()}.",
+            position="top_right",
+        )
 
     def on_toggle_transformed_view_type(self) -> None:
         """Toggle between image and random."""
         hp.increment_combobox(self._moving_widget.view_type_choice, 1)
-        hp.notification(self, "View type", f"Switched to {self._moving_widget.view_type_choice.currentText()}.")
+        hp.notification(
+            self,
+            "View type",
+            f"Switched to {self._moving_widget.view_type_choice.currentText()}.",
+            position="top_right",
+        )
 
     def close(self, force=False):
         """Override to handle closing app or just the window."""
