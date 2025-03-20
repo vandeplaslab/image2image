@@ -29,7 +29,7 @@ if ty.TYPE_CHECKING:
     from napari.utils.events import Event
 
     from image2image.config import SingleAppConfig
-    from image2image.qt._dialogs import DatasetDialog
+    from image2image.qt._dialogs import DatasetDialog, ExtractChannelsDialog
 
 TABLE_CONFIG = (
     TableConfig()  # type: ignore[no-untyped-call]
@@ -311,7 +311,6 @@ class QtDatasetItem(QFrame):
 
     def on_extract(self) -> None:
         """Extract data."""
-        from image2image.qt._dialogs import ExtractChannelsDialog
 
         reader = self.get_model()
         if reader and reader.allow_extraction:

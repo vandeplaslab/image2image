@@ -738,13 +738,6 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
         Provide style updates on event.
         """
         if self.allow_drop:
-            hp.toast(
-                self,
-                "Drag & drop",
-                "Drop the files in the app and we will try to open them..",
-                icon="info",
-                position="top_right",
-            )
             hp.update_property(self.centralWidget(), "drag", True)
             hp.call_later(self, lambda: hp.update_property(self.centralWidget(), "drag", False), 2000)
             if event.mimeData().hasUrls():

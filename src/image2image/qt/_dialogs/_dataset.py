@@ -9,7 +9,6 @@ from pathlib import Path
 import numpy as np
 from image2image_io.config import CONFIG as READER_CONFIG
 from koyo.typing import PathLike
-from koyo.utilities import pluralize
 from loguru import logger
 from natsort import natsorted
 from qtextra import helpers as hp
@@ -272,134 +271,6 @@ class SelectChannelsToLoadDialog(QtDialog):
         return layout
 
 
-class ExtractChannelsDialog(QtDialog):
-    """Dialog to extract ion images."""
-
-    TABLE_CONFIG = (
-        TableConfig()  # type: ignore[no-untyped-call]
-        .add("", "check", "bool", 0, no_sort=True, hidden=True)
-        .add("m/z", "mz", "float", 100)
-    )
-
-    def __init__(self, parent: DatasetDialog, key_to_extract: str):
-        super().__init__(parent, title="Extract Ion Images")
-        self.setFocus()
-        self.key_to_extract = key_to_extract
-        self.mzs = None
-        self.ppm = None
-
-    def on_open_peaklist(self) -> None:
-        """Open peaklist."""
-        import pandas as pd
-
-        path = hp.get_filename(
-            self,
-            title="Select peak list...",
-            base_dir=get_register_config().fixed_dir,
-            file_filter="CSV files (*.csv);;",
-            multiple=False,
-        )
-        if path:
-            df = pd.read_csv(path, sep=",")
-            if "mz" in df.columns:
-                mzs = df.mz.values
-            elif "m/z" in df.columns:
-                mzs = df["m/z"].values
-            else:
-                hp.warn_pretty(self, "The file does not contain a column named 'mz' or 'm/z'.")
-                return
-            data = [[True, mz] for mz in mzs]
-            self.table.add_data(data)
-
-    def on_accept(self) -> None:
-        """Accept."""
-        if not self.mzs:
-            hp.warn_pretty(self, "Please add at least one m/z value to extract.")
-            return
-        n = len(self.mzs)
-        if n > 0 and hp.confirm(self, f"Would you like to extract <b>{n}</b> ion {pluralize('image', n)}?"):
-            logger.trace(f"Extracting {n} ion images...")
-            self.accept()
-
-    def on_add(self) -> None:
-        """Add peak."""
-        value = self.mz_edit.value()
-        values = self.table.get_col_data(self.TABLE_CONFIG.mz)
-        if value is not None and value not in values:
-            self.table.add_data([[True, value]])
-        self.mzs = self.table.get_col_data(self.TABLE_CONFIG.mz)
-        self.ppm = self.ppm_edit.value()
-
-    def on_delete_row(self) -> None:
-        """Delete row."""
-        sel_model = self.table.selectionModel()
-        if sel_model.hasSelection():
-            indices = [index.row() for index in sel_model.selectedRows()]
-            indices = sorted(indices, reverse=True)
-            for index in indices:
-                self.table.remove_row(index)
-                logger.trace(f"Deleted '{index}' from m/z table")
-
-    # noinspection PyAttributeOutsideInit
-    def make_panel(self) -> QFormLayout:
-        """Make panel."""
-        self.mz_edit = hp.make_double_spin_box(self, minimum=0, maximum=2500, step=0.1, n_decimals=3)
-        self.ppm_edit = hp.make_double_spin_box(
-            self, minimum=0.5, maximum=500, value=10, step=2.5, n_decimals=1, suffix=" ppm"
-        )
-
-        self.table = QtCheckableTableView(self, config=self.TABLE_CONFIG, enable_all_check=False, sortable=False)
-        self.table.setCornerButtonEnabled(False)
-        hp.set_font(self.table)
-        self.table.setup_model(
-            self.TABLE_CONFIG.header, self.TABLE_CONFIG.no_sort_columns, self.TABLE_CONFIG.hidden_columns
-        )
-
-        layout = hp.make_form_layout(parent=self)
-        layout.addRow(
-            hp.make_h_layout(
-                hp.make_label(self, "m/z"),
-                self.mz_edit,
-                hp.make_btn(self, "Add m/z", tooltip="Add peak", func=self.on_add),
-                stretch_id=1,
-            )
-        )
-        layout.addRow(hp.make_h_layout(hp.make_label(self, "ppm"), self.ppm_edit, stretch_id=1))
-        layout.addRow(self.table)
-        layout.addRow(
-            hp.make_label(
-                self,
-                "<b>Tip.</b> Press <b>Delete</b> or <b>Backspace</b> to delete a peak.<br>"
-                "<b>Tip.</b> It is a lot more efficient to extra many peaks at once than one at a time.",
-                alignment=Qt.AlignmentFlag.AlignHCenter,
-                object_name="tip_label",
-                enable_url=True,
-            )
-        )
-        layout.addRow(
-            hp.make_h_layout(
-                hp.make_btn(self, "Open peaklist", func=self.on_open_peaklist),
-                hp.make_btn(self, "Extract", func=self.on_accept),
-                hp.make_btn(self, "Cancel", func=self.reject),
-            )
-        )
-        return layout
-
-    def keyPressEvent(self, evt):
-        """Key press event."""
-        key = evt.key()
-        if key == Qt.Key_Escape:  # type: ignore[attr-defined]
-            evt.ignore()
-        elif key == Qt.Key_Backspace or key == Qt.Key_Delete:  # type: ignore[attr-defined]
-            self.on_delete_row()
-            evt.accept()
-        elif key == Qt.Key_Plus or key == Qt.Key_A:  # type: ignore[attr-defined]
-            self.on_add()
-            evt.accept()
-        else:
-            super().keyPressEvent(evt)
-
-
 class DatasetDialog(QtFramelessTool):
     """Dialog window to select images and specify some parameters."""
 
@@ -457,12 +328,12 @@ class DatasetDialog(QtFramelessTool):
         self.project_extension = project_extension
         self.show_split_czi = show_split_czi
         self.confirm_czi = confirm_czi
-
-        super().__init__(parent)
         self.n_max = n_max
+        super().__init__(parent)
 
         self.setMinimumWidth(600)
         self.setMinimumHeight(800)
+        self.setAcceptDrops(True)
 
         # add signals
         self._list.evt_channel.connect(self.evt_channel.emit)
@@ -901,3 +772,29 @@ class DatasetDialog(QtFramelessTool):
             return
         self.evt_files.emit(kept_filenames)
         self._on_load_dataset(kept_filenames)
+
+    @property
+    def allow_drop(self) -> bool:
+        """Return if drop is allowed."""
+        return hp.get_main_window().allow_drop
+
+    def dragEnterEvent(self, event):
+        """Override Qt method. Provide style updates on event."""
+        if self.allow_drop:
+            hp.update_property(self, "drag", True)
+            hp.call_later(self, lambda: hp.update_property(self, "drag", False), 2000)
+            if event.mimeData().hasUrls():
+                event.accept()
+            else:
+                event.ignore()
+
+    def dragLeaveEvent(self, event):
+        """Override Qt method."""
+        if self.allow_drop:
+            hp.update_property(self, "drag", False)
+
+    def dropEvent(self, event):
+        """Override Qt method."""
+        if self.allow_drop:
+            hp.update_property(self, "drag", False)
+            self.on_drop(event)
