@@ -833,7 +833,8 @@ class ImageRegistrationWindow(Window):
         if path_:
             from image2image.models.transformation import load_transform_from_file
             from image2image.models.utilities import _remove_missing_from_dict
-            from image2image.qt._dialogs import ImportSelectDialog, LocateFilesDialog
+            from image2image.qt._dialogs import LocateFilesDialog
+            from image2image.qt._register._select import ImportSelectDialog
 
             # load transformation
             path = Path(path_)
@@ -920,7 +921,7 @@ class ImageRegistrationWindow(Window):
             self._fiducials_dlg.evt_update.connect(self.on_run)
         return self._fiducials_dlg
 
-    def on_show_fiducials(self):
+    def on_show_fiducials(self) -> None:
         """View fiducials table."""
         self.fiducials_dlg.show()
 
