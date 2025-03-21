@@ -1,5 +1,7 @@
 """Label widget."""
 
+from __future__ import annotations
+
 import typing as ty
 
 from qtextra.widgets.qt_label_icon import QtQtaLabel
@@ -10,8 +12,10 @@ class QtModalityLabel(QtQtaLabel):
 
     STATES = ("image", "geojson", "points", "shapes")
 
-    def __init__(self, *args: ty.Any, **kwargs: ty.Any):
+    def __init__(self, *args: ty.Any, color: str | None = None, **kwargs: ty.Any):
         super().__init__(*args, **kwargs)
+        if color:
+            self._icon_color = color
         self._state: str = "image"
         self.state = "image"
         self.set_normal()

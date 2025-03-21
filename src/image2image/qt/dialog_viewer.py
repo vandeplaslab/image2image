@@ -140,7 +140,7 @@ class ImageViewerWindow(SingleViewerMixin):
                     if dlg.exec_() == QDialog.DialogCode.Accepted:  # type: ignore[attr-defined]
                         which = dlg.option
                 elif len(options) == 1:
-                    which = next(iter(options.keys()))
+                    which = next(iter(options.values()))
             elif image_keys:
                 which = min([v[1] for v in image_keys])
             if which:

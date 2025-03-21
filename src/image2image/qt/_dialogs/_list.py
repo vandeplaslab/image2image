@@ -11,6 +11,7 @@ from pathlib import Path
 import qtextra.helpers as hp
 from koyo.timer import MeasureTimer
 from loguru import logger
+from qtextra.config import THEMES
 from qtextra.utils.table_config import TableConfig
 from qtextra.widgets.qt_table_view_check import MultiColumnSingleValueProxyModel, QtCheckableTableView
 from qtextra.widgets.qt_toolbar_mini import QtMiniToolbar
@@ -98,6 +99,7 @@ class QtDatasetItem(QFrame):
         self.size_label = hp.make_label(self, "", tooltip="Uncompressed size of the modality in GB.")
 
         self.modality_icon = QtModalityLabel(self)
+        self.modality_icon.set_average()
         self.open_dir_btn = hp.make_qta_btn(
             self, "folder", tooltip="Open directory containing the image.", normal=True, func=self.on_open_directory
         )
@@ -294,6 +296,9 @@ class QtDatasetItem(QFrame):
         else:
             channel_name = f"{self.table.get_value(TABLE_CONFIG.channel_name, index)} | {self.key}"
             self.evt_channel.emit(state, channel_name)
+
+    def remove_all_channels(self) -> None:
+        """Remove all channels."""
 
     def on_save(self) -> None:
         """Save data."""
@@ -666,10 +671,22 @@ class QtDatasetToolbar(QtMiniToolbar):
         super().__init__(parent, orientation=Qt.Orientation.Horizontal, add_spacer=False, spacing=2)
 
         # must place them in reverse
-        self.add_qta_tool("toggle_on", tooltip="Check all visible channels in each dataset.", func=self.on_check_all)
         self.add_qta_tool(
-            "toggle_off", tooltip="Uncheck all visible channels in each dataset.", func=self.on_uncheck_all
+            "toggle_on",
+            tooltip="Check all visible channels in each dataset.<br>If a reader has more than 10 channels, you will be"
+            " asked to confirm.",
+            func=self.on_check_all,
         )
+        self.add_qta_tool(
+            "toggle_off",
+            tooltip="Uncheck all visible channels in each dataset.",
+            func=self.on_uncheck_all,
+        )
+        # self.add_qta_tool(
+        #     "clear",
+        #     tooltip="Remove all layers for each dataset. <b>This does not delete the dataset!</b>",
+        #     func=self.on_remove_all,
+        # )
         self.add_separator()
         self.add_widget(
             hp.make_toggle(
@@ -721,3 +738,10 @@ class QtDatasetToolbar(QtMiniToolbar):
             if not widget.isVisible():
                 continue
             widget.table.uncheck_all_rows()
+
+    def on_remove_all(self, event: Event) -> None:
+        """Uncheck all visible channels."""
+        for widget in self.dataset_list.widget_iter():
+            if not widget.isVisible():
+                continue
+            widget.remove_all_channels()
