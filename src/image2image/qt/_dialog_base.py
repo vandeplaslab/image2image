@@ -158,13 +158,14 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
             for name in wrapper.channel_names():
                 if channel_names and name not in channel_names:
                     continue
-                if name not in view_wrapper.layers:
+                if state and name not in view_wrapper.layers:
                     logger.warning(f"Layer '{name}' not found in the view.")
                     self.image_layer, self.shape_layer, self.points_layer = self._plot_reader_layers(
                         model, view_wrapper, [name], view_kind, True
                     )
                     continue
-                view_wrapper.layers[name].visible = state
+                if name in view_wrapper.layers:
+                    view_wrapper.layers[name].visible = state
 
     @staticmethod
     def _plot_reader_layers(

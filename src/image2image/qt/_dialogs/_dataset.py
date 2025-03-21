@@ -171,6 +171,29 @@ class SelectChannelsToLoadDialog(QtDialog):
         self.channels = self.get_channels()
         hp.disable_widgets(self.ok_btn, disabled=len(self.channels) == 0)
 
+    def on_show_selected(self) -> None:
+        """Show/hide selected."""
+        self.table_proxy.setFilterByState(True, self.TABLE_CONFIG.check)
+
+    def on_show_unselected(self) -> None:
+        """Show/hide unselected."""
+        self.table_proxy.setFilterByState(False, self.TABLE_CONFIG.check)
+
+    def on_show_selected_clear(self) -> None:
+        """Show/hide unselected."""
+        self.table_proxy.setFilterByState(None, self.TABLE_CONFIG.check)
+
+    def on_select_first_channel(self) -> None:
+        """Select the first channel only."""
+        self.table.uncheck_all_rows()
+        for index in range(self.table.n_rows):
+            if self.table.get_value(self.TABLE_CONFIG.index, index) == 0:
+                self.table.set_value(self.TABLE_CONFIG.check, index, True)
+
+    def on_select_all_channels(self) -> None:
+        """Select all channels."""
+        self.table.check_all_rows()
+
     def get_channels(self) -> list[str]:
         """Select all channels."""
         channels = []
@@ -212,18 +235,17 @@ class SelectChannelsToLoadDialog(QtDialog):
         self.table.setup_model(
             self.TABLE_CONFIG.header, self.TABLE_CONFIG.no_sort_columns, self.TABLE_CONFIG.hidden_columns
         )
-        if STATE.allow_filters:
-            self.table_proxy = MultiColumnSingleValueProxyModel(self)
-            self.table_proxy.setSourceModel(self.table.model())
-            self.table.model().table_proxy = self.table_proxy
-            self.table.setModel(self.table_proxy)
-            self.filter_by_name = hp.make_line_edit(
-                self,
-                placeholder="Type in channel name...",
-                func_changed=lambda text, col=self.TABLE_CONFIG.channel_name_full: self.table_proxy.setFilterByColumn(
-                    text, col
-                ),
-            )
+        self.table_proxy = MultiColumnSingleValueProxyModel(self)
+        self.table_proxy.setSourceModel(self.table.model())
+        self.table.model().table_proxy = self.table_proxy
+        self.table.setModel(self.table_proxy)
+        self.filter_by_name = hp.make_line_edit(
+            self,
+            placeholder="Type in channel name...",
+            func_changed=lambda text, col=self.TABLE_CONFIG.channel_name_full: self.table_proxy.setFilterByColumn(
+                text, col
+            ),
+        )
 
         self.warning_label = hp.make_label(
             self,
@@ -246,10 +268,37 @@ class SelectChannelsToLoadDialog(QtDialog):
         layout = hp.make_form_layout(parent=self)
         layout.addRow(self.warning_no_channels_label)
         layout.addRow(self.warning_label)
+        layout.addRow(
+            hp.make_h_layout(
+                hp.make_btn(
+                    self,
+                    "Select all channels",
+                    tooltip="Select all channels.",
+                    func=self.on_select_all_channels,
+                ),
+                hp.make_btn(
+                    self,
+                    "Select first channel only",
+                    tooltip="Select the first channel only, often to preview results or speed-up loading of dataset.",
+                    func=self.on_select_first_channel,
+                ),
+                stretch_after=True,
+            )
+        )
         layout.addRow(self.table)
-        if STATE.allow_filters:
-            layout.addRow(self.filter_by_name)
-            self.filter_by_name.setFocus()
+        layout.addRow(
+            hp.make_h_layout(
+                hp.make_qta_btn(self, "visible_on", func=self.on_show_selected, tooltip="Only show checked items."),
+                hp.make_qta_btn(
+                    self, "visible_off", func=self.on_show_unselected, tooltip="Only show unchecked items."
+                ),
+                hp.make_qta_btn(self, "clear", func=self.on_show_selected_clear, tooltip="Clear checked filter."),
+                self.filter_by_name,
+                stretch_id=(3,),
+                spacing=2,
+            )
+        )
+        self.filter_by_name.setFocus()
         layout.addRow(
             hp.make_label(
                 self,

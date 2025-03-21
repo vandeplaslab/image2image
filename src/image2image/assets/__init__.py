@@ -25,6 +25,7 @@ update_icon_mapping(
         "preprocess": "fa5s.paint-brush",
         "common": "fa5s.thumbs-up",
         "replace": "msc.replace",
+        "extract": "fa6s.download",
         # wsireg
         "mask": "mdi6.drama-masks",
         "process": "msc.wand",
