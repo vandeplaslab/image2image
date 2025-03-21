@@ -103,14 +103,16 @@ if ($qtextra) {
     echo "Re-installing qtextra..."
     $new_dir = Join-Path -Path $github_dir -ChildPath "qtextra" -Resolve
     cd $new_dir
-    uv pip install ".[sentry,console]"
+    uv pip uninstall .
+    uv pip install -U ".[sentry,console]"
     cd $start_dir
     echo "Reinstalled qtextra"
 
     echo "Re-installing qtextraplot..."
     $new_dir = Join-Path -Path $github_dir -ChildPath "qtextraplot" -Resolve
     cd $new_dir
-    uv pip install ".[2d]"
+    uv pip uninstall .
+    uv pip install -U ".[2d]"
     cd $start_dir
     echo "Reinstalled qtextraplot"
 }
@@ -120,7 +122,8 @@ foreach ($package in $local_install) {
     echo "Re-installing $package..."
     $new_dir = Join-Path -Path $github_dir -ChildPath $package -Resolve
     cd $new_dir
-    uv pip install .
+    uv pip uninstall .
+    uv pip install -U .
     cd $start_dir
     echo "Reinstalled $package"
 }
