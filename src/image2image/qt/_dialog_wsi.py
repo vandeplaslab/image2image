@@ -4,12 +4,14 @@ from __future__ import annotations
 
 import os
 import typing as ty
+from functools import partial
 from pathlib import Path
 
 import numpy as np
 import qtextra.helpers as hp
 import qtpy.QtWidgets as Qw
 from image2image_io.config import CONFIG as READER_CONFIG
+from image2image_io.writers import images_to_ome_tiff
 from image2image_reg.models import Modality, Preprocessing
 from image2image_reg.workflows import ElastixReg, ValisReg
 from koyo.typing import PathLike
@@ -47,6 +49,7 @@ class ImageWsiWindow(SingleViewerMixin):
     PROJECT_SUFFIX: str
     RUN_DISABLED: bool
     OTHER_PROJECT: str
+    IS_VALIS: bool
     CONFIG: ValisConfig | ElastixConfig
 
     # Widgets
@@ -246,9 +249,10 @@ class ImageWsiWindow(SingleViewerMixin):
 
     def on_update_resolution_of_modality(self, modality: Modality) -> None:
         """Preview image."""
-        self.registration_model.modalities[modality.name].pixel_size = modality.pixel_size
-        self._on_show_modalities()
-        logger.trace(f"Updated resolution of modality: {modality.name} ({modality.pixel_size})")
+        if self.registration_model.modalities[modality.name].pixel_size != modality.pixel_size:
+            self.registration_model.modalities[modality.name].pixel_size = modality.pixel_size
+            self._on_show_modalities()
+            logger.trace(f"Updated resolution of modality: {modality.name} ({modality.pixel_size})")
 
     def on_update_colormap(self, modality: Modality, color: np.ndarray):
         """Update colormap."""
@@ -347,6 +351,112 @@ class ImageWsiWindow(SingleViewerMixin):
             return
         self.on_show_modalities()
         logger.trace(f"Updated pyramid level to {level}")
+
+    def on_apply(self) -> None:
+        """Apply."""
+        # get all channel options
+        menu = hp.make_menu(self)
+        hp.make_menu_from_options(
+            self,
+            menu,
+            [
+                "Intensity: Histogram equalization (only)",
+                "Intensity: Contrast enhancement (only)",
+                "Intensity: Histogram equalization & Contrast enhancement",
+                None,
+                "Spatial: Downsample x1",
+                "Spatial: Downsample x2",
+                "Spatial: Downsample x3",
+                None,
+                "Default: Brightfield",
+                "Default: Fluorescence",
+                "Default: DAPI",
+                "Default: PAS",
+                "Default: H&E",
+                "Default: postAF(B)",
+                "Default: postAF(E)",
+                "Default: DAPI",
+                None,
+                "Channel(id): 0",
+                None,
+                "Channel(name): DAPI",
+                "Channel(name): EGFP",
+            ],
+            func=self._on_apply_action,
+        )
+        menu.addSeparator()
+        hp.make_menu_item(self, "Select channels...", menu=menu, func=self._on_select_channels)
+        hp.show_below_widget(menu, self.apply_btn)
+
+    def _on_select_channels(self) -> None:
+        """Select channels."""
+        channel_names: list[str] = []
+        for name in self.registration_model.get_image_modalities(with_attachment=False):
+            modality = self.registration_model.modalities[name]
+            channel_names.extend(modality.channel_names)
+        selected = hp.choose_from_list(self, list(set(channel_names)))
+
+        if not selected:
+            return
+        for name in self.registration_model.get_image_modalities(with_attachment=False):
+            modality = self.registration_model.modalities[name]
+            modality.preprocessing.select_channels(channel_names=selected)
+        self.modality_list.update_preprocessing_info()
+        self.on_show_modalities()
+
+    def _on_apply_action(self, option: str) -> None:
+        """Apply action."""
+        from image2image.qt._wsi._preprocessing import handle_default
+
+        # if not self.registration_model.get_image_modalities(with_attachment=False) or not hp.confirm(
+        #     self,
+        #     "Please confirm if you wish to apply the selected pre-processing to all modalities.",
+        #     "Please confirm",
+        # ):
+        #     return
+
+        histogram, contrast, factor, default, channel_id, channel_name = None, None, None, None, None, None
+        if option.startswith("Intensity:"):
+            histogram = "Histogram equalization (only)" in option or "&" in option
+            contrast = "Contrast enhancement (only)" in option or "&" in option
+        if option.startswith("Spatial"):
+            factor = int(option.split("x")[-1])
+        if option.startswith("Default"):
+            default = option.split(": ")[-1]
+        if option.startswith("Channel(id)"):
+            channel_id = int(option.split(": ")[-1])
+        if option.startswith("Channel(name)"):
+            channel_name = option.split(": ")[-1]
+
+        if not any(v is None for v in [histogram, contrast, factor, default]):
+            logger.warning("Failed to parse pre-processing option.")
+            return
+
+        for name in self.registration_model.get_image_modalities(with_attachment=False):
+            modality = self.registration_model.modalities[name]
+            if not modality.preprocessing:
+                continue
+            if default is not None:
+                modality.preprocessing.update_from_another(
+                    handle_default(option, modality.preprocessing, valis=self.IS_VALIS)
+                )
+            if histogram is not None:
+                modality.preprocessing.equalize_histogram = histogram
+            if contrast is not None:
+                modality.preprocessing.contrast_enhance = contrast
+            if factor is not None:
+                modality.preprocessing.downsample = factor
+            if channel_id is not None:
+                modality.preprocessing.select_channel(channel_id=channel_id)
+            if channel_name is not None:
+                modality.preprocessing.select_channel(channel_name=channel_name)
+
+            logger.trace(
+                f"Updated pre-processing of {name} with default={default}; histogram={histogram}; contrast={contrast};"
+                f" factor={factor}; channel_id={channel_id}; channel_name={channel_name}"
+            )
+        self.modality_list.update_preprocessing_info()
+        self.on_show_modalities()
 
     def on_show_all(self) -> None:
         """Show all modalities."""
@@ -532,8 +642,20 @@ class ImageWsiWindow(SingleViewerMixin):
         return project_settings
 
     def _make_visibility_options(self) -> None:
-        self.show_all_btn = hp.make_qta_btn(self, "visible_on", tooltip="Show all modalities", func=self.on_show_all)
-        self.hide_all_btn = hp.make_qta_btn(self, "visible_off", tooltip="Hide all modalities", func=self.on_hide_all)
+        self.apply_btn = hp.make_qta_btn(
+            self,
+            "common",
+            tooltip="Apply pre-processing to all modalities",
+            func=self.on_apply,
+            normal=True,
+            standout=True,
+        )
+        self.show_all_btn = hp.make_qta_btn(
+            self, "visible_on", tooltip="Show all modalities", func=self.on_show_all, normal=True, standout=True
+        )
+        self.hide_all_btn = hp.make_qta_btn(
+            self, "visible_off", tooltip="Hide all modalities", func=self.on_hide_all, normal=True, standout=True
+        )
         self.use_preview_check = hp.make_checkbox(
             self,
             "Use preview image",

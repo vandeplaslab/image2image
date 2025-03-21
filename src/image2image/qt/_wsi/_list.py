@@ -65,6 +65,7 @@ class QtModalityItem(QtListItem):
     previewing: bool = False
 
     def __init__(self, item: QListWidgetItem, parent: QWidget | None = None, color="#808080", valis: bool = False):
+        self.key = item.item_model.name
         super().__init__(parent)
         self.setMouseTracking(True)
         self._parent = parent
@@ -219,6 +220,11 @@ class QtModalityItem(QtListItem):
         self.mode = False
         self._set_from_model()
         self._old_hex_color = self.hex_color
+
+    @property
+    def item_model(self) -> Modality:
+        """Modality."""
+        return self.registration_model.modalities[self.key]
 
     @property
     def layer(self) -> Image | None:
@@ -501,7 +507,7 @@ class QtModalityItem(QtListItem):
                 locked=self.lock_btn.locked,
                 valis=self.valis,
             )
-            self._preprocessing_dlg.evt_update.connect(self.on_update_preprocessing)
+            self._preprocessing_dlg.evt_update.connect(self._on_update_preprocessing)
             self._preprocessing_dlg.evt_preview_preprocessing.connect(self.evt_preview_preprocessing.emit)
             self._preprocessing_dlg.evt_set_preprocessing.connect(self.on_set_preprocessing)
             self._preprocessing_dlg.evt_preview_transform_preprocessing.connect(
@@ -522,7 +528,11 @@ class QtModalityItem(QtListItem):
         self.evt_preview_preprocessing.emit(self.item_model, self.item_model.preprocessing)
         logger.trace(f"Pre-processing previewed for {self.item_model.name}.")
 
-    def on_update_preprocessing(self, preprocessing: Preprocessing) -> None:
+    def on_update_preprocessing(self) -> None:
+        """Update pre-processing"""
+        self._on_update_preprocessing(self.item_model.preprocessing)
+
+    def _on_update_preprocessing(self, preprocessing: Preprocessing) -> None:
         """Update pre-processing."""
         text, tooltip = preprocessing.as_str(valis=self.valis)
         self.preprocessing_label.setText(text)
@@ -546,13 +556,13 @@ class QtModalityItem(QtListItem):
     def toggle_mask(self) -> None:
         """Toggle name."""
         self.mask_btn.setVisible(self.item_model.preprocessing.is_masked())
-        self.on_update_preprocessing(self.item_model.preprocessing)
+        self._on_update_preprocessing(self.item_model.preprocessing)
 
     #
     def toggle_crop(self) -> None:
         """Toggle name."""
         self.crop_btn.setVisible(self.item_model.preprocessing.is_cropped())
-        self.on_update_preprocessing(self.item_model.preprocessing)
+        self._on_update_preprocessing(self.item_model.preprocessing)
 
     def toggle_visible(self, state: bool) -> None:
         """Toggle visibility icon."""
@@ -609,6 +619,12 @@ class QtModalityList(QtListWidget):
         if widget:
             with suppress(ValueError):
                 self.used_colors.remove(widget.hex_color)
+
+    def update_preprocessing_info(self) -> None:
+        """Update pre-processing info."""
+        for widget in self.widget_iter():
+            if widget:
+                widget.on_update_preprocessing()
 
     def _make_widget(self, item: QListWidgetItem) -> QtModalityItem:
         # try:

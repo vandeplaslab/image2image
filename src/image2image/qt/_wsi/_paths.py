@@ -242,9 +242,79 @@ class RegistrationMap(QWidget):
         layout = hp.make_form_layout(parent=self)
         layout.setContentsMargins(2, 2, 2, 2)
         layout.addRow(self._registration_path)
-        layout.addRow(hp.make_label(self, "Source"), self._source_choice)
-        layout.addRow(hp.make_label(self, "Target"), self._target_choice)
-        layout.addRow(hp.make_label(self, "Through (optional)"), self._through_choice)
+        layout.addRow(
+            hp.make_label(self, "Src", tooltip="Source modality (moving)"),
+            hp.make_h_layout(
+                self._source_choice,
+                hp.make_qta_btn(
+                    self,
+                    "previous",
+                    tooltip="Show previous ion image.",
+                    normal=True,
+                    func=partial(self.on_increment_source, -1),
+                    standout=True,
+                ),
+                hp.make_qta_btn(
+                    self,
+                    "next",
+                    tooltip="Show next ion image.",
+                    normal=True,
+                    func=partial(self.on_increment_source, 1),
+                    standout=True,
+                ),
+                spacing=1,
+                margin=0,
+            ),
+        )
+        layout.addRow(
+            hp.make_label(self, "Tgt", tooltip="Target modality (fixed)"),
+            hp.make_h_layout(
+                self._target_choice,
+                hp.make_qta_btn(
+                    self,
+                    "previous",
+                    tooltip="Show previous ion image.",
+                    normal=True,
+                    func=partial(self.on_increment_target, -1),
+                    standout=True,
+                ),
+                hp.make_qta_btn(
+                    self,
+                    "next",
+                    tooltip="Show next ion image.",
+                    normal=True,
+                    func=partial(self.on_increment_target, 1),
+                    standout=True,
+                ),
+                spacing=1,
+                margin=0,
+            ),
+        )
+        layout.addRow(
+            hp.make_label(self, "Thr", tooltip="Through modality (in-between)"),
+            hp.make_h_layout(
+                self._through_choice,
+                hp.make_qta_btn(
+                    self,
+                    "previous",
+                    tooltip="Show previous ion image.",
+                    normal=True,
+                    func=partial(self.on_increment_through, -1),
+                    standout=True,
+                ),
+                hp.make_qta_btn(
+                    self,
+                    "next",
+                    tooltip="Show next ion image.",
+                    normal=True,
+                    func=partial(self.on_increment_through, 1),
+                    standout=True,
+                ),
+                spacing=1,
+                margin=0,
+            ),
+        )
+
         layout.addRow(
             hp.make_h_layout(
                 hp.make_btn(
@@ -279,6 +349,18 @@ class RegistrationMap(QWidget):
         )
         # layout.addRow(self._warning_label)
 
+    def on_increment_source(self, step: int) -> None:
+        """Increment source."""
+        hp.increment_combobox(self._source_choice, step)
+
+    def on_increment_target(self, step: int) -> None:
+        """Increment target."""
+        hp.increment_combobox(self._target_choice, step)
+
+    def on_increment_through(self, step: int) -> None:
+        """Increment through."""
+        hp.increment_combobox(self._through_choice, step)
+
     def on_preview(self) -> None:
         """Preview paths as network."""
         from networkx.exception import NetworkXNoPath
@@ -290,11 +372,12 @@ class RegistrationMap(QWidget):
             dlg.show()
         except NetworkXNoPath as exc:
             hp.toast(
-                self.parent(),
+                hp.get_main_window(),
                 "Registration path is not valid",
                 f"Registration paths re not valid.<br>Encountered an error: {exc}",
                 duration=5000,
                 icon="error",
+                position="top_left",
             )
 
     def on_path_choice(self, _: ty.Any = None) -> None:
@@ -449,5 +532,5 @@ class RegistrationMap(QWidget):
                 paths.append(f"{source} » {targets[0]}")
             else:
                 paths.append(f"{source} » {targets[0]} » {targets[1]}")
-        paths = set(paths)
+        paths = natsorted(set(paths))
         hp.combobox_setter(self._choice, items=paths, set_item=self._choice.currentText())

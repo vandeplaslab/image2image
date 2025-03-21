@@ -21,4 +21,4 @@ def guess_preprocessing(reader, valis: bool = False) -> Preprocessing:
 
 def hash_preprocessing(preprocessing: Preprocessing, pyramid: int = -1, pixel_size: float = 1.0) -> str:
     """Hash preprocessing."""
-    return hash_parameters(**preprocessing.to_dict(), pyramid=pyramid, pixel_size=pixel_size, n_in_hash=6)
+    return hash_parameters(**preprocessing.dict(), pyramid=pyramid, pixel_size=pixel_size, n_in_hash=6)

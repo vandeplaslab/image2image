@@ -125,6 +125,7 @@ class ImageElastixWindow(ImageWsiWindow):
     PROJECT_SUFFIX = ".wsireg"
     RUN_DISABLED: bool = False
     OTHER_PROJECT: str = "Valis"
+    IS_VALIS = False
 
     def __init__(
         self,
@@ -290,7 +291,7 @@ class ImageElastixWindow(ImageWsiWindow):
         # no need to re-process if the layer is already there
         if layer and layer.metadata.get("preview_hash") == preprocessing_hash and not overwrite:
             layer.visible = state
-            logger.trace(f"Already processed image {modality.name} with {pyramid} pyramid level")
+            logger.trace(f"Already processed image {modality.name} with {pyramid} pyramid level ({preprocessing_hash})")
             return
 
         wrapper = self.data_model.get_wrapper()
@@ -587,6 +588,7 @@ class ImageElastixWindow(ImageWsiWindow):
         side_layout.addRow(self.modality_list)
         side_layout.addRow(
             hp.make_h_layout(
+                self.apply_btn,
                 self.show_all_btn,
                 self.hide_all_btn,
                 self.use_preview_check,

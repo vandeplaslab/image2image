@@ -44,6 +44,7 @@ class NetworkViewer(QtFramelessTool):
 
         self.view.clear()
         draw_workflow(registration_model, self.view.figure.ax, network_type)
+        self.view.setup_interactivity()
         self.view.repaint()
         self.view.figure.tight()
 

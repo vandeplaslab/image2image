@@ -19,7 +19,7 @@ from superqt.utils import qdebounced
 from image2image.config import STATE
 
 if ty.TYPE_CHECKING:
-    from image2image_reg.models import Modality
+    from image2image_reg.models import Modality, Preprocessing
 
 
 def get_methods_for_modality(modality: Modality) -> list[str]:
@@ -75,6 +75,45 @@ def get_methods_for_modality(modality: Modality) -> list[str]:
     for option in set(to_pop):
         _maybe_pop(option)
     return options
+
+
+def handle_default(option: str, preprocessing: Preprocessing, valis: bool = False) -> Preprocessing:
+    """Handle setting of default."""
+    from image2image_reg.models import Preprocessing
+
+    channel_names = preprocessing.channel_names
+    channel_indices = preprocessing.channel_indices
+
+    option = option.lower()
+    if option == "brightfield":
+        new_preprocessing = Preprocessing.brightfield(
+            valis=valis, channel_names=channel_names, channel_indices=channel_indices
+        )
+    elif option == "fluorescence":
+        new_preprocessing = Preprocessing.fluorescence(
+            valis=valis, channel_names=channel_names, channel_indices=channel_indices
+        )
+    elif option == "h&e":
+        new_preprocessing = Preprocessing.he(valis=valis, channel_names=channel_names, channel_indices=channel_indices)
+    elif option == "pas":
+        new_preprocessing = Preprocessing.pas(valis=valis, channel_names=channel_names, channel_indices=channel_indices)
+    elif option == "postaf(e)":
+        new_preprocessing = Preprocessing.postaf(
+            valis=valis, channel_names=channel_names, channel_indices=channel_indices, which="egfp"
+        )
+    elif option == "postaf(b)":
+        new_preprocessing = Preprocessing.postaf(
+            valis=valis, channel_names=channel_names, channel_indices=channel_indices, which="brightfield"
+        )
+    elif option == "dapi":
+        new_preprocessing = Preprocessing.dapi(
+            valis=valis, channel_names=channel_names, channel_indices=channel_indices
+        )
+    else:
+        new_preprocessing = Preprocessing.basic(
+            valis=valis, channel_names=channel_names, channel_indices=channel_indices
+        )
+    return new_preprocessing
 
 
 class PreprocessingDialog(QtFramelessTool):
@@ -208,7 +247,7 @@ class PreprocessingDialog(QtFramelessTool):
         channel_names = self.channel_table.get_col_data(self.TABLE_CONFIG.channel_name)
         return [self.channel_table.get_value(self.TABLE_CONFIG.channel_index, i) for i in checked], channel_names
 
-    def on_update_model(self, _=None) -> None:
+    def on_update_model(self, _: ty.Any = None) -> None:
         """Update model."""
         if self._is_setting_config:
             return
@@ -252,42 +291,7 @@ class PreprocessingDialog(QtFramelessTool):
             self, f"Are you sure you want to set to <b>{text}</b> defaults? This will overwrite other settings."
         ):
             return
-        text = text.lower()
-        channel_names = self.preprocessing.channel_names
-        channel_indices = self.preprocessing.channel_indices
-        if text == "brightfield":
-            new_preprocessing = Preprocessing.brightfield(
-                valis=self.valis, channel_names=channel_names, channel_indices=channel_indices
-            )
-        elif text == "fluorescence":
-            new_preprocessing = Preprocessing.fluorescence(
-                valis=self.valis, channel_names=channel_names, channel_indices=channel_indices
-            )
-        elif text == "h&e":
-            new_preprocessing = Preprocessing.he(
-                valis=self.valis, channel_names=channel_names, channel_indices=channel_indices
-            )
-        elif text == "pas":
-            new_preprocessing = Preprocessing.pas(
-                valis=self.valis, channel_names=channel_names, channel_indices=channel_indices
-            )
-        elif text == "postaf(e)":
-            new_preprocessing = Preprocessing.postaf(
-                valis=self.valis, channel_names=channel_names, channel_indices=channel_indices, which="egfp"
-            )
-        elif text == "postaf(b)":
-            new_preprocessing = Preprocessing.postaf(
-                valis=self.valis, channel_names=channel_names, channel_indices=channel_indices, which="brightfield"
-            )
-        elif text == "dapi":
-            new_preprocessing = Preprocessing.dapi(
-                valis=self.valis, channel_names=channel_names, channel_indices=channel_indices
-            )
-        else:
-            new_preprocessing = Preprocessing.basic(
-                valis=self.valis, channel_names=channel_names, channel_indices=channel_indices
-            )
-        self.preprocessing = new_preprocessing
+        self.preprocessing = handle_default(text, self.preprocessing, valis=self.valis)
         self.set_from_model()
         self.evt_update.emit(self.preprocessing)
         self.evt_preview_transform_preprocessing.emit(self.modality, self.preprocessing)

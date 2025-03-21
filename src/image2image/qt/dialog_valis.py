@@ -109,6 +109,7 @@ class ImageValisWindow(ImageWsiWindow):
     PROJECT_SUFFIX = ".valis"
     RUN_DISABLED: bool = not STATE.allow_valis_run
     OTHER_PROJECT: str = "Elastix"
+    IS_VALIS = True
 
     def __init__(
         self, parent: QWidget | None, run_check_version: bool = True, project_dir: PathLike | None = None, **_kwargs
