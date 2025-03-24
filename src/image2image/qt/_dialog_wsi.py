@@ -590,7 +590,11 @@ class ImageWsiWindow(SingleViewerMixin):
         """Remove image."""
         self.on_depopulate_list(keys)
 
-    def on_save_to_project(self) -> None:
+    def on_save_to_project(self) -> bool:
+        """Save project."""
+        raise NotImplementedError("Must implement method")
+
+    def on_save_with_errors_to_project(self) -> bool:
         """Save project."""
         raise NotImplementedError("Must implement method")
 
@@ -600,8 +604,9 @@ class ImageWsiWindow(SingleViewerMixin):
 
     def on_save_and_close_project(self) -> None:
         """Save and close project."""
-        self.on_save_to_project()
-        self.on_close(force=True)
+        saved = self.on_save_to_project()
+        if saved:
+            self.on_close(force=True)
 
     def _make_output_widgets(self, side_widget: Qw.QWidget) -> Qw.QGroupBox:
         # regex = r"^[a-zA-Z0-9_\-.,=]"
@@ -817,6 +822,13 @@ class ImageWsiWindow(SingleViewerMixin):
         """Save menu."""
         menu = hp.make_menu(self.save_btn)
         hp.make_menu_item(self, "Save", menu=menu, func=self.on_save_to_project, icon="save")
+        hp.make_menu_item(
+            self,
+            "Save (ignore errors, not recommended)",
+            menu=menu,
+            func=self.on_save_with_errors_to_project,
+            icon="save",
+        )
         hp.make_menu_item(self, "Save and close", menu=menu, func=self.on_save_and_close_project, icon="save")
         hp.show_above_widget(menu, self.save_btn)
 

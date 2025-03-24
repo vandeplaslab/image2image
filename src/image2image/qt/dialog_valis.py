@@ -358,7 +358,26 @@ class ImageValisWindow(ImageWsiWindow):
         except (ValueError, FileNotFoundError):
             hp.toast(self, "Error", "Could not save project to elastix format.", icon="error", position="top_left")
 
-    def on_save_to_project(self) -> None:
+    def on_save_to_project(self) -> bool:
+        """Save project to i2reg."""
+        name = self.name_label.text()
+        if not name:
+            hp.toast(self, "Error", "Please provide a name for the project.", icon="error", position="top_left")
+            return False
+        output_dir = self.output_dir
+        if output_dir is None:
+            hp.toast(self, "Error", "Please provide an output directory.", icon="error", position="top_left")
+            return False
+        if not self._validate():
+            return False
+        path = self.save_model()
+        if path:
+            hp.toast(self, "Saved", f"Saved project to {hp.hyper(path)}.", icon="success", position="top_left")
+            logger.info(f"Saved project to {path}")
+            return True
+        return False
+
+    def on_save_with_errors_to_project(self) -> None:
         """Save project to i2reg."""
         name = self.name_label.text()
         if not name:
@@ -367,8 +386,6 @@ class ImageValisWindow(ImageWsiWindow):
         output_dir = self.output_dir
         if output_dir is None:
             hp.toast(self, "Error", "Please provide an output directory.", icon="error", position="top_left")
-            return
-        if not self._validate():
             return
         path = self.save_model()
         if path:
