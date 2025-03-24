@@ -279,8 +279,10 @@ class ImageValisWindow(ImageWsiWindow):
                 self.hide_all_btn,
                 self.use_preview_check,
                 self.hide_others_check,
+                self.hide_all_btn,
                 margin=2,
                 spacing=2,
+                stretch_id=(3,),
             )
         )
         # Registration paths
@@ -468,7 +470,7 @@ class ImageValisWindow(ImageWsiWindow):
                         self.view.remove_layer(modality.name)
                         self.view.remove_layer(f"{modality.name} (preview)")
         # Populate table
-        self.modality_list.depopulate()
+        self.modality_list.populate()
         self.populate_reference_list()
 
     def populate_reference_list(self) -> None:
@@ -545,7 +547,7 @@ class ImageValisWindow(ImageWsiWindow):
 
     def on_rename_modality(self, widget, new_name: str) -> None:
         """Rename modality."""
-        modality = widget.item_model
+        modality = widget.modality
         if not new_name:
             hp.set_object_name(widget.name_label, object_name="error")
             return
@@ -601,7 +603,7 @@ class ImageValisWindow(ImageWsiWindow):
                     )
                 else:
                     image = reader.get_channel(0, pyramid)
-                widget = self.modality_list.get_widget_for_item_model(modality)
+                widget = self.modality_list.get_widget_for_modality(modality)
                 colormap = "gray" if widget is None else widget.colormap
                 if overwrite and layer:
                     self.view.remove_layer(modality.name)
@@ -636,7 +638,7 @@ class ImageValisWindow(ImageWsiWindow):
             if layer and layer.rgb:
                 self.view.remove_layer(modality.name)
 
-            widget = self.modality_list.get_widget_for_item_model(modality)
+            widget = self.modality_list.get_widget_for_modality(modality)
             colormap = "gray" if widget is None else widget.colormap
             with MeasureTimer() as timer:
                 reader = wrapper.get_reader_for_path(modality.path)

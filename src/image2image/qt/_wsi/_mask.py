@@ -388,22 +388,6 @@ class ShapesDialog(QtFramelessTool):
         self.layer_controls.installEventFilter(self)
 
         self.slide_choice = hp.make_combobox(self, tooltip="Select modality", func=self.on_select_modality)
-        self.previous_btn = hp.make_qta_btn(
-            self,
-            "chevron_left_circle",
-            func=partial(self.on_increment_modality, increment_by=-1),
-            tooltip="Go to previous modality.",
-            normal=True,
-            standout=True,
-        )
-        self.next_btn = hp.make_qta_btn(
-            self,
-            "chevron_right_circle",
-            func=partial(self.on_increment_modality, increment_by=1),
-            tooltip="Go to next modality.",
-            normal=True,
-            standout=True,
-        )
         self.copy_from_choice = hp.make_combobox(self, tooltip="Copy mask from another modality")
 
         self.add_btn = hp.make_btn(self, f"Add {self.MASK_OR_CROP}", func=self.on_associate_mask_with_modality)
@@ -421,13 +405,40 @@ class ShapesDialog(QtFramelessTool):
         layout.addRow(hp.make_h_line())
         layout.addRow(
             hp.make_label(self, "Modality"),
-            hp.make_h_layout(self.slide_choice, self.previous_btn, self.next_btn, stretch_id=(0,), spacing=2),
+            hp.make_h_layout(
+                self.slide_choice,
+                hp.make_qta_btn(
+                    self,
+                    "chevron_left_circle",
+                    func=partial(self.on_increment_modality, increment_by=-1),
+                    tooltip="Go to previous modality.",
+                    normal=True,
+                    standout=True,
+                ),
+                hp.make_qta_btn(
+                    self,
+                    "chevron_right_circle",
+                    func=partial(self.on_increment_modality, increment_by=1),
+                    tooltip="Go to next modality.",
+                    normal=True,
+                    standout=True,
+                ),
+                stretch_id=(0,),
+                spacing=2,
+            ),
         )
         layout.addRow(
             hp.make_label(self, "Copy from"),
             hp.make_h_layout(
                 self.copy_from_choice,
-                hp.make_qta_btn(self, "copy", func=self.on_copy, func_menu=self.on_copy_to_all),
+                hp.make_qta_btn(
+                    self,
+                    "copy",
+                    func=self.on_copy,
+                    func_menu=self.on_copy_to_all,
+                    normal=True,
+                    standout=True,
+                ),
                 spacing=2,
                 stretch_id=(0,),
             ),

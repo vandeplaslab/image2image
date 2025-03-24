@@ -11,7 +11,6 @@ import numpy as np
 import qtextra.helpers as hp
 import qtpy.QtWidgets as Qw
 from image2image_io.config import CONFIG as READER_CONFIG
-from image2image_io.writers import images_to_ome_tiff
 from image2image_reg.models import Modality, Preprocessing
 from image2image_reg.workflows import ElastixReg, ValisReg
 from koyo.typing import PathLike
@@ -221,6 +220,7 @@ class ImageWsiWindow(SingleViewerMixin):
         keys = self.data_model.get_key_for_path(modality.path)
         for key in keys:
             self._image_widget.dset_dlg.on_remove_dataset(key)
+        self.modality_list.populate()
 
     def on_update_resolution_from_table(self, key: str) -> None:
         """Update resolution."""
@@ -231,7 +231,7 @@ class ImageWsiWindow(SingleViewerMixin):
         if not modality:
             return
         modality.pixel_size = reader.resolution
-        item: QtModalityItem = self.modality_list.get_widget_for_item_model(modality)
+        item: QtModalityItem = self.modality_list.get_widget_for_modality(modality)
         if item:
             item.resolution_label.setText(f"{reader.resolution:.3f}")
         self.on_update_resolution_of_modality(modality)
@@ -319,7 +319,7 @@ class ImageWsiWindow(SingleViewerMixin):
             return
 
         for widget in self.modality_list.widget_iter():
-            if widget and widget.item_model.name == choice:
+            if widget and widget.modality.name == choice:
                 widget.auto_add_attachments(filelist)
                 break
 
@@ -378,7 +378,6 @@ class ImageWsiWindow(SingleViewerMixin):
                 "Default: DAPI",
                 None,
                 "Channel(id): 0",
-                None,
                 "Channel(name): DAPI",
                 "Channel(name): EGFP",
             ],
@@ -386,6 +385,7 @@ class ImageWsiWindow(SingleViewerMixin):
         )
         menu.addSeparator()
         hp.make_menu_item(self, "Select channels...", menu=menu, func=self._on_select_channels)
+        # hp.make_menu_item(self, "Rename...", menu=menu, func=self._on_rename)
         hp.show_below_widget(menu, self.apply_btn)
 
     def _on_select_channels(self) -> None:
@@ -458,16 +458,6 @@ class ImageWsiWindow(SingleViewerMixin):
         self.modality_list.update_preprocessing_info()
         self.on_show_modalities()
 
-    def on_show_all(self) -> None:
-        """Show all modalities."""
-        for _, _modality, widget in self.modality_list.item_model_widget_iter():
-            widget.visible_btn.set_state(True, trigger=True)
-
-    def on_hide_all(self) -> None:
-        """Hide all modalities."""
-        for _, _modality, widget in self.modality_list.item_model_widget_iter():
-            widget.visible_btn.set_state(False, trigger=True)
-
     @qdebounced(timeout=250)
     def on_show_modalities(self, _: ty.Any = None) -> None:
         """Show modality images."""
@@ -477,7 +467,7 @@ class ImageWsiWindow(SingleViewerMixin):
         """Show modality images."""
         self.CONFIG.update(use_preview=self.use_preview_check.isChecked())
         # self.on_hide_not_previewed_modalities()
-        for _, modality, widget in self.modality_list.item_model_widget_iter():
+        for modality, widget in self.modality_list.model_widget_iter():
             self.on_show_modality(modality, state=widget.visible_btn.state)  # , overwrite=True)
 
     def on_hide_not_previewed_modalities(self) -> None:
@@ -485,7 +475,7 @@ class ImageWsiWindow(SingleViewerMixin):
         hide = self.hide_others_check.isChecked()
         visible_modalities, maybe_visible_modalities, hidden_modalities = [], [], []
         widget: QtModalityItem
-        for _, modality, widget in self.modality_list.item_model_widget_iter():
+        for modality, widget in self.modality_list.model_widget_iter():
             # if hide is enabled, we should only display the modality currently being pre-processed
             if hide:
                 if (
@@ -512,7 +502,7 @@ class ImageWsiWindow(SingleViewerMixin):
         # actually show/hide widgets
         visible_modalities = list(set(visible_modalities))
         hidden_modalities = list(set(hidden_modalities))
-        for _, modality, widget in self.modality_list.item_model_widget_iter():
+        for modality, widget in self.modality_list.model_widget_iter():
             if modality.name in hidden_modalities:
                 widget.visible_btn.set_state(False, trigger=True)
             if modality.name in visible_modalities:
@@ -549,13 +539,13 @@ class ImageWsiWindow(SingleViewerMixin):
     def on_preview_close(self, modality: Modality) -> None:
         """Preview was closed."""
         preview = self.use_preview_check.isChecked()
-        for _, modality_, widget in self.modality_list.item_model_widget_iter():
+        for modality_, widget in self.modality_list.model_widget_iter():
             if modality.name == modality_.name:
                 self.on_show_modality(modality_, state=widget.visible_btn.state, overwrite=not preview)
 
     def on_rename_modality(self, widget, new_name: str) -> None:
         """Rename modality."""
-        modality = widget.item_model
+        modality = widget.modality
         if not new_name:
             hp.set_object_name(widget.name_label, object_name="error")
             return
@@ -656,11 +646,27 @@ class ImageWsiWindow(SingleViewerMixin):
             standout=True,
         )
         self.show_all_btn = hp.make_qta_btn(
-            self, "visible_on", tooltip="Show all modalities", func=self.on_show_all, normal=True, standout=True
+            self,
+            "visible_on",
+            tooltip="Show all modalities",
+            func=self.modality_list.on_show_all,
+            normal=True,
+            standout=True,
         )
         self.hide_all_btn = hp.make_qta_btn(
-            self, "visible_off", tooltip="Hide all modalities", func=self.on_hide_all, normal=True, standout=True
+            self,
+            "visible_off",
+            tooltip="Hide all modalities",
+            func=self.modality_list.on_hide_all,
+            normal=True,
+            standout=True,
         )
+        self.filter_modalities_by = hp.make_line_edit(
+            self,
+            placeholder="Type in modality name...",
+            func_changed=self.modality_list.on_filter_by_dataset_name,
+        )
+
         self.use_preview_check = hp.make_checkbox(
             self,
             "Use preview image",

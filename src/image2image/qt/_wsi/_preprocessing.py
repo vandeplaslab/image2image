@@ -524,6 +524,8 @@ class PreprocessingDialog(QtFramelessTool):
         method_label = hp.make_label(self, "Method")
         method_label.setHidden(not self.valis)
         layout.addRow(method_label, self.method)
+        layout.addRow(hp.make_h_line(self))
+        layout.addRow("Preview", self.preview_check)
         layout.addRow(hp.make_h_line_with_text("Intensity", self))
         layout.addRow("Image type", self.type_choice_toggle)
         layout.addRow("Histogram equalization", self.equalize_check)
@@ -571,8 +573,6 @@ class PreprocessingDialog(QtFramelessTool):
             hp.make_h_layout(self.rotate_spin, self.rotate_bck, self.rotate_fwd, spacing=1, margin=0, stretch_id=(0,)),
         )
         layout.addRow("Downsample", self.downsample_spin)
-        layout.addRow(hp.make_h_line())
-        layout.addRow("Preview", self.preview_check)
         layout.addRow(
             hp.make_h_layout(
                 hp.make_btn(self, "Apply", func=self.on_accept),

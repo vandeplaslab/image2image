@@ -11,7 +11,6 @@ from pathlib import Path
 import qtextra.helpers as hp
 from koyo.timer import MeasureTimer
 from loguru import logger
-from qtextra.config import THEMES
 from qtextra.utils.table_config import TableConfig
 from qtextra.widgets.qt_table_view_check import MultiColumnSingleValueProxyModel, QtCheckableTableView
 from qtextra.widgets.qt_toolbar_mini import QtMiniToolbar
@@ -573,6 +572,7 @@ class QtDatasetList(QScrollArea):
         widget: QtDatasetItem
         for widget in self.widget_iter():
             widget.table_proxy.setFilterByColumn(filters, TABLE_CONFIG.channel_name)
+            widget.setVisible(widget.table.row_visible_count() != 0)
 
     def sync_layers(self) -> None:
         """Manually synchronize layers."""
@@ -712,7 +712,10 @@ class QtDatasetToolbar(QtMiniToolbar):
         )
         self.add_widget(
             hp.make_line_edit(
-                self, placeholder="Type in channel name...", func_changed=self.dataset_list.on_filter_by_channel_name
+                self,
+                placeholder="Type in channel name...",
+                func_changed=self.dataset_list.on_filter_by_channel_name,
+                hide=not parent.allow_channels,
             ),
             stretch=True,
         )

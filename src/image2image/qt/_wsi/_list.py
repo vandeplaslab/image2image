@@ -10,42 +10,41 @@ from pathlib import Path
 import numpy as np
 import qtextra.helpers as hp
 from image2image_reg.models import Modality, Preprocessing
-from koyo.color import get_next_color
+
+# from koyo.color import get_next_color
 from koyo.typing import PathLike
 from loguru import logger
-
-# from napari._qt.layer_controls.qt_image_controls_base import (
-#     QContrastLimitsPopup,
-#     _QDoubleRangeSlider,
-#     range_to_decimals,
-# )
 from napari.layers import Image
 from qtextra.widgets.qt_button_icon import QtLockButton, QtVisibleButton
-from qtextra.widgets.qt_list_widget import QtListItem, QtListWidget
-from qtpy.QtCore import QRegularExpression, Qt, Signal, Slot  # type: ignore[attr-defined]
+from qtpy.QtCore import QEvent, QRegularExpression, Qt, Signal, Slot  # type: ignore[attr-defined]
 from qtpy.QtGui import QRegularExpressionValidator
-from qtpy.QtWidgets import QDialog, QGridLayout, QListWidgetItem, QSizePolicy, QWidget
+from qtpy.QtWidgets import QDialog, QFrame, QGridLayout, QScrollArea, QSizePolicy, QWidget
 from superqt import QLabeledDoubleSlider
 
 from image2image.config import SingleAppConfig, get_elastix_config, get_valis_config
 from image2image.qt._wsi._widgets import QtModalityLabel
+from image2image.utils.utilities import ensure_list
 
 if ty.TYPE_CHECKING:
     from image2image_reg.workflows import ElastixReg, ValisReg
 
     from image2image.qt._wsi._preprocessing import PreprocessingDialog
+    from image2image.qt.dialog_elastix import ImageElastixWindow
+    from image2image.qt.dialog_valis import ImageValisWindow
 
 
 logger = logger.bind(src="QtModalityList")
 
+PALETTE: list[str] | None = None
 
-class QtModalityItem(QtListItem):
+
+class QtModalityItem(QFrame):
     """Widget used to nicely display information about RGBImageChannel.
 
     This widget permits display of label information as well as modification of color.
     """
 
-    evt_delete = Signal(Modality)
+    evt_delete = Signal(Modality, bool)
     evt_show = Signal(Modality, bool)
     evt_rename = Signal(object, str)
     evt_resolution = Signal(Modality)
@@ -61,20 +60,20 @@ class QtModalityItem(QtListItem):
 
     _preprocessing_dlg: PreprocessingDialog | None = None
     _mode: bool = False
-    item_model: Modality
+    modality: Modality
     previewing: bool = False
 
-    def __init__(self, item: QListWidgetItem, parent: QWidget | None = None, color="#808080", valis: bool = False):
-        self.key = item.item_model.name
+    def __init__(self, modality: Modality, parent: QWidget | None = None, color="#808080", valis: bool = False):
+        self.key = modality.name
+        self.modality = modality
         super().__init__(parent)
         self.setMouseTracking(True)
         self._parent = parent
         self.valis = valis
-        self.item = item
 
         self.name_label = hp.make_line_edit(
             self,
-            self.item_model.name,
+            self.modality.name,
             tooltip="Name of the modality.",
             func=self._on_update_name,
         )
@@ -221,17 +220,25 @@ class QtModalityItem(QtListItem):
         self._set_from_model()
         self._old_hex_color = self.hex_color
 
-    @property
-    def item_model(self) -> Modality:
-        """Modality."""
-        return self.registration_model.modalities[self.key]
+        self.name_label.installEventFilter(self)
+        self.resolution_label.installEventFilter(self)
+
+    def eventFilter(self, recv, event):
+        """Event filter."""
+        if event.type() == QEvent.FocusOut:
+            modality = self.modality
+            if not self.resolution_label.hasFocus() and self.resolution_label.text() == "":
+                self.resolution_label.setText(f"{modality.pixel_size:.3f}")
+            if not self.name_label.hasFocus() and self.name_label.text() == "":
+                self.name_label.setText(modality.name)
+        return super().eventFilter(recv, event)
 
     @property
     def layer(self) -> Image | None:
         """Get image layer."""
         layers = self._parent.view.layers
-        if self.item_model.name in layers:
-            layer = layers[self.item_model.name]
+        if self.modality.name in layers:
+            layer = layers[self.modality.name]
             # decimals = range_to_decimals(layer.contrast_limits_range, layer.dtype)
             # with hp.qt_signals_blocked(self.contrast_slider):
             #     self.contrast_slider.setRange(*layer.contrast_limits_range)
@@ -269,35 +276,36 @@ class QtModalityItem(QtListItem):
 
     def _set_from_model(self, _: ty.Any = None) -> None:
         """Update UI elements."""
-        self.name_label.setText(self.item_model.name)
+        self.name_label.setText(self.modality.name)
         self.modality_icon.state = "image"
-        self.resolution_label.setText(f"{self.item_model.pixel_size:.3f}")
-        text, tooltip = self.item_model.preprocessing.as_str(valis=self.valis)
+        self.resolution_label.setText(f"{self.modality.pixel_size:.3f}")
+        text, tooltip = self.modality.preprocessing.as_str(valis=self.valis)
         self.preprocessing_label.setText(text)
         self.preprocessing_label.setToolTip(tooltip)
-        n = self.registration_model.get_attachment_count(self.item_model.name, "image")
+        n = self.registration_model.get_attachment_count(self.modality.name, "image")
         self.attach_image_btn.set_count(n)
-        n = self.registration_model.get_attachment_count(self.item_model.name, "geojson")
+        n = self.registration_model.get_attachment_count(self.modality.name, "geojson")
         self.attach_geojson_btn.set_count(n)
-        n = self.registration_model.get_attachment_count(self.item_model.name, "points")
+        n = self.registration_model.get_attachment_count(self.modality.name, "points")
         self.attach_points_btn.set_count(n)
         if not self.valis:
-            self.mask_btn.setVisible(self.item_model.preprocessing.is_masked())
-            self.crop_btn.setVisible(self.item_model.preprocessing.is_cropped())
-        self.setToolTip(f"<b>Modality</b>: {self.item_model.name}<br><b>Path</b>: {self.item_model.path}")
+            self.mask_btn.setVisible(self.modality.preprocessing.is_masked())
+            self.crop_btn.setVisible(self.modality.preprocessing.is_cropped())
+        self.setToolTip(f"<b>Modality</b>: {self.modality.name}<br><b>Path</b>: {self.modality.path}")
 
     def on_open_directory(self) -> None:
         """Open directory where the image is located."""
         from koyo.path import open_directory_alt
 
-        open_directory_alt(self.item_model.path)
+        open_directory_alt(self.modality.path)
 
     def on_remove(self) -> None:
         """Remove image/modality from the list."""
-        if hp.confirm(
-            self, f"Are you sure you want to remove <b>{self.item_model.name}</b> from the list?", "Please confirm."
-        ):
-            self.evt_delete.emit(self.item_model)
+        self.evt_delete.emit(self.modality, False)
+
+    def on_force_remove(self) -> None:
+        """Remove image/modality from the list."""
+        self.evt_delete.emit(self.modality, True)
 
     @property
     def CONFIG(self) -> SingleAppConfig:
@@ -325,7 +333,7 @@ class QtModalityItem(QtListItem):
             self.CONFIG.update(last_dir=Path(paths[0]).parent)
             for path in paths:
                 name = Path(path).stem.replace(".ome", "")
-                self.registration_model.auto_add_attachment_images(self.item_model.name, name, path)
+                self.registration_model.auto_add_attachment_images(self.modality.name, name, path)
             self._set_from_model()
 
     def _remove_modality(self, options: list[str], kind: str) -> list[str]:
@@ -337,11 +345,11 @@ class QtModalityItem(QtListItem):
         """Remove Image file."""
         from image2image.qt._wsi._attachment import AttachmentEditDialog
 
-        if not self.registration_model.has_attachments(self.item_model.name):
+        if not self.registration_model.has_attachments(self.modality.name):
             hp.toast(hp.get_main_window(), "Error", "No attachments found for this modality.", icon="warning")
             return
 
-        dlg = AttachmentEditDialog(hp.get_main_window(self), self.item_model, self.registration_model, which)
+        dlg = AttachmentEditDialog(hp.get_main_window(self), self.modality, self.registration_model, which)
         dlg.show_in_center_of_screen(show=False)
         if dlg.exec_() == QDialog.DialogCode.Accepted:  # type: ignore[attr-defined]
             pass
@@ -351,7 +359,7 @@ class QtModalityItem(QtListItem):
         """Return attachment metadata."""
         from image2image.qt._wsi._attachment import AttachWidget
 
-        dlg = AttachWidget(hp.get_main_window(self), pixel_sizes=(1.0, self.item_model.pixel_size))
+        dlg = AttachWidget(hp.get_main_window(self), pixel_sizes=(1.0, self.modality.pixel_size))
         dlg.show_in_center_of_screen(show=False)
         if dlg.exec_() == QDialog.DialogCode.Accepted:  # type: ignore[attr-defined]
             return None, dlg.source_pixel_size
@@ -379,14 +387,12 @@ class QtModalityItem(QtListItem):
 
     def _attach_shapes(self, filelist: list[str], name: str | None, pixel_size: float | None):
         if name:
-            self.registration_model.add_attachment_geojson(self.item_model.name, name, filelist, pixel_size=pixel_size)
+            self.registration_model.add_attachment_geojson(self.modality.name, name, filelist, pixel_size=pixel_size)
         else:
             for path in filelist:
                 name = Path(path).stem
-                self.registration_model.add_attachment_geojson(
-                    self.item_model.name, name, [path], pixel_size=pixel_size
-                )
-        logger.debug(f"Attached {len(filelist)} GeoJSON files to {self.item_model.name}.")
+                self.registration_model.add_attachment_geojson(self.modality.name, name, [path], pixel_size=pixel_size)
+        logger.debug(f"Attached {len(filelist)} GeoJSON files to {self.modality.name}.")
 
     def on_attach_geojson(self) -> None:
         """Attach GeoJSON file."""
@@ -408,12 +414,12 @@ class QtModalityItem(QtListItem):
 
     def _attach_points(self, filelist: list[PathLike], name: str | None, pixel_size: float | None):
         if name:
-            self.registration_model.add_attachment_points(self.item_model.name, name, filelist, pixel_size=pixel_size)
+            self.registration_model.add_attachment_points(self.modality.name, name, filelist, pixel_size=pixel_size)
         else:
             for path in filelist:
                 name = Path(path).stem
-                self.registration_model.add_attachment_points(self.item_model.name, name, [path], pixel_size=pixel_size)
-        logger.debug(f"Attached {len(filelist)} point files to {self.item_model.name}.")
+                self.registration_model.add_attachment_points(self.modality.name, name, [path], pixel_size=pixel_size)
+        logger.debug(f"Attached {len(filelist)} point files to {self.modality.name}.")
 
     def on_attach_points(self) -> None:
         """Attach points file."""
@@ -470,25 +476,28 @@ class QtModalityItem(QtListItem):
 
     def _on_show_image(self, _state: bool = False) -> None:
         """Show image."""
-        self.evt_show.emit(self.item_model, self.visible_btn.state)
+        self.evt_show.emit(self.modality, self.visible_btn.state)
 
     def _on_change_color(self, _: ty.Any = None) -> None:
         """Change color."""
-        self.evt_color.emit(self.item_model, self.colormap)
+        self.evt_color.emit(self.modality, self.colormap)
         self._evt_color_changed.emit(self._old_hex_color, self.hex_color)
         self._old_hex_color = self.hex_color
 
     def _on_update_name(self) -> None:
         """Update name."""
-        self.evt_rename.emit(self, self.name_label.text())
+        name = self.name_label.text()
+        if not name or self.modality.name == name:
+            return
+        self.evt_rename.emit(self, name)
 
     def _on_update_resolution(self) -> None:
         """Update resolution."""
         resolution = self.resolution_label.text()
-        if not resolution:
+        if not resolution or float(resolution) == self.modality.pixel_size:
             return
-        self.item_model.pixel_size = float(resolution)
-        self.evt_resolution.emit(self.item_model)
+        self.modality.pixel_size = float(resolution)
+        self.evt_resolution.emit(self.modality)
 
     def on_open_preprocessing(self) -> None:
         """Open pre-processing dialog."""
@@ -502,7 +511,7 @@ class QtModalityItem(QtListItem):
 
         if self._preprocessing_dlg is None:
             self._preprocessing_dlg = PreprocessingDialog(
-                self.item_model,
+                self.modality,
                 parent=self,
                 locked=self.lock_btn.locked,
                 valis=self.valis,
@@ -515,22 +524,22 @@ class QtModalityItem(QtListItem):
             )
             self._preprocessing_dlg.evt_close.connect(self._on_close_preprocessing)
             self._preprocessing_dlg.show_below_widget(self)
-        self.evt_hide_others.emit(self.item_model)
+        self.evt_hide_others.emit(self.modality)
 
     def _on_close_preprocessing(self) -> None:
         self._preprocessing_dlg = None
         self.previewing = False
-        self.evt_preprocessing_close.emit(self.item_model)
-        logger.trace(f"Pre-processing dialog closed for {self.item_model.name}.")
+        self.evt_preprocessing_close.emit(self.modality)
+        logger.trace(f"Pre-processing dialog closed for {self.modality.name}.")
 
     def on_preview(self) -> None:
         """Preview image"""
-        self.evt_preview_preprocessing.emit(self.item_model, self.item_model.preprocessing)
-        logger.trace(f"Pre-processing previewed for {self.item_model.name}.")
+        self.evt_preview_preprocessing.emit(self.modality, self.modality.preprocessing)
+        logger.trace(f"Pre-processing previewed for {self.modality.name}.")
 
     def on_update_preprocessing(self) -> None:
         """Update pre-processing"""
-        self._on_update_preprocessing(self.item_model.preprocessing)
+        self._on_update_preprocessing(self.modality.preprocessing)
 
     def _on_update_preprocessing(self, preprocessing: Preprocessing) -> None:
         """Update pre-processing."""
@@ -540,10 +549,10 @@ class QtModalityItem(QtListItem):
 
     def on_set_preprocessing(self, preprocessing: Preprocessing) -> None:
         """Set pre-processing."""
-        self.item_model.preprocessing = preprocessing
+        self.modality.preprocessing = preprocessing
         self._set_from_model()
         self._on_close_preprocessing()
-        logger.debug(f"Pre-processing set for {self.item_model.name}.")
+        logger.debug(f"Pre-processing set for {self.modality.name}.")
 
     def toggle_name(self, disabled: bool) -> None:
         """Toggle name."""
@@ -555,14 +564,14 @@ class QtModalityItem(QtListItem):
 
     def toggle_mask(self) -> None:
         """Toggle name."""
-        self.mask_btn.setVisible(self.item_model.preprocessing.is_masked())
-        self._on_update_preprocessing(self.item_model.preprocessing)
+        self.mask_btn.setVisible(self.modality.preprocessing.is_masked())
+        self._on_update_preprocessing(self.modality.preprocessing)
 
     #
     def toggle_crop(self) -> None:
         """Toggle name."""
-        self.crop_btn.setVisible(self.item_model.preprocessing.is_cropped())
-        self._on_update_preprocessing(self.item_model.preprocessing)
+        self.crop_btn.setVisible(self.modality.preprocessing.is_cropped())
+        self._on_update_preprocessing(self.modality.preprocessing)
 
     def toggle_visible(self, state: bool) -> None:
         """Toggle visibility icon."""
@@ -570,7 +579,7 @@ class QtModalityItem(QtListItem):
             self.visible_btn.state = not state
 
 
-class QtModalityList(QtListWidget):
+class QtModalityList(QScrollArea):
     """List of notifications."""
 
     evt_delete = Signal(Modality)
@@ -588,37 +597,62 @@ class QtModalityList(QtListWidget):
     evt_mask = Signal(Modality, bool)
     evt_crop = Signal(Modality, bool)
 
-    def __init__(self, parent: QWidget, valis: bool = False):
+    def __init__(self, parent: ImageElastixWindow | ImageValisWindow, valis: bool = False):
         super().__init__(parent)
         self.view = parent.view
-
-        self.setSpacing(1)
-        # self.setSelectionsMode(QListWidget.SingleSelection)
-        self.setMinimumHeight(12)
-        self.setSizePolicy(QSizePolicy.Policy.MinimumExpanding, QSizePolicy.Policy.MinimumExpanding)
-        self.setUniformItemSizes(True)
         self._parent = parent
         self.valis = valis
-        self.used_colors = []
-        self.evt_pre_remove.connect(self._update_used_colors)
+        self.widgets: dict[Path, QtModalityItem] = {}
+        self._dataset_filters: list[str] = []
+
+        # setup UI
+        scroll_widget = QWidget()
+        self.setWidget(scroll_widget)
+        self._layout = hp.make_v_layout(parent=scroll_widget, spacing=2, margin=1, stretch_after=True)
+
+        self.setWidgetResizable(True)
+        self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)  # type: ignore[attr-defined]
+        self.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)  # type: ignore[attr-defined]
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)  # type: ignore[attr-defined]
+
+    def model_widget_iter(self) -> ty.Generator[tuple[Modality, QtModalityItem]]:
+        """Iterate over widgets."""
+        for widget in self.widget_iter():
+            yield widget.modality, widget
+
+    def widget_iter(self) -> ty.Iterable[QtModalityItem]:
+        """Iterate over widgets."""
+        yield from self.widgets.values()
+
+    def model_iter(self) -> ty.Iterable[QtModalityItem]:
+        """Iterate over widgets."""
+        for widget in self.widget_iter():
+            yield widget.modality
+
+    def key_iter(self) -> ty.Generator[str, None, None]:
+        """Iterate over models."""
+        yield from self.widgets.keys()
+
+    def get_widget_for_modality(self, key: str | Path | Modality) -> QtModalityItem | None:
+        """Get widget for specified item model."""
+        if isinstance(key, Modality):
+            key = key.path
+        if key:
+            return self.widgets.get(Path(key))
+        return None
 
     @property
     def registration_model(self) -> ElastixReg | ValisReg:
         """Get registration model."""
         return self._parent.registration_model
 
-    def _on_update_color(self, old_color: str, new_color: str) -> None:
-        """Update color."""
-        with suppress(ValueError):
-            self.used_colors.remove(old_color)
-        self.used_colors.append(new_color)
-
-    def _update_used_colors(self, item: QListWidgetItem):
-        """Update used colors."""
-        widget = self.itemWidget(item)
-        if widget:
-            with suppress(ValueError):
-                self.used_colors.remove(widget.hex_color)
+    @property
+    def used_colors(self) -> list[str]:
+        """Refresh colors used by widgets."""
+        used = []
+        for widget in self.widget_iter():
+            used.append(widget.hex_color)
+        return used
 
     def update_preprocessing_info(self) -> None:
         """Update pre-processing info."""
@@ -626,19 +660,13 @@ class QtModalityList(QtListWidget):
             if widget:
                 widget.on_update_preprocessing()
 
-    def _make_widget(self, item: QListWidgetItem) -> QtModalityItem:
-        # try:
-        #     colors = [widget.hex_color.lower() for _, _, widget in self.item_model_widget_iter()]
-        # except AttributeError:
-        #     colors = []
-        #     logger.trace("Failed to retrieve colors")
-        color = get_next_color(self.count(), other_colors=self.used_colors)
-        self.used_colors.append(color)
+    def on_make_modality_item(self, modality: Modality) -> QtModalityItem:
+        """Make dataset item."""
+        color = get_next_color(self._layout.count() - 1)
 
-        widget = QtModalityItem(item, parent=self, color=color, valis=self.valis)
-        widget._evt_color_changed.connect(self._on_update_color)
-        widget.evt_delete.connect(self.evt_delete.emit)
-        widget.evt_remove.connect(self.remove_item)
+        widget = QtModalityItem(modality, parent=self, color=color, valis=self.valis)
+        widget.evt_delete.connect(self.on_remove)
+        # widget.evt_remove.connect(self.remove_item)
         widget.evt_show.connect(self.evt_show.emit)
         widget.evt_rename.connect(self.evt_rename.emit)
         widget.evt_resolution.connect(self.evt_resolution.emit)
@@ -650,70 +678,117 @@ class QtModalityList(QtListWidget):
         widget.evt_color.connect(self.evt_color.emit)
         widget.evt_mask.connect(self.evt_mask.emit)
         widget.evt_crop.connect(self.evt_crop.emit)
+        self.widgets[Path(modality.path)] = widget
+        self._layout.insertWidget(self._layout.count() - 1, widget)
+        self.validate()
         hp.call_later(self, widget._on_show_image, 50)
         return widget
 
-    @Slot(QListWidgetItem)  # type: ignore[misc]
-    def remove_item(self, item: QListWidgetItem, force: bool = False) -> None:
-        """Remove item from the list."""
-        item_model: Modality = item.item_model
-        if force or hp.confirm(
-            self, f"Are you sure you want to remove <b>{item_model.name}</b> from the list?", "Please confirm."
-        ):
-            super().remove_item(item, force)
+    def on_filter_by_dataset_name(self, filters: str | list[str]) -> None:
+        """Filter by dataset name."""
+        if filters == "":
+            filters = []
+        self._dataset_filters = ensure_list(filters)
 
-    def _check_existing(self, item_model: Modality) -> bool:
-        """Check whether model already exists."""
-        for item_model_ in self.model_iter():  # noqa: SIM110; type: ignore[var-annotated]
-            if item_model_ == item_model:
-                return True
-        return False
+        check_dataset = any(self._dataset_filters)
+
+        for widget in self.widget_iter():
+            modality = widget.modality
+            visible = (
+                True
+                if not check_dataset
+                else any(filter_ in modality.name.lower() for filter_ in self._dataset_filters)
+            )
+            widget.setVisible(visible)
+
+    def validate(self) -> None:
+        """Validate visibilities."""
+        self.on_filter_by_dataset_name(self._dataset_filters)
+
+    def on_show_all(self) -> None:
+        """Show all modalities."""
+        for _modality, widget in self.model_widget_iter():
+            widget.visible_btn.set_state(True, trigger=True)
+
+    def on_hide_all(self) -> None:
+        """Hide all modalities."""
+        for _modality, widget in self.model_widget_iter():
+            widget.visible_btn.set_state(False, trigger=True)
+
+    def on_remove(self, modality: Modality, force: bool = False) -> None:
+        """Remove image/modality from the list."""
+        if (
+            force
+            or not modality
+            or hp.confirm(
+                self,
+                f"Are you sure you want to remove <b>{modality.name}</b> from the list?",
+                "Please confirm.",
+            )
+        ):
+            self.evt_delete.emit(modality)
 
     def populate(self) -> None:
         """Create list of items."""
         registration_model = self.registration_model
-        for modality in registration_model.get_image_modalities(with_attachment=False):
-            model = registration_model.modalities[modality]
-            self.append_item(model)
+        for name in registration_model.get_image_modalities(with_attachment=False):
+            modality = registration_model.modalities[name]
+            if not self._check_existing(modality):
+                self.on_make_modality_item(modality)
+        # remove non-existing widgets
+        keys = list(self.key_iter())
+        for key in keys:
+            modality = self.registration_model.get_modality(path=key)
+            if not modality:
+                self._remove_by_modality(key)
         logger.debug("Populated modality list.")
 
-    def depopulate(self) -> None:
-        """Remove list of items."""
-        registration_model = self.registration_model
-        for item in self.item_iter(reverse=True):
-            if item.item_model not in registration_model.modalities.values():
-                self.remove_item(item, force=True)
+    def _check_existing(self, modality: Modality) -> bool:  # type: ignore[override]
+        """Check whether model already exists."""
+        return any(modality_ == modality for modality_ in self.model_iter())
+
+    def remove_by_modality(self, modality: Modality) -> None:
+        """Remove model."""
+        self._remove_by_modality(modality)
+        self.evt_delete.emit(modality)
+
+    def _remove_by_modality(self, modality: str | Path | Modality) -> None:
+        widget = self.get_widget_for_modality(modality)
+        if widget:
+            self._layout.removeWidget(widget)
+        if widget:
+            widget.deleteLater()
+        path = Path(modality.path if isinstance(modality, Modality) else modality)
+        self.widgets.pop(path, None)
+        del widget
 
     def toggle_name(self, disabled: bool) -> None:
         """Toggle name."""
-        for _, _, widget in self.item_model_widget_iter():
+        for widget in self.widget_iter():
             widget.toggle_name(disabled)
 
     def toggle_mask(self, modality: Modality | None = None) -> None:
         """Toggle mask icon."""
-        for _, _, widget in self.item_model_widget_iter():
+        for widget in self.widget_iter():
             widget.toggle_mask()
 
     def toggle_crop(self, modality: Modality | None = None) -> None:
         """Toggle mask icon."""
-        for _, _, widget in self.item_model_widget_iter():
+        for widget in self.widget_iter():
             widget.toggle_crop()
 
     def toggle_visible(self, names: list[str]) -> None:
         """Toggle visibility icon of items."""
-        for _, model, widget in self.item_model_widget_iter():
+        for model, widget in self.model_widget_iter():
             widget.visible_btn.set_state(model.name not in names, trigger=False)
 
 
-# def get_next_color(n: int, other_colors: list[str] | None = None) -> str:
-#     """Get next color based on the number of items."""
-#     if other_colors is None:
-#         other_colors = []
-#     colors = ["#ff0000", "#00ff00", "#0000ff", "#ffff00", "#f00ff", "#00ffff"]
-#     if n < len(colors):
-#         color = colors[n]
-#         if other_colors and color in other_colors:
-#             n += 1
-#             return get_next_color(n, other_colors=other_colors)
-#         return color.lower()
-#     return "#808080"
+def get_next_color(n: int) -> str:
+    """Get next color."""
+    global PALETTE
+
+    if PALETTE is None:
+        import glasbey
+
+        PALETTE = glasbey.create_palette(palette_size=128)
+    return PALETTE[n]

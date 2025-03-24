@@ -467,6 +467,7 @@ class RegistrationMap(QWidget):
         """Add path."""
         valid, source, target, through, *_ = self._get_registration_path_data()
         if not valid:
+            logger.warning("Could not remove path.")
             # self._warning_label.setText("Please select source and target images.")
             return
         registration_model: ElastixReg = self.registration_model

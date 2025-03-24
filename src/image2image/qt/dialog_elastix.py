@@ -224,7 +224,7 @@ class ImageElastixWindow(ImageWsiWindow):
             if layer and layer.rgb:
                 self.view.remove_layer(modality.name)
 
-            widget = self.modality_list.get_widget_for_item_model(modality)
+            widget = self.modality_list.get_widget_for_modality(modality)
             colormap = "gray" if widget is None else widget.colormap
             with MeasureTimer() as timer:
                 reader = wrapper.get_reader_for_path(modality.path)
@@ -257,7 +257,7 @@ class ImageElastixWindow(ImageWsiWindow):
             if layer and layer.rgb:
                 self.view.remove_layer(modality.name)
 
-            widget = self.modality_list.get_widget_for_item_model(modality)
+            widget = self.modality_list.get_widget_for_modality(modality)
             colormap = "gray" if widget is None else widget.colormap
             with MeasureTimer() as timer:
                 reader = wrapper.get_reader_for_path(modality.path)
@@ -285,7 +285,7 @@ class ImageElastixWindow(ImageWsiWindow):
         layer = self.view.get_layer(modality.name)
 
         # ensure that the controls are shown
-        if widget := self.modality_list.get_widget_for_item_model(modality):
+        if widget := self.modality_list.get_widget_for_modality(modality):
             widget.visible_btn.set_state(state, trigger=False)
 
         # no need to re-process if the layer is already there
@@ -310,7 +310,7 @@ class ImageElastixWindow(ImageWsiWindow):
                 else:
                     image = reader.get_channel(0, pyramid)
 
-                widget = self.modality_list.get_widget_for_item_model(modality)
+                widget = self.modality_list.get_widget_for_modality(modality)
                 kws, overwrite = (
                     ({"rgb": True}, True)
                     if (reader.is_rgb and not preview)
@@ -371,7 +371,7 @@ class ImageElastixWindow(ImageWsiWindow):
                         self.view.remove_layer(modality.name)
                         self.view.remove_layer(f"{modality.name} (preview)")
         # Populate table
-        self.modality_list.depopulate()
+        self.modality_list.populate()
         self.registration_map.depopulate()
 
     def on_open_mask_dialog(self) -> None:
@@ -578,6 +578,7 @@ class ImageElastixWindow(ImageWsiWindow):
         side_widget.setMaximumWidth(450)
 
         self.modality_list = QtModalityList(self)
+
         self.registration_map = RegistrationMap(self)
         self.mask_btn = hp.make_btn(
             self,
@@ -603,18 +604,19 @@ class ImageElastixWindow(ImageWsiWindow):
         side_layout = hp.make_form_layout(parent=side_widget, margin=3)
         side_layout.addRow(self._image_widget)
         # Modalities
-        side_layout.addRow(self.modality_list)
         side_layout.addRow(
             hp.make_h_layout(
                 self.apply_btn,
                 self.show_all_btn,
                 self.hide_all_btn,
-                self.use_preview_check,
-                self.hide_others_check,
+                self.filter_modalities_by,
                 margin=2,
                 spacing=2,
+                stretch_id=(3,),
             )
         )
+        side_layout.addRow(self.modality_list)
+        side_layout.addRow(hp.make_h_layout(self.use_preview_check, self.hide_others_check, margin=2, spacing=2))
         side_layout.addRow(hp.make_h_layout(self.mask_btn, self.crop_btn, self.merge_btn, spacing=2))
         # Registration paths
         self.registration_settings = hp.make_advanced_collapsible(
