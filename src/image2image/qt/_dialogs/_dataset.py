@@ -358,6 +358,7 @@ class DatasetDialog(QtFramelessTool):
         allow_iterate: bool = False,
         allow_transform: bool = False,
         allow_channels: bool = True,
+        allow_save: bool = True,
         confirm_czi: bool = False,
         available_formats: str | None = None,
         project_extension: list[str] | None = None,
@@ -372,6 +373,7 @@ class DatasetDialog(QtFramelessTool):
         self.allow_geojson = allow_geojson
         self.allow_iterate = allow_iterate
         self.allow_transform = allow_transform
+        self.allow_save = allow_save
         self.allow_channels = allow_channels
         self.available_formats = available_formats
         self.project_extension = project_extension
@@ -401,7 +403,7 @@ class DatasetDialog(QtFramelessTool):
         """Make panel."""
         _, header_layout = self._make_hide_handle(title="Datasets")
 
-        self._list = QtDatasetList(self, self.allow_channels, self.allow_transform, self.allow_iterate)
+        self._list = QtDatasetList(self, self.allow_channels, self.allow_transform, self.allow_iterate, self.allow_save)
         self._toolbar = QtDatasetToolbar(self)
 
         self.split_czi_check = hp.make_checkbox(

@@ -207,6 +207,7 @@ class ImageValisWindow(ImageWsiWindow):
             available_formats=ALLOWED_VALIS_FORMATS,
             project_extension=["valis.config.json", ".valis.json", ".valis"],
             allow_channels=False,
+            allow_save=False,
             allow_geojson=True,
             confirm_czi=True,
             allow_import_project=True,

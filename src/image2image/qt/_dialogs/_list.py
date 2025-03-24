@@ -37,7 +37,6 @@ TABLE_CONFIG = (
     .add("", "check", "bool", 25, no_sort=True, sizing="fixed")
     .add("index", "index", "int", 50, sizing="fixed")
     .add("channel name", "channel_name", "str", 125)
-    .add("dataset", "dataset", "str", 250)
 )
 
 
@@ -69,6 +68,7 @@ class QtDatasetItem(QFrame):
         allow_transform: bool = True,
         allow_iterate: bool = True,
         allow_channels: bool = True,
+        allow_save: bool = True,
     ):
         super().__init__(parent)
         self._parent: QtDatasetList = parent
@@ -76,7 +76,6 @@ class QtDatasetItem(QFrame):
         self.setMouseTracking(True)
         self.allow_transform = allow_transform
         self.allow_iterate = allow_iterate
-        self.allow_channels = allow_channels
 
         self.name_label = hp.make_label(
             self,
@@ -120,7 +119,9 @@ class QtDatasetItem(QFrame):
         self.iterate_btn = hp.make_qta_btn(
             self, "iterate", tooltip="Activate iteration...", normal=True, func=self.on_iterate
         )
-        self.save_btn = hp.make_qta_btn(self, "save", tooltip="Save data as...", normal=True, func=self.on_save)
+        self.save_btn = hp.make_qta_btn(
+            self, "save", tooltip="Save data as...", normal=True, func=self.on_save, hide=not allow_save
+        )
 
         self.table = QtCheckableTableView(self, config=TABLE_CONFIG, enable_all_check=True, sortable=True)
         self.table.setCornerButtonEnabled(False)
@@ -138,7 +139,7 @@ class QtDatasetItem(QFrame):
         grid.setSpacing(1)
         grid.setContentsMargins(0, 0, 0, 0)
         grid.setColumnStretch(7, True)
-        grid.setRowStretch(2 if self.allow_channels else 3, True)
+        grid.setRowStretch(2 if allow_channels else 3, True)
         # column 1
         layout = hp.make_v_layout(
             self.modality_icon,
@@ -163,8 +164,8 @@ class QtDatasetItem(QFrame):
         grid.addWidget(self.size_label, 1, 6, 1, 1)
         # row 3
         grid.addWidget(self.table, 2, 1, 5, 7)
-        if not self.allow_channels:
-            self.table.setVisible(self.allow_channels)
+        if not allow_channels:
+            self.table.setVisible(allow_channels)
             grid.addWidget(
                 hp.make_label(
                     self,
@@ -242,7 +243,7 @@ class QtDatasetItem(QFrame):
             data = []
             for index, channel_name in enumerate(reader.channel_names):
                 # checked, channel_id, channel_name, dataset
-                data.append([False, index, channel_name, reader.key])
+                data.append([False, index, channel_name])
             self.table.append_data(data)
             self.table.enable_all_check = self.table.row_count() < 20
         logger.trace(f"Updated channel table - {len(data)} rows for {reader.name}.")
@@ -403,10 +404,13 @@ class QtDatasetList(QScrollArea):
     evt_iter_remove = Signal(str, int)
     evt_iter_next = Signal(str, int)
 
-    def __init__(self, parent: DatasetDialog, allow_channels: bool, allow_transform: bool, allow_iterate: bool):
+    def __init__(
+        self, parent: DatasetDialog, allow_channels: bool, allow_transform: bool, allow_iterate: bool, allow_save: bool
+    ):
         self.allow_channels = allow_channels
         self.allow_transform = allow_transform
         self.allow_iterate = allow_iterate
+        self.allow_save = allow_save
         # filters
         self._reader_type_filters: list[str] = ["image", "shapes", "points"]
         self._dataset_filters: list[str] = []

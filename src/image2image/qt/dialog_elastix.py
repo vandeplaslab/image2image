@@ -548,6 +548,7 @@ class ImageElastixWindow(ImageWsiWindow):
             self.view,
             self.CONFIG,
             allow_channels=False,
+            allow_save=False,
             available_formats=ALLOWED_ELASTIX_FORMATS,
             project_extension=[".i2wsireg.json", ".i2wsireg.toml", ".config.json", ".wsireg", ".i2reg"],
             allow_geojson=True,

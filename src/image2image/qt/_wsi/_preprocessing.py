@@ -426,16 +426,18 @@ class PreprocessingDialog(QtFramelessTool):
         self.translate_left = hp.make_qta_btn(
             self,
             "arrow_left",
-            tooltip="Add 500um from current value (it might not be left!)",
+            tooltip="Add 500um from current value (it might not be left!)\nRight-click will add 1500um",
             func=partial(self.on_translate_x, value=500),
+            func_menu=partial(self.on_translate_x, value=1500),
             normal=True,
             standout=True,
         )
         self.translate_right = hp.make_qta_btn(
             self,
             "arrow_right",
-            tooltip="Subtract 500um to the current value (it might not be right!)",
+            tooltip="Subtract 500um to the current value (it might not be right!) \nRight-click will subtract 1500um",
             func=partial(self.on_translate_x, value=-500),
+            func_menu=partial(self.on_translate_x, value=-1500),
             normal=True,
             standout=True,
         )
@@ -454,32 +456,36 @@ class PreprocessingDialog(QtFramelessTool):
         self.translate_up = hp.make_qta_btn(
             self,
             "arrow_up",
-            tooltip="Add 500um from current value (it might not be up!)",
+            tooltip="Add 500um from current value (it might not be up!)\nRight-click will add 1500um)",
             func=partial(self.on_translate_y, value=500),
+            func_menu=partial(self.on_translate_y, value=1500),
             normal=True,
             standout=True,
         )
         self.translate_down = hp.make_qta_btn(
             self,
             "arrow_down",
-            tooltip="Subtract 500um to the current value (it might not be down!)",
+            tooltip="Subtract 500um to the current value (it might not be down!)\nRight-click will subtract 1500um",
             func=partial(self.on_translate_y, value=-500),
+            func_menu=partial(self.on_translate_y, value=-1500),
             normal=True,
             standout=True,
         )
         self.rotate_bck = hp.make_qta_btn(
             self,
             "rotate_left",
-            tooltip="Rotate (counter-clockwise)",
+            tooltip="Rotate (counter-clockwise) -90 degrees.\nRight-click will rotate -15 degrees.",
             func=partial(self.on_rotate, value=-90),
+            func_menu=partial(self.on_rotate, value=-15),
             normal=True,
             standout=True,
         )
         self.rotate_fwd = hp.make_qta_btn(
             self,
             "rotate_right",
-            tooltip="Rotate (clockwise)",
+            tooltip="Rotate (clockwise) 90 degrees.\nRight-click will rotate 15 degrees.",
             func=partial(self.on_rotate, value=90),
+            func_menu=partial(self.on_rotate, value=15),
             normal=True,
             standout=True,
         )

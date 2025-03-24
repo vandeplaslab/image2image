@@ -14,6 +14,7 @@ from loguru import logger
 from napari._qt.layer_controls.qt_shapes_controls import QtShapesControls as _QtShapesControls
 from napari.layers import Image, Shapes
 from napari.layers.shapes._shapes_constants import Box
+from natsort import natsorted
 from qtextra.utils.utilities import connect
 from qtextra.widgets.qt_dialog import QtFramelessTool
 from qtpy.QtCore import QEvent, Qt, Signal
@@ -113,7 +114,7 @@ class ShapesDialog(QtFramelessTool):
     def on_update_modality_options(self) -> None:
         """Update list of available modalities."""
         current = self.slide_choice.currentText()
-        options = self._parent.registration_model.get_image_modalities(with_attachment=False)
+        options = natsorted(self._parent.registration_model.get_image_modalities(with_attachment=False))
         hp.combobox_setter(self.slide_choice, items=options, set_item=current)
         current = self.copy_from_choice.currentText()
         hp.combobox_setter(self.copy_from_choice, items=options, set_item=current)
@@ -334,12 +335,44 @@ class ShapesDialog(QtFramelessTool):
             copy_from_modality = self._parent.registration_model.modalities[copy_from]
             if not self._check_if_has_mask(copy_from_modality):
                 return
-
-            # copy_to_modality = self._parent.registration_model.modalities[copy_to]
             data = self._transform_from_preprocessing(copy_from_modality)
             if data:
                 self.mask_layer.data = data or []
-                logger.trace(f"Copied mask from {copy_from}")
+
+                copy_to_modality = self._parent.registration_model.modalities[copy_to]
+                copy_to_modality.preprocessing.use_mask = copy_from_modality.preprocessing.use_mask
+                copy_to_modality.preprocessing.mask_polygon = copy_from_modality.preprocessing.mask_polygon
+                copy_to_modality.preprocessing.mask_bbox = copy_from_modality.preprocessing.mask_bbox
+                copy_to_modality.preprocessing.transform_mask = False
+                self.evt_mask.emit(copy_to_modality)
+                logger.trace(f"Copied mask from {copy_from} to {copy_to}")
+
+            # data = self._transform_from_preprocessing(copy_from_modality)
+            # if data:
+            #     self.mask_layer.data = data or []
+            #     logger.trace(f"Copied mask from {copy_from}")
+
+    def on_copy_to_all(self) -> None:
+        """Copy mask from one modality to all the others."""
+        copy_from = self.copy_from_choice.currentText()
+        if not copy_from:
+            return
+        copy_from_modality = self._parent.registration_model.modalities[copy_from]
+        if not self._check_if_has_mask(copy_from_modality) or not hp.confirm(
+            self, "Copy mask", f"Copy mask from {copy_from} to all other modalities?"
+        ):
+            return
+
+        for copy_to in self._parent.registration_model.get_image_modalities(with_attachment=False):
+            if copy_to == copy_from:
+                continue
+            copy_to_modality = self._parent.registration_model.modalities[copy_to]
+            copy_to_modality.preprocessing.use_mask = copy_from_modality.preprocessing.use_mask
+            copy_to_modality.preprocessing.mask_polygon = copy_from_modality.preprocessing.mask_polygon
+            copy_to_modality.preprocessing.mask_bbox = copy_from_modality.preprocessing.mask_bbox
+            copy_to_modality.preprocessing.transform_mask = False
+            self.evt_mask.emit(copy_to_modality)
+            logger.trace(f"Copied mask from {copy_from} to {copy_to}")
 
     def eventFilter(self, recv, event):
         """Event filter."""
@@ -393,7 +426,10 @@ class ShapesDialog(QtFramelessTool):
         layout.addRow(
             hp.make_label(self, "Copy from"),
             hp.make_h_layout(
-                self.copy_from_choice, hp.make_btn(self, "Copy", func=self.on_copy), spacing=2, stretch_id=(0,)
+                self.copy_from_choice,
+                hp.make_qta_btn(self, "copy", func=self.on_copy, func_menu=self.on_copy_to_all),
+                spacing=2,
+                stretch_id=(0,),
             ),
         )
         layout.addRow(hp.make_h_layout(self.add_btn, self.remove_btn))

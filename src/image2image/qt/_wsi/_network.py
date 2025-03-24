@@ -9,6 +9,7 @@ from image2image_reg.enums import NetworkTypes
 from loguru import logger
 from qtextra.widgets.qt_dialog import QtFramelessTool
 from qtextraplot._mpl.views import ViewMplLine
+from qtpy.QtCore import Qt
 from qtpy.QtWidgets import QFormLayout, QWidget
 
 if ty.TYPE_CHECKING:
@@ -44,7 +45,7 @@ class NetworkViewer(QtFramelessTool):
 
         self.view.clear()
         draw_workflow(registration_model, self.view.figure.ax, network_type)
-        self.view.setup_interactivity()
+        self.view.setup_interactivity(zoom_color=Qt.GlobalColor.white)
         self.view.repaint()
         self.view.figure.tight()
 
