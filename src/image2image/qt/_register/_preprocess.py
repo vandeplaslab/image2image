@@ -143,10 +143,10 @@ class PreprocessMovingDialog(QtFramelessTool):
         _, header_layout = self._make_close_handle("Initial transformation")
 
         self.rotate_bck = hp.make_qta_btn(
-            self, "rotate_left", tooltip="Rotate (counter-clockwise)", func=partial(self.on_rotate, value=-90)
+            self, "rotate_right", tooltip="Rotate (clockwise)", func=partial(self.on_rotate, value=-90)
         )
         self.rotate_fwd = hp.make_qta_btn(
-            self, "rotate_right", tooltip="Rotate (clockwise)", func=partial(self.on_rotate, value=90)
+            self, "rotate_left", tooltip="Rotate (counter-clockwise)", func=partial(self.on_rotate, value=90)
         )
         self.rotate_spin = hp.make_double_spin_box(
             self,
