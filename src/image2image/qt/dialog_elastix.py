@@ -493,10 +493,10 @@ class ImageElastixWindow(ImageWsiWindow):
             try:
                 project_path = path_.parent if path_.is_file() else path_
                 try:
-                    project = ElastixReg.from_path(project_path)
+                    project = ElastixReg.from_path(project_path, quick=True)
                 except ValueError:
                     ElastixReg.update_paths(project_path, project_path.parent)
-                    project = ElastixReg.from_path(project_path)
+                    project = ElastixReg.from_path(project_path, quick=True)
                 if project:
                     self._registration_model = project
                     self.output_dir = project.output_dir
