@@ -1,5 +1,5 @@
 # Install the required packages
-uv pip install -e ".[pyside6,dev]"
+uv pip install -e ".[pyqt6,dev]"
 
 # Install other packages
 cd ../image2image-io

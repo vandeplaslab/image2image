@@ -63,7 +63,7 @@ class QtModalityItem(QFrame):
     modality: Modality
     previewing: bool = False
 
-    def __init__(self, modality: Modality, parent: QWidget | None = None, color="#808080", valis: bool = False):
+    def __init__(self, modality: Modality, parent: QtModalityList, color="#808080", valis: bool = False):
         self.key = modality.name
         self.modality = modality
         super().__init__(parent)
@@ -315,10 +315,10 @@ class QtModalityItem(QFrame):
     @property
     def registration_model(self) -> ElastixReg:
         """Get registration model."""
-        parent = self.parent()
+        parent = self._parent
         if hasattr(parent, "registration_model"):
             return parent.registration_model
-        return self.parent().parent().registration_model
+        return self._parent.parent().registration_model
 
     def on_attach_image(self) -> None:
         """Attach Image file."""
