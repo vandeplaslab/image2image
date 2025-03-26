@@ -254,7 +254,6 @@ class ImageRegistrationWindow(Window):
         """Additional setup."""
         # fixed widget
         connect(self._fixed_widget.dset_dlg.evt_import_project, self._on_load_from_project, state=state)
-        connect(self._fixed_widget.dset_dlg.evt_loading, partial(self.on_indicator, which="fixed"), state=state)
         connect(self._fixed_widget.dset_dlg.evt_loaded, self.on_load_fixed, state=state)
         connect(self._fixed_widget.dset_dlg.evt_closed, self.on_close_fixed, state=state)
         connect(self._fixed_widget.dset_dlg.evt_channel, partial(self.on_toggle_channel, which="fixed"), state=state)
@@ -266,7 +265,6 @@ class ImageRegistrationWindow(Window):
 
         # moving widget
         connect(self._moving_widget.dset_dlg.evt_import_project, self._on_load_from_project, state=state)
-        connect(self._moving_widget.dset_dlg.evt_loading, partial(self.on_indicator, which="moving"), state=state)
         connect(self._moving_widget.dset_dlg.evt_loaded, self.on_load_moving, state=state)
         connect(self._moving_widget.dset_dlg.evt_closed, self.on_close_moving, state=state)
         connect(self._moving_widget.evt_show_transformed, self.on_toggle_transformed_moving, state=state)
@@ -324,11 +322,6 @@ class ImageRegistrationWindow(Window):
             layer.name = layer_name
             logger.trace(f"Added image {channel_index} for '{key}' to viewer.")
 
-    def on_indicator(self, which: str, state: bool = True) -> None:
-        """Set indicator."""
-        indicator = self.moving_indicator if which == "moving" else self.fixed_indicator
-        indicator.setVisible(state)
-
     def on_close_fixed(self, model: DataModel) -> None:
         """Close fixed image."""
         self._close_model(model, self.view_fixed, "fixed view")
@@ -364,7 +357,6 @@ class ImageRegistrationWindow(Window):
             )
         else:
             logger.warning(f"Failed to load fixed data - model={model}")
-        self.on_indicator("fixed", False)
 
     def _on_load_fixed(self, model: DataModel, channel_list: list[str] | None = None) -> None:
         with MeasureTimer() as timer:
@@ -418,7 +410,6 @@ class ImageRegistrationWindow(Window):
             )
         else:
             logger.warning(f"Failed to load moving data - model={model}")
-        self.on_indicator("moving", False)
         self._ensure_consistent_moving_dataset()
 
     def _ensure_consistent_moving_dataset(self) -> None:
@@ -1661,9 +1652,6 @@ class ImageRegistrationWindow(Window):
             func=self.view_fixed.widget.on_open_controls_dialog,
             tooltip="Open layers control panel.",
         )
-        self.fixed_indicator, _ = hp.make_loading_gif(self, "oval", size=(24, 24))
-        self.fixed_indicator.hide()
-        toolbar.insert_widget(self.fixed_indicator)
         self.fixed_toolbar = toolbar
 
         layout = QHBoxLayout()
@@ -1727,9 +1715,6 @@ class ImageRegistrationWindow(Window):
             func=self.view_moving.widget.on_open_controls_dialog,
             tooltip="Open layers control panel.",
         )
-        self.moving_indicator, _ = hp.make_loading_gif(self, "oval", size=(24, 24))
-        self.moving_indicator.hide()
-        toolbar.insert_widget(self.moving_indicator)
         self.moving_toolbar = toolbar
 
         layout = QHBoxLayout()

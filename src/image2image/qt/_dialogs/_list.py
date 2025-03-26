@@ -291,7 +291,8 @@ class QtDatasetItem(QFrame):
         """Toggle channel."""
         if index == -1:
             reader = self.get_model()
-            channel_names = [f"{channel_name} | {reader.key}" for channel_name in reader.channel_names]
+            indices = self.table.get_all_checked()
+            channel_names = [f"{reader.channel_names[index]} | {reader.key}" for index in indices]
             self.evt_channel_all.emit(state, channel_names)
         else:
             channel_name = f"{self.table.get_value(TABLE_CONFIG.channel_name, index)} | {self.key}"
@@ -587,7 +588,7 @@ class QtDatasetList(QScrollArea):
             if widget:
                 widget.select_channel(channel_name, layer.visible)
 
-    @qdebounced(timeout=500, leading=False)
+    # @qdebounced(timeout=500, leading=False)
     def on_sync_layers(self, event: Event) -> None:
         """Synchronize layers."""
         self._sync_layers(event)

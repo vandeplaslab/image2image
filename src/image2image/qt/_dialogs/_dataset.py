@@ -190,6 +190,13 @@ class SelectChannelsToLoadDialog(QtDialog):
             if self.table.get_value(self.TABLE_CONFIG.index, index) == 0:
                 self.table.set_value(self.TABLE_CONFIG.check, index, True)
 
+    def on_select_dapi_channel(self) -> None:
+        """Select the first channel only."""
+        self.table.uncheck_all_rows()
+        for index in range(self.table.n_rows):
+            if "dapi" in self.table.get_value(self.TABLE_CONFIG.channel_name_full, index).lower():
+                self.table.set_value(self.TABLE_CONFIG.check, index, True)
+
     def on_select_all_channels(self) -> None:
         """Select all channels."""
         self.table.check_all_rows()
@@ -281,6 +288,12 @@ class SelectChannelsToLoadDialog(QtDialog):
                     "Select first channel only",
                     tooltip="Select the first channel only, often to preview results or speed-up loading of dataset.",
                     func=self.on_select_first_channel,
+                ),
+                hp.make_btn(
+                    self,
+                    "Select DAPI channels only",
+                    tooltip="Select the DAPI channels only, often to preview results or speed-up loading of dataset.",
+                    func=self.on_select_dapi_channel,
                 ),
                 stretch_after=True,
             )
@@ -563,8 +576,6 @@ class DatasetDialog(QtFramelessTool):
                 self.evt_closed.emit(self.model)  # noqa
             self.on_populate_table()
             return True
-        if not force:
-            hp.notification(hp.get_main_window(), "No datasets", "There are no datasets to close.")
         return False
 
     def _on_load_dataset(

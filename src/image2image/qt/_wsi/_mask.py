@@ -19,6 +19,7 @@ from qtextra.utils.utilities import connect
 from qtextra.widgets.qt_dialog import QtFramelessTool
 from qtpy.QtCore import QEvent, Qt, Signal
 from qtpy.QtWidgets import QLayout
+from superqt.utils import qthrottled
 
 from image2image.utils.utilities import init_shapes_layer, open_docs
 
@@ -171,18 +172,17 @@ class ShapesDialog(QtFramelessTool):
         left, right = x - 4096, x + 4096
         return max(0, left), max(0, right), max(0, top), max(0, bottom)
 
+    @qthrottled(timeout=500, leading=False)
     def on_update_crop_from_canvas(self, _evt: ty.Any = None) -> None:
         """Update crop values."""
+        self._update_crop_from_canvas()
+
+    def _update_crop_from_canvas(self) -> None:
         if self._editing:
             return
         n = len(self.mask_layer.data)
         if n == 0:
             return
-
-        # if self.MAX_SHAPES != -1 and n > self.MAX_SHAPES:
-        #     hp.notification(
-        #         hp.get_main_window(), "Cannot add more shapes", "Maximum number of shapes reached", icon="error"
-        #     )
         if self.auto_update.isChecked() and self.is_current_masked():
             self.on_associate_mask_with_modality()
 
@@ -360,7 +360,7 @@ class ShapesDialog(QtFramelessTool):
         copy_from_modality = self._parent.registration_model.modalities[copy_from]
         if not self._check_if_has_mask(copy_from_modality) or not hp.confirm(
             self,
-            f"Copy mask from {copy_from} to all other modalities?",
+            f"Copy mask from {copy_from} to <b>all other</b> modalities?",
             "Copy mask",
         ):
             return
@@ -507,6 +507,7 @@ class MaskDialog(ShapesDialog):
             return
         modality.preprocessing.mask_polygon = None
         modality.preprocessing.mask_bbox = None
+        self.mask_layer.data = []
         logger.trace(f"Removed mask for modality {modality.name}")
         self.evt_mask.emit(modality)
 
@@ -564,5 +565,6 @@ class CropDialog(ShapesDialog):
             return
         modality.preprocessing.crop_polygon = None
         modality.preprocessing.crop_bbox = None
+        self.mask_layer.data = []
         logger.trace(f"Removed crop for modality {modality.name}")
         self.evt_mask.emit(modality)
