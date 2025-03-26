@@ -438,7 +438,7 @@ class ImageWsiWindow(SingleViewerMixin):
                 continue
             if default is not None:
                 modality.preprocessing.update_from_another(
-                    handle_default(option, modality.preprocessing, valis=self.IS_VALIS)
+                    handle_default(default, modality.preprocessing, valis=self.IS_VALIS)
                 )
             if histogram is not None:
                 modality.preprocessing.equalize_histogram = histogram

@@ -267,30 +267,6 @@ class RegistrationMap(QWidget):
             ),
         )
         layout.addRow(
-            hp.make_label(self, "Tgt", tooltip="Target modality (fixed)"),
-            hp.make_h_layout(
-                self._target_choice,
-                hp.make_qta_btn(
-                    self,
-                    "previous",
-                    tooltip="Show previous ion image.",
-                    normal=True,
-                    func=partial(self.on_increment_target, -1),
-                    standout=True,
-                ),
-                hp.make_qta_btn(
-                    self,
-                    "next",
-                    tooltip="Show next ion image.",
-                    normal=True,
-                    func=partial(self.on_increment_target, 1),
-                    standout=True,
-                ),
-                spacing=1,
-                margin=0,
-            ),
-        )
-        layout.addRow(
             hp.make_label(self, "Thr", tooltip="Through modality (in-between)"),
             hp.make_h_layout(
                 self._through_choice,
@@ -308,6 +284,30 @@ class RegistrationMap(QWidget):
                     tooltip="Show next ion image.",
                     normal=True,
                     func=partial(self.on_increment_through, 1),
+                    standout=True,
+                ),
+                spacing=1,
+                margin=0,
+            ),
+        )
+        layout.addRow(
+            hp.make_label(self, "Tgt", tooltip="Target modality (fixed)"),
+            hp.make_h_layout(
+                self._target_choice,
+                hp.make_qta_btn(
+                    self,
+                    "previous",
+                    tooltip="Show previous ion image.",
+                    normal=True,
+                    func=partial(self.on_increment_target, -1),
+                    standout=True,
+                ),
+                hp.make_qta_btn(
+                    self,
+                    "next",
+                    tooltip="Show next ion image.",
+                    normal=True,
+                    func=partial(self.on_increment_target, 1),
                     standout=True,
                 ),
                 spacing=1,

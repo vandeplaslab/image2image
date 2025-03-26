@@ -359,7 +359,9 @@ class ShapesDialog(QtFramelessTool):
             return
         copy_from_modality = self._parent.registration_model.modalities[copy_from]
         if not self._check_if_has_mask(copy_from_modality) or not hp.confirm(
-            self, "Copy mask", f"Copy mask from {copy_from} to all other modalities?"
+            self,
+            f"Copy mask from {copy_from} to all other modalities?",
+            "Copy mask",
         ):
             return
 
@@ -505,7 +507,7 @@ class MaskDialog(ShapesDialog):
             return
         modality.preprocessing.mask_polygon = None
         modality.preprocessing.mask_bbox = None
-        logger.trace(f"Removed mask for modality {name}")
+        logger.trace(f"Removed mask for modality {modality.name}")
         self.evt_mask.emit(modality)
 
 

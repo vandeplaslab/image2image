@@ -85,34 +85,43 @@ def handle_default(option: str, preprocessing: Preprocessing, valis: bool = Fals
     channel_indices = preprocessing.channel_indices
 
     option = option.lower()
+
+    kwargs = {
+        "valis": valis,
+        "channel_names": channel_names,
+        "channel_indices": channel_indices,
+        # retain spatial settings
+        "flip": preprocessing.flip,
+        "translate_x": preprocessing.translate_x,
+        "translate_y": preprocessing.translate_y,
+        "rotate_counter_clockwise": preprocessing.rotate_counter_clockwise,
+        "downsample": preprocessing.downsample,
+        "affine": preprocessing.affine,
+        # retain crop and mask
+        "use_mask": preprocessing.use_mask,
+        "mask": preprocessing.mask,
+        "mask_bbox": preprocessing.mask_bbox,
+        "mask_polygon": preprocessing.mask_polygon,
+        "use_crop": preprocessing.use_crop,
+        "crop_bbox": preprocessing.crop_bbox,
+        "crop_polygon": preprocessing.crop_polygon,
+    }
     if option == "brightfield":
-        new_preprocessing = Preprocessing.brightfield(
-            valis=valis, channel_names=channel_names, channel_indices=channel_indices
-        )
+        new_preprocessing = Preprocessing.brightfield(**kwargs)
     elif option == "fluorescence":
-        new_preprocessing = Preprocessing.fluorescence(
-            valis=valis, channel_names=channel_names, channel_indices=channel_indices
-        )
+        new_preprocessing = Preprocessing.fluorescence(**kwargs)
     elif option == "h&e":
-        new_preprocessing = Preprocessing.he(valis=valis, channel_names=channel_names, channel_indices=channel_indices)
+        new_preprocessing = Preprocessing.he(**kwargs)
     elif option == "pas":
-        new_preprocessing = Preprocessing.pas(valis=valis, channel_names=channel_names, channel_indices=channel_indices)
+        new_preprocessing = Preprocessing.pas(**kwargs)
     elif option == "postaf(e)":
-        new_preprocessing = Preprocessing.postaf(
-            valis=valis, channel_names=channel_names, channel_indices=channel_indices, which="egfp"
-        )
+        new_preprocessing = Preprocessing.postaf(which="egfp", **kwargs)
     elif option == "postaf(b)":
-        new_preprocessing = Preprocessing.postaf(
-            valis=valis, channel_names=channel_names, channel_indices=channel_indices, which="brightfield"
-        )
+        new_preprocessing = Preprocessing.postaf(which="brightfield", **kwargs)
     elif option == "dapi":
-        new_preprocessing = Preprocessing.dapi(
-            valis=valis, channel_names=channel_names, channel_indices=channel_indices
-        )
+        new_preprocessing = Preprocessing.dapi(**kwargs)
     else:
-        new_preprocessing = Preprocessing.basic(
-            valis=valis, channel_names=channel_names, channel_indices=channel_indices
-        )
+        new_preprocessing = Preprocessing.basic(**kwargs)
     return new_preprocessing
 
 
@@ -322,7 +331,7 @@ class PreprocessingDialog(QtFramelessTool):
         self.close()
         return None
 
-    def on_rotate(self, value: int) -> None:
+    def on_rotate(self, value: int, **_kwargs: ty.Any) -> None:
         """Increment rotation by specified value."""
         self.rotate_spin.setValue(self.rotate_spin.value() + value)
 
@@ -428,7 +437,7 @@ class PreprocessingDialog(QtFramelessTool):
             "arrow_left",
             tooltip="Add 500um from current value (it might not be left!)\nRight-click will add 1500um",
             func=partial(self.on_translate_x, value=500),
-            func_menu=partial(self.on_translate_x, value=1500),
+            func_menu=lambda _: self.on_translate_x(value=1500),
             normal=True,
             standout=True,
         )
@@ -437,7 +446,7 @@ class PreprocessingDialog(QtFramelessTool):
             "arrow_right",
             tooltip="Subtract 500um to the current value (it might not be right!) \nRight-click will subtract 1500um",
             func=partial(self.on_translate_x, value=-500),
-            func_menu=partial(self.on_translate_x, value=-1500),
+            func_menu=lambda _: self.on_translate_x(value=-1500),
             normal=True,
             standout=True,
         )
@@ -458,7 +467,7 @@ class PreprocessingDialog(QtFramelessTool):
             "arrow_up",
             tooltip="Add 500um from current value (it might not be up!)\nRight-click will add 1500um)",
             func=partial(self.on_translate_y, value=500),
-            func_menu=partial(self.on_translate_y, value=1500),
+            func_menu=lambda _: self.on_translate_y(value=1500),
             normal=True,
             standout=True,
         )
@@ -467,7 +476,7 @@ class PreprocessingDialog(QtFramelessTool):
             "arrow_down",
             tooltip="Subtract 500um to the current value (it might not be down!)\nRight-click will subtract 1500um",
             func=partial(self.on_translate_y, value=-500),
-            func_menu=partial(self.on_translate_y, value=-1500),
+            func_menu=lambda _: self.on_translate_y(value=-1500),
             normal=True,
             standout=True,
         )
@@ -475,8 +484,8 @@ class PreprocessingDialog(QtFramelessTool):
             self,
             "rotate_left",
             tooltip="Rotate (counter-clockwise) -90 degrees.\nRight-click will rotate -15 degrees.",
-            func=partial(self.on_rotate, value=-90),
-            func_menu=partial(self.on_rotate, value=-15),
+            func=partial(self.on_rotate, value=-15),
+            func_menu=lambda _: self.on_rotate(value=-90),
             normal=True,
             standout=True,
         )
@@ -484,8 +493,8 @@ class PreprocessingDialog(QtFramelessTool):
             self,
             "rotate_right",
             tooltip="Rotate (clockwise) 90 degrees.\nRight-click will rotate 15 degrees.",
-            func=partial(self.on_rotate, value=90),
-            func_menu=partial(self.on_rotate, value=15),
+            func=partial(self.on_rotate, value=15),
+            func_menu=lambda _: self.on_rotate(value=90),
             normal=True,
             standout=True,
         )
