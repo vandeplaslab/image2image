@@ -463,6 +463,8 @@ def get_resolution_options(wrapper) -> dict[str, float]:
 
     options = {"Apply no scaling.": 1.0}
     for resolution, names in resolutions.items():
+        if resolution == 1.0:
+            continue
         datasets = ", ".join(names)
         if len(datasets) > 120:
             datasets = f"{datasets[:120]}..."
