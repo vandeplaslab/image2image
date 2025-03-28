@@ -81,7 +81,7 @@ class QtModalityItem(QFrame):
             self,
             tooltip="Resolution of the modality.",
             func=self._on_update_resolution,
-            validator=QRegularExpressionValidator(QRegularExpression(r"^[0-9]+(\.[0-9]{1,3})?$")),
+            validator=QRegularExpressionValidator(QRegularExpression(r"^[0-9]+(\.[0-9]{1,5})?$")),
         )
         self.output_resolution_label = hp.make_line_edit(
             self,
@@ -89,7 +89,7 @@ class QtModalityItem(QFrame):
             " is smaller than the input resolution.",
             func=self._on_update_output_resolution,
             func_clear=self._on_update_output_resolution_clear,
-            validator=QRegularExpressionValidator(QRegularExpression(r"^[0-9]+(\.[0-9]{1,3})?$")),
+            validator=QRegularExpressionValidator(QRegularExpression(r"^[0-9]+(\.[0-9]{1,5})?$")),
         )
         self.preprocessing_btn = hp.make_qta_btn(
             self,
@@ -237,7 +237,7 @@ class QtModalityItem(QFrame):
         if event.type() == QEvent.FocusOut:
             modality = self.modality
             if not self.resolution_label.hasFocus() and self.resolution_label.text() == "":
-                self.resolution_label.setText(f"{modality.pixel_size:.3f}")
+                self.resolution_label.setText(f"{modality.pixel_size:.5f}")
             if not self.name_label.hasFocus() and self.name_label.text() == "":
                 self.name_label.setText(modality.name)
         return super().eventFilter(recv, event)
@@ -262,7 +262,7 @@ class QtModalityItem(QFrame):
         """Update UI elements."""
         self.name_label.setText(self.modality.name)
         self.modality_icon.state = "image"
-        self.resolution_label.setText(f"{self.modality.pixel_size:.3f}")
+        self.resolution_label.setText(f"{self.modality.pixel_size:.5f}")
         text, tooltip = self.modality.preprocessing.as_str(valis=self.valis)
         self.preprocessing_label.setText(text)
         self.preprocessing_label.setToolTip(tooltip)
@@ -499,7 +499,7 @@ class QtModalityItem(QFrame):
         """Set output resolution, and potentially warn if the resolution is a bit odd."""
         resolution = resolution[0] if isinstance(resolution, tuple) else resolution
         with hp.qt_signals_blocked(self.output_resolution_label):
-            self.output_resolution_label.setText(f"{resolution:.3f}" if resolution is not None else "")
+            self.output_resolution_label.setText(f"{resolution:.5f}" if resolution is not None else "")
         hp.set_object_name(
             self.output_resolution_label,
             object_name="warning" if resolution is not None and resolution < self.modality.pixel_size else "",

@@ -87,7 +87,7 @@ class QtDatasetItem(QFrame):
             self,
             tooltip="Resolution of the modality.",
             func_changed=self.on_update_resolution,
-            validator=QRegularExpressionValidator(QRegularExpression(r"^[0-9]+(\.[0-9]{1,3})?$")),
+            validator=QRegularExpressionValidator(QRegularExpression(r"^[0-9]+(\.[0-9]{1,5})?$")),
             object_name="discreet_line_edit",
         )
         self.resolution_label.setFixedWidth(100)
@@ -190,7 +190,7 @@ class QtDatasetItem(QFrame):
             and self.resolution_label.text() == ""
         ):
             reader = self.get_model()
-            self.resolution_label.setText(f"{reader.resolution:.3f}")
+            self.resolution_label.setText(f"{reader.resolution:.5f}")
         return super().eventFilter(recv, event)
 
     def get_model(self) -> BaseReader:
@@ -224,7 +224,7 @@ class QtDatasetItem(QFrame):
         self.modality_icon.state = reader.reader_type
         self.name_label.setText(reader.clean_key)
         self.modality_icon.state = reader.reader_type
-        self.resolution_label.setText(f"{reader.resolution:.3f}")
+        self.resolution_label.setText(f"{reader.resolution:.5f}")
         self.shape_label.setText(format_shape(reader.shape))
         self.size_label.setText(format_size(reader.shape, reader.dtype))
         self.save_btn.setVisible(reader.reader_type == "image")
@@ -276,7 +276,7 @@ class QtDatasetItem(QFrame):
         reader = self.get_model()
         if reader and reader.resolution != resolution:
             reader.resolution = resolution
-            self.resolution_label.setText(f"{reader.resolution:.3f}")
+            self.resolution_label.setText(f"{reader.resolution:.5f}")
             logger.trace(f"Updated pixel size of '{reader.key}' to {resolution:.2f}.")
 
     def on_remove(self) -> None:
