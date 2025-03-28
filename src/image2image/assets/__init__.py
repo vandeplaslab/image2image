@@ -28,6 +28,8 @@ update_icon_mapping(
         "extract": "fa6s.download",
         "random": "fa5s.random",
         "color_palette": "fa5s.palette",
+        "copy": "fa6.copy",
+        "copy_all": "fa6s.copy",
         # wsireg
         "mask": "mdi6.drama-masks",
         "process": "msc.wand",

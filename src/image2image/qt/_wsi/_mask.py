@@ -316,7 +316,7 @@ class ShapesDialog(QtFramelessTool):
         """Associate mask with modality at the specified location."""
         raise NotImplementedError("Must implement method")
 
-    def on_associate_mask_with_modality(self) -> None:
+    def on_associate_mask_with_modality(self, modality: Modality | None = None) -> None:
         """Associate mask with modality at the specified location."""
         raise NotImplementedError("Must implement method")
 
@@ -338,19 +338,14 @@ class ShapesDialog(QtFramelessTool):
             data = self._transform_from_preprocessing(copy_from_modality)
             if data:
                 self.mask_layer.data = data or []
-
                 copy_to_modality = self._parent.registration_model.modalities[copy_to]
-                copy_to_modality.preprocessing.use_mask = copy_from_modality.preprocessing.use_mask
-                copy_to_modality.preprocessing.mask_polygon = copy_from_modality.preprocessing.mask_polygon
-                copy_to_modality.preprocessing.mask_bbox = copy_from_modality.preprocessing.mask_bbox
-                copy_to_modality.preprocessing.transform_mask = False
+                self.on_associate_mask_with_modality(copy_to_modality)
+                # copy_to_modality.preprocessing.use_mask = copy_from_modality.preprocessing.use_mask
+                # copy_to_modality.preprocessing.mask_polygon = copy_from_modality.preprocessing.mask_polygon
+                # copy_to_modality.preprocessing.mask_bbox = copy_from_modality.preprocessing.mask_bbox
+                # copy_to_modality.preprocessing.transform_mask = False
                 self.evt_mask.emit(copy_to_modality)
                 logger.trace(f"Copied mask from {copy_from} to {copy_to}")
-
-            # data = self._transform_from_preprocessing(copy_from_modality)
-            # if data:
-            #     self.mask_layer.data = data or []
-            #     logger.trace(f"Copied mask from {copy_from}")
 
     def on_copy_to_all(self) -> None:
         """Copy mask from one modality to all the others."""
@@ -368,12 +363,17 @@ class ShapesDialog(QtFramelessTool):
         for copy_to in self._parent.registration_model.get_image_modalities(with_attachment=False):
             if copy_to == copy_from:
                 continue
-            copy_to_modality = self._parent.registration_model.modalities[copy_to]
-            copy_to_modality.preprocessing.use_mask = copy_from_modality.preprocessing.use_mask
-            copy_to_modality.preprocessing.mask_polygon = copy_from_modality.preprocessing.mask_polygon
-            copy_to_modality.preprocessing.mask_bbox = copy_from_modality.preprocessing.mask_bbox
-            copy_to_modality.preprocessing.transform_mask = False
-            self.evt_mask.emit(copy_to_modality)
+            data = self._transform_from_preprocessing(copy_from_modality)
+            if data:
+                self.mask_layer.data = data or []
+                copy_to_modality = self._parent.registration_model.modalities[copy_to]
+                self.on_associate_mask_with_modality(copy_to_modality)
+                # copy_to_modality = self._parent.registration_model.modalities[copy_to]
+                # copy_to_modality.preprocessing.use_mask = copy_from_modality.preprocessing.use_mask
+                # copy_to_modality.preprocessing.mask_polygon = copy_from_modality.preprocessing.mask_polygon
+                # copy_to_modality.preprocessing.mask_bbox = copy_from_modality.preprocessing.mask_bbox
+                # copy_to_modality.preprocessing.transform_mask = False
+                self.evt_mask.emit(copy_to_modality)
             logger.trace(f"Copied mask from {copy_from} to {copy_to}")
 
     def eventFilter(self, recv, event):
@@ -437,7 +437,13 @@ class ShapesDialog(QtFramelessTool):
                     self,
                     "copy",
                     func=self.on_copy,
-                    func_menu=self.on_copy_to_all,
+                    normal=True,
+                    standout=True,
+                ),
+                hp.make_qta_btn(
+                    self,
+                    "copy_all",
+                    func=self.on_copy_to_all,
                     normal=True,
                     standout=True,
                 ),
@@ -477,9 +483,9 @@ class MaskDialog(ShapesDialog):
             return False
         return True
 
-    def on_associate_mask_with_modality(self) -> None:
+    def on_associate_mask_with_modality(self, modality: Modality | None = None) -> None:
         """Associate mask with modality at the specified location."""
-        modality = self.current_modality
+        modality = modality or self.current_modality
         if not modality:
             return
         yx, bbox = self._transform_to_preprocessing(modality)
@@ -530,9 +536,9 @@ class CropDialog(ShapesDialog):
             return False
         return True
 
-    def on_associate_mask_with_modality(self) -> None:
+    def on_associate_mask_with_modality(self, modality: Modality | None = None) -> None:
         """Associate mask with modality at the specified location."""
-        modality = self.current_modality
+        modality = modality or self.current_modality
         if not modality:
             return
         yx, bbox = self._transform_to_preprocessing(modality, as_px=False)

@@ -106,7 +106,7 @@ class QtModalityItem(QFrame):
             tooltip="Click here to attach Image file. (.czi, .tiff)<br>Right-click to remove images.",
             normal=True,
             func=self.on_attach_image,
-            func_menu=partial(self.on_edit_attachment, "image"),
+            func_menu=lambda _: self.on_edit_attachment(which="image"),
             properties={"with_count": True},
         )
         self.attach_geojson_btn = hp.make_qta_btn(
@@ -115,7 +115,7 @@ class QtModalityItem(QFrame):
             tooltip="Click here to attach GeoJSON file (.geojson).<br>Right-click to remove shapes.",
             normal=True,
             func=self.on_attach_geojson,
-            func_menu=partial(self.on_edit_attachment, which="shapes"),
+            func_menu=lambda _: self.on_edit_attachment(which="shapes"),
             properties={"with_count": True},
         )
         self.attach_points_btn = hp.make_qta_btn(
@@ -124,7 +124,7 @@ class QtModalityItem(QFrame):
             tooltip="Click here to attach points file (.csv, .txt).<br>Right-click to remove points.",
             normal=True,
             func=self.on_attach_points,
-            func_menu=partial(self.on_edit_attachment, which="points"),
+            func_menu=lambda _: self.on_edit_attachment(which="points"),
             properties={"with_count": True},
         )
 
