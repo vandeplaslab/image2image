@@ -27,6 +27,7 @@ update_icon_mapping(
         "replace": "msc.replace",
         "extract": "fa6s.download",
         "random": "fa5s.random",
+        "color_palette": "fa5s.palette",
         # wsireg
         "mask": "mdi6.drama-masks",
         "process": "msc.wand",

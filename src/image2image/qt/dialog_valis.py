@@ -272,17 +272,25 @@ class ImageValisWindow(ImageWsiWindow):
         side_layout = hp.make_form_layout(parent=side_widget, margin=3)
         side_layout.addRow(self._image_widget)
         # Modalities
+        side_layout.addRow(
+            hp.make_h_layout(
+                self.apply_btn,
+                self.show_all_btn,
+                self.hide_all_btn,
+                self.recolor_btn,
+                self.filter_modalities_by,
+                margin=2,
+                spacing=2,
+                stretch_id=(4,),
+            )
+        )
         side_layout.addRow(self.modality_list)
         side_layout.addRow(
             hp.make_h_layout(
-                self.show_all_btn,
-                self.hide_all_btn,
                 self.use_preview_check,
                 self.hide_others_check,
-                self.hide_all_btn,
                 margin=2,
                 spacing=2,
-                stretch_id=(3,),
             )
         )
         # Registration paths

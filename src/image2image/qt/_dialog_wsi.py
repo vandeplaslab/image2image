@@ -352,9 +352,44 @@ class ImageWsiWindow(SingleViewerMixin):
         self.on_show_modalities()
         logger.trace(f"Updated pyramid level to {level}")
 
+    def on_recolor(self) -> None:
+        """Recolor."""
+        menu = hp.make_menu(self)
+        hp.make_menu_item(
+            self,
+            "Update colors - use standard palette",
+            menu=menu,
+            func=lambda _: self.modality_list.on_change_colors("normal"),
+        )
+        hp.make_menu_item(
+            self,
+            "Update colors - use protanomaly-friendly palette",
+            menu=menu,
+            func=lambda _: self.modality_list.on_change_colors("protanomaly"),
+        )
+        hp.make_menu_item(
+            self,
+            "Update colors - use deuteranomaly-friendly palette",
+            menu=menu,
+            func=lambda _: self.modality_list.on_change_colors("deuteranomaly"),
+        )
+        hp.make_menu_item(
+            self,
+            "Update colors - use tritanomaly-friendly palette",
+            menu=menu,
+            func=lambda _: self.modality_list.on_change_colors("tritanomaly"),
+        )
+        menu.addSeparator()
+        hp.make_menu_item(
+            self,
+            "Update colors - use random colors",
+            menu=menu,
+            func=lambda _: self.modality_list.on_change_colors("random"),
+        )
+        hp.show_below_widget(menu, self.recolor_btn)
+
     def on_apply(self) -> None:
         """Apply."""
-        # get all channel options
         menu = hp.make_menu(self)
         hp.make_menu_from_options(
             self,
@@ -658,6 +693,14 @@ class ImageWsiWindow(SingleViewerMixin):
             "visible_off",
             tooltip="Hide all modalities",
             func=self.modality_list.on_hide_all,
+            normal=True,
+            standout=True,
+        )
+        self.recolor_btn = hp.make_qta_btn(
+            self,
+            "color_palette",
+            tooltip="Update colors",
+            func=self.on_recolor,
             normal=True,
             standout=True,
         )

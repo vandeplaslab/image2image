@@ -35,7 +35,7 @@ if ty.TYPE_CHECKING:
 
 logger = logger.bind(src="QtModalityList")
 
-PALETTE: list[str] | None = None
+PALETTE: dict[str, list[str]] | None = None
 
 
 class QtModalityItem(QFrame):
@@ -662,7 +662,11 @@ class QtModalityList(QScrollArea):
 
     def on_make_modality_item(self, modality: Modality) -> QtModalityItem:
         """Make dataset item."""
-        color = get_next_color(self._layout.count() - 1)
+        index = self._layout.count() - 1
+        color = get_next_color(index)
+        while color in self.used_colors:
+            color = get_next_color(index)
+            index += 1
 
         widget = QtModalityItem(modality, parent=self, color=color, valis=self.valis)
         widget.evt_delete.connect(self.on_remove)
@@ -714,6 +718,12 @@ class QtModalityList(QScrollArea):
         """Hide all modalities."""
         for _modality, widget in self.model_widget_iter():
             widget.visible_btn.set_state(False, trigger=True)
+
+    def on_change_colors(self, kind: str = "normal") -> None:
+        """Update colors."""
+        for index, widget in enumerate(self.widget_iter()):
+            color = get_next_color(index, kind)
+            widget.color_btn.set_color(color)
 
     def on_remove(self, modality: Modality, force: bool = False) -> None:
         """Remove image/modality from the list."""
@@ -783,12 +793,22 @@ class QtModalityList(QScrollArea):
             widget.visible_btn.set_state(model.name not in names, trigger=False)
 
 
-def get_next_color(n: int) -> str:
+def get_next_color(n: int, kind: str = "normal") -> str:
     """Get next color."""
+    from koyo.color import get_random_hex_color
+
     global PALETTE
 
-    if PALETTE is None:
-        import glasbey
+    if kind in ["protanomaly", "deuteranomaly", "tritanomaly", "normal"]:
+        if PALETTE is None:
+            PALETTE = {}
 
-        PALETTE = glasbey.create_palette(palette_size=128)
-    return PALETTE[n]
+        if kind not in PALETTE:
+            import glasbey
+
+            if kind in ["protanomaly", "deuteranomaly", "tritanomaly"]:
+                PALETTE[kind] = glasbey.create_palette(palette_size=256, colorblind_safe=True, cvd_type=kind)
+            else:
+                PALETTE[kind] = glasbey.create_palette(palette_size=256)
+        return PALETTE[kind][n]
+    return get_random_hex_color()
