@@ -141,7 +141,7 @@ def format_size(shape: tuple[int, ...], dtype: np.dtype) -> str:
 
     dtype = np.dtype(dtype)
     count = np.prod(shape) if len(shape) > 1 else shape[0]
-    n_bytes = float(count) * dtype.itemsize
+    n_bytes = np.multiply(count, dtype.itemsize)
     return f"{human_readable_byte_size(n_bytes)} ({dtype.name})"
 
 
