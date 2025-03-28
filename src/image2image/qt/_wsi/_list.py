@@ -83,6 +83,14 @@ class QtModalityItem(QFrame):
             func=self._on_update_resolution,
             validator=QRegularExpressionValidator(QRegularExpression(r"^[0-9]+(\.[0-9]{1,3})?$")),
         )
+        self.output_resolution_label = hp.make_line_edit(
+            self,
+            tooltip="Output resolution of the modality.<br>If you see an orange border, it means the output resolution"
+            " is smaller than the input resolution.",
+            func=self._on_update_output_resolution,
+            func_clear=self._on_update_output_resolution_clear,
+            validator=QRegularExpressionValidator(QRegularExpression(r"^[0-9]+(\.[0-9]{1,3})?$")),
+        )
         self.preprocessing_btn = hp.make_qta_btn(
             self,
             "process",
@@ -189,6 +197,7 @@ class QtModalityItem(QFrame):
         grid.setSpacing(0)
         grid.setContentsMargins(0, 0, 0, 0)
         grid.setColumnStretch(3, True)
+        grid.setColumnStretch(5, True)
         # column 1
         grid.addWidget(self.modality_icon, 0, 0)
         grid.addWidget(self.open_dir_btn, 1, 0)
@@ -207,14 +216,14 @@ class QtModalityItem(QFrame):
         # column 2-3
         grid.addWidget(hp.make_label(self, "Name"), 0, 1, 1, 2)
         grid.addWidget(hp.make_label(self, "Pixel size"), 1, 1, 1, 2)
+        grid.addWidget(hp.make_label(self, "Output size"), 1, 4, 1, 1)
         grid.addWidget(hp.make_label(self, "Opacity"), 2, 1, 1, 2)
-        # grid.addWidget(hp.make_label(self, "Contrast limits"), 3, 1, 1, 2)
         # column 4
-        grid.addWidget(self.name_label, 0, 3)
+        grid.addWidget(self.name_label, 0, 3, 1, 3)
         grid.addWidget(self.resolution_label, 1, 3)
-        grid.addWidget(self.opacity_slider, 2, 3)
-        # grid.addWidget(self.contrast_slider, 3, 3)
-        grid.addWidget(self.preprocessing_label, 3, 3, 3, 1)
+        grid.addWidget(self.output_resolution_label, 1, 5)
+        grid.addWidget(self.opacity_slider, 2, 3, 1, 3)
+        grid.addWidget(self.preprocessing_label, 3, 3, 4, 3)
 
         self.mode = False
         self._set_from_model()
@@ -239,11 +248,6 @@ class QtModalityItem(QFrame):
         layers = self._parent.view.layers
         if self.modality.name in layers:
             layer = layers[self.modality.name]
-            # decimals = range_to_decimals(layer.contrast_limits_range, layer.dtype)
-            # with hp.qt_signals_blocked(self.contrast_slider):
-            #     self.contrast_slider.setRange(*layer.contrast_limits_range)
-            #     self.contrast_slider.setSingleStep(10**-decimals)
-            #     self.contrast_slider.setValue(layer.contrast_limits)
             return layer
         return None
 
@@ -253,26 +257,6 @@ class QtModalityItem(QFrame):
             return
         layer = self.layer
         layer.opacity = value
-
-    # def show_clim_popupup(self) -> None:
-    #     """Show popup."""
-    #     if not self.layer:
-    #         return
-    #     clim_popup = QContrastLimitsPopup(self.layer, self)
-    #     clim_popup.setParent(self)
-    #     clim_popup.move_to("top", min_length=650)
-    #     clim_popup.show()
-    # def on_change_contrast_limits(self, value) -> None:
-    #     """Update contrast limits."""
-    #     if not self.layer:
-    #         return
-    #     self.layer.contrast_limits = value
-    #
-    # def on_change_contrast_limits_range(self, value) -> None:
-    #     """Update contrast limits."""
-    #     if not self.layer:
-    #         return
-    #     self.layer.contrast_limits_range = value
 
     def _set_from_model(self, _: ty.Any = None) -> None:
         """Update UI elements."""
@@ -291,6 +275,7 @@ class QtModalityItem(QFrame):
         if not self.valis:
             self.mask_btn.setVisible(self.modality.preprocessing.is_masked())
             self.crop_btn.setVisible(self.modality.preprocessing.is_cropped())
+            self._set_output_resolution(self.modality.output_pixel_size)
         self.setToolTip(f"<b>Modality</b>: {self.modality.name}<br><b>Path</b>: {self.modality.path}")
 
     def on_open_directory(self) -> None:
@@ -385,7 +370,7 @@ class QtModalityItem(QFrame):
                 self._attach_points(points, name, pixel_size)
             self._set_from_model()
 
-    def _attach_shapes(self, filelist: list[str], name: str | None, pixel_size: float | None):
+    def _attach_shapes(self, filelist: list[str], name: str | None, pixel_size: float | None) -> None:
         if name:
             self.registration_model.add_attachment_geojson(self.modality.name, name, filelist, pixel_size=pixel_size)
         else:
@@ -412,7 +397,7 @@ class QtModalityItem(QFrame):
             self._attach_shapes(shapes, name, pixel_size)
             self._set_from_model()
 
-    def _attach_points(self, filelist: list[PathLike], name: str | None, pixel_size: float | None):
+    def _attach_points(self, filelist: list[PathLike], name: str | None, pixel_size: float | None) -> None:
         if name:
             self.registration_model.add_attachment_points(self.modality.name, name, filelist, pixel_size=pixel_size)
         else:
@@ -498,6 +483,27 @@ class QtModalityItem(QFrame):
             return
         self.modality.pixel_size = float(resolution)
         self.evt_resolution.emit(self.modality)
+
+    def _on_update_output_resolution(self) -> None:
+        """ "Update output resolution."""
+        resolution = self.output_resolution_label.text()
+        self.modality.output_pixel_size = float(resolution) if resolution else None
+        self._set_output_resolution(self.modality.output_pixel_size)
+
+    def _on_update_output_resolution_clear(self) -> None:
+        """ "Update output resolution."""
+        self.modality.output_pixel_size = None
+        self._set_output_resolution(self.modality.output_pixel_size)
+
+    def _set_output_resolution(self, resolution: float | tuple[float, float] | None = None) -> None:
+        """Set output resolution, and potentially warn if the resolution is a bit odd."""
+        resolution = resolution[0] if isinstance(resolution, tuple) else resolution
+        with hp.qt_signals_blocked(self.output_resolution_label):
+            self.output_resolution_label.setText(f"{resolution:.3f}" if resolution is not None else "")
+        hp.set_object_name(
+            self.output_resolution_label,
+            object_name="warning" if resolution is not None and resolution < self.modality.pixel_size else "",
+        )
 
     def on_open_preprocessing(self) -> None:
         """Open pre-processing dialog."""
