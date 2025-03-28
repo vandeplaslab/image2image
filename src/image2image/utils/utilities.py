@@ -11,8 +11,6 @@ from pathlib import Path
 import numpy as np
 from koyo.typing import PathLike
 from loguru import logger
-from napari.layers.points._points_mouse_bindings import select as _select
-from napari.layers.points.points import Mode as PointsMode
 from napari.utils.events import Event
 
 if ty.TYPE_CHECKING:
@@ -436,6 +434,8 @@ def round_to_half(*values: tuple[float, ...]) -> np.ndarray:
 
 def select(layer, event):
     """Select and move points."""
+    from napari.layers.points._points_mouse_bindings import select as _select
+
     yield from _select(layer, event)
     layer.events.move()
 
@@ -444,6 +444,8 @@ def init_points_layer(
     layer: Points, visual: VispyPointsLayer, snap: bool = True, add_func: ty.Callable | None = None
 ) -> None:
     """Initialize points layer."""
+    from napari.layers.points.points import Mode as PointsMode
+
     if add_func is None:
         add_func = partial(add, snap=snap)
     layer._drag_modes[PointsMode.ADD] = add_func
