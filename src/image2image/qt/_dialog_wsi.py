@@ -233,7 +233,7 @@ class ImageWsiWindow(SingleViewerMixin):
         modality.pixel_size = reader.resolution
         item: QtModalityItem = self.modality_list.get_widget_for_modality(modality)
         if item:
-            item.resolution_label.setText(f"{reader.resolution:.3f}")
+            item.resolution_label.setText(f"{reader.resolution:.5f}")
         self.on_update_resolution_of_modality(modality)
 
     def on_update_resolution_from_list(self, modality: Modality) -> None:
