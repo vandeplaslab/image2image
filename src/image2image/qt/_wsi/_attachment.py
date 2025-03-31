@@ -49,8 +49,8 @@ class AttachWidget(QtDialog):
 
         default, modality = self._pixel_sizes
         options = [
-            f"<b>{default:.3f}</b><br>coordinates are in µm<br><b>don't need to rescale</b>",
-            f"<b>{modality:.3f}</b><br>coordinates are in px<br><b>need to rescale</b>",
+            f"<b>{default:.5f}</b><br>coordinates are in µm<br><b>don't need to rescale</b>",
+            f"<b>{modality:.5f}</b><br>coordinates are in px<br><b>need to rescale</b>",
         ]
         self.defaults_choice_lay, self.defaults_choice_group = hp.make_toggle_group(
             self, *options, func=self.on_update, orientation="vertical"
@@ -122,7 +122,7 @@ class AttachmentEditDialog(QtDialog):
             self.table.setCellWidget(index, self.TABLE_CONFIG.name, name_item)
 
             # add resolution item
-            res_item = QLineEdit(f"{pixel_size:.3f}")
+            res_item = QLineEdit(f"{pixel_size:.5f}")
             res_item.setObjectName("table_cell")
             res_item.setAlignment(Qt.AlignmentFlag.AlignCenter)
             res_item.setValidator(QDoubleValidator(0, 1000, 4))
