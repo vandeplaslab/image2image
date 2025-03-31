@@ -518,6 +518,7 @@ class QtModalityItem(QFrame):
         if self._preprocessing_dlg is None:
             self._preprocessing_dlg = PreprocessingDialog(
                 self.modality,
+                self.hex_color,
                 parent=self,
                 locked=self.lock_btn.locked,
                 valis=self.valis,
@@ -797,6 +798,11 @@ class QtModalityList(QScrollArea):
         """Toggle visibility icon of items."""
         for model, widget in self.model_widget_iter():
             widget.visible_btn.set_state(model.name not in names, trigger=False)
+
+    def get_color(self, modality: Modality) -> str:
+        """Get color."""
+        widget = self.get_widget_for_modality(modality)
+        return widget.hex_color
 
 
 def get_next_color(n: int, kind: str = "normal") -> str:

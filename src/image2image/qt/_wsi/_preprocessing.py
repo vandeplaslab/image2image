@@ -143,11 +143,13 @@ class PreprocessingDialog(QtFramelessTool):
     def __init__(
         self,
         modality: Modality,
+        color: str = "#f0f0f0",
         parent: QWidget | None = None,
         locked: bool = False,
         valis: bool = False,
     ):
         self.valis = valis
+        self.color = color
         self.modality = modality
         super().__init__(parent)
         self.setMinimumWidth(400)
@@ -514,9 +516,14 @@ class PreprocessingDialog(QtFramelessTool):
 
         self.preview_check = hp.make_checkbox(self, "", func=self.on_preview_preprocessing, value=True)
 
+        _, title_layout = self._make_close_handle("Pre-processing")
+        color_icon = hp.make_swatch(self, self.color, tooltip="Color of the modality (for reference only).")
+        color_icon.set_enabled(False)
+        title_layout.insertWidget(0, color_icon)
+
         layout = hp.make_form_layout()
         layout.setContentsMargins(6, 6, 6, 6)
-        layout.addRow(self._make_close_handle("Pre-processing")[1])
+        layout.addRow(title_layout)
         layout.addRow(
             hp.make_label(
                 self,

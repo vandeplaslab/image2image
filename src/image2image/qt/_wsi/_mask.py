@@ -233,6 +233,7 @@ class ShapesDialog(QtFramelessTool):
         self.on_update_modality_options()
         self.on_show_mask()
         self.on_select_modality()
+        self.on_select_copy_modality()
         self._parent.on_hide_not_previewed_modalities()
         super().show()
 
@@ -300,7 +301,17 @@ class ShapesDialog(QtFramelessTool):
         if modality:
             data = self._transform_from_preprocessing(modality)
             self.mask_layer.data = data or []
+            color = self._parent.modality_list.get_color(modality)
+            self.slide_color_icon.set_color(color, force=True)
         self._parent.on_hide_not_previewed_modalities()
+
+    def on_select_copy_modality(self, _=None) -> None:
+        """Select modality to copy from."""
+        modality = self.copy_from_choice.currentText()
+        if modality:
+            modality = self._parent.registration_model.modalities[modality]
+            color = self._parent.modality_list.get_color(modality)
+            self.copy_from_color_icon.set_color(color, force=True)
 
     def on_increment_modality(self, increment_by: int) -> None:
         """Increment modality."""
@@ -340,10 +351,6 @@ class ShapesDialog(QtFramelessTool):
                 self.mask_layer.data = data or []
                 copy_to_modality = self._parent.registration_model.modalities[copy_to]
                 self.on_associate_mask_with_modality(copy_to_modality)
-                # copy_to_modality.preprocessing.use_mask = copy_from_modality.preprocessing.use_mask
-                # copy_to_modality.preprocessing.mask_polygon = copy_from_modality.preprocessing.mask_polygon
-                # copy_to_modality.preprocessing.mask_bbox = copy_from_modality.preprocessing.mask_bbox
-                # copy_to_modality.preprocessing.transform_mask = False
                 self.evt_mask.emit(copy_to_modality)
                 logger.trace(f"Copied mask from {copy_from} to {copy_to}")
 
@@ -368,11 +375,6 @@ class ShapesDialog(QtFramelessTool):
                 self.mask_layer.data = data or []
                 copy_to_modality = self._parent.registration_model.modalities[copy_to]
                 self.on_associate_mask_with_modality(copy_to_modality)
-                # copy_to_modality = self._parent.registration_model.modalities[copy_to]
-                # copy_to_modality.preprocessing.use_mask = copy_from_modality.preprocessing.use_mask
-                # copy_to_modality.preprocessing.mask_polygon = copy_from_modality.preprocessing.mask_polygon
-                # copy_to_modality.preprocessing.mask_bbox = copy_from_modality.preprocessing.mask_bbox
-                # copy_to_modality.preprocessing.transform_mask = False
                 self.evt_mask.emit(copy_to_modality)
             logger.trace(f"Copied mask from {copy_from} to {copy_to}")
 
@@ -390,7 +392,18 @@ class ShapesDialog(QtFramelessTool):
         self.layer_controls.installEventFilter(self)
 
         self.slide_choice = hp.make_combobox(self, tooltip="Select modality", func=self.on_select_modality)
-        self.copy_from_choice = hp.make_combobox(self, tooltip="Copy mask from another modality")
+        self.slide_color_icon = hp.make_swatch(
+            self, "#000000", tooltip="Color of the current modality (for reference only).", size=(14, 14)
+        )
+        self.slide_color_icon.setEnabled(False)
+
+        self.copy_from_choice = hp.make_combobox(
+            self, tooltip="Copy mask from another modality", func=self.on_select_copy_modality
+        )
+        self.copy_from_color_icon = hp.make_swatch(
+            self, "#000000", tooltip="Color of the modality to copy from (for reference only).", size=(14, 14)
+        )
+        self.copy_from_color_icon.setEnabled(False)
 
         self.add_btn = hp.make_btn(self, f"Add {self.MASK_OR_CROP}", func=self.on_associate_mask_with_modality)
         self.remove_btn = hp.make_btn(self, f"Remove {self.MASK_OR_CROP}", func=self.on_dissociate_mask_from_modality)
@@ -408,6 +421,7 @@ class ShapesDialog(QtFramelessTool):
         layout.addRow(
             hp.make_label(self, "Modality"),
             hp.make_h_layout(
+                self.slide_color_icon,
                 self.slide_choice,
                 hp.make_qta_btn(
                     self,
@@ -425,13 +439,15 @@ class ShapesDialog(QtFramelessTool):
                     normal=True,
                     standout=True,
                 ),
-                stretch_id=(0,),
+                stretch_id=(1,),
                 spacing=2,
+                alignment=Qt.AlignmentFlag.AlignVCenter,
             ),
         )
         layout.addRow(
             hp.make_label(self, "Copy from"),
             hp.make_h_layout(
+                self.copy_from_color_icon,
                 self.copy_from_choice,
                 hp.make_qta_btn(
                     self,
@@ -448,7 +464,8 @@ class ShapesDialog(QtFramelessTool):
                     standout=True,
                 ),
                 spacing=2,
-                stretch_id=(0,),
+                stretch_id=(1,),
+                alignment=Qt.AlignmentFlag.AlignVCenter,
             ),
         )
         layout.addRow(hp.make_h_layout(self.add_btn, self.remove_btn))
