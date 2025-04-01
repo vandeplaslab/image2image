@@ -14,6 +14,7 @@ from loguru import logger
 from napari.utils.events import Event
 
 if ty.TYPE_CHECKING:
+    from image2image_io.wrapper import ImageWrapper
     from napari._qt.layer_controls.qt_shapes_controls import QtShapesControls
     from napari._vispy.layers.points import VispyPointsLayer
     from napari._vispy.layers.shapes import VispyShapesLayer
@@ -135,12 +136,17 @@ def format_shape(shape: tuple[int, ...]) -> str:
     return " x ".join(f"{x:,}" for x in shape)
 
 
+def format_shape_with_pyramid(shape: tuple[int, ...], n_pyramid: int | None = None) -> str:
+    """Format shape and optionally add pyramid information."""
+    return format_shape(shape) + (f" ({n_pyramid})" if n_pyramid is not None else "")
+
+
 def format_size(shape: tuple[int, ...], dtype: np.dtype) -> str:
     """Format size in GB."""
     from koyo.utilities import human_readable_byte_size
 
     dtype = np.dtype(dtype)
-    count = np.prod(shape) if len(shape) > 1 else shape[0]
+    count = np.prod(np.asarray(shape, dtype=np.float64)) if len(shape) > 1 else np.float64(shape[0])
     n_bytes = np.multiply(count, dtype.itemsize)
     return f"{human_readable_byte_size(n_bytes)} ({dtype.name})"
 
@@ -728,3 +734,24 @@ def get_i2reg_path() -> str:
     except RuntimeError as exc:
         log_exception_or_error(exc)
         return "i2reg"
+
+
+def get_resolution_options(wrapper: ImageWrapper) -> dict[str, float]:
+    """Get resolution options."""
+    resolutions: dict[float, list[str]] = {}
+    for reader in wrapper.reader_iter():
+        if reader.reader_type != "image":
+            continue
+        if reader.resolution not in resolutions:
+            resolutions[reader.resolution] = []
+        resolutions[reader.resolution].append(reader.name)
+
+    options = {"Apply no scaling.": 1.0}
+    for resolution, names in resolutions.items():
+        if resolution == 1.0:
+            continue
+        datasets = "<br>".join(names)
+        # if len(datasets) > 120:
+        #     datasets = f"{datasets[:120]}..."
+        options[f"{resolution:.5f}µm<br>Like<br>{datasets}"] = resolution
+    return options

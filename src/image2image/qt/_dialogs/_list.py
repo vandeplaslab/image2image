@@ -21,7 +21,7 @@ from superqt.utils import create_worker, qdebounced
 
 from image2image.models.transform import TransformData, TransformModel
 from image2image.qt._wsi._widgets import QtModalityLabel
-from image2image.utils.utilities import ensure_list, format_shape, format_size
+from image2image.utils.utilities import ensure_list, format_shape_with_pyramid, format_size, get_resolution_options
 
 if ty.TYPE_CHECKING:
     from image2image_io.readers import BaseReader
@@ -55,6 +55,7 @@ class QtDatasetItem(QFrame):
     evt_transform = Signal(str)
     evt_channel_all = Signal(bool, list)  # list of channel | dataset
     evt_channel = Signal(bool, str)  # channel | dataset
+    evt_refresh = Signal(str)
 
     evt_iter_add = Signal(str, int)
     evt_iter_remove = Signal(str, int)
@@ -75,6 +76,7 @@ class QtDatasetItem(QFrame):
         self.setMouseTracking(True)
         self.allow_transform = allow_transform
         self.allow_iterate = allow_iterate
+        self.allow_channels = allow_channels
 
         self.name_label = hp.make_label(
             self,
@@ -82,6 +84,7 @@ class QtDatasetItem(QFrame):
             tooltip="Name of the modality.",
             object_name="header_label",
             alignment=Qt.AlignmentFlag.AlignHCenter,
+            elide_mode=Qt.TextElideMode.ElideLeft,
         )
         self.resolution_label = hp.make_line_edit(
             self,
@@ -92,7 +95,9 @@ class QtDatasetItem(QFrame):
         )
         self.resolution_label.setFixedWidth(100)
 
-        self.shape_label = hp.make_label(self, "", tooltip="Shape of the modality.")
+        self.shape_label = hp.make_label(
+            self, "", tooltip="Shape of the modality (shape, (number of images in pyramid)."
+        )
         self.dtype_label = hp.make_label(self, "", tooltip="Data type of the modality.")
         self.size_label = hp.make_label(self, "", tooltip="Uncompressed size of the modality in GB.")
 
@@ -113,7 +118,7 @@ class QtDatasetItem(QFrame):
             self, "extract", tooltip="Extract images for dataset (e.g. from IMS).", normal=True, func=self.on_extract
         )
         self.transform_btn = hp.make_qta_btn(
-            self, "transform", tooltip="Transform...", normal=True, func=self.on_transform_menu
+            self, "transform", tooltip="Apply transform...", normal=True, func=self.on_transform_menu
         )
         self.iterate_btn = hp.make_qta_btn(
             self, "iterate", tooltip="Activate iteration...", normal=True, func=self.on_iterate
@@ -184,13 +189,14 @@ class QtDatasetItem(QFrame):
 
     def eventFilter(self, recv, event):
         """Event filter."""
-        if (
-            event.type() == QEvent.FocusOut
-            and not self.resolution_label.hasFocus()
-            and self.resolution_label.text() == ""
-        ):
-            reader = self.get_model()
-            self.resolution_label.setText(f"{reader.resolution:.5f}")
+        if event.type() == QEvent.FocusOut and not self.resolution_label.hasFocus():
+            if self.resolution_label.text() == "":
+                reader = self.get_model()
+                self.resolution_label.setText(f"{reader.resolution:.5f}")
+            else:
+                with hp.qt_signals_blocked(self.resolution_label):
+                    value = float(self.resolution_label.text())
+                    self.resolution_label.setText(f"{value:.5f}")
         return super().eventFilter(recv, event)
 
     def get_model(self) -> BaseReader:
@@ -225,15 +231,13 @@ class QtDatasetItem(QFrame):
         self.name_label.setText(reader.clean_key)
         self.modality_icon.state = reader.reader_type
         self.resolution_label.setText(f"{reader.resolution:.5f}")
-        self.shape_label.setText(format_shape(reader.shape))
+        self.shape_label.setText(format_shape_with_pyramid(reader.shape, reader.n_in_pyramid_quick))
         self.size_label.setText(format_size(reader.shape, reader.dtype))
         self.save_btn.setVisible(reader.reader_type == "image")
         self.extract_btn.setVisible(reader.allow_extraction)
         self.iterate_btn.setVisible(
             self.allow_iterate and reader.reader_type == "image" and len(reader.channel_names) > 1
         )
-        self.transform_btn.setVisible(reader.reader_type == "image" and self.allow_transform)
-        # channel information
         self._update_channel_list(reader)
 
     def _update_channel_list(self, reader: BaseReader) -> None:
@@ -245,6 +249,7 @@ class QtDatasetItem(QFrame):
                 data.append([False, index, channel_name])
             self.table.append_data(data)
             self.table.enable_all_check = self.table.row_count() < 20
+            self.setMinimumHeight((250 if len(data) > 5 else 150) if self.allow_channels else 100)
         logger.trace(f"Updated channel table - {len(data)} rows for {reader.name}.")
 
     def select_channel(self, channel_name: str, state: bool) -> None:
@@ -359,20 +364,39 @@ class QtDatasetItem(QFrame):
     def on_transform_menu(self) -> None:
         """Open transform menu."""
         reader = self.get_model()
-        menu = hp.make_menu(self)
-        hp.make_menu_item(self, "Add transform...", menu=menu, icon="add", func=self._parent.on_add_transform)
-        hp.make_menu_item(self, "Remove transform...", menu=menu, icon="remove", func=self._parent.on_remove_transform)
-        menu.addSeparator()
-        for transform in self.transform_model.transform_names:
+        if not reader:
+            return
+        if reader.reader_type == "image":
+            menu = hp.make_menu(self)
+            hp.make_menu_item(self, "Add transform...", menu=menu, icon="add", func=self._parent.on_add_transform)
             hp.make_menu_item(
-                self,
-                transform,
-                menu=menu,
-                func=partial(self.on_select_transform, transform),
-                checkable=True,
-                checked=reader.transform_name == transform,
+                self, "Remove transform...", menu=menu, icon="remove", func=self._parent.on_remove_transform
             )
-        hp.show_right_of_mouse(menu)
+            menu.addSeparator()
+            for transform in self.transform_model.transform_names:
+                hp.make_menu_item(
+                    self,
+                    transform,
+                    menu=menu,
+                    func=partial(self.on_select_transform, transform),
+                    checkable=True,
+                    checked=reader.transform_name == transform,
+                )
+            hp.show_right_of_mouse(menu)
+        else:
+            options = get_resolution_options(self._parent.wrapper)
+            if len(options) > 1:
+                menu = hp.make_menu(self)
+                for resolution in options.values():
+                    hp.make_menu_item(
+                        self,
+                        f"{resolution:.5f}",
+                        menu=menu,
+                        func=partial(self.on_select_resolution, resolution),
+                        checkable=True,
+                        checked=reader.resolution == resolution,
+                    )
+                hp.show_right_of_mouse(menu)
 
     def on_select_transform(self, transform_name: str) -> None:
         """Select and apply transform."""
@@ -382,6 +406,10 @@ class QtDatasetItem(QFrame):
         reader.transform_data = deepcopy(transform_data)
         self.evt_transform.emit(self.key)
         logger.trace(f"Updated transformation matrix for '{self.key}'")
+
+    def on_select_resolution(self, resolution: float) -> None:
+        """Set resolution."""
+        self.resolution_label.setText(f"{resolution:.5f}")
 
     def on_open_directory(self) -> None:
         """Open directory where the image is located."""
@@ -399,6 +427,7 @@ class QtDatasetList(QScrollArea):
     evt_transform = Signal(str)
     evt_channel = Signal(bool, str)  # channel | dataset
     evt_channel_all = Signal(bool, list)  # list of channel | dataset
+    evt_refresh = Signal(str)
 
     evt_iter_add = Signal(str, int)
     evt_iter_remove = Signal(str, int)
@@ -469,6 +498,7 @@ class QtDatasetList(QScrollArea):
         widget.evt_iter_add.connect(self.evt_iter_add.emit)
         widget.evt_iter_remove.connect(self.evt_iter_remove.emit)
         widget.evt_iter_next.connect(self.evt_iter_next.emit)
+        widget.evt_refresh.connect(self.evt_refresh.emit)
         widget.evt_delete.connect(self.on_remove)
         self.widgets[key] = widget
         self._layout.insertWidget(0, widget)

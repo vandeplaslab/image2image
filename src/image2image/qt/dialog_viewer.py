@@ -22,7 +22,7 @@ from image2image.config import get_viewer_config
 from image2image.enums import ALLOWED_PROJECT_VIEWER_FORMATS
 from image2image.qt._dialog_mixins import SingleViewerMixin
 from image2image.qt._dialogs._select import LoadWidget
-from image2image.utils.utilities import ensure_extension
+from image2image.utils.utilities import ensure_extension, get_resolution_options
 
 if ty.TYPE_CHECKING:
     from image2image_io.readers import ShapesReader
@@ -449,27 +449,6 @@ class ImageViewerWindow(SingleViewerMixin):
     def _handle_key_press(self, key: int) -> bool:
         ignore = False
         return ignore
-
-
-def get_resolution_options(wrapper) -> dict[str, float]:
-    """Get resolution options."""
-    resolutions: dict[float, list[str]] = {}
-    for reader in wrapper.reader_iter():
-        if reader.reader_type != "image":
-            continue
-        if reader.resolution not in resolutions:
-            resolutions[reader.resolution] = []
-        resolutions[reader.resolution].append(reader.name)
-
-    options = {"Apply no scaling.": 1.0}
-    for resolution, names in resolutions.items():
-        if resolution == 1.0:
-            continue
-        datasets = "<br>".join(names)
-        # if len(datasets) > 120:
-        #     datasets = f"{datasets[:120]}..."
-        options[f"{resolution:.5f}µm<br>Like<br>{datasets}"] = resolution
-    return options
 
 
 if __name__ == "__main__":  # pragma: no cover
