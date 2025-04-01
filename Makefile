@@ -25,23 +25,6 @@ ifeq (watch,$(firstword $(MAKECMDGOALS)))
   $(eval $(WATCH_ARGS):;@:)
 endif
 
-# examples:
-# make watch ~/Desktop/Untitled.png
-# make watch -- -w animation  # -- is required for passing flags to autoims
-
-watch:
-	@echo "running: autoims $(WATCH_ARGS)"
-	@echo "Save any file to restart autoims\nCtrl-C to stop..\n" && \
-		watchmedo auto-restart -R \
-			--ignore-patterns="*.pyc*" -D \
-			--signal SIGKILL \
-			--directory src \
-			--interval 10 \
-            --verbose \
-			autoims -- $(WATCH_ARGS) || \
-		echo "please run 'pip install watchdog[watchmedo]'"
-
-
 .PHONY: untrack
 untrack:
 	git rm -r --cached .
