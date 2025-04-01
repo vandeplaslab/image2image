@@ -333,7 +333,7 @@ class SelectChannelsToLoadDialog(QtDialog):
         return layout
 
 
-class DatasetDialog(QtFramelessTool):
+class DatasetDialog(QtDialog):
     """Dialog window to select images and specify some parameters."""
 
     HIDE_WHEN_CLOSE = True
@@ -393,7 +393,7 @@ class DatasetDialog(QtFramelessTool):
         self.show_split_czi = show_split_czi
         self.confirm_czi = confirm_czi
         self.n_max = n_max
-        super().__init__(parent)
+        super().__init__(parent, title="Datasets")
 
         self.setMinimumWidth(600)
         self.setMinimumHeight(800)
@@ -414,7 +414,7 @@ class DatasetDialog(QtFramelessTool):
     # noinspection PyAttributeOutsideInit
     def make_panel(self) -> QFormLayout:
         """Make panel."""
-        _, header_layout = self._make_hide_handle(title="Datasets")
+        # _, header_layout = self._make_hide_handle(title="Datasets")
 
         self._list = QtDatasetList(self, self.allow_channels, self.allow_transform, self.allow_iterate, self.allow_save)
         self._toolbar = QtDatasetToolbar(self)
@@ -480,7 +480,7 @@ class DatasetDialog(QtFramelessTool):
         )
 
         layout = hp.make_form_layout(margin=6)
-        layout.addRow(header_layout)
+        # layout.addRow(header_layout)
 
         layout.addRow(hp.make_label(self, "How to load image data", bold=True))
         layout.addRow(
