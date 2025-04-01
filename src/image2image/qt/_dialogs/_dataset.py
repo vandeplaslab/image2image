@@ -414,8 +414,6 @@ class DatasetDialog(QtDialog):
     # noinspection PyAttributeOutsideInit
     def make_panel(self) -> QFormLayout:
         """Make panel."""
-        # _, header_layout = self._make_hide_handle(title="Datasets")
-
         self._list = QtDatasetList(self, self.allow_channels, self.allow_transform, self.allow_iterate, self.allow_save)
         self._toolbar = QtDatasetToolbar(self)
 
@@ -480,8 +478,6 @@ class DatasetDialog(QtDialog):
         )
 
         layout = hp.make_form_layout(margin=6)
-        # layout.addRow(header_layout)
-
         layout.addRow(hp.make_label(self, "How to load image data", bold=True))
         layout.addRow(
             hp.make_h_layout(
