@@ -1292,18 +1292,6 @@ class ImageRegistrationWindow(Window):
         """Update values in config."""
         self.CONFIG.as_uint8 = self.as_uint8.isChecked()
         self.CONFIG.tile_size = int(self.tile_size.currentText())
-        self.on_set_write_warning()
-
-    def on_set_write_warning(self) -> None:
-        """Set warning."""
-        tooltip = []
-        if self.CONFIG.as_uint8:
-            tooltip.append(
-                "- Images will be converted to uint8 to reduce file size. This can lead to data loss and should be used"
-                " with caution."
-            )
-        self.hidden_settings.warning_label.setToolTip("<br>".join(tooltip))
-        self.hidden_settings.set_warning_visible(len(tooltip) > 0)
 
     # noinspection PyAttributeOutsideInit
     def _setup_ui(self) -> None:
@@ -1408,7 +1396,6 @@ class ImageRegistrationWindow(Window):
             "Export transformed image",
             allow_checkbox=False,
             allow_icon=False,
-            warning_icon=("warning", {"color": THEMES.get_theme_color("warning")}),
         )
         hidden_settings.addRow(
             hp.make_label(
@@ -1952,7 +1939,8 @@ class ImageRegistrationWindow(Window):
             file = Path(url.toLocalFile() if url.isLocalFile() else url.toString())
             if len(file.suffixes) == 2 and file.suffixes[0] == ".i2r":
                 which = "fixed"
-        else:
+
+        if files and which is None:
             dlg = QtScrollablePickOption(
                 self,
                 "Please select which view would you like to add the image(s) to?",

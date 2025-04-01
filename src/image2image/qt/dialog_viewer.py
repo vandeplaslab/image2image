@@ -465,10 +465,10 @@ def get_resolution_options(wrapper) -> dict[str, float]:
     for resolution, names in resolutions.items():
         if resolution == 1.0:
             continue
-        datasets = ", ".join(names)
-        if len(datasets) > 120:
-            datasets = f"{datasets[:120]}..."
-        options[f"{resolution:.5f}µm\nLike: {datasets}"] = resolution
+        datasets = "<br>".join(names)
+        # if len(datasets) > 120:
+        #     datasets = f"{datasets[:120]}..."
+        options[f"{resolution:.5f}µm<br>Like<br>{datasets}"] = resolution
     return options
 
 

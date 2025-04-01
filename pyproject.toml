@@ -75,6 +75,11 @@ repository = "https://github.com/vandeplaslab/image2image"
 [project.scripts]
 image2image = "image2image.cli:cli"
 i2i = "image2image.cli:cli"
+i2viewer = "image2image.cli:cli_viewer"
+i2crop = "image2image.cli:cli_crop"
+i2convert = "image2image.cli:cli_convert"
+i2elastix = "image2image.cli:cli_elastix"
+i2register = "image2image.cli:cli_register"
 
 # Entry points
 # https://peps.python.org/pep-0621/#entry-points

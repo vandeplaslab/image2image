@@ -114,9 +114,9 @@ def handle_default(option: str, preprocessing: Preprocessing, valis: bool = Fals
         new_preprocessing = Preprocessing.he(**kwargs)
     elif option == "pas":
         new_preprocessing = Preprocessing.pas(**kwargs)
-    elif option == "postaf(e)":
+    elif option in ["postaf(e)", "postaf(egfp)"]:
         new_preprocessing = Preprocessing.postaf(which="egfp", **kwargs)
-    elif option == "postaf(b)":
+    elif option in ["postaf(b)", "postaf(brightfield)"]:
         new_preprocessing = Preprocessing.postaf(which="brightfield", **kwargs)
     elif option == "dapi":
         new_preprocessing = Preprocessing.dapi(**kwargs)
