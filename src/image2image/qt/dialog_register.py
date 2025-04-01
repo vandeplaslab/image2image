@@ -140,7 +140,6 @@ class ImageRegistrationWindow(Window):
         if self.CONFIG.first_time:
             hp.call_later(self, self.on_show_tutorial, 10_000)
         self._setup_config()
-        self.on_set_write_warning()
 
     @staticmethod
     def _setup_config() -> None:
