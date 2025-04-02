@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import os
 import typing as ty
-from functools import partial
 from pathlib import Path
 
 import numpy as np
@@ -363,6 +362,12 @@ class ImageWsiWindow(SingleViewerMixin):
         )
         hp.make_menu_item(
             self,
+            "Update colors - use bright palette",
+            menu=menu,
+            func=lambda _: self.modality_list.on_change_colors("bright"),
+        )
+        hp.make_menu_item(
+            self,
             "Update colors - use protanomaly-friendly palette",
             menu=menu,
             func=lambda _: self.modality_list.on_change_colors("protanomaly"),
@@ -388,9 +393,42 @@ class ImageWsiWindow(SingleViewerMixin):
         )
         hp.show_below_widget(menu, self.recolor_btn)
 
+    def on_sort(self) -> None:
+        """Sort modalities."""
+        menu = hp.make_menu(self)
+        hp.make_menu_item(
+            self,
+            "Sort by name (ascending)",
+            menu=menu,
+            func=lambda _: self.modality_list.on_sort_modalities("name", reverse=True),
+        )
+        hp.make_menu_item(
+            self,
+            "Sort by name (descending)",
+            menu=menu,
+            func=lambda _: self.modality_list.on_sort_modalities("name", reverse=False),
+        )
+        hp.make_menu_item(
+            self,
+            "Sort by path (ascending)",
+            menu=menu,
+            func=lambda _: self.modality_list.on_sort_modalities("path", reverse=True),
+        )
+        hp.make_menu_item(
+            self,
+            "Sort by path (descending)",
+            menu=menu,
+            func=lambda _: self.modality_list.on_sort_modalities("path", reverse=False),
+        )
+        hp.show_below_widget(menu, self.sort_btn)
+
     def on_apply(self) -> None:
         """Apply."""
         menu = hp.make_menu(self)
+        hp.make_menu_item(self, "Select channels...", menu=menu, func=self._on_select_channels)
+        if self.registration_model.n_registrations == 0:
+            hp.make_menu_item(self, "Rename...", menu=menu, func=self._on_rename)
+        menu.addSeparator()
         hp.make_menu_from_options(
             self,
             menu,
@@ -418,9 +456,6 @@ class ImageWsiWindow(SingleViewerMixin):
             ],
             func=self._on_apply_action,
         )
-        menu.addSeparator()
-        hp.make_menu_item(self, "Select channels...", menu=menu, func=self._on_select_channels)
-        # hp.make_menu_item(self, "Rename...", menu=menu, func=self._on_rename)
         hp.show_below_widget(menu, self.apply_btn)
 
     def _on_select_channels(self) -> None:
@@ -438,6 +473,22 @@ class ImageWsiWindow(SingleViewerMixin):
             modality.preprocessing.select_channels(channel_names=selected)
         self.modality_list.update_preprocessing_info()
         self.on_show_modalities()
+
+    def _on_rename(self) -> None:
+        """Rename channels."""
+        from qtextra.dialogs.qt_text_replace import QtTextReplace
+
+        names = list(self.registration_model.get_image_modalities(with_attachment=False))
+        dlg = QtTextReplace(self, names)
+        if dlg.exec_() == Qw.QDialog.DialogCode.Accepted:
+            new_names = dlg.new_texts
+            for old_name, new_name in zip(names, new_names):
+                if old_name == new_name:
+                    continue
+                modality = self.registration_model.modalities[old_name]
+                widget = self.modality_list.get_widget_for_modality(modality)
+                self.on_rename_modality(widget, new_name)
+                widget._set_from_model()
 
     def _on_apply_action(self, option: str) -> None:
         """Apply action."""
@@ -674,7 +725,7 @@ class ImageWsiWindow(SingleViewerMixin):
     def _make_visibility_options(self) -> None:
         self.apply_btn = hp.make_qta_btn(
             self,
-            "common",
+            "magic",
             tooltip="Apply pre-processing to all modalities",
             func=self.on_apply,
             normal=True,
@@ -699,8 +750,16 @@ class ImageWsiWindow(SingleViewerMixin):
         self.recolor_btn = hp.make_qta_btn(
             self,
             "color_palette",
-            tooltip="Update colors",
+            tooltip="Change colors...",
             func=self.on_recolor,
+            normal=True,
+            standout=True,
+        )
+        self.sort_btn = hp.make_qta_btn(
+            self,
+            "sort",
+            tooltip="Sort list by...",
+            func=self.on_sort,
             normal=True,
             standout=True,
         )

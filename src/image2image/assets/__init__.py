@@ -23,21 +23,20 @@ update_icon_mapping(
         # other
         "transform": "ri.drag-move-line",
         "preprocess": "fa5s.paint-brush",
-        "common": "fa5s.thumbs-up",
-        "replace": "msc.replace",
+        "approve": "fa5s.thumbs-up",
+        "common": "mdi.form-select",
         "extract": "fa6s.download",
-        "random": "fa5s.random",
-        "color_palette": "fa5s.palette",
-        "copy": "fa6.copy",
-        "copy_all": "fa6s.copy",
+        "magic": "mdi6.auto-fix",
         # wsireg
         "mask": "mdi6.drama-masks",
         "process": "msc.wand",
-        "graph": "mdi.graph",
         # "preview": "mdi6.image-edit",
         "preview": "mdi6.camera-iris",
         "attachment": "ri.attachment-2",
         "shapes": "fa5s.shapes",
+        "image": "mdi6.image",
+        "geojson": "msc.json",
+        "points": "mdi6.scatter-plot",
         # other
         "remove_single": "mdi.close-circle",
         "remove_multiple": "mdi.close-circle-multiple",
@@ -50,10 +49,6 @@ update_icon_mapping(
         "remove_image": "mdi6.close-circle-outline",
         "env": "fa5s.bookmark",
         "iterate": "mdi.view-carousel-outline",
-        # modality
-        "image": "mdi6.image",
-        "geojson": "msc.json",
-        "points": "mdi6.scatter-plot",
         # register app
         "fixed": "fa5s.anchor",
         "moving": "ri.drag-move-2-line",

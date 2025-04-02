@@ -360,21 +360,29 @@ class ShapesDialog(QtFramelessTool):
         if not copy_from:
             return
         copy_from_modality = self._parent.registration_model.modalities[copy_from]
-        if not self._check_if_has_mask(copy_from_modality) or not hp.confirm(
+        has_mask = self._check_if_has_mask(copy_from_modality)
+        if not hp.confirm(
             self,
-            f"Copy mask from {copy_from} to <b>all other</b> modalities?",
-            "Copy mask",
+            f"Copy mask from {copy_from} to <b>all other</b> modalities?"
+            if has_mask
+            else "Would you like to <b>remove</b> mask from <b>all</b> modalities?",
+            "Copy mask" if has_mask else "Remove mask",
         ):
             return
 
         for copy_to in self._parent.registration_model.get_image_modalities(with_attachment=False):
             if copy_to == copy_from:
                 continue
-            data = self._transform_from_preprocessing(copy_from_modality)
-            if data:
-                self.mask_layer.data = data or []
+            if has_mask:
+                data = self._transform_from_preprocessing(copy_from_modality)
+                if data:
+                    self.mask_layer.data = data or []
+                    copy_to_modality = self._parent.registration_model.modalities[copy_to]
+                    self.on_associate_mask_with_modality(copy_to_modality)
+                    self.evt_mask.emit(copy_to_modality)
+            else:
                 copy_to_modality = self._parent.registration_model.modalities[copy_to]
-                self.on_associate_mask_with_modality(copy_to_modality)
+                self.on_dissociate_mask_from_modality(copy_to_modality)
                 self.evt_mask.emit(copy_to_modality)
             logger.trace(f"Copied mask from {copy_from} to {copy_to}")
 
@@ -523,9 +531,9 @@ class MaskDialog(ShapesDialog):
         logger.trace(f"Added mask for modality {modality.name} to {kind}")
         self.evt_mask.emit(modality)
 
-    def on_dissociate_mask_from_modality(self) -> None:
+    def on_dissociate_mask_from_modality(self, modality: Modality | None = None) -> None:
         """Dissociate mask from modality."""
-        modality = self.current_modality
+        modality = modality or self.current_modality
         if not modality:
             return
         modality.preprocessing.mask_polygon = None
@@ -581,9 +589,9 @@ class CropDialog(ShapesDialog):
             self.evt_preview_transform_preprocessing.emit(modality, modality.preprocessing)
         self.evt_mask.emit(modality)
 
-    def on_dissociate_mask_from_modality(self) -> None:
+    def on_dissociate_mask_from_modality(self, modality: Modality | None = None) -> None:
         """Dissociate mask from modality."""
-        modality = self.current_modality
+        modality = modality or self.current_modality
         if not modality:
             return
         modality.preprocessing.crop_polygon = None

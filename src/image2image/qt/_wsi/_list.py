@@ -201,10 +201,10 @@ class QtModalityItem(QFrame):
         # column 1
         grid.addWidget(self.modality_icon, 0, 0)
         grid.addWidget(self.open_dir_btn, 1, 0)
-        grid.addWidget(self.remove_btn, 2, 0)
-        grid.addWidget(self.visible_btn, 3, 0)
-        grid.addWidget(self.mask_btn, 4, 0)
-        grid.addWidget(self.crop_btn, 5, 0)
+        grid.addWidget(self.visible_btn, 2, 0)
+        grid.addWidget(self.mask_btn, 3, 0)
+        grid.addWidget(self.crop_btn, 4, 0)
+        grid.addWidget(self.remove_btn, 5, 0)
         # column 2
         grid.addWidget(self.attach_image_btn, 3, 1)
         grid.addWidget(self.attach_geojson_btn, 4, 1)
@@ -728,9 +728,29 @@ class QtModalityList(QScrollArea):
 
     def on_change_colors(self, kind: str = "normal") -> None:
         """Update colors."""
+        global PALETTE
+
         for index, widget in enumerate(self.widget_iter()):
             color = get_next_color(index, kind)
             widget.color_btn.set_color(color)
+
+    def on_sort_modalities(self, kind: str = "name", reverse: bool = True) -> None:
+        """Sort modalities by name."""
+        from natsort import index_natsorted, order_by_index
+
+        # get values by which to sort
+        widgets = list(self.widget_iter())
+        if kind == "name":
+            sorted_by = [widget.modality.name for widget in widgets]
+        else:
+            sorted_by = [widget.modality.path for widget in widgets]
+        # obtain order of indices
+        indices = index_natsorted(sorted_by, reverse=reverse)
+        with suppress(RuntimeError):
+            for widget in widgets:
+                self._layout.removeWidget(widget)
+            for widget in order_by_index(widgets, indices):
+                self._layout.insertWidget(0, widget)
 
     def on_remove(self, modality: Modality, force: bool = False) -> None:
         """Remove image/modality from the list."""
@@ -807,19 +827,20 @@ class QtModalityList(QScrollArea):
 
 def get_next_color(n: int, kind: str = "normal") -> str:
     """Get next color."""
+    import glasbey
     from koyo.color import get_random_hex_color
 
     global PALETTE
 
-    if kind in ["protanomaly", "deuteranomaly", "tritanomaly", "normal"]:
+    if kind in ["protanomaly", "deuteranomaly", "tritanomaly", "normal", "bright"]:
         if PALETTE is None:
             PALETTE = {}
 
         if kind not in PALETTE:
-            import glasbey
-
             if kind in ["protanomaly", "deuteranomaly", "tritanomaly"]:
                 PALETTE[kind] = glasbey.create_palette(palette_size=256, colorblind_safe=True, cvd_type=kind)
+            elif kind == "bright":
+                PALETTE[kind] = glasbey.create_palette(palette_size=256, lightness_bounds=(40, 90))
             else:
                 PALETTE[kind] = glasbey.create_palette(palette_size=256)
         return PALETTE[kind][n]

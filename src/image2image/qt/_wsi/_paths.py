@@ -25,10 +25,16 @@ class RegistrationPaths(QWidget):
 
     evt_override = Signal()
 
-    def __init__(self, parent: QWidget | None = None):
+    def __init__(self, parent: RegistrationMap):
         super().__init__(parent)
+        self._parent: RegistrationMap = parent
         self.transformations = []
         self._init_ui()
+
+    @property
+    def registration_model(self) -> ElastixReg:
+        """Registration model."""
+        return self._parent.registration_model
 
     def _init_ui(self) -> None:
         self._choice = hp.make_combobox(
@@ -71,6 +77,15 @@ class RegistrationPaths(QWidget):
             self, "<please select transformations>", wrap=True, alignment=Qt.AlignmentFlag.AlignHCenter
         )
 
+        self.auto_create_btn = hp.make_qta_btn(
+            self,
+            "magic",
+            func=self.on_auto_create_paths,
+            tooltip="Automatically create registration paths.",
+            standout=True,
+            normal=True,
+        )
+
         layout = hp.make_form_layout(parent=self)
         layout.setContentsMargins(2, 2, 2, 2)
         layout.setSpacing(2)
@@ -85,6 +100,15 @@ class RegistrationPaths(QWidget):
                     standout=True,
                     normal=True,
                 ),
+                hp.make_qta_btn(
+                    self,
+                    "replace",
+                    func=self.evt_override.emit,
+                    tooltip="Override existing transformations on each set of paths using the existing selection.",
+                    standout=True,
+                    normal=True,
+                ),
+                self.auto_create_btn,
                 self._choice,
                 hp.make_qta_btn(
                     self,
@@ -103,44 +127,48 @@ class RegistrationPaths(QWidget):
                     standout=True,
                     normal=True,
                 ),
-                hp.make_qta_btn(
-                    self,
-                    "replace",
-                    func=self.evt_override.emit,
-                    tooltip="Override existing transformations on each set of paths using the existing selection.",
-                    standout=True,
-                    normal=True,
-                ),
-                stretch_id=(1,),
+                stretch_id=(4,),
                 spacing=2,
                 margin=(0, 0, 0, 0),
             )
         )
         layout.addRow(self._path)
 
+    def on_auto_create_paths(self) -> None:
+        """Automatically create registration paths."""
+        menu = hp.make_menu(self)
+        hp.make_menu_from_options(
+            self,
+            menu,
+            ["direct (A -> B)", "cascade (A -> C via B)"],
+            func=self._parent._on_create_paths,
+        )
+        hp.show_below_widget(menu, self.auto_create_btn)
+
     def on_select_from_common(self) -> None:
         """Select from list of common annotations."""
         menu = hp.make_menu(self)
-        for option in [
-            # linear only
-            "rigid » affine",
-            "rigid_expanded » affine_expanded",
-            "rigid_extreme » affine_extreme",
-            "rigid_extreme » affine_extreme » affine_extreme",
-            None,
-            # linear + non-linear
-            "rigid » affine » nl",
-            "rigid_expanded » affine_expanded » nl_expanded",
-            "rigid_extreme » affine_extreme » nl_extreme",
-            None,
-            "affine » nl",
-            "affine_expanded » nl_expanded",
-            "affine_extreme » nl_extreme",
-        ]:
-            if option is None:
-                menu.addSeparator()
-                continue
-            hp.make_menu_item(self, option, menu=menu, func=partial(self._on_select_from_common, option))
+        hp.make_menu_from_options(
+            self,
+            menu,
+            [
+                # linear only
+                "rigid » affine",
+                "rigid_expanded » affine_expanded",
+                "rigid_extreme » affine_extreme",
+                "rigid_extreme » affine_extreme » affine_extreme",
+                None,
+                # linear + non-linear
+                "rigid » affine » nl",
+                "rigid_expanded » affine_expanded » nl_expanded",
+                "rigid_extreme » affine_extreme » nl_extreme",
+                None,
+                "affine » nl",
+                "affine_expanded » nl_expanded",
+                "affine_extreme » nl_extreme",
+            ],
+            func=self._on_select_from_common,
+        )
         hp.show_below_widget(menu, self._choice)
 
     def _on_select_from_common(self, transformation: str) -> None:
@@ -314,11 +342,13 @@ class RegistrationMap(QWidget):
                 margin=0,
             ),
         )
-
         layout.addRow(
             hp.make_h_layout(
                 hp.make_btn(
-                    self, "Add path", func=self.on_add_path, tooltip="Add current registration path to the list."
+                    self,
+                    "Add path",
+                    func=self.on_add_path,
+                    tooltip="Add current registration path to the list.",
                 ),
                 hp.make_btn(
                     self,
@@ -326,7 +356,12 @@ class RegistrationMap(QWidget):
                     func=self.on_remove_path,
                     tooltip="Remove current registration path from the list.",
                 ),
-                hp.make_btn(self, "Reset", func=self.on_reset_paths),
+                hp.make_btn(
+                    self,
+                    "Reset",
+                    func=self.on_reset_paths,
+                    tooltip="Remove all registration paths. You will be asked to confirm.",
+                ),
                 spacing=2,
                 margin=0,
                 stretch_before=True,
@@ -439,6 +474,58 @@ class RegistrationMap(QWidget):
         self.toggle_name()
         self._log_message("Overwritten all registration paths.")
 
+    def _on_create_paths(self, option: str) -> None:
+        """Automatically create paths."""
+        names = natsorted(self.registration_model.get_image_modalities(with_attachment=False))
+        if not names or len(names) <= 1:
+            return
+
+        target = hp.choose_from_list(
+            self,
+            names,
+            title="Select target modality",
+            text="Please select the <b>target</b> modality.<br>This modality will be used as the fixed image.",
+            multiple=False,
+        )
+        if not target:
+            return
+        if not self.on_reset_paths():
+            return
+
+        kind = "cascade" if "cascade" in option else "direct"
+        target_index = names.index(target)
+
+        # direct registration is very simple, you go from A -> B, C -> B, etc
+        if kind == "direct":
+            for source in names:
+                if source == target:
+                    continue
+                self.registration_model.add_registration_path(
+                    source=source, target=target, transform=self._registration_path.registration_paths
+                )
+        # cascade registration is more complex because you must establish the through image
+        else:
+            indices = list(range(len(names)))
+            indices_before = indices[0:target_index]
+            indices_after = indices[target_index + 1 :]
+            for source_index in indices_before:
+                source = names[source_index]
+                # if index is immediately before target, then we don't have through modality
+                through = None if source_index == target_index - 1 else names[source_index + 1]
+                self.registration_model.add_registration_path(
+                    source=source, target=target, through=through, transform=self._registration_path.registration_paths
+                )
+            for source_index in reversed(indices_after):
+                source = names[source_index]
+                # if index is immediate after target, then we don't have through modality
+                through = None if source_index == target_index + 1 else names[source_index - 1]
+                self.registration_model.add_registration_path(
+                    source=source, target=target, through=through, transform=self._registration_path.registration_paths
+                )
+        self.populate_paths()
+        self.toggle_name()
+        self.validate()
+
     def on_add_path(self) -> None:
         """Add path."""
         valid, source, target, through, *_, path = self._get_registration_path_data()
@@ -477,16 +564,19 @@ class RegistrationMap(QWidget):
         self.validate()
         self._log_message(f"Removed registration path: {source} » {through} » {target}")
 
-    def on_reset_paths(self) -> None:
+    def on_reset_paths(self, force: bool = False) -> bool:
         """Reset all registration paths."""
-        if not hp.confirm(self, "Are you sure you want to reset all registration paths?", "Please confirm."):
-            return
-        registration_model: ElastixReg = self.registration_model
-        registration_model.reset_registration_paths()
-        self.populate_paths()
-        self.toggle_name()
-        self.validate()
-        self._log_message("Reset all registration paths.")
+        if self.registration_model.n_registrations == 0:
+            return True
+        if force or hp.confirm(self, "Are you sure you want to reset all registration paths?", "Please confirm."):
+            registration_model: ElastixReg = self.registration_model
+            registration_model.reset_registration_paths()
+            self.populate_paths()
+            self.toggle_name()
+            self.validate()
+            self._log_message("Reset all registration paths.")
+            return True
+        return False
 
     def toggle_name(self) -> None:
         """Toggle name."""

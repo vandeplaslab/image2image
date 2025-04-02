@@ -14,14 +14,14 @@ from natsort import natsorted
 from qtextra import helpers as hp
 from qtextra.utils.table_config import TableConfig
 from qtextra.utils.utilities import connect
-from qtextra.widgets.qt_dialog import QtDialog, QtFramelessTool
+from qtextra.widgets.qt_dialog import QtDialog
 from qtextra.widgets.qt_table_view_check import MultiColumnSingleValueProxyModel, QtCheckableTableView
 from qtpy.QtCore import QModelIndex, Qt, Signal  # type: ignore[attr-defined]
 from qtpy.QtGui import QDropEvent
 from qtpy.QtWidgets import QCheckBox, QDialog, QFormLayout, QLabel, QVBoxLayout, QWidget
 from superqt.utils import create_worker
 
-from image2image.config import STATE, SingleAppConfig, get_register_config
+from image2image.config import SingleAppConfig, get_register_config
 from image2image.enums import ALLOWED_IMAGE_FORMATS, ALLOWED_IMAGE_FORMATS_WITH_GEOJSON
 from image2image.exceptions import MultiSceneCziError, UnsupportedFileFormatError
 from image2image.qt._dialogs._list import QtDatasetList, QtDatasetToolbar

@@ -278,10 +278,11 @@ class ImageValisWindow(ImageWsiWindow):
                 self.show_all_btn,
                 self.hide_all_btn,
                 self.recolor_btn,
+                self.sort_btn,
                 self.filter_modalities_by,
                 margin=2,
                 spacing=2,
-                stretch_id=(4,),
+                stretch_id=(5,),
             )
         )
         side_layout.addRow(self.modality_list)

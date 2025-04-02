@@ -197,7 +197,7 @@ class PreprocessingDialog(QtFramelessTool):
             disabled=self.method.currentText() not in ["I2RegPreprocessor", "MaxIntensityProjection (no preview)"],
         )
 
-    @qdebounced(timeout=300, leading=False)
+    @qdebounced(timeout=500, leading=False)
     def on_preview_preprocessing(self) -> None:
         """Preview preprocessing."""
         if not self.preview_check.isChecked():
@@ -400,18 +400,16 @@ class PreprocessingDialog(QtFramelessTool):
         self.channel_table.setup_model(
             self.TABLE_CONFIG.header, self.TABLE_CONFIG.no_sort_columns, self.TABLE_CONFIG.hidden_columns
         )
-        if STATE.allow_filters:
-            self.table_proxy = MultiColumnSingleValueProxyModel(self)
-            self.table_proxy.setSourceModel(self.channel_table.model())
-            self.channel_table.model().table_proxy = self.table_proxy
-            self.channel_table.setModel(self.table_proxy)
-            self.filter_by_channel = hp.make_line_edit(
-                self,
-                placeholder="Type in channel name...",
-                func_changed=lambda text, col=self.TABLE_CONFIG.channel_name: self.table_proxy.setFilterByColumn(
-                    text, col
-                ),
-            )
+        self.table_proxy = MultiColumnSingleValueProxyModel(self)
+        self.table_proxy.setSourceModel(self.channel_table.model())
+        self.channel_table.model().table_proxy = self.table_proxy
+        self.channel_table.setModel(self.table_proxy)
+
+        self.filter_by_channel = hp.make_line_edit(
+            self,
+            placeholder="Type in channel name...",
+            func_changed=lambda text, col=self.TABLE_CONFIG.channel_name: self.table_proxy.setFilterByColumn(text, col),
+        )
 
         self.channel_table.evt_checked.connect(self.on_update_model)
 
@@ -548,8 +546,7 @@ class PreprocessingDialog(QtFramelessTool):
         layout.addRow("Contrast enhancement", self.contrast_check)
         layout.addRow("Invert intensity", self.invert_check)
         layout.addRow(self.channel_table)
-        if STATE.allow_filters:
-            layout.addRow(hp.make_h_layout(self.filter_by_channel, stretch_id=(0,), spacing=1))
+        layout.addRow(hp.make_h_layout(self.filter_by_channel, stretch_id=(0,), spacing=1))
         layout.addRow(hp.make_h_line_with_text("Spatial", self))
         layout.addRow("Flip", self.flip_choices_toggle)
         layout.addRow(
