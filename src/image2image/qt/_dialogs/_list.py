@@ -10,6 +10,7 @@ from pathlib import Path
 
 import qtextra.helpers as hp
 from koyo.timer import MeasureTimer
+from koyo.utilities import find_nearest_value_in_dict
 from loguru import logger
 from qtextra.utils.table_config import TableConfig
 from qtextra.widgets.qt_table_view_check import MultiColumnSingleValueProxyModel, QtCheckableTableView
@@ -249,7 +250,9 @@ class QtDatasetItem(QFrame):
                 data.append([False, index, channel_name])
             self.table.append_data(data)
             self.table.enable_all_check = self.table.row_count() < 20
-            self.setMinimumHeight((250 if len(data) > 5 else 150) if self.allow_channels else 100)
+            self.setMinimumHeight(
+                find_nearest_value_in_dict({1: 150, 4: 200, 10: 300}, len(data)) if self.allow_channels else 100,
+            )
         logger.trace(f"Updated channel table - {len(data)} rows for {reader.name}.")
 
     def select_channel(self, channel_name: str, state: bool) -> None:
