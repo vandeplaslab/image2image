@@ -16,11 +16,24 @@ from PyInstaller.utils.hooks import (
 )
 
 import image2image
-from image2image.assets import ICON_ICO
+from image2image.assets import ICON_ICO as ICON_APP_ICO
+# TODO change to it's own icon
+from image2image.assets import ICON_ICO as ICON_REG_ICO
 
 block_cipher = None
-DEBUG_MODE = os.getenv("PYINSTALLER_DEBUG", "all")
+# allowed values: all, imports, bootloader, noarchive
+DEBUG_MODE = os.getenv("PYINSTALLER_DEBUG", False)
+# allowed values: debug, info, warning, error, critical
+LOG_MODE = os.getenv("PYINSTALLER_LOG", "DEBUG")
+# allowed values: hide-early, minimize-late, minimize-early, hide-late
+CONSOLE_MODE = os.getenv("PYINSTALLER_CONSOLE", "hide-early")
+
+# allowed values: true, false
 BUILD_REG = os.getenv("IMAGE2IMAGE_BUILD_REG", "true")
+
+FILE_DIR = Path.cwd()
+BASE_DIR = FILE_DIR.parent.parent
+GITHUB_DIR = BASE_DIR.parent
 
 
 def collect_pkg_data(package, include_py_files=False, subdir=None):
@@ -46,6 +59,7 @@ def collect_pkg_data(package, include_py_files=False, subdir=None):
 
 
 def _make_analysis(path: str):
+    print(f"Make analysis for {path}")
     return Analysis(
         [path],
         binaries=[],
@@ -63,41 +77,41 @@ def _make_analysis(path: str):
     )
 
 
-def _make_exe(pyz: PYZ, analysis: Analysis, name: str):
+def _make_exe(pyz: PYZ, analysis: Analysis, name: str, icon: Path = ICON_APP_ICO):
     """Make the executable."""
     return EXE(
         pyz,
         analysis.scripts,
         exclude_binaries=True,
         name=name,
-        debug="all",
+        debug=DEBUG_MODE,
         strip=False,
         upx=True,
         console=True,  # False,
-        hide_console="hide-early",
+        hide_console=CONSOLE_MODE,
         bootloader_ignore_signals=False,
-        icon=ICON_ICO,
+        icon=icon,
     )
 
 
 # main app / launcher
 with MeasureTimer() as timer:
     # app
-    launcher_analysis = _make_analysis("../../src/image2image/__main__.py")
+    launcher_analysis = _make_analysis(str(BASE_DIR / "src" / "image2image" / "__main__.py"))
     print(f"Analysis (app) took {timer.format(timer.elapsed_since_last())}")
     launcher_pyz = PYZ(launcher_analysis.pure)
     print(f"PYZ (app) took {timer.format(timer.elapsed_since_last())}")
-    launcher_exe = _make_exe(launcher_pyz, launcher_analysis, "image2image")
+    launcher_exe = _make_exe(launcher_pyz, launcher_analysis, "image2image", icon=ICON_APP_ICO)
     print(f"EXE (app) took {timer.format(timer.elapsed_since_last())}")
 
     # registration
     extra_args = ()
-    if BUILD_REG:
-        reg_analysis = _make_analysis("../../src/image2image_reg/__main__.py")
+    if BUILD_REG == "true":
+        reg_analysis = _make_analysis(str(GITHUB_DIR / "image2image-reg" / "src" / "image2image_reg" / "__main__.py"))
         print(f"Analysis (reg) took {timer.format(timer.elapsed_since_last())}")
         reg_pyz = PYZ(reg_analysis.pure)
         print(f"PYZ (reg) took {timer.format(timer.elapsed_since_last())}")
-        reg_exe = _make_exe(reg_pyz, reg_analysis, "i2reg")
+        reg_exe = _make_exe(reg_pyz, reg_analysis, "i2reg", icon=ICON_REG_ICO)
         print(f"EXE (reg) took {timer.format(timer.elapsed_since_last())}")
         extra_args = (
             reg_exe,
@@ -117,7 +131,7 @@ with MeasureTimer() as timer:
         *extra_args,
         # other options
         strip=False,
-        debug="all",
+        debug=DEBUG_MODE,
         upx=True,
         name="image2image",
     )
