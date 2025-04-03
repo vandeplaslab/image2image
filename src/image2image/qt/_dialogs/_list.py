@@ -190,7 +190,7 @@ class QtDatasetItem(QFrame):
 
     def eventFilter(self, recv, event):
         """Event filter."""
-        if event.type() == QEvent.FocusOut and not self.resolution_label.hasFocus():
+        if event.type() == QEvent.Type.FocusOut and not self.resolution_label.hasFocus():
             if self.resolution_label.text() == "":
                 reader = self.get_model()
                 self.resolution_label.setText(f"{reader.resolution:.5f}")

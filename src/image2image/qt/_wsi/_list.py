@@ -233,7 +233,7 @@ class QtModalityItem(QFrame):
 
     def eventFilter(self, recv, event):
         """Event filter."""
-        if event.type() == QEvent.FocusOut:
+        if event.type() == QEvent.Type.FocusOut:
             modality = self.modality
             if not self.resolution_label.hasFocus() and self.resolution_label.text() == "":
                 self.resolution_label.setText(f"{modality.pixel_size:.5f}")
