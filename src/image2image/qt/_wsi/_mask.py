@@ -388,7 +388,7 @@ class ShapesDialog(QtFramelessTool):
 
     def eventFilter(self, recv, event):
         """Event filter."""
-        if event.type() == QEvent.Enter:
+        if event.type() == QEvent.Type.Enter:
             self.mask_layer  # noqa
         return super().eventFilter(recv, event)
 
