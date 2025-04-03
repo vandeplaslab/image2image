@@ -1,7 +1,6 @@
 """PyInstaller setup script."""
 
 import os
-import time
 from pathlib import Path
 
 import imagecodecs
@@ -19,8 +18,9 @@ from PyInstaller.utils.hooks import (
 import image2image
 from image2image.assets import ICON_ICO
 
-time_start = time.time()
 block_cipher = None
+DEBUG_MODE = os.getenv("PYINSTALLER_DEBUG", "all")
+BUILD_REG = os.getenv("IMAGE2IMAGE_BUILD_REG", "true")
 
 
 def collect_pkg_data(package, include_py_files=False, subdir=None):
@@ -91,12 +91,20 @@ with MeasureTimer() as timer:
     print(f"EXE (app) took {timer.format(timer.elapsed_since_last())}")
 
     # registration
-    reg_analysis = _make_analysis("../../src/image2image_reg/__main__.py")
-    print(f"Analysis (reg) took {timer.format(timer.elapsed_since_last())}")
-    reg_pyz = PYZ(reg_analysis.pure)
-    print(f"PYZ (reg) took {timer.format(timer.elapsed_since_last())}")
-    reg_exe = _make_exe(reg_pyz, reg_analysis, "i2reg")
-    print(f"EXE (reg) took {timer.format(timer.elapsed_since_last())}")
+    extra_args = ()
+    if BUILD_REG:
+        reg_analysis = _make_analysis("../../src/image2image_reg/__main__.py")
+        print(f"Analysis (reg) took {timer.format(timer.elapsed_since_last())}")
+        reg_pyz = PYZ(reg_analysis.pure)
+        print(f"PYZ (reg) took {timer.format(timer.elapsed_since_last())}")
+        reg_exe = _make_exe(reg_pyz, reg_analysis, "i2reg")
+        print(f"EXE (reg) took {timer.format(timer.elapsed_since_last())}")
+        extra_args = (
+            reg_exe,
+            reg_analysis.binaries,
+            reg_analysis.zipfiles,
+            reg_analysis.datas,
+        )
 
     # collect all
     image2image_coll = COLLECT(
@@ -106,10 +114,7 @@ with MeasureTimer() as timer:
         launcher_analysis.zipfiles,
         launcher_analysis.datas,
         # reg
-        reg_exe,
-        reg_analysis.binaries,
-        reg_analysis.zipfiles,
-        reg_analysis.datas,
+        *extra_args,
         # other options
         strip=False,
         debug="all",
@@ -120,5 +125,4 @@ with MeasureTimer() as timer:
 
 
 # Give information about build time
-time_end = time.time()
-print(f"Build image2image in {time_end - time_start:.2f} seconds\n")
+print(f"Build image2image in {timer()}")
