@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import typing as ty
 from contextlib import suppress
-from functools import partial
 from pathlib import Path
 
 import numpy as np
@@ -16,7 +15,7 @@ from koyo.typing import PathLike
 from loguru import logger
 from napari.layers import Image
 from qtextra.widgets.qt_button_icon import QtLockButton, QtVisibleButton
-from qtpy.QtCore import QEvent, QRegularExpression, Qt, Signal, Slot  # type: ignore[attr-defined]
+from qtpy.QtCore import QEvent, QRegularExpression, Qt, Signal  # type: ignore[attr-defined]
 from qtpy.QtGui import QRegularExpressionValidator
 from qtpy.QtWidgets import QDialog, QFrame, QGridLayout, QScrollArea, QSizePolicy, QWidget
 from superqt import QLabeledDoubleSlider

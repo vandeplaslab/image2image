@@ -4,7 +4,6 @@ import os
 import time
 from pathlib import Path
 
-import debugpy._vendored
 import imagecodecs
 import napari
 import qtpy
@@ -50,25 +49,8 @@ def _make_analysis(path: str):
     return Analysis(
         [path],
         binaries=[],
-        datas=[]
-        + collect_data_files("qtextra")
-        + collect_data_files("qtextraplot")
-        + collect_data_files("napari")
-        + collect_data_files("xmlschema")
-        + collect_data_files("ome_types")
-        + collect_data_files("distributed")
-        + collect_data_files("image2image")
-        + collect_data_files("freetype")
-        + collect_data_files("xmlschema")
-        + [(os.path.dirname(debugpy._vendored.__file__), "debugpy/_vendored")],
-        hiddenimports=[]
-        + [
-            "pkg_resources",
-            "six",
-            "qtpy",
-            "freetype",
-            "magicgui.backends._qtpy",
-        ],
+        datas=[],
+        hiddenimports=[],
         hookspath=[
             "../_hooks",
         ],

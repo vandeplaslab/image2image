@@ -14,7 +14,7 @@ from loguru import logger
 from qtextra.utils.table_config import TableConfig
 from qtextra.widgets.qt_table_view_check import MultiColumnSingleValueProxyModel, QtCheckableTableView
 from qtextra.widgets.qt_toolbar_mini import QtMiniToolbar
-from qtpy.QtCore import QEvent, QRegularExpression, Qt, Signal, Slot  # type: ignore[attr-defined]
+from qtpy.QtCore import QEvent, QRegularExpression, Qt, Signal  # type: ignore[attr-defined]
 from qtpy.QtGui import QRegularExpressionValidator
 from qtpy.QtWidgets import QDialog, QFrame, QGridLayout, QScrollArea, QSizePolicy, QWidget
 from superqt.utils import create_worker, qdebounced

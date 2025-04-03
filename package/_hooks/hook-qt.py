@@ -1,7 +1,9 @@
-from PyInstaller.utils.hooks import collect_data_files, collect_submodules
 from qtpy import PYQT5, PYQT6, PYSIDE2, PYSIDE6
 
-hiddenimports = []
+hiddenimports = [
+    "qtpy",
+    "magicgui.backends._qtpy",
+]
 if PYQT5:
     hiddenimports += [
         "pyqt5",

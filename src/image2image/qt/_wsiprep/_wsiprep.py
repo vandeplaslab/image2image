@@ -29,7 +29,7 @@ if ty.TYPE_CHECKING:
     from qtextraplot._napari.image.wrapper import NapariImageView
 
     from image2image.models.wsiprep import Registration, RegistrationGroup
-    from image2image.qt.dialog_wsiprep import ImageWsiPrepWindow
+    from image2image.qt.dialog_elastix3d import ImageElastix3dWindow
 
 
 class WsiPrepMixin(QtFramelessTool):
@@ -37,7 +37,7 @@ class WsiPrepMixin(QtFramelessTool):
 
     HIDE_WHEN_CLOSE = True
 
-    parent: ty.Callable[[], ImageWsiPrepWindow]
+    parent: ty.Callable[[], ImageElastix3dWindow]
 
     @property
     def view(self) -> NapariImageView:
@@ -65,7 +65,7 @@ class GroupByDialog(WsiPrepMixin):
 
     HIDE_WHEN_CLOSE = True
 
-    def __init__(self, parent: ImageWsiPrepWindow):
+    def __init__(self, parent: ImageElastix3dWindow):
         super().__init__(parent)
         self.setMinimumWidth(400)
         self.on_preview_group_by()
@@ -253,7 +253,7 @@ class MaskDialog(WsiPrepMixin):
     HIDE_WHEN_CLOSE = True
     _editing = False
 
-    def __init__(self, parent: ImageWsiPrepWindow):
+    def __init__(self, parent: ImageElastix3dWindow):
         super().__init__(parent)
         self.setMinimumWidth(400)
         self.setMinimumHeight(300)
@@ -363,7 +363,7 @@ class MaskDialog(WsiPrepMixin):
         if not group:
             return
         with self._editing_crop():
-            if ELASTIX3D_CONFIG.view_mode == "group":
+            if get_elastix3d_config().view_mode == "group":
                 self.parent().groups_choice.setCurrentText(current)
             if group.mask_polygon is None and group.mask_bbox is None:
                 self.crop_layer.data = []
@@ -492,11 +492,11 @@ class ConfigDialog(WsiPrepMixin):
     HIDE_WHEN_CLOSE = True
     _output_dir = None
 
-    def __init__(self, parent: ImageWsiPrepWindow):
+    def __init__(self, parent: ImageElastix3dWindow):
         super().__init__(parent)
         self.setMinimumWidth(400)
         self.setMinimumHeight(500)
-        self.transformations = list(ELASTIX3D_CONFIG.transformations)
+        self.transformations = list(get_elastix3d_config().transformations)
         self._update_transformation_path()
         self._update_indexing_mode()
 
@@ -511,17 +511,17 @@ class ConfigDialog(WsiPrepMixin):
     def output_dir(self) -> Path:
         """Output directory."""
         if self._output_dir is None:
-            if ELASTIX3D_CONFIG.output_dir is None:
+            if get_elastix3d_config().output_dir is None:
                 return Path.cwd()
-            return Path(ELASTIX3D_CONFIG.output_dir)
+            return Path(get_elastix3d_config().output_dir)
         return Path(self._output_dir)
 
     def on_set_output_dir(self):
         """Set output directory."""
-        directory = hp.get_directory(self, "Select output directory", ELASTIX3D_CONFIG.output_dir)
+        directory = hp.get_directory(self, "Select output directory", get_elastix3d_config().output_dir)
         if directory:
             self._output_dir = directory
-            ELASTIX3D_CONFIG.output_dir = directory
+            get_elastix3d_config().output_dir = directory
             self.output_dir_label.setText(f"<b>Output directory</b>: {hp.hyper(self.output_dir)}")
             logger.debug(f"Output directory set to {self._output_dir}")
 
@@ -543,7 +543,7 @@ class ConfigDialog(WsiPrepMixin):
 
     def _get_project_name(self, group: RegistrationGroup | None) -> str:
         project_prefix, project_suffix = self._get_suffix_prefix()
-        ELASTIX3D_CONFIG.project_tag = project_tag = self.project_tag.text() or "group"
+        get_elastix3d_config().project_tag = project_tag = self.project_tag.text() or "group"
         if group:
             return f"{project_prefix}{project_tag}={group.group_id}{project_suffix}.wsireg"
         return f"{project_prefix}{project_tag}{project_suffix}.wsireg"
@@ -563,9 +563,9 @@ class ConfigDialog(WsiPrepMixin):
             hp.toast(self, "No registration selected", "Please select at least one registration type", icon="warning")
             return
 
-        ELASTIX3D_CONFIG.slide_tag = prefix = self.tag_prefix.text()
-        ELASTIX3D_CONFIG.project_prefix_tag = self.project_prefix.text()
-        ELASTIX3D_CONFIG.project_suffix_tag = self.project_suffix.text()
+        get_elastix3d_config().slide_tag = prefix = self.tag_prefix.text()
+        get_elastix3d_config().project_prefix_tag = self.project_prefix.text()
+        get_elastix3d_config().project_suffix_tag = self.project_suffix.text()
         index_mode = self.index_choice.currentText() or "auto"
         export_mode = self.export_type.currentText()
         first_only = self.first_channel_only.isChecked()
@@ -611,9 +611,9 @@ class ConfigDialog(WsiPrepMixin):
             return
         logger.trace(f"Generating configs for {n} groups...")
         preview = ""
-        ELASTIX3D_CONFIG.slide_tag = prefix = self.tag_prefix.text()
-        ELASTIX3D_CONFIG.project_prefix_tag = self.project_prefix.text()
-        ELASTIX3D_CONFIG.project_suffix_tag = self.project_suffix.text()
+        get_elastix3d_config().slide_tag = prefix = self.tag_prefix.text()
+        get_elastix3d_config().project_prefix_tag = self.project_prefix.text()
+        get_elastix3d_config().project_suffix_tag = self.project_suffix.text()
         index_mode = self.index_choice.currentText() or "auto"
         target_mode = self.target_mode.currentText()
         for _group_id, group in tqdm(self.registration.groups.items(), desc="Previewing...", total=n):
@@ -633,13 +633,13 @@ class ConfigDialog(WsiPrepMixin):
         """Add transformation to the list."""
         current = self.transformation_choice.currentText()
         self.transformations.append(current)
-        ELASTIX3D_CONFIG.transformations = tuple(self.transformations)
+        get_elastix3d_config().transformations = tuple(self.transformations)
         self._update_transformation_path()
 
     def on_reset_transformation(self) -> None:
         """Reset transformation list."""
         self.transformations = []
-        ELASTIX3D_CONFIG.transformations = tuple(self.transformations)
+        get_elastix3d_config().transformations = tuple(self.transformations)
         self._update_transformation_path()
 
     def _update_transformation_path(self) -> None:
@@ -696,21 +696,27 @@ class ConfigDialog(WsiPrepMixin):
         self.index_choice = hp.make_combobox(self, ["auto"], func=self.on_preview)
         self.transformation_path = hp.make_label(self, "<please select transformations>", wrap=True)
         self.tag_prefix = hp.make_line_edit(
-            self, placeholder="Slide/section prefix", default=ELASTIX3D_CONFIG.slide_tag, func_changed=self.on_preview
+            self,
+            placeholder="Slide/section prefix",
+            default=get_elastix3d_config().slide_tag,
+            func_changed=self.on_preview,
         )
         self.project_tag = hp.make_line_edit(
-            self, placeholder="Group/project tag", default=ELASTIX3D_CONFIG.project_tag, func_changed=self.on_preview
+            self,
+            placeholder="Group/project tag",
+            default=get_elastix3d_config().project_tag,
+            func_changed=self.on_preview,
         )
         self.project_prefix = hp.make_line_edit(
             self,
             placeholder="Project prefix",
-            default=ELASTIX3D_CONFIG.project_prefix_tag,
+            default=get_elastix3d_config().project_prefix_tag,
             func_changed=self.on_preview,
         )
         self.project_suffix = hp.make_line_edit(
             self,
             placeholder="Project suffix",
-            default=ELASTIX3D_CONFIG.project_suffix_tag,
+            default=get_elastix3d_config().project_suffix_tag,
             func_changed=self.on_preview,
         )
         self.export_type = hp.make_combobox(

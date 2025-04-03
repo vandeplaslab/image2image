@@ -296,7 +296,6 @@ class PreprocessingDialog(QtFramelessTool):
 
     def on_set_defaults(self, text: str) -> None:
         """Set defaults."""
-        from image2image_reg.models import Preprocessing
 
         if not hp.confirm(
             self, f"Are you sure you want to set to <b>{text}</b> defaults? This will overwrite other settings."

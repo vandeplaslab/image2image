@@ -66,6 +66,6 @@ class BaseModel(_BaseModel):
         path = Path(path)
         if path.suffix == ".json":
             return cls.from_json(path)
-        elif path.suffix == ".toml":
+        if path.suffix == ".toml":
             return cls.from_toml(path)
         raise ValueError(f"Unknown file format: '{path.suffix}'")

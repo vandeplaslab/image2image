@@ -7,7 +7,7 @@ import typing as ty
 from loguru import logger
 from qtextra import helpers as hp
 from qtextra.widgets.qt_dialog import QtFramelessTool
-from qtpy.QtCore import Qt, Signal  # type: ignore[attr-defined]
+from qtpy.QtCore import Signal  # type: ignore[attr-defined]
 from qtpy.QtWidgets import QFormLayout
 
 if ty.TYPE_CHECKING:
