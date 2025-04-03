@@ -7,16 +7,10 @@ import imagecodecs
 import napari
 import qtpy
 from koyo.timer import MeasureTimer
+import debugpy._vendored
 from PyInstaller.building.build_main import COLLECT, EXE, MERGE, PYZ, TOC, Analysis
 from PyInstaller.utils.hooks import (
-    PY_IGNORE_EXTENSIONS,
-    collect_all,
-    collect_data_files,
-    collect_dynamic_libs,
-    collect_submodules,
-    copy_metadata,
-    get_package_paths,
-    remove_prefix,
+    collect_data_files
 )
 
 import image2image
@@ -30,8 +24,16 @@ def _make_analysis(path: str):
     return Analysis(
         [path],
         binaries=[],
-        datas=[],
-        hiddenimports=[],
+        datas=[] + collect_data_files("qtextra")
+              + collect_data_files("qtextraplot")
+              + collect_data_files("image2image")
+              + collect_data_files("napari")
+              + collect_data_files("xmlschema")
+              + collect_data_files("ome_types")
+              + collect_data_files("distributed")
+              + collect_data_files("freetype")
+              + [(os.path.dirname(debugpy._vendored.__file__), "debugpy/_vendored")],
+        hiddenimports=["freetype", "six", "pkg_resources"],
         hookspath=["../_hooks"],
         runtime_hooks=[
             "../_runtimehooks/hook-bundle.py",

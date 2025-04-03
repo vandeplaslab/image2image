@@ -6,6 +6,7 @@ from pathlib import Path
 import imagecodecs
 import napari
 import qtpy
+import debugpy._vendored
 from koyo.timer import MeasureTimer
 from PyInstaller.building.build_main import COLLECT, EXE, MERGE, PYZ, TOC, Analysis
 from PyInstaller.utils.hooks import (
@@ -63,8 +64,16 @@ def _make_analysis(path: str):
     return Analysis(
         [path],
         binaries=[],
-        datas=[],
-        hiddenimports=[],
+        datas=[] +     collect_data_files("qtextra")
+    + collect_data_files("qtextraplot")
+    + collect_data_files("image2image")
+    +     collect_data_files("napari")
+    + collect_data_files("xmlschema")
+    + collect_data_files("ome_types")
+    + collect_data_files("distributed")
+    + collect_data_files("freetype")
+    + [(os.path.dirname(debugpy._vendored.__file__), "debugpy/_vendored")],
+        hiddenimports=["freetype", "six", "pkg_resources"],
         hookspath=[
             "../_hooks",
         ],
@@ -96,14 +105,6 @@ def _make_exe(pyz: PYZ, analysis: Analysis, name: str, icon: Path = ICON_APP_ICO
 
 # main app / launcher
 with MeasureTimer() as timer:
-    # app
-    launcher_analysis = _make_analysis(str(BASE_DIR / "src" / "image2image" / "__main__.py"))
-    print(f"Analysis (app) took {timer.format(timer.elapsed_since_last())}")
-    launcher_pyz = PYZ(launcher_analysis.pure)
-    print(f"PYZ (app) took {timer.format(timer.elapsed_since_last())}")
-    launcher_exe = _make_exe(launcher_pyz, launcher_analysis, "image2image", icon=ICON_APP_ICO)
-    print(f"EXE (app) took {timer.format(timer.elapsed_since_last())}")
-
     # registration
     extra_args = ()
     if BUILD_REG == "true":
@@ -120,15 +121,23 @@ with MeasureTimer() as timer:
             reg_analysis.datas,
         )
 
+    # app
+    launcher_analysis = _make_analysis(str(BASE_DIR / "src" / "image2image" / "__main__.py"))
+    print(f"Analysis (app) took {timer.format(timer.elapsed_since_last())}")
+    launcher_pyz = PYZ(launcher_analysis.pure)
+    print(f"PYZ (app) took {timer.format(timer.elapsed_since_last())}")
+    launcher_exe = _make_exe(launcher_pyz, launcher_analysis, "image2image", icon=ICON_APP_ICO)
+    print(f"EXE (app) took {timer.format(timer.elapsed_since_last())}")
+
     # collect all
     image2image_coll = COLLECT(
+        # reg
+        *extra_args,
         # launcher
         launcher_exe,
         launcher_analysis.binaries,
         launcher_analysis.zipfiles,
         launcher_analysis.datas,
-        # reg
-        *extra_args,
         # other options
         strip=False,
         debug=DEBUG_MODE,
