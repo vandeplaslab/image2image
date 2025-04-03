@@ -82,14 +82,21 @@ def _make_exe(pyz: PYZ, analysis: Analysis, name: str):
 
 # main app / launcher
 with MeasureTimer() as timer:
+    # app
     launcher_analysis = _make_analysis("../../src/image2image/__main__.py")
-    print(f"Analysis took {timer.format(timer.elapsed_since_last())}")
-
+    print(f"Analysis (app) took {timer.format(timer.elapsed_since_last())}")
     launcher_pyz = PYZ(launcher_analysis.pure)
-    print(f"PYZ took {timer.format(timer.elapsed_since_last())}")
-
+    print(f"PYZ (app) took {timer.format(timer.elapsed_since_last())}")
     launcher_exe = _make_exe(launcher_pyz, launcher_analysis, "image2image")
-    print(f"EXE took {timer.format(timer.elapsed_since_last())}")
+    print(f"EXE (app) took {timer.format(timer.elapsed_since_last())}")
+
+    # registration
+    reg_analysis = _make_analysis("../../src/image2image_reg/__main__.py")
+    print(f"Analysis (reg) took {timer.format(timer.elapsed_since_last())}")
+    reg_pyz = PYZ(reg_analysis.pure)
+    print(f"PYZ (reg) took {timer.format(timer.elapsed_since_last())}")
+    reg_exe = _make_exe(reg_pyz, reg_analysis, "i2reg")
+    print(f"EXE (reg) took {timer.format(timer.elapsed_since_last())}")
 
     # collect all
     image2image_coll = COLLECT(
@@ -98,19 +105,19 @@ with MeasureTimer() as timer:
         launcher_analysis.binaries,
         launcher_analysis.zipfiles,
         launcher_analysis.datas,
+        # reg
+        reg_exe,
+        reg_analysis.binaries,
+        reg_analysis.zipfiles,
+        reg_analysis.datas,
+        # other options
         strip=False,
         debug="all",
         upx=True,
         name="image2image",
     )
-    print(f"COLLECT took {timer.format(timer.elapsed_since_last())}")
+    print(f"COLLECT (all) took {timer.format(timer.elapsed_since_last())}")
 
-
-# # create launcher bat scripts
-# for tool in ["viewer", "register", "convert", "crop", "elastix", "valis"]:
-#     with open(f"dist/image2image/{tool}.bat", "w") as f:
-#         f.write(f"@echo off\ncall image2image.exe --debug -t {tool}")
-#         f.close()
 
 # Give information about build time
 time_end = time.time()
