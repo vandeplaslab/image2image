@@ -404,5 +404,29 @@ def main() -> None:
     cli.main(windows_expand_args=False)  # type: ignore[attr-defined]
 
 
+def main_viewer() -> None:
+    """Execute the "i2i" command line program."""
+    freeze_support()
+    if sys.platform == "darwin":
+        set_start_method("spawn", True)
+    cli_viewer.main(windows_expand_args=False)  # type: ignore[attr-defined]
+
+
+def main_elastix() -> None:
+    """Execute the "i2i" command line program."""
+    freeze_support()
+    if sys.platform == "darwin":
+        set_start_method("spawn", True)
+    cli_elastix.main(windows_expand_args=False)  # type: ignore[attr-defined]
+
+
+def main_register() -> None:
+    """Execute the "i2i" command line program."""
+    freeze_support()
+    if sys.platform == "darwin":
+        set_start_method("spawn", True)
+    cli_register.main(windows_expand_args=False)  # type: ignore[attr-defined]
+
+
 if __name__ == "__main__":
     main()

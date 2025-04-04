@@ -32,8 +32,20 @@ if ($help) {
     "
     Exit
 }
-# activate environment
-conda activate image2image_package
+# print paths
+$start_dir = $pwd
+echo "Current directory: " $start_dir.Path
+$github_dir = $start_dir | Split-Path | Split-Path | Split-Path
+echo "Github directory: " $github_dir
+$i2i_dir = Join-Path -Path $github_dir -ChildPath "image2image" -Resolve
+# activate venv environment
+$venv_activate = Join-Path -Path $i2i_dir -ChildPath "venv_package" | Join-Path -ChildPath "Scripts" | Join-Path -ChildPath "activate.ps1"
+echo "Venv script location: " $venv_activate
+& $venv_activate
+
+# activate conda environment
+# conda activate image2image_package
+
 if ($activate) {
     Exit
 }
@@ -48,11 +60,6 @@ if ($debug) {
 $python_ver = &{python -V} 2>&1
 echo "Python version "$python_ver
 
-$start_dir = $pwd
-echo "Current directory: " $start_dir.Path
-$github_dir = $start_dir | Split-Path | Split-Path | Split-Path
-echo "Github directory: " $github_dir
-
 
 # update all dependencies and app
 if ($update) {
@@ -66,7 +73,7 @@ if ($update) {
 if ($update_pip) {
     $pip_install.Add("napari==0.5.6")
     $pip_install.Add("pydantic>=2")
-    $pip_install.Add("pyside6")
+    $pip_install.Add("pyqt6")
     $pip_install.Add("pyinstaller")
     $pip_install.Add("numba<0.60")
 }
@@ -135,6 +142,9 @@ foreach ($package in $pip_install) {
     echo "Reinstalled $package"
 }
 
+# uninstall pdbpp
+uv pip uninstall pdbpp
+
 
 # Get path
 $filename = "image2image.spec"
@@ -143,9 +153,9 @@ $filename = "image2image.spec"
 Write-Output "Filename: $filename"
 # if ($debug) {
 pyinstaller.exe --noconfirm --clean $filename
-#  --hide-console hide-early
+
 # Copy runner script
-Copy-Item -Path "run_image2image.bat" -Destination "dist/"
+# Copy-Item -Path "run_image2image.bat" -Destination "dist/"
 
 if ($zip) {
     echo "Zipping files..."

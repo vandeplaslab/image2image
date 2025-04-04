@@ -1,11 +1,11 @@
 # Create Windows environment for development
-uv venv venv2 -p 3.10
+uv venv venv_package -p 3.10
 
 # Activate the virtual environment
-.\venv2\Scripts\Activate.ps1
+.\venv_package\Scripts\Activate.ps1
 
 # Install the required packages
-uv pip install PySide2
+uv pip install pyqt6
 uv pip install -e .
 
 # Install other packages

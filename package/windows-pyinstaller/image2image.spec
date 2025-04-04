@@ -18,23 +18,28 @@ from PyInstaller.utils.hooks import (
 
 import image2image
 from image2image.assets import ICON_ICO as ICON_APP_ICO
+
 # TODO change to it's own icon
 from image2image.assets import ICON_ICO as ICON_REG_ICO
 
 block_cipher = None
 # allowed values: all, imports, bootloader, noarchive
-DEBUG_MODE = os.getenv("PYINSTALLER_DEBUG", False)
+DEBUG_MODE = os.getenv("PYINSTALLER_DEBUG", "imports")
 # allowed values: debug, info, warning, error, critical
 LOG_MODE = os.getenv("PYINSTALLER_LOG", "DEBUG")
 # allowed values: hide-early, minimize-late, minimize-early, hide-late
 CONSOLE_MODE = os.getenv("PYINSTALLER_CONSOLE", "hide-early")
 
 # allowed values: true, false
-BUILD_REG = os.getenv("IMAGE2IMAGE_BUILD_REG", "true")
+BUILD_I2REG = os.getenv("IMAGE2IMAGE_BUILD_I2REG", "false")
+BUILD_REGISTER = os.getenv("IMAGE2IMAGE_BUILD_REGISTER", "false")
+BUILD_VIEWER = os.getenv("IMAGE2IMAGE_BUILD_VIEWER", "false")
+BUILD_ELASTIX = os.getenv("IMAGE2IMAGE_BUILD_ELASTIX", "false")
 
 FILE_DIR = Path.cwd()
 BASE_DIR = FILE_DIR.parent.parent
 GITHUB_DIR = BASE_DIR.parent
+# C:\Users\vandeplaslab\miniconda3\envs\image2image\Lib\site-packages\_pdbpp_path_hack\pdb.py
 
 
 def collect_pkg_data(package, include_py_files=False, subdir=None):
@@ -59,21 +64,37 @@ def collect_pkg_data(package, include_py_files=False, subdir=None):
     return data_toc
 
 
-def _make_analysis(path: str):
+def _make_analysis(path: str, ui: bool = True):
     print(f"Make analysis for {path}")
+    datas = []
+    hiddenimports = []
+    if ui:
+        datas = (
+            []
+            + collect_data_files("qtextra")
+            + collect_data_files("qtextraplot")
+            + collect_data_files("image2image")
+            + collect_data_files("napari")
+            + collect_data_files("freetype")
+            + collect_data_files("glasbey")
+            + collect_data_files("sklearn")
+            + [(os.path.dirname(debugpy._vendored.__file__), "debugpy/_vendored")],
+        )
+        hiddenimports = [
+            "freetype",
+            "six",
+            "pkg_resources",
+            "glasbey",
+        ]
+
     return Analysis(
         [path],
         binaries=[],
-        datas=[] +     collect_data_files("qtextra")
-    + collect_data_files("qtextraplot")
-    + collect_data_files("image2image")
-    +     collect_data_files("napari")
-    + collect_data_files("xmlschema")
-    + collect_data_files("ome_types")
-    + collect_data_files("distributed")
-    + collect_data_files("freetype")
-    + [(os.path.dirname(debugpy._vendored.__file__), "debugpy/_vendored")],
-        hiddenimports=["freetype", "six", "pkg_resources"],
+        datas=datas
+        + collect_data_files("ome_types")
+        + collect_data_files("distributed")
+        + collect_data_files("xmlschema"),
+        hiddenimports=hiddenimports,
         hookspath=[
             "../_hooks",
         ],
@@ -103,17 +124,67 @@ def _make_exe(pyz: PYZ, analysis: Analysis, name: str, icon: Path = ICON_APP_ICO
     )
 
 
+def _make_app(path: str, name: str, icon: Path = ICON_APP_ICO, ui: bool = True):
+    analysis = _make_analysis(str(path), ui=ui)
+    print(f"Analysis ({name}) took {timer.format(timer.elapsed_since_last())}")
+    pyz = PYZ(analysis.pure)
+    print(f"PYZ ({name}) took {timer.format(timer.elapsed_since_last())}")
+    exe = _make_exe(pyz, analysis, name, icon=icon)
+    print(f"EXE ({name}) took {timer.format(timer.elapsed_since_last())}")
+    return exe, analysis
+
+
 # main app / launcher
 with MeasureTimer() as timer:
-    # registration
     extra_args = ()
-    if BUILD_REG == "true":
-        reg_analysis = _make_analysis(str(GITHUB_DIR / "image2image-reg" / "src" / "image2image_reg" / "__main__.py"))
-        print(f"Analysis (reg) took {timer.format(timer.elapsed_since_last())}")
-        reg_pyz = PYZ(reg_analysis.pure)
-        print(f"PYZ (reg) took {timer.format(timer.elapsed_since_last())}")
-        reg_exe = _make_exe(reg_pyz, reg_analysis, "i2reg", icon=ICON_REG_ICO)
-        print(f"EXE (reg) took {timer.format(timer.elapsed_since_last())}")
+
+    # app
+    launcher_exe, launcher_analysis = _make_app(
+        BASE_DIR / "src" / "image2image" / "__main__.py", "image2image", icon=ICON_APP_ICO
+    )
+
+    # viewer
+    if BUILD_VIEWER == "true":
+        viewer_exe, viewer_analysis = _make_app(
+            BASE_DIR / "src" / "image2image" / "__main_viewer__.py", "i2viewer", icon=ICON_APP_ICO
+        )
+        extra_args = (
+            viewer_exe,
+            viewer_analysis.binaries,
+            viewer_analysis.zipfiles,
+            viewer_analysis.datas,
+        )
+    # register
+    if BUILD_REGISTER == "true":
+        register_exe, register_analysis = _make_app(
+            BASE_DIR / "src" / "image2image" / "__main_register__.py", "i2register", icon=ICON_APP_ICO
+        )
+        extra_args = (
+            register_exe,
+            register_analysis.binaries,
+            register_analysis.zipfiles,
+            register_analysis.datas,
+        )
+    # elastix
+    if BUILD_ELASTIX == "true":
+        elastix_exe, elastix_analysis = _make_app(
+            BASE_DIR / "src" / "image2image" / "__main_elastix__.py", "i2elastix", icon=ICON_APP_ICO
+        )
+        extra_args = (
+            elastix_exe,
+            elastix_analysis.binaries,
+            elastix_analysis.zipfiles,
+            elastix_analysis.datas,
+        )
+
+    # image2image-reg
+    if BUILD_I2REG == "true":
+        reg_exe, reg_analysis = _make_app(
+            GITHUB_DIR / "image2image-reg" / "src" / "image2image_reg" / "__main__.py",
+            "i2reg",
+            icon=ICON_APP_ICO,
+            ui=False,
+        )
         extra_args = (
             reg_exe,
             reg_analysis.binaries,
@@ -121,23 +192,15 @@ with MeasureTimer() as timer:
             reg_analysis.datas,
         )
 
-    # app
-    launcher_analysis = _make_analysis(str(BASE_DIR / "src" / "image2image" / "__main__.py"))
-    print(f"Analysis (app) took {timer.format(timer.elapsed_since_last())}")
-    launcher_pyz = PYZ(launcher_analysis.pure)
-    print(f"PYZ (app) took {timer.format(timer.elapsed_since_last())}")
-    launcher_exe = _make_exe(launcher_pyz, launcher_analysis, "image2image", icon=ICON_APP_ICO)
-    print(f"EXE (app) took {timer.format(timer.elapsed_since_last())}")
-
     # collect all
     image2image_coll = COLLECT(
-        # reg
-        *extra_args,
         # launcher
         launcher_exe,
         launcher_analysis.binaries,
         launcher_analysis.zipfiles,
         launcher_analysis.datas,
+        # other apps
+        *extra_args,
         # other options
         strip=False,
         debug=DEBUG_MODE,
