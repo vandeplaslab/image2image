@@ -3,15 +3,13 @@
 import os
 from pathlib import Path
 
+import debugpy._vendored
 import imagecodecs
 import napari
 import qtpy
 from koyo.timer import MeasureTimer
-import debugpy._vendored
 from PyInstaller.building.build_main import COLLECT, EXE, MERGE, PYZ, TOC, Analysis
-from PyInstaller.utils.hooks import (
-    collect_data_files
-)
+from PyInstaller.utils.hooks import collect_data_files
 
 import image2image
 from image2image.assets import ICON_ICO
@@ -24,17 +22,16 @@ def _make_analysis(path: str):
     return Analysis(
         [path],
         binaries=[],
-        datas=[] + collect_data_files("qtextra")
-              + collect_data_files("qtextraplot")
-              + collect_data_files("image2image")
-              + collect_data_files("napari")
-              + collect_data_files("xmlschema")
-              + collect_data_files("ome_types")
-              + collect_data_files("distributed")
-              + collect_data_files("freetype")
-              + collect_data_files("glasbey")
-              + collect_data_files("sklearn")
-              + [(os.path.dirname(debugpy._vendored.__file__), "debugpy/_vendored")],
+        datas=[]
+        + collect_data_files("qtextra")
+        + collect_data_files("qtextraplot")
+        + collect_data_files("image2image")
+        + collect_data_files("napari")
+        + collect_data_files("xmlschema")
+        + collect_data_files("ome_types")
+        + collect_data_files("distributed")
+        + collect_data_files("freetype")
+        + [(os.path.dirname(debugpy._vendored.__file__), "debugpy/_vendored")],
         hiddenimports=["freetype", "six", "pkg_resources"],
         hookspath=["../_hooks"],
         runtime_hooks=[

@@ -17,7 +17,6 @@ from qtextra.queue.popup import QUEUE
 from qtextra.queue.task import Task
 from qtextra.utils.utilities import connect
 from qtpy.QtWidgets import QSizePolicy, QWidget
-import IPython.core.debugger
 
 from image2image import __version__
 from image2image.config import get_elastix_config

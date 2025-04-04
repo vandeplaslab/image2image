@@ -3,10 +3,10 @@
 import os
 from pathlib import Path
 
+import debugpy._vendored
 import imagecodecs
 import napari
 import qtpy
-import debugpy._vendored
 from koyo.timer import MeasureTimer
 from PyInstaller.building.build_main import COLLECT, EXE, MERGE, PYZ, TOC, Analysis
 from PyInstaller.utils.hooks import (
@@ -148,13 +148,17 @@ with MeasureTimer() as timer:
 
     # app
     launcher_exe, launcher_analysis = _make_app(
-        BASE_DIR / "src" / "image2image" / "__main__.py", "image2image", icon=ICON_APP_ICO,
+        BASE_DIR / "src" / "image2image" / "__main__.py",
+        "image2image",
+        icon=ICON_APP_ICO,
     )
 
     # viewer
     if BUILD_VIEWER == "true":
         viewer_exe, viewer_analysis = _make_app(
-            BASE_DIR / "src" / "image2image" / "__main_viewer__.py", "i2viewer", icon=ICON_APP_ICO,
+            BASE_DIR / "src" / "image2image" / "__main_viewer__.py",
+            "i2viewer",
+            icon=ICON_APP_ICO,
         )
         extra_args += (
             viewer_exe,
@@ -165,7 +169,9 @@ with MeasureTimer() as timer:
     # register
     if BUILD_REGISTER == "true":
         register_exe, register_analysis = _make_app(
-            BASE_DIR / "src" / "image2image" / "__main_register__.py", "i2register", icon=ICON_APP_ICO,
+            BASE_DIR / "src" / "image2image" / "__main_register__.py",
+            "i2register",
+            icon=ICON_APP_ICO,
         )
         extra_args += (
             register_exe,
@@ -176,7 +182,9 @@ with MeasureTimer() as timer:
     # elastix
     if BUILD_ELASTIX == "true":
         elastix_exe, elastix_analysis = _make_app(
-            BASE_DIR / "src" / "image2image" / "__main_elastix__.py", "i2elastix", icon=ICON_APP_ICO,
+            BASE_DIR / "src" / "image2image" / "__main_elastix__.py",
+            "i2elastix",
+            icon=ICON_APP_ICO,
         )
         extra_args += (
             elastix_exe,
