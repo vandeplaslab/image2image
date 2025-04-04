@@ -148,15 +148,15 @@ with MeasureTimer() as timer:
 
     # app
     launcher_exe, launcher_analysis = _make_app(
-        BASE_DIR / "src" / "image2image" / "__main__.py", "image2image", icon=ICON_APP_ICO
+        BASE_DIR / "src" / "image2image" / "__main__.py", "image2image", icon=ICON_APP_ICO,
     )
 
     # viewer
     if BUILD_VIEWER == "true":
         viewer_exe, viewer_analysis = _make_app(
-            BASE_DIR / "src" / "image2image" / "__main_viewer__.py", "i2viewer", icon=ICON_APP_ICO
+            BASE_DIR / "src" / "image2image" / "__main_viewer__.py", "i2viewer", icon=ICON_APP_ICO,
         )
-        extra_args = (
+        extra_args += (
             viewer_exe,
             viewer_analysis.binaries,
             viewer_analysis.zipfiles,
@@ -165,9 +165,9 @@ with MeasureTimer() as timer:
     # register
     if BUILD_REGISTER == "true":
         register_exe, register_analysis = _make_app(
-            BASE_DIR / "src" / "image2image" / "__main_register__.py", "i2register", icon=ICON_APP_ICO
+            BASE_DIR / "src" / "image2image" / "__main_register__.py", "i2register", icon=ICON_APP_ICO,
         )
-        extra_args = (
+        extra_args += (
             register_exe,
             register_analysis.binaries,
             register_analysis.zipfiles,
@@ -176,9 +176,9 @@ with MeasureTimer() as timer:
     # elastix
     if BUILD_ELASTIX == "true":
         elastix_exe, elastix_analysis = _make_app(
-            BASE_DIR / "src" / "image2image" / "__main_elastix__.py", "i2elastix", icon=ICON_APP_ICO
+            BASE_DIR / "src" / "image2image" / "__main_elastix__.py", "i2elastix", icon=ICON_APP_ICO,
         )
-        extra_args = (
+        extra_args += (
             elastix_exe,
             elastix_analysis.binaries,
             elastix_analysis.zipfiles,
@@ -193,7 +193,7 @@ with MeasureTimer() as timer:
             icon=ICON_APP_ICO,
             ui=False,
         )
-        extra_args = (
+        extra_args += (
             reg_exe,
             reg_analysis.binaries,
             reg_analysis.zipfiles,
