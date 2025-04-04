@@ -25,21 +25,29 @@ from image2image.assets import ICON_ICO as ICON_REG_ICO
 block_cipher = None
 # allowed values: all, imports, bootloader, noarchive
 DEBUG_MODE = os.getenv("PYINSTALLER_DEBUG", "imports")
+print("DEBUG_MODE", DEBUG_MODE)
 # allowed values: debug, info, warning, error, critical
 LOG_MODE = os.getenv("PYINSTALLER_LOG", "DEBUG")
+print("LOG_MODE", LOG_MODE)
+
 # allowed values: hide-early, minimize-late, minimize-early, hide-late
 CONSOLE_MODE = os.getenv("PYINSTALLER_CONSOLE", "hide-early")
+print("CONSOLE_MODE", CONSOLE_MODE)
+
 
 # allowed values: true, false
-BUILD_I2REG = os.getenv("IMAGE2IMAGE_BUILD_I2REG", "false")
-BUILD_REGISTER = os.getenv("IMAGE2IMAGE_BUILD_REGISTER", "false")
-BUILD_VIEWER = os.getenv("IMAGE2IMAGE_BUILD_VIEWER", "false")
-BUILD_ELASTIX = os.getenv("IMAGE2IMAGE_BUILD_ELASTIX", "false")
+BUILD_I2REG = os.getenv("IMAGE2IMAGE_BUILD_I2REG", "true")
+print("BUILD_I2REG", BUILD_I2REG)
+BUILD_REGISTER = os.getenv("IMAGE2IMAGE_BUILD_REGISTER", "true")
+print("BUILD_REGISTER", BUILD_REGISTER)
+BUILD_VIEWER = os.getenv("IMAGE2IMAGE_BUILD_VIEWER", "true")
+print("BUILD_VIEWER", BUILD_VIEWER)
+BUILD_ELASTIX = os.getenv("IMAGE2IMAGE_BUILD_ELASTIX", "true")
+print("BUILD_ELASTIX", BUILD_ELASTIX)
 
 FILE_DIR = Path.cwd()
 BASE_DIR = FILE_DIR.parent.parent
 GITHUB_DIR = BASE_DIR.parent
-# C:\Users\vandeplaslab\miniconda3\envs\image2image\Lib\site-packages\_pdbpp_path_hack\pdb.py
 
 
 def collect_pkg_data(package, include_py_files=False, subdir=None):
