@@ -32,6 +32,8 @@ def _make_analysis(path: str):
               + collect_data_files("ome_types")
               + collect_data_files("distributed")
               + collect_data_files("freetype")
+              + collect_data_files("glasbey")
+              + collect_data_files("sklearn")
               + [(os.path.dirname(debugpy._vendored.__file__), "debugpy/_vendored")],
         hiddenimports=["freetype", "six", "pkg_resources"],
         hookspath=["../_hooks"],
