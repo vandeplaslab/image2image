@@ -129,11 +129,8 @@ class ChannelRenameDialog(MixinDialog):
     def make_panel(self) -> QFormLayout:
         """Make panel."""
         self.table = QtCheckableTableView(self, config=self.TABLE_CONFIG, enable_all_check=True, sortable=True)
-        self.table.setCornerButtonEnabled(False)
         hp.set_font(self.table)
-        self.table.setup_model(
-            self.TABLE_CONFIG.header, self.TABLE_CONFIG.no_sort_columns, self.TABLE_CONFIG.hidden_columns
-        )
+        self.table.setup_model_from_config(self.TABLE_CONFIG)
         self.table.evt_double_clicked.connect(self.on_edit)
         self.table.evt_checked.connect(self.on_edit_state)
 

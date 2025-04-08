@@ -722,7 +722,7 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
     def on_show_update_info(self) -> None:
         """Show information about available updates."""
         from koyo.release import format_version, get_latest_git
-        from qtextra.dialogs.changelog import ChangelogDialog
+        from qtextra.dialogs.qt_changelog import ChangelogDialog
 
         data = get_latest_git(package="image2image-docs")
         text = format_version(data)

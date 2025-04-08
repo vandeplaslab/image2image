@@ -97,10 +97,8 @@ class ExtractChannelsDialog(QtDialog):
 
         self.table = QtCheckableTableView(self, config=self.TABLE_CONFIG, enable_all_check=False, sortable=False)
         self.table.setCornerButtonEnabled(False)
+        self.table.setup_model_from_config(self.TABLE_CONFIG)
         hp.set_font(self.table)
-        self.table.setup_model(
-            self.TABLE_CONFIG.header, self.TABLE_CONFIG.no_sort_columns, self.TABLE_CONFIG.hidden_columns
-        )
 
         layout = hp.make_form_layout(parent=self)
         layout.addRow(
