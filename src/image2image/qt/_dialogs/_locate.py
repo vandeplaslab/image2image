@@ -186,8 +186,9 @@ class LocateFilesDialog(QtDialog):
         layout.addRow(
             hp.make_label(
                 self,
-                "At least one file read from the configuration file is no longer at the specified path."
-                " Please locate it on your hard drive or it won't be imported.",
+                "At least one file read from the configuration file is <b>no longer at the specified path</b>."
+                "<br>Please locate it on your hard drive by <b>specifying directory where it might be located</b> or "
+                " it won't be imported.",
                 alignment=Qt.AlignmentFlag.AlignHCenter,  # type: ignore[attr-defined]
             )
         )
