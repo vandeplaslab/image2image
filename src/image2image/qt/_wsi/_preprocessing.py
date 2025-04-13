@@ -515,7 +515,7 @@ class PreprocessingDialog(QtFramelessTool):
 
         _, title_layout = self._make_close_handle("Pre-processing")
         color_icon = hp.make_swatch(self, self.color, tooltip="Color of the modality (for reference only).")
-        color_icon.set_enabled(False)
+        color_icon.setEnabled(False)
         title_layout.insertWidget(0, color_icon)
 
         layout = hp.make_form_layout()
