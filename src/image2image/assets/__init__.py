@@ -23,10 +23,8 @@ update_icon_mapping(
         # other
         "transform": "ri.drag-move-line",
         "preprocess": "fa5s.paint-brush",
-        "approve": "fa5s.thumbs-up",
         "common": "mdi.form-select",
         "extract": "fa6s.download",
-        "magic": "mdi6.auto-fix",
         # wsireg
         "mask": "mdi6.drama-masks",
         "process": "msc.wand",
