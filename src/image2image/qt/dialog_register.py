@@ -1580,7 +1580,7 @@ class ImageRegistrationWindow(Window):
         view_layout.setContentsMargins(5, 0, 0, 0)
         view_layout.setSpacing(1)
         view_layout.addLayout(self._make_fixed_view())
-        view_layout.addLayout(info)  # type: ignore[attr-defined]
+        view_layout.addWidget(info)
         view_layout.addLayout(self._make_moving_view())
         return view_layout
 
@@ -1887,6 +1887,19 @@ class ImageRegistrationWindow(Window):
 
     def on_toggle_transformed_view_type(self) -> None:
         """Toggle between image and random."""
+        reader = self.get_current_moving_reader()
+        is_overlay = READER_CONFIG.view_type == "overlay"
+        if (
+            is_overlay
+            and reader
+            and max(reader.image_shape) > 10_000
+            and not hp.confirm(
+                self,
+                "The image is quite large to be displayed as random image.<br>Do you wish to <b>continue</b>?",
+                "Warning",
+            )
+        ):
+            return
         hp.increment_combobox(self._moving_widget.view_type_choice, 1)
         hp.notification(
             self,
