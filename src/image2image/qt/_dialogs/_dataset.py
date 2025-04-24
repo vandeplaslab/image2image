@@ -132,7 +132,7 @@ class CloseDatasetDialog(QtDialog):
         layout.addWidget(hp.make_h_line())
         layout.addWidget(scroll_widget, stretch=True)
         layout.addWidget(self.all_check)
-        layout.addLayout(hp.make_h_line_with_text("Filter"))
+        layout.addWidget(hp.make_h_line_with_text("Filter"))
         layout.addWidget(self.filter_by_name)
         layout.addLayout(
             hp.make_h_layout(

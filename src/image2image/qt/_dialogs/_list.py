@@ -97,7 +97,7 @@ class QtDatasetItem(QFrame):
         self.resolution_label.setFixedWidth(100)
 
         self.shape_label = hp.make_label(
-            self, "", tooltip="Shape of the modality (shape, (number of images in pyramid)."
+            self, "", tooltip="Shape of the modality (shape, (number of images in pyramid))."
         )
         self.dtype_label = hp.make_label(self, "", tooltip="Data type of the modality.")
         self.size_label = hp.make_label(self, "", tooltip="Uncompressed size of the modality in GB.")
