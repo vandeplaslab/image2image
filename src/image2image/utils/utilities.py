@@ -405,6 +405,30 @@ def get_contrast_limits(array: list[np.ndarray]) -> tuple[tuple[float, float] | 
     return data_range, max_range
 
 
+def get_simple_contrast_limits(
+    array: list[np.ndarray],
+) -> tuple[tuple[float, float] | None, tuple[float, float] | None]:
+    """Estimate contrast limits."""
+    from napari.layers.utils.layer_utils import calc_data_range
+
+    if len(array) == 0:
+        return None, None
+
+    array_ = array[0] if len(array) == 1 else array[-1]
+
+    data_range, max_range = None, None
+    if 1e5 > array_.size < 1e7:
+        array_ = array_[::50, ::50]
+    elif array_.size > 1e7:
+        array_ = array_[::100, ::100]
+    elif array_.dtype in [np.int16, np.int32, np.uint16]:
+        max_range = np.iinfo(array_.dtype).min, np.iinfo(array_.dtype).max
+
+    if data_range is None:
+        data_range = (0, np.quantile(array_, 0.99))
+    return data_range, max_range
+
+
 def vispy_colormap(color: str | np.ndarray) -> VispyColormap:
     """Return vispy colormap."""
     from napari.utils.colormaps.colormap_utils import convert_vispy_colormap

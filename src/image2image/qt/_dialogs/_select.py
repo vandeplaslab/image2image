@@ -11,6 +11,7 @@ import qtextra.helpers as hp
 from image2image_io.config import CONFIG as READER_CONFIG
 from koyo.typing import PathLike
 from loguru import logger
+from natsort import natsorted
 from qtextra.utils.utilities import connect
 from qtextra.widgets.qt_label_icon import QtActiveIcon
 from qtpy.QtCore import Qt, Signal  # type: ignore[attr-defined]
@@ -298,7 +299,7 @@ class MovingWidget(LoadWidget):
 
     def _on_update_choice(self, _model: object | None = None, _channel_list: list[str] | None = None) -> None:
         """Update list of available options."""
-        datasets = self.model.dataset_names("image")
+        datasets = natsorted(self.model.dataset_names("image"))
         hp.combobox_setter(self.dataset_choice, clear=True, items=datasets)
         self._on_update_transformed_choice()
 

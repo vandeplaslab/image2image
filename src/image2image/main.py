@@ -145,7 +145,7 @@ def run(
             from image2image.qt.dialog_register import ImageRegistrationWindow
 
             dlg = ImageRegistrationWindow(None, run_check_version=run_check_version, **kwargs)  # type: ignore[assignment]
-            dlg.setMinimumSize(1200, 800)
+            dlg.setMinimumSize(1800, 1200)
         elif tool == "viewer":
             from image2image.qt.dialog_viewer import ImageViewerWindow
 

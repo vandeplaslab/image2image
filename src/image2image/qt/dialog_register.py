@@ -41,6 +41,7 @@ from image2image.utils.utilities import (
     _get_text_format,
     ensure_extension,
     get_colormap,
+    get_simple_contrast_limits,
     init_points_layer,
 )
 
@@ -453,6 +454,11 @@ class ImageRegistrationWindow(Window):
                 if name in self.view_moving.layers:
                     is_visible = self.view_moving.layers[name].visible
                     del self.view_moving.layers[name]
+                if is_overlay:
+                    contrast_limits, contrast_limits_range = get_simple_contrast_limits(array)
+                else:
+                    contrast_limits = None
+                    contrast_limits_range = None
                 moving_image_layer.append(
                     self.view_moving.viewer.add_image(
                         array,
@@ -461,8 +467,11 @@ class ImageRegistrationWindow(Window):
                         colormap=colormap,
                         visible=is_visible and name in channel_list,
                         affine=initial_affine,
+                        contrast_limits=contrast_limits,
                     )
                 )
+            if contrast_limits_range:
+                moving_image_layer[-1].contrast_limits_range = contrast_limits_range
             logger.trace(f"Added '{name}' to fixed view with {initial_affine.flatten()} in {timer()}.")
         # hide away other layers if user selected 'random' view
         if READER_CONFIG.view_type == ViewType.RANDOM:
@@ -470,6 +479,14 @@ class ImageRegistrationWindow(Window):
                 if index > 0:
                     layer.visible = False
         self.moving_image_layer = moving_image_layer
+
+    def on_update_contrast_limits(self) -> None:
+        """Update contrast limits in all visible layers in the moving image."""
+        for layer in self.view_moving.layers:
+            if isinstance(layer, Image) and layer.visible:
+                contrast_limits = get_simple_contrast_limits(layer.data)
+                layer.contrast_limits = contrast_limits
+                layer.contrast_limits_range = contrast_limits
 
     def on_change_view_type(self, _view_type: str) -> None:
         """Change view type."""
