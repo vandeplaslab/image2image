@@ -63,6 +63,7 @@ class LoadWidget(QWidget):
         self.allow_export_project = allow_export_project
         self.CONFIG = config
         super().__init__(parent)
+        self._parent = parent
         self.view = view
         self.n_max = n_max
         self.model: DataModel = DataModel(is_fixed=self.IS_FIXED)
@@ -258,7 +259,8 @@ class MovingWidget(LoadWidget):
 
     # events
     evt_dataset_select = Signal(str)
-    evt_show_transformed = Signal(str)
+    evt_show_moving_channel = Signal(str)
+    evt_show_fixed_channel = Signal(str)
     evt_view_type = Signal(object)
 
     def __init__(
@@ -307,59 +309,100 @@ class MovingWidget(LoadWidget):
         """Update list of available options."""
         current = self.dataset_choice.currentText()
         hp.combobox_setter(
-            self.transformed_choice, clear=True, items=["None", *self.model.get_channel_names_for_keys([current])]
+            self.displayed_in_fixed_choice,
+            clear=True,
+            items=["None", *self.model.get_channel_names_for_keys([current])],
         )
-        self._on_toggle_transformed(self.transformed_choice.currentText())
+        hp.combobox_setter(
+            self.displayed_in_moving_choice,
+            clear=True,
+            items=self.model.get_channel_names_for_keys([current]),
+        )
+        self._on_toggle_fixed_channel(self.displayed_in_fixed_choice.currentText())
 
     def _on_clear_choice(self, _model: object) -> None:
         """Clear list of available options."""
         self._on_update_choice()
         self._on_update_transformed_choice()
-        self._on_toggle_transformed(self.transformed_choice.currentText())
+        self._on_toggle_fixed_channel(self.displayed_in_fixed_choice.currentText())
 
     def _setup_ui(self) -> QFormLayout:
         """Setup UI."""
         layout = super()._setup_ui()
 
-        self.view_type_choice = hp.make_combobox(
+        self.view_type_choice = hp.make_toggle(
             self,
-            data=VIEW_TYPE_TRANSLATIONS,
-            value=str(READER_CONFIG.view_type),
+            *list(VIEW_TYPE_TRANSLATIONS.values()),
+            value=VIEW_TYPE_TRANSLATIONS[READER_CONFIG.view_type],
             func=self._on_update_view_type,
             tooltip="Select what kind of image should be displayed.<br><b>Overlay</b> will use the 'true' image and can"
             " be overlaid with other images.<br><b>Random</b> will display single image with random intensity.",
         )
-        layout.addRow(hp.make_label(self, "View type"), self.view_type_choice)
+        layout.addRow(hp.make_label(self, "View type", alignment=Qt.AlignmentFlag.AlignCenter))
+        layout.addRow(self.view_type_choice)
         self.dataset_choice = hp.make_combobox(
             self,
             tooltip="Select which dataset should be used in registration process.",
             func=self._on_toggle_dataset,
         )
-        layout.addRow(hp.make_label(self, "Dataset"), self.dataset_choice)
-        self.transformed_choice = hp.make_combobox(
+        layout.addRow(hp.make_label(self, "Dataset", alignment=Qt.AlignmentFlag.AlignCenter))
+        layout.addRow(self.dataset_choice)
+
+        self.displayed_in_fixed_choice = hp.make_combobox(
             self,
             tooltip="Select which image channels should be displayed in the moving modality (and in the fixed"
             " modality).",
-            func=self._on_toggle_transformed,
+            func=self._on_toggle_fixed_channel,
         )
-        layout.addRow(hp.make_label(self, "Channel"), self.transformed_choice)
+        layout.addRow(hp.make_label(self, "Channel (in fixed)", alignment=Qt.AlignmentFlag.AlignCenter))
+        layout.addRow(self.displayed_in_fixed_choice)
+
+        self.displayed_in_moving_choice = hp.make_combobox(
+            self,
+            tooltip="Select which image channels should be displayed in the moving modality (and in the fixed"
+            " modality).",
+            func=self._on_toggle_moving_channel,
+        )
+
+        layout.addRow(hp.make_label(self, "Channel (in moving)", alignment=Qt.AlignmentFlag.AlignCenter))
+        layout.addRow(self.displayed_in_moving_choice)
         return layout
 
     def _on_update_view_type(self, value: str) -> None:
         """Update view type."""
         READER_CONFIG.view_type = value.lower()
+        reader = self._parent.get_current_moving_reader()
+        is_random = READER_CONFIG.view_type == "random"
+        if (
+            is_random
+            and reader
+            and max(reader.image_shape) > 10_000
+            and not hp.confirm(
+                self,
+                "The image is quite large to be displayed as random image.<br>Do you wish to <b>continue</b>?",
+                "Warning",
+            )
+        ):
+            READER_CONFIG.view_type = "overlay"
+            self.view_type_choice.value = "Overlay"
+            return
         self.evt_view_type.emit(value.lower())  # noqa
 
     def toggle_transformed(self) -> None:
         """Toggle visibility of transformed image."""
-        hp.increment_combobox(self.transformed_choice, 1)
+        hp.increment_combobox(self.displayed_in_fixed_choice, 1)
 
     def _on_toggle_dataset(self, value: str) -> None:
         """Toggle visibility of dataset."""
         self._on_update_transformed_choice()
         self.evt_dataset_select.emit(value)
 
-    def _on_toggle_transformed(self, value: str) -> None:
+    def _on_toggle_fixed_channel(self, value: str) -> None:
         """Toggle visibility of transformed."""
         READER_CONFIG.show_transformed = value != "None"
-        self.evt_show_transformed.emit(value)  # noqa
+        self.evt_show_fixed_channel.emit(value)  # noqa
+
+    def _on_toggle_moving_channel(self, value: str) -> None:
+        """Toggle visibility of transformed."""
+        READER_CONFIG.show_transformed = value != "None"
+        self.evt_show_moving_channel.emit(value)  # noqa

@@ -19,9 +19,9 @@ class ImportSelectDialog(QtDialog):
     # noinspection PyAttributeOutsideInit
     def make_panel(self) -> QFormLayout:
         """Make panel."""
-        self.all_check = hp.make_checkbox(self, "Check all", value=True, clicked=self.on_check_all)
-        self.only_fiducial_check = hp.make_checkbox(self, "Only fiducials", value=False, func=self.on_check_fiducials)
-        self.only_images_check = hp.make_checkbox(self, "Only images", value=False, func=self.on_check_images)
+        self.all_btn = hp.make_btn(self, "Check all", func=self.on_check_all)
+        self.only_fiducial_btn = hp.make_btn(self, "Only fiducials", func=self.on_check_fiducials)
+        self.only_images_btn = hp.make_btn(self, "Only images", func=self.on_check_images)
 
         self.fixed_image_check = hp.make_checkbox(self, "Fixed images (if exist)", value=True, func=self.on_apply)
         self.fixed_image_check.setHidden("fixed_image" in self.disable)
@@ -38,9 +38,7 @@ class ImportSelectDialog(QtDialog):
                 self, "Please select what should be imported.", alignment=Qt.AlignmentFlag.AlignHCenter, bold=True
             )
         )
-        layout.addRow(self.all_check)
-        layout.addRow(self.only_fiducial_check)
-        layout.addRow(self.only_images_check)
+        layout.addRow(hp.make_h_layout(self.all_btn, self.only_fiducial_btn, self.only_images_btn, spacing=20))
         layout.addRow(hp.make_h_line())
         layout.addRow(self.fixed_image_check)
         layout.addRow(self.moving_image_check)
@@ -78,8 +76,6 @@ class ImportSelectDialog(QtDialog):
     def on_apply(self) -> None:
         """Apply."""
         self.config = self.get_config()
-        all_checked = all(self.config.values())
-        self.all_check.setCheckState(Qt.Checked if all_checked else Qt.Unchecked)
 
     def get_config(self) -> dict[str, bool]:
         """Return state."""

@@ -267,7 +267,8 @@ class ImageRegistrationWindow(Window):
         connect(self._moving_widget.dset_dlg.evt_import_project, self._on_load_from_project, state=state)
         connect(self._moving_widget.dset_dlg.evt_loaded, self.on_load_moving, state=state)
         connect(self._moving_widget.dset_dlg.evt_closed, self.on_close_moving, state=state)
-        connect(self._moving_widget.evt_show_transformed, self.on_toggle_transformed_moving, state=state)
+        connect(self._moving_widget.evt_show_fixed_channel, self.on_toggle_fixed_transformed_channel, state=state)
+        connect(self._moving_widget.evt_show_moving_channel, self.on_toggle_moving_image, state=state)
         connect(self._moving_widget.evt_dataset_select, self.on_toggle_dataset, state=state)
         connect(
             self._moving_widget.dset_dlg.evt_channel,
@@ -453,19 +454,18 @@ class ImageRegistrationWindow(Window):
                 is_visible = True if (is_overlay and index == 0) else (not is_overlay)
                 if name in self.view_moving.layers:
                     is_visible = self.view_moving.layers[name].visible
+                    colormap = self.view_moving.layers[name].colormap
                     del self.view_moving.layers[name]
+                contrast_limits, contrast_limits_range = None, None
                 if is_overlay:
                     contrast_limits, contrast_limits_range = get_simple_contrast_limits(array)
-                else:
-                    contrast_limits = None
-                    contrast_limits_range = None
                 moving_image_layer.append(
                     self.view_moving.viewer.add_image(
                         array,
                         name=name,
                         blending="additive",
                         colormap=colormap,
-                        visible=is_visible and name in channel_list,
+                        visible=is_visible or name in channel_list,
                         affine=initial_affine,
                         contrast_limits=contrast_limits,
                     )
@@ -473,7 +473,7 @@ class ImageRegistrationWindow(Window):
             if contrast_limits_range:
                 moving_image_layer[-1].contrast_limits_range = contrast_limits_range
             logger.trace(f"Added '{name}' to fixed view with {initial_affine.flatten()} in {timer()}.")
-        # hide away other layers if user selected 'random' view
+        # hide away other layers if the user selected 'random' view
         if READER_CONFIG.view_type == ViewType.RANDOM:
             for index, layer in enumerate(moving_image_layer):
                 if index > 0:
@@ -524,9 +524,16 @@ class ImageRegistrationWindow(Window):
         except AttributeError:
             return None
 
-    def on_toggle_transformed_moving(self, value: str) -> None:
+    def on_toggle_fixed_transformed_channel(self, value: str) -> None:
         """Toggle visibility of transformed moving image."""
         self.on_apply(update_data=True, name=value)
+
+    def on_toggle_moving_image(self, value: str) -> None:
+        """Change displayed image in the moving image."""
+        for layer in self.moving_image_layer:
+            layer.visible = False
+        self._plot_moving_layers([value])
+        print([layer.visible for layer in self.moving_image_layer])
 
     def _select_point_layer(self, which: str) -> Points:
         """Select layer."""
@@ -618,6 +625,11 @@ class ImageRegistrationWindow(Window):
 
     def on_clear(self, which: str, force: bool = True) -> None:
         """Remove point to the image."""
+        if which == "both":
+            self.on_clear("fixed", force)
+            self.on_clear("moving", force)
+            return
+
         layer = self.fixed_points_layer if which == "fixed" else self.moving_points_layer
         view = self.view_fixed if which == "fixed" else self.view_moving
         if layer.data.size == 0:
@@ -1501,6 +1513,13 @@ class ImageRegistrationWindow(Window):
         hp.make_menu_item(self, "Clear fixed modality", menu=menu, func=lambda: self.on_clear_modality("fixed"))
         hp.make_menu_item(self, "Clear moving modality", menu=menu, func=lambda: self.on_clear_modality("moving"))
         menu.addSeparator()
+        hp.make_menu_item(
+            self,
+            "Clear all fixed and moving points (without confirmation).",
+            menu=menu,
+            func=lambda *args: self.on_clear("both", force=True),
+        )
+        menu.addSeparator()
         hp.make_menu_item(self, "Close project", menu=menu, func=self.on_close, icon="delete")
         hp.make_menu_item(
             self, "Close project (without confirmation)", menu=menu, func=lambda: self.on_close(True), icon="delete"
@@ -1614,7 +1633,9 @@ class ImageRegistrationWindow(Window):
         _fixed_clear_btn = toolbar.insert_qta_tool(
             "remove_all",
             func=lambda *args: self.on_clear("fixed", force=False),
-            tooltip="Remove all points from the fixed image (need to confirm).",
+            func_menu=lambda *args: self.on_clear("fixed", force=True),
+            tooltip="Remove all points from the fixed image (need to confirm)."
+            "\nRight-click to clear all points without confirmation.",
         )
         _fixed_remove_selected_btn = toolbar.insert_qta_tool(
             "remove_multiple",
@@ -1677,7 +1698,9 @@ class ImageRegistrationWindow(Window):
         _moving_clear_btn = toolbar.insert_qta_tool(
             "remove_all",
             func=lambda *args: self.on_clear("moving", force=False),
-            tooltip="Remove all points from the moving image (need to confirm).",
+            func_menu=lambda *args: self.on_clear("moving", force=True),
+            tooltip="Remove all points from the moving image (need to confirm)."
+            "\nRight-click to clear all points without confirmation.",
         )
         _moving_remove_selected_btn = toolbar.insert_qta_tool(
             "remove_multiple",
@@ -1916,12 +1939,14 @@ class ImageRegistrationWindow(Window):
                 "Warning",
             )
         ):
+            READER_CONFIG.view_type = "random"
             return
-        hp.increment_combobox(self._moving_widget.view_type_choice, 1)
+        READER_CONFIG.view_type = "random" if is_overlay else "overlay"
+        self._moving_widget.view_type_choice.value = "Random" if is_overlay else "Overlay"
         hp.notification(
             self,
             "View type",
-            f"Switched to {self._moving_widget.view_type_choice.currentText()}.",
+            f"Switched to {self._moving_widget.view_type_choice.value}.",
             position="top_right",
         )
 

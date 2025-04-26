@@ -409,7 +409,7 @@ def get_simple_contrast_limits(
     array: list[np.ndarray],
 ) -> tuple[tuple[float, float] | None, tuple[float, float] | None]:
     """Estimate contrast limits."""
-    from napari.layers.utils.layer_utils import calc_data_range
+    import dask.array as da
 
     if len(array) == 0:
         return None, None
@@ -425,7 +425,7 @@ def get_simple_contrast_limits(
         max_range = np.iinfo(array_.dtype).min, np.iinfo(array_.dtype).max
 
     if data_range is None:
-        data_range = (0, np.quantile(array_, 0.99))
+        data_range = (0, np.nanquantile(np.array(array_), 0.99))
     return data_range, max_range
 
 

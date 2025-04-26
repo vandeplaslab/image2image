@@ -345,7 +345,7 @@ def show_register_tutorial(widget: ImageRegistrationWindow) -> bool:
                 title="Overlay",
                 message="You can display <b>one</b> <b>moving</b> image on top of the <b>fixed</b> image. If you've"
                 " loaded multiple, you can select which one should be displayed.",
-                widget=widget._moving_widget.transformed_choice,
+                widget=widget._moving_widget.displayed_in_fixed_choice,
                 position=Position.RIGHT_TOP,
             ),
             TutorialStep(
