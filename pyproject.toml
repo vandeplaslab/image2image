@@ -50,7 +50,7 @@ dependencies = [
     "qtconsole>=4.5.1,!=4.7.6,!=5.4.2",
     "ipykernel>=5.2.0",
     "sentry_sdk>2",
-    "lxml==4.9.2",
+    "lxml==4.9.2; python_version < '3.12'",
     "rasterio",
     "pandas<2",
     "numpy<2",
