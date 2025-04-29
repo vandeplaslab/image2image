@@ -219,9 +219,6 @@ exclude = [
     "package",
     "build",
     "src/image2image/_version.py",
-    "src/image2image/readers/czi.py",
-    "src/image2image/readers/czi_reader.py",
-    "src/image2image/readers/tiff_reader.py",
 ]
 
 # # module specific overrides
@@ -262,6 +259,7 @@ ignore = [
     "scripts/**/*",
     "scratch/**/*",
     "icon/**/*",
+    "docs/**/*",
     "package/**/*",
     "tox.ini",
     "codecov.yml",

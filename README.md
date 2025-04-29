@@ -6,7 +6,11 @@
 [![CI](https://github.com/vandeplaslab/image2image/actions/workflows/ci.yml/badge.svg)](https://github.com/vandeplaslab/image2image/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/gh/vandeplaslab/image2image/branch/main/graph/badge.svg)](https://codecov.io/gh/vandeplaslab/image2image)
 
-Utility tool to co-register IMS data with microscopy modality.
+
+A suite of tools enabling image visualization and registration of whole-slide images and imaging mass spectrometry data.
+
+[![image2image](https://raw.githubusercontent.com/vandeplaslab/image2image/main/docs/assets/launcher.png)](https://vandeplaslab.github.io/image2image/)
+
 
 ## Contributing
 
