@@ -58,6 +58,16 @@ jobs:
             backend: pyside2
           - python-version: "3.12"
             backend: pyqt5
+          # dask/xarray issues
+          - python-version: "3.12"
+            backend: pyqt6
+            platform: macos-latest
+          - python-version: "3.12"
+            backend: pyqt6
+            platform: windows-latest
+          - python-version: "3.12"
+            backend: pyside6
+            platform: windows-latest
           # super slow
           - python-version: "3.13"
             backend: pyqt6
