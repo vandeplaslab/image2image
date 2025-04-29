@@ -454,8 +454,10 @@ class ImageRegistrationWindow(Window):
                 is_visible = True if (is_overlay and index == 0) else (not is_overlay)
                 if name in self.view_moving.layers:
                     is_visible = self.view_moving.layers[name].visible
-                    colormap = self.view_moving.layers[name].colormap
+                    colormap = self.view_moving.layers[name].colormap if is_overlay else "turbo"
                     del self.view_moving.layers[name]
+                if is_overlay and ((hasattr(colormap, "name") and colormap.name == "turbo") or colormap == "turbo"):
+                    colormap = get_colormap(index, self.view_moving.layers)
                 contrast_limits, contrast_limits_range = None, None
                 if is_overlay:
                     contrast_limits, contrast_limits_range = get_simple_contrast_limits(array)
@@ -1943,6 +1945,7 @@ class ImageRegistrationWindow(Window):
             return
         READER_CONFIG.view_type = "random" if is_overlay else "overlay"
         self._moving_widget.view_type_choice.value = "Random" if is_overlay else "Overlay"
+        self.on_change_view_type(READER_CONFIG.view_type)
         hp.notification(
             self,
             "View type",
