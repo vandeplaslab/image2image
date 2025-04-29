@@ -9,7 +9,7 @@
 
 A suite of tools enabling image visualization and registration of whole-slide images and imaging mass spectrometry data.
 
-[![image2image](https://raw.githubusercontent.com/vandeplaslab/image2image/main/docs/assets/launcher.png)](https://vandeplaslab.github.io/image2image/)
+![launcher](https://github.com/vandeplaslab/image2image/blob/main/docs/assets/launcher.jpg)
 
 
 ## Contributing
