@@ -190,7 +190,7 @@ minversion = "8.0"
 console_output_style = "count"
 testpaths = ["tests"]
 filterwarnings = [
-  "image2image:::qtextra", # turn warnings from qtextra into errors
+  "error:::image2image", # turn warnings from qtextra into errors
   "error:::test_.*", # turn warnings in our own tests into errors
   "ignore::DeprecationWarning:shibokensupport",
   "ignore::DeprecationWarning:ipykernel",
