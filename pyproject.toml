@@ -189,7 +189,7 @@ docstring-code-format = true
 [tool.pytest.ini_options]
 minversion = "8.0"
 console_output_style = "count"
-testpaths = ["tests"]
+testpaths = ["image2image", "tests"]
 filterwarnings = [
   "error:::image2image", # turn warnings from qtextra into errors
   "error:::test_.*", # turn warnings in our own tests into errors
@@ -197,6 +197,24 @@ filterwarnings = [
   "ignore::DeprecationWarning:ipykernel",
   "ignore:numpy.ufunc size changed:RuntimeWarning",
   "ignore:There is no current event loop:DeprecationWarning:",
+]
+
+# https://coverage.readthedocs.io/en/6.4/config.html
+[tool.coverage.run]
+source = ["src"]
+omit = [
+    "**/*_version.py"
+]
+
+# https://coverage.readthedocs.io/en/6.4/config.html
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "@overload",
+    "except ImportError",
+    "\\.\\.\\.",
+    "raise NotImplementedError()",
 ]
 
 # https://mypy.readthedocs.io/en/stable/config_file.html
@@ -226,25 +244,6 @@ exclude = [
 # [[tool.mypy.overrides]]
 # module = ["numpy.*",]
 # ignore_errors = true
-
-
-# https://coverage.readthedocs.io/en/6.4/config.html
-[tool.coverage.run]
-source = ["src"]
-omit = [
-    "**/*_version.py"
-]
-
-# https://coverage.readthedocs.io/en/6.4/config.html
-[tool.coverage.report]
-exclude_lines = [
-    "pragma: no cover",
-    "if TYPE_CHECKING:",
-    "@overload",
-    "except ImportError",
-    "\\.\\.\\.",
-    "raise NotImplementedError()",
-]
 
 # https://github.com/mgedmin/check-manifest#configuration
 [tool.check-manifest]
