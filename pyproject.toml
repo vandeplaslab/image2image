@@ -246,6 +246,10 @@ ignore = [
     ".idea/**/*",
     "_version.py",
     "venv*/**/*",
+    "scripts/**/*",
+    "scratch/**/*",
+    "icon/**/*",
+    "package/**/*",
     "tox.ini",
     "codecov.yml",
     "mkdocs.yml",
@@ -253,4 +257,5 @@ ignore = [
     "docs/**/*",
     "examples/**/*",
     "MANIFEST.in",
+    "Makefile",
 ]
