@@ -854,8 +854,8 @@ def create_new_window(plugin: str, *extra_args: ty.Any) -> None:
 
     process = QProcess()
     args = sys.argv
-    if not program:
-        program = args.pop(0, None)
+    if not program and args:
+        program = args.pop(0)
     process.setProgram(program)
     arguments = []
     if "--dev" in args:
