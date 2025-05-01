@@ -169,7 +169,7 @@ class RegistrationPaths(QWidget):
             ],
             func=self._on_select_from_common,
         )
-        hp.show_below_widget(menu, self._choice)
+        hp.show_below_widget(menu, self._choice, x_offset=-50)
 
     def _on_select_from_common(self, transformation: str) -> None:
         """Select from list of common annotations."""

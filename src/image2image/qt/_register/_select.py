@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Optional
+
 from qtextra import helpers as hp
 from qtextra.widgets.qt_dialog import QtDialog
 from qtpy.QtCore import Qt
@@ -52,24 +54,24 @@ class ImportSelectDialog(QtDialog):
         )
         return layout
 
-    def on_check_all(self, state: bool) -> None:
+    def on_check_all(self, _state: bool | None = None) -> None:
         """Check all."""
-        self.fixed_image_check.setChecked(state)
-        self.moving_image_check.setChecked(state)
-        self.fixed_fiducial_check.setChecked(state)
-        self.moving_fiducial_check.setChecked(state)
+        self.fixed_image_check.setChecked(True)
+        self.moving_image_check.setChecked(True)
+        self.fixed_fiducial_check.setChecked(True)
+        self.moving_fiducial_check.setChecked(True)
 
-    def on_check_fiducials(self, state: bool) -> None:
+    def on_check_fiducials(self, _state: bool | None = None) -> None:
         """Check fiducials."""
         self.fixed_image_check.setChecked(False)
         self.moving_image_check.setChecked(False)
-        self.fixed_fiducial_check.setChecked(state)
-        self.moving_fiducial_check.setChecked(state)
+        self.fixed_fiducial_check.setChecked(True)
+        self.moving_fiducial_check.setChecked(True)
 
-    def on_check_images(self, state: bool) -> None:
+    def on_check_images(self, _state: bool | None = None) -> None:
         """Check images."""
-        self.fixed_image_check.setChecked(state)
-        self.moving_image_check.setChecked(state)
+        self.fixed_image_check.setChecked(True)
+        self.moving_image_check.setChecked(True)
         self.fixed_fiducial_check.setChecked(False)
         self.moving_fiducial_check.setChecked(False)
 
