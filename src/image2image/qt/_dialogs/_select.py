@@ -101,6 +101,7 @@ class LoadWidget(QWidget):
     def on_open_dataset_dialog(self) -> None:
         """Select transformation data."""
         self.dset_dlg.show()
+        self.dset_dlg.raise_()
 
     def _setup_ui(self) -> QFormLayout:
         """Setup UI."""

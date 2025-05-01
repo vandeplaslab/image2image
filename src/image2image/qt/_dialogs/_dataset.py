@@ -615,6 +615,7 @@ class DatasetDialog(QtDialog):
                 if channel_list_:
                     dlg = SelectChannelsToLoadDialog(self, model)
                     dlg.show_in_center_of_screen()
+                    dlg.raise_()
                     if dlg.exec_():  # type: ignore
                         channel_list = dlg.channels
         logger.trace(f"Loaded {len(channel_list)} channels")
@@ -674,6 +675,7 @@ class DatasetDialog(QtDialog):
                 if channel_list_:
                     dlg = SelectChannelsToLoadDialog(self, model)  # type: ignore[assignment]
                     dlg.show_in_center_of_screen()
+                    dlg.raise_()
                     if dlg.exec_():  # type: ignore
                         channel_list = dlg.channels
         logger.trace(f"Loaded {len(channel_list)} channels")
