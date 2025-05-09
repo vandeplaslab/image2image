@@ -48,7 +48,7 @@ class LocateFilesDialog(QtDialog):
     def __init__(self, parent: QWidget, config: SingleAppConfig, fixed_paths: ty.Sequence[PathLike]):
         self.CONFIG = config
         paths = list(fixed_paths)
-        self.paths: ty.List[ty.Dict[str, ty.Optional[PathLike]]] = [
+        self.paths: list[dict[str, ty.Optional[PathLike]]] = [
             {"old_path": Path(path), "new_path": None} for path in paths
         ]
         super().__init__(parent)
@@ -68,7 +68,7 @@ class LocateFilesDialog(QtDialog):
         else:
             super().keyPressEvent(evt)
 
-    def fix_missing_paths(self, paths_missing: ty.Sequence[PathLike], paths: ty.Sequence[PathLike]) -> ty.List[Path]:
+    def fix_missing_paths(self, paths_missing: ty.Sequence[PathLike], paths: ty.Sequence[PathLike]) -> list[Path]:
         """Locate missing paths."""
         if paths is None:
             paths = []

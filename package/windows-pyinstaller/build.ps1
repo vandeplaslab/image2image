@@ -72,7 +72,7 @@ if ($update) {
 if ($update_pip) {
     $pip_install.Add("napari==0.5.6")
     $pip_install.Add("pydantic>=2")
-    $pip_install.Add("pyqt6")
+#     $pip_install.Add("pyqt6")
     $pip_install.Add("pyinstaller")
     $pip_install.Add("numba<0.60")
 }
@@ -140,6 +140,12 @@ foreach ($package in $pip_install) {
     uv pip install -U $package
     echo "Reinstalled $package"
 }
+
+# temporarily update PyQt6 to be the latest version
+# see https://www.riverbankcomputing.com/pypi/
+uv pip install --index-url "https://www.riverbankcomputing.com/pypi/simple/" --no-deps --pre --upgrade PyQt6
+uv pip install --index-url "https://www.riverbankcomputing.com/pypi/simple/" --no-deps --pre --upgrade PyQt6-qt6
+uv pip install --index-url "https://www.riverbankcomputing.com/pypi/simple/" --no-deps --pre --upgrade PyQt6-sip
 
 # uninstall pdbpp
 uv pip uninstall pdbpp
