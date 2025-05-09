@@ -7,6 +7,7 @@ param (
     [switch]$update_just_reader = $false,
     [switch]$update_just_register = $false,
     [switch]$update_pip = $false,
+    [switch]$no_build = $false,
     [switch]$debug = $false,
     [switch]$zip = $false,
     [switch]$run = $false,
@@ -44,8 +45,6 @@ echo "Venv script location: " $venv_activate
 & $venv_activate
 
 # activate conda environment
-# conda activate image2image_package
-
 if ($activate) {
     Exit
 }
@@ -145,6 +144,9 @@ foreach ($package in $pip_install) {
 # uninstall pdbpp
 uv pip uninstall pdbpp
 
+if ($no_build) {
+    Exit
+}
 
 # Get path
 $filename = "image2image.spec"
