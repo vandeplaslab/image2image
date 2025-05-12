@@ -148,7 +148,16 @@ jobs:
 
     - name: Build (MacOS) - Package
       if: matrix.os == 'macos-latest'
+      env:
+        # See https://keith.github.io/xcode-man-pages/notarytool.1.html for auth options
+        APPLE_NOTARIZATION_USERNAME: ${{ secrets.APPLE_NOTARIZATION_USERNAME }}
+        # This needs to be an application-specific password
+        APPLE_NOTARIZATION_PASSWORD: ${{ secrets.APPLE_NOTARIZATION_PASSWORD }}
+        # 10 alphanumeric characters available in the AppleID UI
+        APPLE_NOTARIZATION_TEAM_ID: ${{ secrets.APPLE_NOTARIZATION_TEAM_ID }}
       run: |
+        set -euxo pipefail
+        
         # create a disk image
         mkdir -p dist/dmg
         # link the app to the Applications folder
@@ -158,11 +167,39 @@ jobs:
         hdiutil create -volname "image2image" -srcfolder ./dist/dmg -ov -format UDZO ./dist/image2image.dmg
         # rename file
         python scripts/package_app_macos_rename.py
+        
         # update filename
         filename=$(python -c 'from pathlib import Path; print(list((Path.cwd() / "dist").glob("image2image*.dmg"))[0].name)')
         echo "I2I_PACKAGE_NAME=$filename" >> $GITHUB_ENV
         
+        # Submit for notarization to Apple servers
+        json_output_file="$RUNNER_TEMP/$(basename "I2I_PACKAGE_NAME").notarization.json"
+        set +e
+        xcrun notarytool submit "I2I_PACKAGE_NAME" \
+          --apple-id "$APPLE_NOTARIZATION_USERNAME" \
+          --password "$APPLE_NOTARIZATION_PASSWORD" \
+          --team-id "$APPLE_NOTARIZATION_TEAM_ID" \
+          --output-format json \
+          --wait \
+          --timeout 30m \
+          | tee "$json_output_file"
+        notary_exit_code=$?
+        set -e
+        if [[ $notary_exit_code != 0 ]]; then
+          submission_id=$(jq -r '.id' "$json_output_file")
+          xcrun notarytool log "$submission_id" \
+            --apple-id "$APPLE_NOTARIZATION_USERNAME" \
+            --password "$APPLE_NOTARIZATION_PASSWORD" \
+            --team-id "$APPLE_NOTARIZATION_TEAM_ID"
+          exit $notary_exit_code
+        fi
 
+        # Staple
+        xcrun stapler staple --verbose "I2I_PACKAGE_NAME"
+
+        # Check notarization status
+        spctl --assess -vv --type install "I2I_PACKAGE_NAME" 2>&1 | tee /dev/stderr | grep accepted
+        
     - name: Check filename availability
       shell: bash
       run: |
