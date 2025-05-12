@@ -19,8 +19,67 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: pipx run check-manifest
+      - uses: astral-sh/setup-uv@v6
+      - run: uvx check-manifest
 
+  pyinstaller_build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest, ubuntu-latest]
+
+    steps:
+    - uses: actions/checkout@v4
+    - uses: astral-sh/setup-uv@v6
+      with:
+        python-version: 3.10
+        enable-cache: true
+    - uses: pyvista/setup-headless-display-action@v3
+      with:
+        qt: true
+    - name: Install dependencies
+      run: | 
+        uv pip install pyinstaller
+        uv pip install ".[pyqt6]"
+    - name: Build (Windows)
+      if: matrix.os == 'windows-latest'
+      run: |
+        # package the app
+        pyinstaller --noconfirm --clean package/windows-pyinstaller/image2image.spec
+        # zip into a single file
+        python package/windows-pyinstaller/zip.py
+
+    - name: Build (MacOS)
+      if: matrix.os == 'macos-latest'
+      run: |
+        # package the app
+        pyinstaller --noconfirm --clean package/macos-pyinstaller/image2image.spec
+        # codesign the app
+        codesign --deep --force --options=runtime --entitlements ./entitlements.plist --sign secrets.MACOS_SIGN_KEY --timestamp ./dist/image2image.app
+        # create a disk image
+        mkdir -p dist/dmg
+        # link the app to the Applications folder
+        ln -s /Applications dist/dmg/Applications
+        mv dist/image2image.app dist/dmg
+        # create dmg file
+        hdiutil create -volname "image2image" -srcfolder ./dist/dmg -ov -format UDZO ./dist/image2image.dmg
+        # rename file
+        python scripts/rename_app_macos.py
+
+#    - name: Build (Linux)
+#      if: matrix.os == 'ubuntu-latest'
+#      run: |
+#        # package the app
+#        pyinstaller --noconfirm --clean package/windows-pyinstaller/image2image.spec
+#        # create a tarball
+#        tar -czf dist/image2image.tar.gz dist/image2image
+#        rm -rf dist/image2image
+        
+
+    - uses: actions/upload-artifact@v4
+      with:
+        path: dist/*
 
   test:
     name: Test

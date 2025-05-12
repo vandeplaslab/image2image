@@ -45,7 +45,7 @@ classifiers = [
 dynamic = ["version"]
 dependencies = [
     "qtpy",
-    "napari==0.5.6",
+    "napari>=0.5.6",
     "toml",
     "qtconsole>=4.5.1,!=4.7.6,!=5.4.2",
     "ipykernel>=5.2.0",
@@ -64,8 +64,6 @@ dependencies = [
 ]
 
 
-
-# extras
 # https://peps.python.org/pep-0621/#dependencies-optional-dependencies
 [project.optional-dependencies]
 test = ["pytest>=6.0", "pytest-cov", "pytest-qt"]
@@ -90,8 +88,8 @@ repository = "https://github.com/vandeplaslab/image2image"
 
  # same as console_scripts entry point
 [project.scripts]
-image2image = "image2image.cli:cli"
 i2i = "image2image.cli:cli"
+image2image = "image2image.cli:cli"
 i2viewer = "image2image.cli:cli_viewer"
 i2crop = "image2image.cli:cli_crop"
 i2convert = "image2image.cli:cli_convert"
