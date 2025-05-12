@@ -47,6 +47,7 @@ jobs:
       shell: bash
       run: |
         if [ -n '${{ secrets.APPLE_APPLICATION_CERTIFICATE_BASE64 }}' ] && \
+           [ -n '${{ secrets.APPLE_INSTALLER_CERTIFICATE_BASE64 }}' ]   && \
            [ -n '${{ secrets.APPLE_INSTALLER_CERTIFICATE_PASSWORD }}' ] && \
            [ -n '${{ secrets.APPLE_NOTARIZATION_USERNAME }}' ] && \
            [ -n '${{ secrets.APPLE_NOTARIZATION_PASSWORD }}' ] && \
@@ -59,13 +60,18 @@ jobs:
     - name: Load signing certificate (MacOS)
       shell: bash -el {0}
       # We only sign pushes to main, nightlies, RCs and final releases
-      if: runner.os == 'macOS'
+      if: >
+        runner.os == 'macOS'
+        && env.SIGNING_SECRETS_AVAILABLE
+        && (inputs.event_name == 'schedule' || inputs.event_name == 'push')
       run: |
         # create variables
+        INSTALLER_CERTIFICATE_PATH="$RUNNER_TEMP/installer_developer_cert.p12"
         APPLICATION_CERTIFICATE_PATH="$RUNNER_TEMP/application_developer_cert.p12"
         KEYCHAIN_PATH="$RUNNER_TEMP/installer-signing.keychain-db"
 
         # import certificate and provisioning profile from secrets
+        echo -n "${{ secrets.APPLE_INSTALLER_CERTIFICATE_BASE64 }}" | /usr/bin/base64 --decode > $INSTALLER_CERTIFICATE_PATH
         echo -n "${{ secrets.APPLE_APPLICATION_CERTIFICATE_BASE64 }}" | /usr/bin/base64 --decode > $APPLICATION_CERTIFICATE_PATH
 
         # create temporary keychain
@@ -74,6 +80,7 @@ jobs:
         security unlock-keychain -p "${{ secrets.TEMP_KEYCHAIN_PASSWORD }}" $KEYCHAIN_PATH
 
         # import certificate to keychain
+        security import $INSTALLER_CERTIFICATE_PATH -P ${{ secrets.APPLE_INSTALLER_CERTIFICATE_PASSWORD }} -A -t cert -f pkcs12 -k $KEYCHAIN_PATH
         security import $APPLICATION_CERTIFICATE_PATH -P ${{ secrets.APPLE_INSTALLER_CERTIFICATE_PASSWORD }} -A -t cert -f pkcs12 -k $KEYCHAIN_PATH
         security list-keychain -d user -s $KEYCHAIN_PATH
 
@@ -160,7 +167,7 @@ jobs:
     - name: Check filename availability
       shell: bash
       run: |
-        if [ -n '${{ secrets.I2I_PACKAGE_NAME }}' ]; then
+        if [ -n '${{ env.I2I_PACKAGE_NAME }}' ]; then
             echo "I2I_FILENAME_AVAILABLE=1" >> $GITHUB_ENV
         fi
 
