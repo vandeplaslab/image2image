@@ -72,7 +72,7 @@ jobs:
         # rename file
         python scripts/package_app_win_zip.py
         # update filename
-        filename=$(python -c 'from pathlib import Path; print(list((Path.cwd() / "dist").glob("image2image*.zip"))[0].name)')
+        $filename = python -c "from pathlib import Path; print(list((Path.cwd() / 'dist').glob('image2image*.zip'))[0].name)"
         echo "I2I_PACKAGE_NAME=$$napari_version" >> $GITHUB_ENV
 
     - name: Build (MacOS)
@@ -131,7 +131,7 @@ jobs:
     - uses: actions/upload-artifact@v4
       with:
         compression-level: 0  # no compression
-        name: env.I2I_PACKAGE_NAME
+        name: '${{ env.I2I_PACKAGE_NAME }}'
         path: |
           dist/image2image*.exe
           dist/image2image*.dmg
