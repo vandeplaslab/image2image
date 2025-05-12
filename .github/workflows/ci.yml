@@ -55,9 +55,36 @@ jobs:
             echo "SIGNING_SECRETS_AVAILABLE=1" >> $GITHUB_ENV
         fi
 
+    - name: Install dependencies
+      run: | 
+        uv pip install pyinstaller
+        uv pip install ".[pyqt6]"
+        
+
+    - name: Build (Windows)
+      if: matrix.os == 'windows-latest'
+      run: |
+        # package the app
+        pyinstaller --noconfirm --clean package/image2image.spec
+    - name: Build (Windows) - Package
+      if: matrix.os == 'windows-latest'
+      run: |
+        # rename file
+        python scripts/package_app_win_zip.py
+        # update filename
+        $filename = python -c "from pathlib import Path; print(list((Path.cwd() / 'dist').glob('image2image*.zip'))[0].name)"
+        echo "I2I_PACKAGE_NAME=$filename" >> $Env:GITHUB_ENV
+
+    - name: Build (MacOS)
+      if: matrix.os == 'macos-latest'
+      run: |
+        # package the app
+        pyinstaller --noconfirm --clean package/image2image.spec
+
+
     # instructions taken from
     # https://docs.github.com/en/actions/deployment/deploying-xcode-applications/installing-an-apple-certificate-on-macos-runners-for-xcode-development#add-a-step-to-your-workflow
-    - name: Load signing certificate (MacOS)
+    - name: Build (MacOS) - Load & Sign
       shell: bash -el {0}
       # We only sign pushes to main, nightlies, RCs and final releases
       if: runner.os == 'macOS' && env.SIGNING_SECRETS_AVAILABLE
@@ -87,36 +114,7 @@ jobs:
 
         echo "CONSTRUCTOR_SIGNING_IDENTITY=${signing_identity}" >> $GITHUB_ENV
         echo "CONSTRUCTOR_NOTARIZATION_IDENTITY=${notarization_identity}" >> $GITHUB_ENV
-
-    - name: Install dependencies
-      run: | 
-        uv pip install pyinstaller
-        uv pip install ".[pyqt6]"
         
-
-    - name: Build (Windows)
-      if: matrix.os == 'windows-latest'
-      run: |
-        # package the app
-        pyinstaller --noconfirm --clean package/image2image.spec
-    - name: Build (Windows) - Package
-      if: matrix.os == 'windows-latest'
-      run: |
-        # rename file
-        python scripts/package_app_win_zip.py
-        # update filename
-        $filename = python -c "from pathlib import Path; print(list((Path.cwd() / 'dist').glob('image2image*.zip'))[0].name)"
-        echo "I2I_PACKAGE_NAME=$filename" >> $Env:GITHUB_ENV
-
-    - name: Build (MacOS)
-      if: matrix.os == 'macos-latest'
-      run: |
-        # package the app
-        pyinstaller --noconfirm --clean package/image2image.spec
-
-    - name: Build (MacOS) - Sign
-      if: matrix.os == 'macos-latest' && env.SIGNING_SECRETS_AVAILABLE
-      run: |
         # codesign the app
         codesign --deep --force --options=runtime --entitlements ./package/macos-package/entitlements.plist --sign env.CONSTRUCTOR_SIGNING_IDENTITY --timestamp ./dist/image2image.app
 
