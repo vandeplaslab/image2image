@@ -61,7 +61,8 @@ dependencies = [
     "qtextraplot",
     "image2image-io",
     "image2image-reg",
-    "networkx==3.4.0",  # fixed circular import problem
+    "networkx==3.2.0; python_version < '3.10'",
+    "networkx==3.4.0; python_version >= '3.10'",  # fixed circular import problem
 ]
 
 
