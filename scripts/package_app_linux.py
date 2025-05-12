@@ -8,11 +8,12 @@ from koyo.timer import MeasureTimer
 
 from image2image import __version__
 
-print("Started zipping folder")
+print("Started tarring folder")
 with MeasureTimer() as timer:
     parent = Path(inspect.getfile(lambda: None)).parent.parent.resolve()
     print("Parent directory:", parent)
     source_dir = parent / "dist" / "image2image"
-    output_dir = parent / "dist" / f"image2image-v{__version__}-win_amd64"
-    make_archive(output_dir, "zip", source_dir)
-print(f"Finished zipping folder in {timer()}")
+    assert source_dir.exists(), "Source directory does not exist"
+    output_dir = parent / "dist" / f"image2image-v{__version__}-linux_amd64"
+    make_archive(output_dir, "gztar", source_dir)
+print(f"Finished tarring folder in {timer()}")
