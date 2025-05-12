@@ -42,25 +42,54 @@ jobs:
     - uses: pyvista/setup-headless-display-action@v3
       with:
         qt: true
+
+    - name: Check secrets availability
+      shell: bash
+      run: |
+        if [ -n '${{ secrets.APPLE_APPLICATION_CERTIFICATE_BASE64 }}' ] && \
+           [ -n '${{ secrets.APPLE_INSTALLER_CERTIFICATE_BASE64 }}' ]   && \
+           [ -n '${{ secrets.APPLE_INSTALLER_CERTIFICATE_PASSWORD }}' ] && \
+           [ -n '${{ secrets.APPLE_NOTARIZATION_USERNAME }}' ] && \
+           [ -n '${{ secrets.APPLE_NOTARIZATION_PASSWORD }}' ] && \
+           [ -n '${{ secrets.TEMP_KEYCHAIN_PASSWORD }}' ]; then
+            echo "SIGNING_SECRETS_AVAILABLE=1" >> $GITHUB_ENV
+        fi
+
     - name: Install dependencies
       run: | 
         uv pip install pyinstaller
         uv pip install ".[pyqt6]"
+        
+
     - name: Build (Windows)
       if: matrix.os == 'windows-latest'
       run: |
         # package the app
         pyinstaller --noconfirm --clean package/image2image.spec
+    - name: Build (Windows) - Package
+      if: matrix.os == 'windows-latest'
+      run: |
         # rename file
         python scripts/package_app_win_zip.py
+        # update filename
+        filename=$(python -c 'from pathlib import Path; print(list(Path.cwd().glob("image2image*.zip"))[0])')
+        echo "I2I_PACKAGE_NAME=$$napari_version" >> $GITHUB_ENV
 
     - name: Build (MacOS)
       if: matrix.os == 'macos-latest'
       run: |
         # package the app
         pyinstaller --noconfirm --clean package/image2image.spec
+
+    - name: Build (MacOS) - Sign
+      if: matrix.os == 'macos-latest' && env.SIGNING_SECRETS_AVAILABLE
+      run: |
         # codesign the app
         codesign --deep --force --options=runtime --entitlements ./package/macos-package/entitlements.plist --sign secrets.MACOS_SIGN_KEY --timestamp ./dist/image2image.app
+
+    - name: Build (MacOS) - Package
+      if: matrix.os == 'macos-latest'
+      run: |
         # create a disk image
         mkdir -p dist/dmg
         # link the app to the Applications folder
@@ -70,19 +99,39 @@ jobs:
         hdiutil create -volname "image2image" -srcfolder ./dist/dmg -ov -format UDZO ./dist/image2image.dmg
         # rename file
         python scripts/package_app_macos_rename.py
+        # update filename
+        filename=$(python -c 'from pathlib import Path; print(list(Path.cwd().glob("image2image*.dmg"))[0])')
+        echo "I2I_PACKAGE_NAME=$$napari_version" >> $GITHUB_ENV
+        
 
     - name: Build (Linux)
       if: matrix.os == 'ubuntu-latest'
       run: |
         # package the app
         pyinstaller --noconfirm --clean package/image2image.spec
+
+    - name: Build (Linux) - Package
+      if: matrix.os == 'ubuntu-latest'
+      run: |
         # tar.gz the app
         tar czf dist/image2image.tar.gz dist/image2image
         # rename file
         python scripts/package_app_linux_rename.py
+        # update filename
+        filename=$(python -c 'from pathlib import Path; print(list(Path.cwd().glob("image2image*.tar.gz"))[0])')
+        echo "I2I_PACKAGE_NAME=$$napari_version" >> $GITHUB_ENV
+
+    - name: Check filename availability
+      shell: bash
+      run: |
+        if [ -n '${{ secrets.I2I_PACKAGE_NAME }}' ]; then
+            echo "I2I_FILENAME_AVAILABLE=1" >> $GITHUB_ENV
+        fi
 
     - uses: actions/upload-artifact@v4
       with:
+        compression-level: 0  # no compression
+        name: env.I2I_PACKAGE_NAME
         path: |
           dist/image2image*.exe
           dist/image2image*.dmg
