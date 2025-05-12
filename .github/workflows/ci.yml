@@ -72,7 +72,7 @@ jobs:
         # rename file
         python scripts/package_app_win_zip.py
         # update filename
-        filename=$(python -c 'from pathlib import Path; print(list(Path.cwd().glob("image2image*.zip"))[0])')
+        filename=$(python -c 'from pathlib import Path; print(list((Path.cwd() / "dist").glob("image2image*.zip"))[0].name)')
         echo "I2I_PACKAGE_NAME=$$napari_version" >> $GITHUB_ENV
 
     - name: Build (MacOS)
@@ -100,7 +100,7 @@ jobs:
         # rename file
         python scripts/package_app_macos_rename.py
         # update filename
-        filename=$(python -c 'from pathlib import Path; print(list(Path.cwd().glob("image2image*.dmg"))[0])')
+        filename=$(python -c 'from pathlib import Path; print(list((Path.cwd() / "dist").glob("image2image*.dmg"))[0].name)')
         echo "I2I_PACKAGE_NAME=$$napari_version" >> $GITHUB_ENV
         
 
@@ -118,7 +118,7 @@ jobs:
         # rename file
         python scripts/package_app_linux_rename.py
         # update filename
-        filename=$(python -c 'from pathlib import Path; print(list(Path.cwd().glob("image2image*.tar.gz"))[0])')
+        filename=$(python -c 'from pathlib import Path; print(list((Path.cwd() / "dist").glob("image2image*.tar.gz"))[0].name)')
         echo "I2I_PACKAGE_NAME=$$napari_version" >> $GITHUB_ENV
 
     - name: Check filename availability
