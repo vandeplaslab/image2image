@@ -61,6 +61,7 @@ dependencies = [
     "qtextraplot",
     "image2image-io",
     "image2image-reg",
+    "networkx==3.4.0",  # fixed circular import problem
 ]
 
 
