@@ -88,12 +88,12 @@ jobs:
         echo "CONSTRUCTOR_SIGNING_IDENTITY=${signing_identity}" >> $GITHUB_ENV
         echo "CONSTRUCTOR_NOTARIZATION_IDENTITY=${notarization_identity}" >> $GITHUB_ENV
 
-        # The conda environment might contain a totally different codesign
-        # which would clobber the Apple's codesign (the one we need)
-        _codesign=$(which codesign)
-        if [[ $_codesign =~ ${CONDA_PREFIX}.* ]]; then
-          mv "${_codesign}" "${_codesign}.in_conda_env"
-        fi
+#        # The conda environment might contain a totally different codesign
+#        # which would clobber the Apple's codesign (the one we need)
+#        _codesign=$(which codesign)
+#        if [[ $_codesign =~ ${CONDA_PREFIX}.* ]]; then
+#          mv "${_codesign}" "${_codesign}.in_conda_env"
+#        fi
 
     - name: Install dependencies
       run: | 
@@ -113,8 +113,7 @@ jobs:
         python scripts/package_app_win_zip.py
         # update filename
         $filename = python -c "from pathlib import Path; print(list((Path.cwd() / 'dist').glob('image2image*.zip'))[0].name)"
-        echo "$I2I_PACKAGE_NAME=$filename" >> $GITHUB_ENV
-        echo env.I2I_PACKAGE_NAME
+        echo "I2I_PACKAGE_NAME=$filename" >> $Env:GITHUB_ENV
 
     - name: Build (MacOS)
       if: matrix.os == 'macos-latest'
