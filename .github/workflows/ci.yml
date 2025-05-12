@@ -116,7 +116,7 @@ jobs:
         echo "CONSTRUCTOR_NOTARIZATION_IDENTITY=${notarization_identity}" >> $GITHUB_ENV
         
         # codesign the app
-        codesign --deep --force --options=runtime --entitlements ./package/macos-package/entitlements.plist --sign env.CONSTRUCTOR_SIGNING_IDENTITY --timestamp ./dist/image2image.app
+        codesign --deep --force --options=runtime --entitlements ./package/macos-package/entitlements.plist --sign ${signing_identity} --timestamp ./dist/image2image.app
 
     - name: Build (MacOS) - Package
       if: matrix.os == 'macos-latest'
