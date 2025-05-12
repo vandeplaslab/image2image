@@ -47,7 +47,7 @@ jobs:
       shell: bash
       run: |
         if [ -n '${{ secrets.APPLE_APPLICATION_CERTIFICATE_BASE64 }}' ] && \
-        if [ -n '${{ secrets.APPLE_INSTALLER_CERTIFICATE_PASSWORD }}' ] && \
+           [ -n '${{ secrets.APPLE_INSTALLER_CERTIFICATE_PASSWORD }}' ] && \
            [ -n '${{ secrets.APPLE_NOTARIZATION_USERNAME }}' ] && \
            [ -n '${{ secrets.APPLE_NOTARIZATION_PASSWORD }}' ] && \
            [ -n '${{ secrets.TEMP_KEYCHAIN_PASSWORD }}' ]; then
