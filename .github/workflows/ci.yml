@@ -61,19 +61,36 @@ jobs:
         uv pip install ".[pyqt6]"
         
 
-    - name: Build (Windows)
-      if: matrix.os == 'windows-latest'
-      run: |
-        # package the app
-        pyinstaller --noconfirm --clean package/image2image.spec
-    - name: Build (Windows) - Package
-      if: matrix.os == 'windows-latest'
-      run: |
-        # rename file
-        python scripts/package_app_win_zip.py
-        # update filename
-        $filename = python -c "from pathlib import Path; print(list((Path.cwd() / 'dist').glob('image2image*.zip'))[0].name)"
-        echo "I2I_PACKAGE_NAME=$filename" >> $Env:GITHUB_ENV
+#    - name: Build (Windows)
+#      if: matrix.os == 'windows-latest'
+#      run: |
+#        # package the app
+#        pyinstaller --noconfirm --clean package/image2image.spec
+#    - name: Build (Windows) - Package
+#      if: matrix.os == 'windows-latest'
+#      run: |
+#        # rename file
+#        python scripts/package_app_win_zip.py
+#        # update filename
+#        $filename = python -c "from pathlib import Path; print(list((Path.cwd() / 'dist').glob('image2image*.zip'))[0].name)"
+#        echo "I2I_PACKAGE_NAME=$filename" >> $Env:GITHUB_ENV
+
+#    - name: Build (Linux)
+#      if: matrix.os == 'ubuntu-latest'
+#      run: |
+#        # package the app
+#        pyinstaller --noconfirm --clean package/image2image.spec
+#
+#    - name: Build (Linux) - Package
+#      if: matrix.os == 'ubuntu-latest'
+#      run: |
+#        # tar.gz the app
+#        tar czf dist/image2image.tar.gz dist/image2image
+#        # rename file
+#        python scripts/package_app_linux_rename.py
+#        # update filename
+#        filename=$(python -c 'from pathlib import Path; print(list((Path.cwd() / "dist").glob("image2image*.tar.gz"))[0].name)')
+#        echo "I2I_PACKAGE_NAME=$filename" >> $GITHUB_ENV
 
     - name: Build (MacOS)
       if: matrix.os == 'macos-latest'
@@ -88,9 +105,9 @@ jobs:
         ls -lh dist
         # check if the file exists
         if [ -f dist/image2image.app ]; then
-            echo "I2I_FILENAME_AVAILABLE=1" >> $GITHUB_ENV
+            echo "I2I_FILE_AVAILABLE=1" >> $GITHUB_ENV
         else
-            echo "I2I_FILENAME_AVAILABLE=0" >> $GITHUB_ENV
+            echo "I2I_FILE_AVAILABLE=0" >> $GITHUB_ENV
         fi
 
     # instructions taken from
@@ -98,7 +115,7 @@ jobs:
     - name: Build (MacOS) - Load & Sign
       shell: bash -el {0}
       # We only sign pushes to main, nightlies, RCs and final releases
-      if: runner.os == 'macOS' && env.I2I_FILENAME_AVAILABLE && env.SIGNING_SECRETS_AVAILABLE
+      if: runner.os == 'macOS' && env.I2I_FILE_AVAILABLE && env.SIGNING_SECRETS_AVAILABLE
       run: |
         # create variables
         INSTALLER_CERTIFICATE_PATH="$RUNNER_TEMP/installer_developer_cert.p12"
@@ -127,7 +144,7 @@ jobs:
         echo "CONSTRUCTOR_NOTARIZATION_IDENTITY=${notarization_identity}" >> $GITHUB_ENV
         
         # codesign the app
-        codesign --deep --force --options=runtime --entitlements ./package/macos-pyinstaller/entitlements.plist --sign ${signing_identity} --timestamp ./dist/image2image.app
+        codesign --verbose=4 --deep --force --options=runtime --entitlements ./package/macos-pyinstaller/entitlements.plist --timestamp --sign "${signing_identity}" ./dist/image2image.app
 
     - name: Build (MacOS) - Package
       if: matrix.os == 'macos-latest'
@@ -145,23 +162,6 @@ jobs:
         filename=$(python -c 'from pathlib import Path; print(list((Path.cwd() / "dist").glob("image2image*.dmg"))[0].name)')
         echo "I2I_PACKAGE_NAME=$filename" >> $GITHUB_ENV
         
-
-    - name: Build (Linux)
-      if: matrix.os == 'ubuntu-latest'
-      run: |
-        # package the app
-        pyinstaller --noconfirm --clean package/image2image.spec
-
-    - name: Build (Linux) - Package
-      if: matrix.os == 'ubuntu-latest'
-      run: |
-        # tar.gz the app
-        tar czf dist/image2image.tar.gz dist/image2image
-        # rename file
-        python scripts/package_app_linux_rename.py
-        # update filename
-        filename=$(python -c 'from pathlib import Path; print(list((Path.cwd() / "dist").glob("image2image*.tar.gz"))[0].name)')
-        echo "I2I_PACKAGE_NAME=$filename" >> $GITHUB_ENV
 
     - name: Check filename availability
       shell: bash
