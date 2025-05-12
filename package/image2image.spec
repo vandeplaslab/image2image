@@ -14,7 +14,7 @@ from PyInstaller.building.build_main import COLLECT, EXE, MERGE, PYZ, TOC, Analy
 from PyInstaller.utils.hooks import collect_data_files
 
 import image2image
-from image2image.assets import ICON_ICO
+from image2image.assets import ICON_ICO as ICON_APP_ICO
 
 block_cipher = None
 
