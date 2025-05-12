@@ -113,7 +113,8 @@ jobs:
         python scripts/package_app_win_zip.py
         # update filename
         $filename = python -c "from pathlib import Path; print(list((Path.cwd() / 'dist').glob('image2image*.zip'))[0].name)"
-        echo "I2I_PACKAGE_NAME=$filename" >> $GITHUB_ENV
+        echo "$I2I_PACKAGE_NAME=$filename" >> $GITHUB_ENV
+        echo env.I2I_PACKAGE_NAME
 
     - name: Build (MacOS)
       if: matrix.os == 'macos-latest'
