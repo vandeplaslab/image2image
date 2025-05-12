@@ -173,7 +173,8 @@ jobs:
         echo "I2I_PACKAGE_NAME=$filename" >> $GITHUB_ENV
         
         # Submit for notarization to Apple servers
-        json_output_file="$RUNNER_TEMP/$(basename "$I2I_PACKAGE_NAME").notarization.json"
+        json_output_file="$RUNNER_TEMP/$(basename "I2I_PACKAGE_NAME").notarization.json"
+
         set +e
         xcrun notarytool submit "$I2I_PACKAGE_NAME" \
           --apple-id "$APPLE_NOTARIZATION_USERNAME" \
