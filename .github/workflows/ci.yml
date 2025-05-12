@@ -173,9 +173,9 @@ jobs:
         echo "I2I_PACKAGE_NAME=$filename" >> $GITHUB_ENV
         
         # Submit for notarization to Apple servers
-        json_output_file="$RUNNER_TEMP/$(basename "I2I_PACKAGE_NAME").notarization.json"
+        json_output_file="$RUNNER_TEMP/$(basename "$I2I_PACKAGE_NAME").notarization.json"
         set +e
-        xcrun notarytool submit "I2I_PACKAGE_NAME" \
+        xcrun notarytool submit "$I2I_PACKAGE_NAME" \
           --apple-id "$APPLE_NOTARIZATION_USERNAME" \
           --password "$APPLE_NOTARIZATION_PASSWORD" \
           --team-id "$APPLE_NOTARIZATION_TEAM_ID" \
@@ -195,10 +195,10 @@ jobs:
         fi
 
         # Staple
-        xcrun stapler staple --verbose "I2I_PACKAGE_NAME"
+        xcrun stapler staple --verbose "$I2I_PACKAGE_NAME"
 
         # Check notarization status
-        spctl --assess -vv --type install "I2I_PACKAGE_NAME" 2>&1 | tee /dev/stderr | grep accepted
+        spctl --assess -vv --type install "$I2I_PACKAGE_NAME" 2>&1 | tee /dev/stderr | grep accepted
         
     - name: Check filename availability
       shell: bash
