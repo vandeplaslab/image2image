@@ -104,13 +104,13 @@ def _make_exe(pyz: PYZ, analysis: Analysis, name: str, icon: Path = ICON_APP_ICO
 # main app / launcher
 with MeasureTimer() as timer:
     launcher_analysis = _make_analysis(script_file)
-    print(f"Analysis took {timer.elapsed_since_last()}")
+    print(f"Analysis took {timer(since_last=True)}")
 
     launcher_pyz = PYZ(launcher_analysis.pure)
-    print(f"PYZ took {timer.elapsed_since_last()}")
+    print(f"PYZ took {timer(since_last=True)}")
 
     launcher_exe = _make_exe(launcher_pyz, launcher_analysis, "image2image_")
-    print(f"EXE took {timer.elapsed_since_last()}")
+    print(f"EXE took {timer(since_last=True)}")
 
     image2image_coll = COLLECT(
         launcher_exe,
@@ -122,7 +122,7 @@ with MeasureTimer() as timer:
         upx=True,
         name="image2image",
     )
-    print(f"COLLECT took {timer.elapsed_since_last()}")
+    print(f"COLLECT took {timer(since_last=True)}")
 
     if IS_MAC:
         image2imag_app = BUNDLE(
@@ -142,7 +142,7 @@ with MeasureTimer() as timer:
                 "CFBundleShortVersionString": "0.0.1",
             },
         )
-        print(f"BUNDLE took {timer.elapsed_since_last()}")
+        print(f"BUNDLE took {timer(since_last=True)}")
 
 # Give information about build time
 print(f"Build image2image in {timer()}")

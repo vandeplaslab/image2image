@@ -52,7 +52,7 @@ jobs:
         # package the app
         pyinstaller --noconfirm --clean package/image2image.spec
         # rename file
-        python scripts/package_app_win.py
+        python scripts/package_app_win_zip.py
 
     - name: Build (MacOS)
       if: matrix.os == 'macos-latest'
@@ -69,20 +69,25 @@ jobs:
         # create dmg file
         hdiutil create -volname "image2image" -srcfolder ./dist/dmg -ov -format UDZO ./dist/image2image.dmg
         # rename file
-        python scripts/package_app_macos.py
+        python scripts/package_app_macos_rename.py
 
     - name: Build (Linux)
       if: matrix.os == 'ubuntu-latest'
       run: |
         # package the app
         pyinstaller --noconfirm --clean package/image2image.spec
+        # tar.gz the app
+        tar czf dist/image2image.tar.gz dist/image2image
         # rename file
-        python scripts/package_app_linux.py
-        
+        python scripts/package_app_linux_rename.py
 
     - uses: actions/upload-artifact@v4
       with:
-        path: dist/*
+        path: |
+          dist/image2image*.exe
+          dist/image2image*.dmg
+          dist/image2image*.tar.gz
+          
 
   test:
     name: Test
