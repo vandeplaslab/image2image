@@ -170,6 +170,8 @@ jobs:
         python scripts/package_app_macos_rename.py
         
         # update filename
+        filepath=$(python -c 'from pathlib import Path; print(str(list((Path.cwd() / "dist").glob("image2image*.dmg"))[0]))')
+        echo "I2I_PACKAGE_PATH=$filepath" >> $GITHUB_ENV
         filename=$(python -c 'from pathlib import Path; print(list((Path.cwd() / "dist").glob("image2image*.dmg"))[0].name)')
         echo "I2I_PACKAGE_NAME=$filename" >> $GITHUB_ENV
         
@@ -177,7 +179,7 @@ jobs:
         json_output_file="$RUNNER_TEMP/$(basename "I2I_PACKAGE_NAME").notarization.json"
 
         set +e
-        xcrun notarytool submit "$I2I_PACKAGE_NAME" \
+        xcrun notarytool submit "$I2I_PACKAGE_PATH" \
           --apple-id "$APPLE_NOTARIZATION_USERNAME" \
           --password "$APPLE_NOTARIZATION_PASSWORD" \
           --team-id "$APPLE_NOTARIZATION_TEAM_ID" \
@@ -197,10 +199,10 @@ jobs:
         fi
 
         # Staple
-        xcrun stapler staple --verbose "$I2I_PACKAGE_NAME"
+        xcrun stapler staple --verbose "$I2I_PACKAGE_PATH"
 
         # Check notarization status
-        spctl --assess -vv --type install "$I2I_PACKAGE_NAME" 2>&1 | tee /dev/stderr | grep accepted
+        spctl --assess -vv --type install "$I2I_PACKAGE_PATH" 2>&1 | tee /dev/stderr | grep accepted
         
     - name: Check filename availability
       shell: bash
