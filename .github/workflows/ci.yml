@@ -80,14 +80,25 @@ jobs:
       run: |
         # package the app
         pyinstaller --noconfirm --clean package/image2image.spec
-
+    - name: Build (MacOS) - Check
+      if: matrix.os == 'macos-latest'
+      run: |
+        # list all files in the dist folder
+        echo "Listing files in dist folder:"
+        ls -lh dist
+        # check if the file exists
+        if [ -f dist/image2image.app ]; then
+            echo "I2I_FILENAME_AVAILABLE=1" >> $GITHUB_ENV
+        else
+            echo "I2I_FILENAME_AVAILABLE=0" >> $GITHUB_ENV
+        fi
 
     # instructions taken from
     # https://docs.github.com/en/actions/deployment/deploying-xcode-applications/installing-an-apple-certificate-on-macos-runners-for-xcode-development#add-a-step-to-your-workflow
     - name: Build (MacOS) - Load & Sign
       shell: bash -el {0}
       # We only sign pushes to main, nightlies, RCs and final releases
-      if: runner.os == 'macOS' && env.SIGNING_SECRETS_AVAILABLE
+      if: runner.os == 'macOS' && env.I2I_FILENAME_AVAILABLE && env.SIGNING_SECRETS_AVAILABLE
       run: |
         # create variables
         INSTALLER_CERTIFICATE_PATH="$RUNNER_TEMP/installer_developer_cert.p12"
