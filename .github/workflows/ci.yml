@@ -125,7 +125,7 @@ jobs:
       if: matrix.os == 'macos-latest' && env.SIGNING_SECRETS_AVAILABLE
       run: |
         # codesign the app
-        codesign --deep --force --options=runtime --entitlements ./package/macos-package/entitlements.plist --sign secrets.APPLE_CODESIGN_KEY --timestamp ./dist/image2image.app
+        codesign --deep --force --options=runtime --entitlements ./package/macos-package/entitlements.plist --sign secrets.CONSTRUCTOR_SIGNING_IDENTITY --timestamp ./dist/image2image.app
 
     - name: Build (MacOS) - Package
       if: matrix.os == 'macos-latest'
