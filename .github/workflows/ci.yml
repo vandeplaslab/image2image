@@ -88,13 +88,6 @@ jobs:
         echo "CONSTRUCTOR_SIGNING_IDENTITY=${signing_identity}" >> $GITHUB_ENV
         echo "CONSTRUCTOR_NOTARIZATION_IDENTITY=${notarization_identity}" >> $GITHUB_ENV
 
-#        # The conda environment might contain a totally different codesign
-#        # which would clobber the Apple's codesign (the one we need)
-#        _codesign=$(which codesign)
-#        if [[ $_codesign =~ ${CONDA_PREFIX}.* ]]; then
-#          mv "${_codesign}" "${_codesign}.in_conda_env"
-#        fi
-
     - name: Install dependencies
       run: | 
         uv pip install pyinstaller
@@ -125,7 +118,7 @@ jobs:
       if: matrix.os == 'macos-latest' && env.SIGNING_SECRETS_AVAILABLE
       run: |
         # codesign the app
-        codesign --deep --force --options=runtime --entitlements ./package/macos-package/entitlements.plist --sign secrets.CONSTRUCTOR_SIGNING_IDENTITY --timestamp ./dist/image2image.app
+        codesign --deep --force --options=runtime --entitlements ./package/macos-package/entitlements.plist --sign env.CONSTRUCTOR_SIGNING_IDENTITY --timestamp ./dist/image2image.app
 
     - name: Build (MacOS) - Package
       if: matrix.os == 'macos-latest'
