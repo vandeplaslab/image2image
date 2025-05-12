@@ -104,13 +104,13 @@ def _make_exe(pyz: PYZ, analysis: Analysis, name: str, icon: Path = ICON_APP_ICO
 # main app / launcher
 with MeasureTimer() as timer:
     launcher_analysis = _make_analysis(script_file)
-    print(f"Analysis took {timer.format(timer.elapsed_since_last())}")
+    print(f"Analysis took {timer.elapsed_since_last()}")
 
     launcher_pyz = PYZ(launcher_analysis.pure)
-    print(f"PYZ took {timer.format(timer.elapsed_since_last())}")
+    print(f"PYZ took {timer.elapsed_since_last()}")
 
     launcher_exe = _make_exe(launcher_pyz, launcher_analysis, "image2image_")
-    print(f"EXE took {timer.format(timer.elapsed_since_last())}")
+    print(f"EXE took {timer.elapsed_since_last()}")
 
     image2image_coll = COLLECT(
         launcher_exe,
@@ -122,13 +122,13 @@ with MeasureTimer() as timer:
         upx=True,
         name="image2image",
     )
-    print(f"COLLECT took {timer.format(timer.elapsed_since_last())}")
+    print(f"COLLECT took {timer.elapsed_since_last()}")
 
     if IS_MAC:
         image2imag_app = BUNDLE(
             image2image_coll,
             name="image2image.app",
-            icon=ICON_ICO,
+            icon=ICON_APP_ICO,
             bundle_identifier="com.vandeplaslab.image2image",
             info_plist={
                 "CFBundleIdentifier": "com.vandeplaslab.image2image",
@@ -142,7 +142,7 @@ with MeasureTimer() as timer:
                 "CFBundleShortVersionString": "0.0.1",
             },
         )
-        print(f"BUNDLE took {timer.format(timer.elapsed_since_last())}")
+        print(f"BUNDLE took {timer.elapsed_since_last()}")
 
 # Give information about build time
 print(f"Build image2image in {timer()}")
