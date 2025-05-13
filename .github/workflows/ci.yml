@@ -145,14 +145,14 @@ jobs:
 
         # codesign the app
         codesign --verbose=4 --deep --force --options=runtime --entitlements ./package/macos-pyinstaller/entitlements.plist --timestamp --sign "${dev_id_app_identity}" ./dist/image2image.app
-        # codesign --verbose=4 --deep --force --options=runtime --entitlements ./package/macos-pyinstaller/entitlements.plist --timestamp --sign "${dev_id_app_identity}" ./dist/image2image.app
 
-    - uses: actions/upload-artifact@v4
-      if: success() && env.I2I_FILENAME_AVAILABLE == '1'
-      with:
-        compression-level: 0  # no compression
-        path: |
-          dist/image2image*.app
+#    - uses: actions/upload-artifact@v4
+#      if: success()
+#      name: Build (MaxOS) - Upload App
+#      with:
+#        compression-level: 0  # no compression
+#        path: |
+#          dist/image2image*.app
 
     - name: Build (MacOS) - Package
       if: matrix.os == 'macos-latest'
@@ -196,49 +196,56 @@ jobs:
         python scripts/package_app_macos_rename.py
         
         # update filename
-        I2I_PACKAGE_PATH=$(python -c 'from pathlib import Path; print(str(list((Path.cwd() / "dist").glob("image2image*.dmg"))[0]))')
-        echo "I2I_PACKAGE_PATH=I2I_PACKAGE_PATH" >> $GITHUB_ENV
+        I2I_APP_PATH=$(python -c 'from pathlib import Path; print(str(list((Path.cwd() / "dist" / "dmg").glob("image2image*.app"))[0]))')
+        echo "I2I_APP_PATH=$(I2I_APP_PATH)" >> $GITHUB_ENV
+        I2I_DMG_PATH=$(python -c 'from pathlib import Path; print(str(list((Path.cwd() / "dist").glob("image2image*.dmg"))[0]))')
+        echo "I2I_DMG_PATH=$(I2I_DMG_PATH)" >> $GITHUB_ENV
         I2I_PACKAGE_NAME=$(python -c 'from pathlib import Path; print(list((Path.cwd() / "dist").glob("image2image*.dmg"))[0].name)')
-        echo "I2I_PACKAGE_NAME=$I2I_PACKAGE_NAME" >> $GITHUB_ENV
+        echo "I2I_PACKAGE_NAME=$(I2I_PACKAGE_NAME)" >> $GITHUB_ENV
         
         # Submit for notarization to Apple servers
         json_output_file="$RUNNER_TEMP/image2image.notarization.json"
-        echo "I2I_JSON_OUTPUT_FILE=$json_output_file" >> $GITHUB_ENV
+        echo "I2I_JSON_OUTPUT_FILE=$(json_output_file)" >> $GITHUB_ENV
 
         set +e
-        xcrun notarytool submit "$I2I_PACKAGE_PATH" \
-          --apple-id "$APPLE_NOTARIZATION_USERNAME" \
-          --password "$APPLE_NOTARIZATION_PASSWORD" \
-          --team-id "$APPLE_NOTARIZATION_TEAM_ID" \
+        xcrun notarytool submit "$I2I_DMG_PATH" \
+          --apple-id "$(APPLE_NOTARIZATION_USERNAME)" \
+          --password "$(APPLE_NOTARIZATION_PASSWORD)" \
+          --team-id "$(APPLE_NOTARIZATION_TEAM_ID)" \ 
           --output-format json \
           --wait \
           --timeout 30m \
           --verbose \
-          | tee "$json_output_file"
+          | tee "$(json_output_file)"
         notary_exit_code=$?
         set -e
-        if [[ $notary_exit_code != 0 ]]; then
+        if [[ $(notary_exit_code) != 0 ]]; then
           submission_id=$(jq -r '.id' "$json_output_file")
-          xcrun notarytool log "$submission_id" \
-            --apple-id "$APPLE_NOTARIZATION_USERNAME" \
-            --password "$APPLE_NOTARIZATION_PASSWORD" \
-            --team-id "$APPLE_NOTARIZATION_TEAM_ID"
+          xcrun notarytool log "$(submission_id)" \
+            --apple-id "$(APPLE_NOTARIZATION_USERNAME)" \
+            --password "$(APPLE_NOTARIZATION_PASSWORD)" \
+            --team-id "$(APPLE_NOTARIZATION_TEAM_ID)"
             --verbose
-          exit $notary_exit_code
+          exit $(notary_exit_code)
         fi
 
         # Staple
-        xcrun stapler staple --verbose "$I2I_PACKAGE_PATH"
+        xcrun stapler staple --verbose "$(I2I_DMG_PATH)"
 
         # Check notarization status
-        spctl --assess -vv --type install "$I2I_PACKAGE_PATH" 2>&1 | tee /dev/stderr | grep accepted
+        spctl --assess -vv --type install "$(I2I_APP_PATH)" 2>&1 | tee /dev/stderr | grep accepted
 
     - uses: actions/upload-artifact@v4
       if: failure()
+      name: Build (MaxOS) - Upload dmg
+      env:
+        I2I_DMG_PATH: ${{ env.I2I_DMG_PATH }}
+        I2I_JSON_OUTPUT_FILE: ${{ env.I2I_JSON_OUTPUT_FILE }}
       with:
         compression-level: 0  # no compression
         path: |
-          dist/image2image*.dmg
+          $I2I_JSON_OUTPUT_FILE
+          $I2I_DMG_PATH
 
     - name: Check filename availability
       shell: bash
