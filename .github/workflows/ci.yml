@@ -140,7 +140,7 @@ jobs:
 
         # codesign the app
         codesign --verbose=4 --deep --force --options=runtime --entitlements ./package/macos-pyinstaller/entitlements.plist --timestamp --sign "${dev_id_app_identity}" ./dist/image2image.app
-      #        codesign --verbose=4 --deep --force --options=runtime --entitlements ./package/macos-pyinstaller/entitlements.plist --timestamp --sign "${dev_id_app_identity}" ./dist/image2image.app
+        # codesign --verbose=4 --deep --force --options=runtime --entitlements ./package/macos-pyinstaller/entitlements.plist --timestamp --sign "${dev_id_app_identity}" ./dist/image2image.app
 
     - name: Build (MacOS) - Package
       if: matrix.os == 'macos-latest'
@@ -170,13 +170,13 @@ jobs:
           --app-drop-link 425 120 \
           "dist/image2image.dmg" \
           "dist/dmg/"
-
-
-#        # link the app to the Applications folder
-#        ln -s /Applications dist/dmg/Applications
-#        mv dist/image2image.app dist/dmg
-#        # create dmg file
-#        hdiutil create -volname "image2image" -srcfolder ./dist/dmg -ov -format UDZO ./dist/image2image.dmg
+        
+        # link the app to the Applications folder
+        # ln -s /Applications dist/dmg/Applications
+        # mv dist/image2image.app dist/dmg
+        # create dmg file
+        # hdiutil create -volname "image2image" -srcfolder ./dist/dmg -ov -format UDZO ./dist/image2image.dmg
+        
         # rename file
         python scripts/package_app_macos_rename.py
         
