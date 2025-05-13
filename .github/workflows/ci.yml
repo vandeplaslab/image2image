@@ -31,6 +31,11 @@ jobs:
         os: [macos-latest] #, windows-latest, ubuntu-latest]
 
     steps:
+    - uses: gerlero/brew-install@v1
+      if: matrix.os == 'macos-latest'
+      with:
+        packages: create-dmg
+
     - uses: actions/checkout@v4
     - uses: astral-sh/setup-uv@v6
       with:
@@ -156,6 +161,9 @@ jobs:
         
         # create a disk image
         mkdir -p dist/dmg
+        
+        # Move app to dmg folder
+        mv dist/image2image.app dist/dmg
         
         # Create the DMG
         # Ensure you have 'create-dmg' installed. If not, install using 'brew install create-dmg'
