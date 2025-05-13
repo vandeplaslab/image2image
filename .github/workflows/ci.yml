@@ -146,14 +146,6 @@ jobs:
         # codesign the app
         codesign --verbose=4 --deep --force --options=runtime --entitlements ./package/macos-pyinstaller/entitlements.plist --timestamp --sign "${dev_id_app_identity}" ./dist/image2image.app
 
-#    - uses: actions/upload-artifact@v4
-#      if: success()
-#      name: Build (MaxOS) - Upload App
-#      with:
-#        compression-level: 0  # no compression
-#        path: |
-#          dist/image2image*.app
-
     - name: Build (MacOS) - Package
       if: matrix.os == 'macos-latest'
       env:
@@ -215,7 +207,7 @@ jobs:
           --output-format json \
           --wait \
           --timeout 30m \
-          --verbose
+          --verbose \
           | tee "$json_output_file"
         notary_exit_code=$?
         set -e
@@ -236,16 +228,15 @@ jobs:
         spctl --assess -vv --type install "$I2I_APP_PATH" 2>&1 | tee /dev/stderr | grep accepted
 
     - uses: actions/upload-artifact@v4
-      if: failure()
+      if: failure() && runner.os == 'macOS'
       name: Build (MaxOS) - Upload dmg
       env:
         I2I_DMG_PATH: ${{ env.I2I_DMG_PATH }}
-        I2I_JSON_OUTPUT_FILE: ${{ env.I2I_JSON_OUTPUT_FILE }}
       with:
         compression-level: 0  # no compression
         path: |
+          dist/image2image*.dmg
           $I2I_DMG_PATH
-          $I2I_JSON_OUTPUT_FILE
 
     - name: Check filename availability
       shell: bash
