@@ -135,15 +135,12 @@ jobs:
         security list-keychain -d user -s $KEYCHAIN_PATH
 
         # export identity name
-        signing_identity=$(security find-identity $KEYCHAIN_PATH | grep -m 1 -o '"Developer ID Installer.*"' | tr -d '"')
-        notarization_identity=$(security find-identity $KEYCHAIN_PATH | grep -m 1 -o '"Developer ID Application.*"' | tr -d '"')
+        dev_id_installer_identity=$(security find-identity $KEYCHAIN_PATH | grep -m 1 -o '"Developer ID Installer.*"' | tr -d '"')
+        dev_id_app_identity=$(security find-identity $KEYCHAIN_PATH | grep -m 1 -o '"Developer ID Application.*"' | tr -d '"')
 
-        echo "CONSTRUCTOR_SIGNING_IDENTITY=${signing_identity}" >> $GITHUB_ENV
-        echo "CONSTRUCTOR_NOTARIZATION_IDENTITY=${notarization_identity}" >> $GITHUB_ENV
-        
         # codesign the app
-        codesign --verbose=4 --force --options=runtime --entitlements ./package/macos-pyinstaller/entitlements.plist --timestamp --sign "${notarization_identity}" ./dist/image2image.app
-      #        codesign --verbose=4 --deep --force --options=runtime --entitlements ./package/macos-pyinstaller/entitlements.plist --timestamp --sign "${notarization_identity}" ./dist/image2image.app
+        codesign --verbose=4 --deep --force --options=runtime --entitlements ./package/macos-pyinstaller/entitlements.plist --timestamp --sign "${dev_id_app_identity}" ./dist/image2image.app
+      #        codesign --verbose=4 --deep --force --options=runtime --entitlements ./package/macos-pyinstaller/entitlements.plist --timestamp --sign "${dev_id_app_identity}" ./dist/image2image.app
 
     - name: Build (MacOS) - Package
       if: matrix.os == 'macos-latest'
