@@ -184,6 +184,7 @@ jobs:
           --output-format json \
           --wait \
           --timeout 30m \
+          --verbose \
           | tee "$json_output_file"
         notary_exit_code=$?
         set -e
@@ -193,6 +194,7 @@ jobs:
             --apple-id "$APPLE_NOTARIZATION_USERNAME" \
             --password "$APPLE_NOTARIZATION_PASSWORD" \
             --team-id "$APPLE_NOTARIZATION_TEAM_ID"
+            --verbose
           exit $notary_exit_code
         fi
 
