@@ -76,7 +76,7 @@ jobs:
 #        python scripts/package_app_win_zip.py
 #        # update filename
 #        $filename = python -c "from pathlib import Path; print(list((Path.cwd() / 'dist').glob('image2image*.zip'))[0].name)"
-#        echo "I2I_PACKAGE_NAME=$filename" >> $Env:GITHUB_ENV
+#        echo "I2I_DMG_NAME=$filename" >> $Env:GITHUB_ENV
 
 #    - name: Build (Linux)
 #      if: matrix.os == 'ubuntu-latest'
@@ -93,7 +93,7 @@ jobs:
 #        python scripts/package_app_linux_rename.py
 #        # update filename
 #        filename=$(python -c 'from pathlib import Path; print(list((Path.cwd() / "dist").glob("image2image*.tar.gz"))[0].name)')
-#        echo "I2I_PACKAGE_NAME=$filename" >> $GITHUB_ENV
+#        echo "I2I_DMG_NAME=$filename" >> $GITHUB_ENV
 
     - name: Build (MacOS)
       if: matrix.os == 'macos-latest'
@@ -200,8 +200,8 @@ jobs:
         echo "I2I_APP_PATH=$I2I_APP_PATH" >> $GITHUB_ENV
         I2I_DMG_PATH=$(python -c 'from pathlib import Path; print(str(list((Path.cwd() / "dist").glob("image2image*.dmg"))[0]))')
         echo "I2I_DMG_PATH=$I2I_DMG_PATH" >> $GITHUB_ENV
-        I2I_PACKAGE_NAME=$(python -c 'from pathlib import Path; print(list((Path.cwd() / "dist").glob("image2image*.dmg"))[0].name)')
-        echo "I2I_PACKAGE_NAME=$I2I_PACKAGE_NAME" >> $GITHUB_ENV
+        I2I_DMG_NAME=$(python -c 'from pathlib import Path; print(list((Path.cwd() / "dist").glob("image2image*.dmg"))[0].name)')
+        echo "I2I_DMG_NAME=$I2I_DMG_NAME" >> $GITHUB_ENV
         
         # Submit for notarization to Apple servers
         json_output_file="$RUNNER_TEMP/image2image.notarization.json"
@@ -219,7 +219,7 @@ jobs:
           | tee "$json_output_file"
         notary_exit_code=$?
         set -e
-        if [[ $(notary_exit_code) != 0 ]]; then
+        if [[ $notary_exit_code != 0 ]]; then
           submission_id=$(jq -r '.id' "$json_output_file")
           xcrun notarytool log "$submission_id" \
             --apple-id "$APPLE_NOTARIZATION_USERNAME" \
@@ -250,7 +250,7 @@ jobs:
     - name: Check filename availability
       shell: bash
       run: |
-        if [ -n '${{ env.I2I_PACKAGE_NAME }}' ]; then
+        if [ -n '${{ env.I2I_DMG_NAME }}' ]; then
             echo "I2I_FILENAME_AVAILABLE=1" >> $GITHUB_ENV
         fi
 
@@ -258,7 +258,7 @@ jobs:
       if: success() && env.I2I_FILENAME_AVAILABLE == '1'
       with:
         compression-level: 0  # no compression
-        name: '${{ env.I2I_PACKAGE_NAME }}'
+        name: '${{ env.I2I_DMG_NAME }}'
         path: |
           dist/image2image*.zip
           dist/image2image*.dmg
