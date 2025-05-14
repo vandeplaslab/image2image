@@ -107,11 +107,10 @@ jobs:
           python-version: ${{ matrix.python-version }}
           enable-cache: true
 
-      - uses: pymmcore-plus/setup-mm-test-adapters@main
       - uses: pyvista/setup-headless-display-action@v4
 
       - name: Install dependencies
-        run: uv sync --no-dev --group test --extra ${{ matrix.backend }} --extra 2d
+        run: uv sync --no-dev --group test --extra ${{ matrix.backend }}
 
       - name: Test
         run: uv run coverage run -p -m pytest -v --color=yes
