@@ -53,6 +53,9 @@ jobs:
             backend: pyqt6
             platform: ubuntu-latest
           - python-version: "3.12"
+            backend: pyside6
+            platform: ubuntu-latest
+          - python-version: "3.12"
             backend: pyqt6
             platform: macos-latest
           - python-version: "3.12"
