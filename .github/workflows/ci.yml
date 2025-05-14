@@ -36,7 +36,7 @@ jobs:
 #      coverage-upload: artifact
   test:
     name: Test (${{ matrix.platform }} py${{ matrix.python-version }} ${{ matrix.backend }})
-    runs-on: ${{ matrix.os }}
+    runs-on: ${{ matrix.platform }}
     env:
       UV_NO_SYNC: "1"
       UV_MANAGED_PYTHON: "1"
