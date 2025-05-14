@@ -45,15 +45,18 @@ jobs:
         python-version: ["3.9", "3.10", "3.11", "3.12"]
         backend: [pyside6, pyqt6]
         exclude:
-#          # Abort (core dumped) on linux pyqt6, unknown reason
+          # Abort (core dumped) on linux pyqt6, unknown reason
 #          - platform: ubuntu-latest
 #            backend: pyqt6
-          # lack of wheels for pyside2 on MacOS
-          - platform: macos-latest
-            backend: pyside2
           # dask/xarray issues
           - python-version: "3.12"
             backend: pyqt6
+            platform: ubuntu-latest
+          - python-version: "3.12"
+            backend: pyqt6
+            platform: macos-latest
+          - python-version: "3.12"
+            backend: pyside6
             platform: macos-latest
           - python-version: "3.12"
             backend: pyqt6
