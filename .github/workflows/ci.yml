@@ -22,240 +22,6 @@ jobs:
       - uses: astral-sh/setup-uv@v6
       - run: uvx check-manifest
 
-  pyinstaller_build:
-    name: Build (PyInstaller)
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [macos-latest] #, windows-latest, ubuntu-latest]
-
-    steps:
-    - uses: gerlero/brew-install@v1
-      if: matrix.os == 'macos-latest'
-      with:
-        packages: create-dmg
-
-    - uses: actions/checkout@v4
-    - uses: astral-sh/setup-uv@v6
-      with:
-        enable-cache: true
-        activate-environment: true
-        python-version: "3.10"
-    - uses: pyvista/setup-headless-display-action@v3
-      with:
-        qt: true
-
-    - name: Check secrets availability
-      shell: bash
-      run: |
-        if [ -n '${{ secrets.APPLE_APPLICATION_CERTIFICATE_BASE64 }}' ] && \
-           [ -n '${{ secrets.APPLE_INSTALLER_CERTIFICATE_BASE64 }}' ]   && \
-           [ -n '${{ secrets.APPLE_INSTALLER_CERTIFICATE_PASSWORD }}' ] && \
-           [ -n '${{ secrets.APPLE_NOTARIZATION_USERNAME }}' ] && \
-           [ -n '${{ secrets.APPLE_NOTARIZATION_PASSWORD }}' ] && \
-           [ -n '${{ secrets.TEMP_KEYCHAIN_PASSWORD }}' ]; then
-            echo "SIGNING_SECRETS_AVAILABLE=1" >> $GITHUB_ENV
-        fi
-
-    - name: Install dependencies
-      run: | 
-        uv pip install pyinstaller
-        uv pip install ".[pyqt6]"
-        
-
-#    - name: Build (Windows)
-#      if: matrix.os == 'windows-latest'
-#      run: |
-#        # package the app
-#        pyinstaller --noconfirm --clean package/image2image.spec
-#    - name: Build (Windows) - Package
-#      if: matrix.os == 'windows-latest'
-#      run: |
-#        # rename file
-#        python scripts/package_app_win_zip.py
-#        # update filename
-#        $filename = python -c "from pathlib import Path; print(list((Path.cwd() / 'dist').glob('image2image*.zip'))[0].name)"
-#        echo "I2I_DMG_NAME=$filename" >> $Env:GITHUB_ENV
-
-#    - name: Build (Linux)
-#      if: matrix.os == 'ubuntu-latest'
-#      run: |
-#        # package the app
-#        pyinstaller --noconfirm --clean package/image2image.spec
-#
-#    - name: Build (Linux) - Package
-#      if: matrix.os == 'ubuntu-latest'
-#      run: |
-#        # tar.gz the app
-#        tar czf dist/image2image.tar.gz dist/image2image
-#        # rename file
-#        python scripts/package_app_linux_rename.py
-#        # update filename
-#        filename=$(python -c 'from pathlib import Path; print(list((Path.cwd() / "dist").glob("image2image*.tar.gz"))[0].name)')
-#        echo "I2I_DMG_NAME=$filename" >> $GITHUB_ENV
-
-    - name: Build (MacOS)
-      if: matrix.os == 'macos-latest'
-      run: |
-        # package the app
-        pyinstaller --noconfirm --clean package/image2image.spec
-    - name: Build (MacOS) - Check
-      if: matrix.os == 'macos-latest'
-      run: |
-        # list all files in the dist folder
-        echo "Listing files in dist folder:"
-        ls -lh dist
-        # check if the file exists
-        if [ -f dist/image2image.app ]; then
-            echo "I2I_FILE_AVAILABLE=1" >> $GITHUB_ENV
-        else
-            echo "I2I_FILE_AVAILABLE=0" >> $GITHUB_ENV
-        fi
-
-    # instructions taken from
-    # https://docs.github.com/en/actions/deployment/deploying-xcode-applications/installing-an-apple-certificate-on-macos-runners-for-xcode-development#add-a-step-to-your-workflow
-    - name: Build (MacOS) - Load & Sign
-      shell: bash -el {0}
-      # We only sign pushes to main, nightlies, RCs and final releases
-      if: runner.os == 'macOS' && env.I2I_FILE_AVAILABLE && env.SIGNING_SECRETS_AVAILABLE
-      run: |
-        # create variables
-        INSTALLER_CERTIFICATE_PATH="$RUNNER_TEMP/installer_developer_cert.p12"
-        APPLICATION_CERTIFICATE_PATH="$RUNNER_TEMP/application_developer_cert.p12"
-        KEYCHAIN_PATH="$RUNNER_TEMP/installer-signing.keychain-db"
-
-        # import certificate and provisioning profile from secrets
-        echo -n "${{ secrets.APPLE_INSTALLER_CERTIFICATE_BASE64 }}" | /usr/bin/base64 --decode > $INSTALLER_CERTIFICATE_PATH
-        echo -n "${{ secrets.APPLE_APPLICATION_CERTIFICATE_BASE64 }}" | /usr/bin/base64 --decode > $APPLICATION_CERTIFICATE_PATH
-
-        # create temporary keychain
-        security create-keychain -p "${{ secrets.TEMP_KEYCHAIN_PASSWORD }}" $KEYCHAIN_PATH
-        security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
-        security unlock-keychain -p "${{ secrets.TEMP_KEYCHAIN_PASSWORD }}" $KEYCHAIN_PATH
-
-        # import certificate to keychain
-        security import $INSTALLER_CERTIFICATE_PATH -P ${{ secrets.APPLE_INSTALLER_CERTIFICATE_PASSWORD }} -A -t cert -f pkcs12 -k $KEYCHAIN_PATH
-        security import $APPLICATION_CERTIFICATE_PATH -P ${{ secrets.APPLE_INSTALLER_CERTIFICATE_PASSWORD }} -A -t cert -f pkcs12 -k $KEYCHAIN_PATH
-        security list-keychain -d user -s $KEYCHAIN_PATH
-
-        # export identity name
-        dev_id_installer_identity=$(security find-identity $KEYCHAIN_PATH | grep -m 1 -o '"Developer ID Installer.*"' | tr -d '"')
-        dev_id_app_identity=$(security find-identity $KEYCHAIN_PATH | grep -m 1 -o '"Developer ID Application.*"' | tr -d '"')
-
-        # codesign the app
-        codesign --verbose=4 --deep --force --options=runtime --entitlements ./package/macos-pyinstaller/entitlements.plist --timestamp --sign "${dev_id_app_identity}" ./dist/image2image.app
-
-    - name: Build (MacOS) - Package
-      if: matrix.os == 'macos-latest'
-      env:
-        # See https://keith.github.io/xcode-man-pages/notarytool.1.html for auth options
-        APPLE_NOTARIZATION_USERNAME: ${{ secrets.APPLE_NOTARIZATION_USERNAME }}
-        # This needs to be an application-specific password
-        APPLE_NOTARIZATION_PASSWORD: ${{ secrets.APPLE_NOTARIZATION_PASSWORD }}
-        # 10 alphanumeric characters available in the AppleID UI
-        APPLE_NOTARIZATION_TEAM_ID: ${{ secrets.APPLE_NOTARIZATION_TEAM_ID }}
-      run: |
-        set -euxo pipefail
-        
-        # create a disk image
-        mkdir -p dist/dmg
-        
-        # Move app to dmg folder
-        mv dist/image2image.app dist/dmg
-        
-        # Create the DMG
-        # Ensure you have 'create-dmg' installed. If not, install using 'brew install create-dmg'
-        create-dmg \
-          --volname "image2image" \
-          --volicon "src/image2image/assets/icon.ico" \
-          --window-pos 200 120 \
-          --window-size 600 300 \
-          --icon-size 100 \
-          --icon "image2image.app" 175 120 \
-          --hide-extension "image2image.app" \
-          --app-drop-link 425 120 \
-          "dist/image2image.dmg" \
-          "dist/dmg/"
-        
-        # link the app to the Applications folder
-        # ln -s /Applications dist/dmg/Applications
-        # mv dist/image2image.app dist/dmg
-        # create dmg file
-        # hdiutil create -volname "image2image" -srcfolder ./dist/dmg -ov -format UDZO ./dist/image2image.dmg
-        
-        # rename file
-        python scripts/package_app_macos_rename.py
-        
-        # update filename
-        I2I_APP_PATH=$(python -c 'from pathlib import Path; print(str(list((Path.cwd() / "dist" / "dmg").glob("image2image*.app"))[0]))')
-        echo "I2I_APP_PATH=$I2I_APP_PATH" >> $GITHUB_ENV
-        I2I_DMG_PATH=$(python -c 'from pathlib import Path; print(str(list((Path.cwd() / "dist").glob("image2image*.dmg"))[0]))')
-        echo "I2I_DMG_PATH=$I2I_DMG_PATH" >> $GITHUB_ENV
-        I2I_DMG_NAME=$(python -c 'from pathlib import Path; print(list((Path.cwd() / "dist").glob("image2image*.dmg"))[0].name)')
-        echo "I2I_DMG_NAME=$I2I_DMG_NAME" >> $GITHUB_ENV
-        
-        # Submit for notarization to Apple servers
-        json_output_file="$RUNNER_TEMP/image2image.notarization.json"
-        echo "I2I_JSON_OUTPUT_FILE=$json_output_file" >> $GITHUB_ENV
-
-        set +e
-        xcrun notarytool submit "$I2I_DMG_PATH" \
-          --apple-id "$APPLE_NOTARIZATION_USERNAME" \
-          --password "$APPLE_NOTARIZATION_PASSWORD" \
-          --team-id "$APPLE_NOTARIZATION_TEAM_ID" \
-          --output-format json \
-          --wait \
-          --timeout 30m \
-          --verbose \
-          | tee "$json_output_file"
-        notary_exit_code=$?
-        set -e
-        if [[ $notary_exit_code != 0 ]]; then
-          submission_id=$(jq -r '.id' "$json_output_file")
-          xcrun notarytool log "$submission_id" \
-            --apple-id "$APPLE_NOTARIZATION_USERNAME" \
-            --password "$APPLE_NOTARIZATION_PASSWORD" \
-            --team-id "$APPLE_NOTARIZATION_TEAM_ID" \
-            --verbose
-          exit $notary_exit_code
-        fi
-
-        # Staple
-        xcrun stapler staple --verbose "$I2I_DMG_PATH"
-
-        # Check notarization status
-        spctl --assess -vv --type install "$I2I_APP_PATH" 2>&1 | tee /dev/stderr | grep accepted
-
-    - uses: actions/upload-artifact@v4
-      if: failure() && runner.os == 'macOS'
-      name: Build (MaxOS) - Upload dmg
-      env:
-        I2I_DMG_PATH: ${{ env.I2I_DMG_PATH }}
-      with:
-        compression-level: 0  # no compression
-        path: |
-          dist/image2image*.dmg
-          $I2I_DMG_PATH
-
-    - name: Check filename availability
-      shell: bash
-      run: |
-        if [ -n '${{ env.I2I_DMG_NAME }}' ]; then
-            echo "I2I_FILENAME_AVAILABLE=1" >> $GITHUB_ENV
-        fi
-
-    - uses: actions/upload-artifact@v4
-      if: success() && env.I2I_FILENAME_AVAILABLE == '1'
-      with:
-        compression-level: 0  # no compression
-        name: '${{ env.I2I_DMG_NAME }}'
-        path: |
-          dist/image2image*.zip
-          dist/image2image*.dmg
-          dist/image2image*.tar.gz
-          
-
   test:
     name: Test
     uses: pyapp-kit/workflows/.github/workflows/test-pyrepo.yml@v2
@@ -335,11 +101,253 @@ jobs:
 
   # now add another job to combine and upload the coverage
   upload_coverage:
+    name: Upload coverage
     if: always()
     needs: [test]
     uses: pyapp-kit/workflows/.github/workflows/upload-coverage.yml@v2
     secrets:
       codecov_token: ${{ secrets.CODECOV_TOKEN }}
+
+  # Build PyInstaller apps
+  pyinstaller_build:
+    name: Build (PyInstaller)
+    # if: success() && startsWith(github.ref, 'refs/tags/') && github.event_name != 'schedule'
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest, ubuntu-latest]
+
+    steps:
+    - uses: gerlero/brew-install@v1
+      if: matrix.os == 'macos-latest'
+      with:
+        packages: create-dmg
+
+    - uses: actions/checkout@v4
+    - uses: astral-sh/setup-uv@v6
+      with:
+        enable-cache: true
+        activate-environment: true
+        python-version: "3.10"
+    - uses: pyvista/setup-headless-display-action@v3
+      with:
+        qt: true
+
+    - name: Check secrets availability
+      shell: bash
+      run: |
+        if [ -n '${{ secrets.APPLE_APPLICATION_CERTIFICATE_BASE64 }}' ] && \
+           [ -n '${{ secrets.APPLE_INSTALLER_CERTIFICATE_BASE64 }}' ]   && \
+           [ -n '${{ secrets.APPLE_INSTALLER_CERTIFICATE_PASSWORD }}' ] && \
+           [ -n '${{ secrets.APPLE_NOTARIZATION_USERNAME }}' ] && \
+           [ -n '${{ secrets.APPLE_NOTARIZATION_PASSWORD }}' ] && \
+           [ -n '${{ secrets.TEMP_KEYCHAIN_PASSWORD }}' ]; then
+            echo "SIGNING_SECRETS_AVAILABLE=1" >> $GITHUB_ENV
+        fi
+
+    - name: Install dependencies
+      if: matrix.os != 'windows-latest'
+      run: | 
+        uv pip install pyinstaller
+        uv pip install ".[pyqt6]"
+
+    - name: Install dependecies (Windows - temporary)
+      if: matrix.os == 'windows-latest'
+      run: |
+        uv pip install pyinstaller
+        uv pip install "."
+        uv pip install --index-url "https://www.riverbankcomputing.com/pypi/simple/" --no-deps --pre --upgrade PyQt6
+        uv pip install --index-url "https://www.riverbankcomputing.com/pypi/simple/" --no-deps --pre --upgrade PyQt6-qt6
+        uv pip install --index-url "https://www.riverbankcomputing.com/pypi/simple/" --no-deps --pre --upgrade PyQt6-sip
+
+    - name: Build (Windows)
+      if: matrix.os == 'windows-latest'
+      run: |
+        # package the app
+        pyinstaller --noconfirm --clean package/image2image.spec
+
+    - name: Build (Windows) - Package
+      if: matrix.os == 'windows-latest'
+      run: |
+        # rename file
+        python scripts/package_app_win_zip.py
+        # update filename
+        $filename = python -c "from pathlib import Path; print(list((Path.cwd() / 'dist').glob('image2image*.zip'))[0].name)"
+        echo "I2I_DMG_NAME=$filename" >> $Env:GITHUB_ENV
+
+    - name: Build (Linux)
+      if: matrix.os == 'ubuntu-latest'
+      run: |
+        # package the app
+        pyinstaller --noconfirm --clean package/image2image.spec
+
+    - name: Build (Linux) - Package
+      if: matrix.os == 'ubuntu-latest'
+      run: |
+        # tar.gz the app
+        tar czf dist/image2image.tar.gz dist/image2image
+        # rename file
+        python scripts/package_app_linux_rename.py
+        # update filename
+        filename=$(python -c 'from pathlib import Path; print(list((Path.cwd() / "dist").glob("image2image*.tar.gz"))[0].name)')
+        echo "I2I_DMG_NAME=$filename" >> $GITHUB_ENV
+
+    - name: Build (MacOS)
+      if: matrix.os == 'macos-latest'
+      run: |
+        # package the app
+        pyinstaller --noconfirm --clean package/image2image.spec
+    - name: Build (MacOS) - Check
+      if: matrix.os == 'macos-latest'
+      run: |
+        # list all files in the dist folder
+        echo "Listing files in dist folder:"
+        ls -lh dist
+        # check if the file exists
+        if [ -f dist/image2image.app ]; then
+            echo "I2I_FILE_AVAILABLE=1" >> $GITHUB_ENV
+        else
+            echo "I2I_FILE_AVAILABLE=0" >> $GITHUB_ENV
+        fi
+
+    # instructions taken from:
+    # https://docs.github.com/en/actions/deployment/deploying-xcode-applications/installing-an-apple-certificate-on-macos-runners-for-xcode-development#add-a-step-to-your-workflow
+    # and
+    # https://github.com/napari/packaging/blob/main/.github/workflows/make_bundle_conda.yml
+    - name: Build (MacOS) - Load & Sign
+      shell: bash -el {0}
+      # We only sign pushes to main, nightlies, RCs and final releases
+      if: matrix.os == 'macos-latest' && env.I2I_FILE_AVAILABLE && env.SIGNING_SECRETS_AVAILABLE
+      run: |
+        # create variables
+        INSTALLER_CERTIFICATE_PATH="$RUNNER_TEMP/installer_developer_cert.p12"
+        APPLICATION_CERTIFICATE_PATH="$RUNNER_TEMP/application_developer_cert.p12"
+        KEYCHAIN_PATH="$RUNNER_TEMP/installer-signing.keychain-db"
+
+        # import certificate and provisioning profile from secrets
+        echo -n "${{ secrets.APPLE_INSTALLER_CERTIFICATE_BASE64 }}" | /usr/bin/base64 --decode > $INSTALLER_CERTIFICATE_PATH
+        echo -n "${{ secrets.APPLE_APPLICATION_CERTIFICATE_BASE64 }}" | /usr/bin/base64 --decode > $APPLICATION_CERTIFICATE_PATH
+
+        # create temporary keychain
+        security create-keychain -p "${{ secrets.TEMP_KEYCHAIN_PASSWORD }}" $KEYCHAIN_PATH
+        security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
+        security unlock-keychain -p "${{ secrets.TEMP_KEYCHAIN_PASSWORD }}" $KEYCHAIN_PATH
+
+        # import certificate to keychain
+        security import $INSTALLER_CERTIFICATE_PATH -P ${{ secrets.APPLE_INSTALLER_CERTIFICATE_PASSWORD }} -A -t cert -f pkcs12 -k $KEYCHAIN_PATH
+        security import $APPLICATION_CERTIFICATE_PATH -P ${{ secrets.APPLE_INSTALLER_CERTIFICATE_PASSWORD }} -A -t cert -f pkcs12 -k $KEYCHAIN_PATH
+        security list-keychain -d user -s $KEYCHAIN_PATH
+
+        # export identity name
+        dev_id_installer_identity=$(security find-identity $KEYCHAIN_PATH | grep -m 1 -o '"Developer ID Installer.*"' | tr -d '"')
+        dev_id_app_identity=$(security find-identity $KEYCHAIN_PATH | grep -m 1 -o '"Developer ID Application.*"' | tr -d '"')
+
+        # codesign the app
+        codesign --verbose=4 --deep --force --options=runtime --entitlements ./package/macos-pyinstaller/entitlements.plist --timestamp --sign "${dev_id_app_identity}" ./dist/image2image.app
+
+    - name: Build (MacOS) - Package
+      if: matrix.os == 'macos-latest'
+      env:
+        # See https://keith.github.io/xcode-man-pages/notarytool.1.html for auth options
+        APPLE_NOTARIZATION_USERNAME: ${{ secrets.APPLE_NOTARIZATION_USERNAME }}
+        # This needs to be an application-specific password
+        APPLE_NOTARIZATION_PASSWORD: ${{ secrets.APPLE_NOTARIZATION_PASSWORD }}
+        # 10 alphanumeric characters available in the AppleID UI
+        APPLE_NOTARIZATION_TEAM_ID: ${{ secrets.APPLE_NOTARIZATION_TEAM_ID }}
+      run: |
+        set -euxo pipefail
+        
+        # create a disk image
+        mkdir -p dist/dmg
+        
+        # Move app to dmg folder
+        mv dist/image2image.app dist/dmg
+        
+        # Create the DMG
+        # Ensure you have 'create-dmg' installed. If not, install using 'brew install create-dmg'
+        create-dmg \
+          --volname "image2image" \
+          --volicon "src/image2image/assets/icon.ico" \
+          --window-pos 200 120 \
+          --window-size 600 300 \
+          --icon-size 100 \
+          --icon "image2image.app" 175 120 \
+          --hide-extension "image2image.app" \
+          --app-drop-link 425 120 \
+          "dist/image2image.dmg" \
+          "dist/dmg/"
+        
+        # rename file
+        python scripts/package_app_macos_rename.py
+        
+        # update filename
+        I2I_APP_PATH=$(python -c 'from pathlib import Path; print(str(list((Path.cwd() / "dist" / "dmg").glob("image2image*.app"))[0]))')
+        echo "I2I_APP_PATH=$I2I_APP_PATH" >> $GITHUB_ENV
+        I2I_DMG_PATH=$(python -c 'from pathlib import Path; print(str(list((Path.cwd() / "dist").glob("image2image*.dmg"))[0]))')
+        echo "I2I_DMG_PATH=$I2I_DMG_PATH" >> $GITHUB_ENV
+        I2I_DMG_NAME=$(python -c 'from pathlib import Path; print(list((Path.cwd() / "dist").glob("image2image*.dmg"))[0].name)')
+        echo "I2I_DMG_NAME=$I2I_DMG_NAME" >> $GITHUB_ENV
+        
+        # Submit for notarization to Apple servers
+        json_output_file="$RUNNER_TEMP/image2image.notarization.json"
+        echo "I2I_JSON_OUTPUT_FILE=$json_output_file" >> $GITHUB_ENV
+
+        set +e
+        xcrun notarytool submit "$I2I_DMG_PATH" \
+          --apple-id "$APPLE_NOTARIZATION_USERNAME" \
+          --password "$APPLE_NOTARIZATION_PASSWORD" \
+          --team-id "$APPLE_NOTARIZATION_TEAM_ID" \
+          --output-format json \
+          --wait \
+          --timeout 30m \
+          --verbose \
+          | tee "$json_output_file"
+        notary_exit_code=$?
+        set -e
+        if [[ $notary_exit_code != 0 ]]; then
+          submission_id=$(jq -r '.id' "$json_output_file")
+          xcrun notarytool log "$submission_id" \
+            --apple-id "$APPLE_NOTARIZATION_USERNAME" \
+            --password "$APPLE_NOTARIZATION_PASSWORD" \
+            --team-id "$APPLE_NOTARIZATION_TEAM_ID" \
+            --verbose
+          exit $notary_exit_code
+        fi
+
+        # Staple
+        xcrun stapler staple --verbose "$I2I_DMG_PATH"
+
+        # Check notarization status
+        spctl --assess -vv --type install "$I2I_APP_PATH" 2>&1 | tee /dev/stderr | grep accepted
+
+    - uses: actions/upload-artifact@v4
+      if: matrix.os == 'macos-latest' && failure()
+      name: Build (MaxOS) - Upload dmg
+      env:
+        I2I_DMG_PATH: ${{ env.I2I_DMG_PATH }}
+      with:
+        compression-level: 0  # no compression
+        path: |
+          dist/image2image*.dmg
+
+    - name: Check filename availability
+      shell: bash
+      run: |
+        if [ -n '${{ env.I2I_DMG_NAME }}' ]; then
+            echo "I2I_FILENAME_AVAILABLE=1" >> $GITHUB_ENV
+        fi
+
+    - uses: actions/upload-artifact@v4
+      if: success() && env.I2I_FILENAME_AVAILABLE == '1'
+      with:
+        compression-level: 0  # no compression
+        name: '${{ env.I2I_DMG_NAME }}'
+        path: |
+          dist/image2image*.zip
+          dist/image2image*.dmg
+          dist/image2image*.tar.gz
+          
 
   # before we submit to PyPi, let's test that it gets built correctly and we can submit to TestPyPi
   deploy_test:
@@ -399,6 +407,39 @@ jobs:
           TWINE_USERNAME: __token__
           TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN }}
 
-      - uses: softprops/action-gh-release@v2
+  create_release:
+    name: Create release
+    permissions:
+      id-token: write  # IMPORTANT: this permission is mandatory for trusted publishing
+      contents: write  # IMPORTANT: this permission is mandatory for create release
+    needs:
+      - pyinstaller_build
+      - deploy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: 'image2image-v*'
+          path: pyinstaller
+          merge-multiple: true
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: Packages
+          path: dist
+
+      - name: Create Release
+        uses: "softprops/action-gh-release@v2"
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
         with:
           generate_release_notes: true
+          tag_name: ${{ github.ref }}
+          name: ${{ env.tag }}
+          body: ${{ steps.release_notes.outputs.contents }}
+          draft: false
+          prerelease: ${{ contains(env.tag, 'rc') || contains(env.tag, 'a') || contains(env.tag, 'b')}}
+          files: |
+            dist/*
+            pyinstaller/*
