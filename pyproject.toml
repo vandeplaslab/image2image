@@ -72,6 +72,21 @@ pyside2 = ["pyside2"]
 pyside6 = ["pyside6"]
 pyqt5 = ["pyqt5"]
 pyqt6 = ["pyqt6"]
+test = [
+    "pytest>=8.3.5",
+    "pytest-cov>=6.1.1",
+    "pytest-qt"
+]
+dev = [
+    "ipython",
+    "mypy",
+    "pdbpp",
+    "pre-commit",
+    "rich",
+    "ruff",
+    "qtreload",
+    "image2image[test]",
+]
 
 [dependency-groups]
 test = [
