@@ -45,25 +45,14 @@ jobs:
       matrix:
         platform: [ubuntu-latest, windows-latest, macos-latest]
         python-version: ["3.9", "3.10", "3.11", "3.12"]
-        backend: [pyqt5, pyside2, pyqt6]
+        backend: [pyside6, pyqt6]
         exclude:
-          # Abort (core dumped) on linux pyqt6, unknown reason
-          - platform: ubuntu-latest
-            backend: pyqt6
+#          # Abort (core dumped) on linux pyqt6, unknown reason
+#          - platform: ubuntu-latest
+#            backend: pyqt6
           # lack of wheels for pyside2 on MacOS
           - platform: macos-latest
             backend: pyside2
-          # lack of wheels for pyside2/py3.11
-          - python-version: "3.9"
-            backend: pyside2
-          - python-version: "3.10"
-            backend: pyside2
-          - python-version: "3.11"
-            backend: pyside2
-          - python-version: "3.12"
-            backend: pyside2
-          - python-version: "3.12"
-            backend: pyqt5
           # dask/xarray issues
           - python-version: "3.12"
             backend: pyqt6
