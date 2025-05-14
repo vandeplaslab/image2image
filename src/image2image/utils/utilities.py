@@ -720,6 +720,8 @@ def get_cli_path(name: str) -> str:
             if script_path.exists():
                 return str(script_path)
             script_path = base_path / "image2image.exe"
+            if not script_path.exists():
+                script_path = base_path / "image2image_.exe"
         elif IS_MAC or IS_LINUX:
             script_path = base_path / name
             if script_path.exists():
@@ -756,7 +758,16 @@ def get_i2reg_path() -> str:
     try:
         return get_cli_path("i2reg")
     except RuntimeError as exc:
-        log_exception_or_error(exc)
+        try:
+            return get_cli_path("image2image_")
+        except RuntimeError:
+            try:
+                return get_cli_path("image2image")
+            except RuntimeError:
+                try:
+                    return get_cli_path("i2i")
+                except RuntimeError:
+                    log_exception_or_error(exc)
         return "i2reg"
 
 
