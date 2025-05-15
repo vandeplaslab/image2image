@@ -248,7 +248,8 @@ done
 filename="image2image.spec"
 
 echo "### Printing versions ###"
-python print_versions.py
+print_script_path=$(realpath $github_dir/scripts/print_versions.py)
+python $print_script_path
 echo "### End of versions ###"
 
 # Build bundle

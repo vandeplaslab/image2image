@@ -1,4 +1,20 @@
+"""System utilities."""
+
+import importlib
+import sys
 from functools import lru_cache
+
+
+def get_launch_command() -> str:
+    """Get the information how the program was launched.
+
+    Returns
+    -------
+    str
+        The command used to launch the program.
+    """
+
+    return " ".join(sys.argv)
 
 
 @lru_cache(maxsize=2)
@@ -13,21 +29,10 @@ def get_system_info(as_html=False):
     import platform
     import sys
 
-    import image2image_io
-
-    try:
-        import image2image_reg
-    except ImportError:
-        image2image_reg = None
-    try:
-        import valis
-    except ImportError:
-        valis = None
     from napari.utils.info import _sys_name
     from qtextra.helpers import hyper
 
     import image2image
-    from image2image.utils._appdirs import USER_CONFIG_DIR, USER_LOG_DIR
 
     sys_version = sys.version.replace("\n", " ")
     text = f"<b>Python</b>: {sys_version}<br>"
@@ -36,16 +41,56 @@ def get_system_info(as_html=False):
     if __sys_name:
         text += f"<b>System</b>: {__sys_name}<br>"
 
-    text += f"<br><b>image2image</b>: {image2image.__version__}<br>"
-    text += f"<b>image2image-io</b>: {image2image_io.__version__}<br>"
-    if image2image_reg:
-        text += f"<b>image2image-reg</b>: {image2image_reg.__version__}<br><br>"
-    else:
-        text += "<b>image2image-reg</b>: not installed<br><br>"
-    if valis and hasattr(valis, "__version__"):
-        text += f"<b>valis-wsi</b>: {valis.__version__}<br><br>"
-    else:
-        text += "<b>valis-wsi</b>: not installed<br><br>"
+    text += "<br><b>image2image Packages</b><br>"
+    modules = (
+        ("image2image", "image2image"),
+        ("image2image_io", "image2image-io"),
+        ("image2image_reg", "image2image-reg"),
+        ("valis", "valis-wsi"),
+    )
+    loaded = {}
+    for module, name in modules:
+        try:
+            loaded[module] = __import__(module)
+            text += f"<b>{name}</b>: {loaded[module].__version__}<br>"
+        except Exception as e:  # noqa: BLE001
+            text += f"<b>{name}</b>: Import failed ({e})<br>"
+
+    text += "<br><b>Packages</b><br>"
+    modules = (
+        ("qtextra", "qtextra"),
+        ("qtextraplot", "qtextraplot"),
+        ("imzy", "imzy"),
+        ("koyo", "koyo"),
+    )
+    loaded = {}
+    for module, name in modules:
+        try:
+            loaded[module] = __import__(module)
+            text += f"<b>{name}</b>: {loaded[module].__version__}<br>"
+        except Exception as e:  # noqa: BLE001
+            text += f"<b>{name}</b>: Import failed ({e})<br>"
+
+    text += "--------------------<br>"
+    modules = (
+        ("itk", "ITK"),
+        ("SimpleITK", "SimpleITK"),
+        ("qtpy", "QtPy"),
+        ("qtawesome", "QtAwesome"),
+        ("superqt", "superqt"),
+        ("napari", "Napari"),
+        ("vispy", "VisPy"),
+        ("numpy", "NumPy"),
+        ("scipy", "SciPy"),
+        ("dask", "Dask"),
+        ("vispy", "VisPy"),
+    )
+    for module, name in modules:
+        try:
+            loaded[module] = __import__(module)
+            text += f"<b>{name}</b>: {loaded[module].__version__}<br>"
+        except Exception as e:  # noqa: BLE001
+            text += f"<b>{name}</b>: Import failed ({e})<br>"
 
     try:
         from qtpy import API_NAME, PYQT_VERSION, PYSIDE_VERSION, QtCore
@@ -62,26 +107,6 @@ def get_system_info(as_html=False):
 
     except Exception as e:  # noqa: BLE001
         text += f"<b>Qt</b>: Import failed ({e})<br>"
-
-    modules = (
-        ("qtpy", "QtPy"),
-        ("qtawesome", "QtAwesome"),
-        ("qtextra", "qtextra"),
-        ("napari", "Napari"),
-        ("superqt", "superqt"),
-        ("numpy", "NumPy"),
-        ("scipy", "SciPy"),
-        ("dask", "Dask"),
-        ("vispy", "VisPy"),
-        ("imzy", "imzy"),
-    )
-    loaded = {}
-    for module, name in modules:
-        try:
-            loaded[module] = __import__(module)
-            text += f"<b>{name}</b>: {loaded[module].__version__}<br>"
-        except Exception as e:  # noqa: BLE001
-            text += f"<b>{name}</b>: Import failed ({e})<br>"
 
     text += "<br><b>OpenGL:</b><br>"
     if loaded.get("vispy", False):
@@ -111,16 +136,21 @@ def get_system_info(as_html=False):
     except Exception as e:  # noqa BLE001
         text += f"  - failed to load screen information {e}"
 
+    # Add paths
+    from image2image.utils._appdirs import USER_CONFIG_DIR, USER_LOG_DIR
+
     text += "<br><b>Settings path:</b><br>"
     text += f"  - {hyper(USER_CONFIG_DIR) if as_html else USER_LOG_DIR}"
-
     text += "<br><b>Logs path:</b><br>"
     text += f"  - {hyper(USER_LOG_DIR) if as_html else USER_LOG_DIR}"
+
+    text += "<br><b>Launch command:</b><br>"
+    text += f"  - {get_launch_command()}<br>"
 
     if not as_html:
         text = text.replace("<br>", "\n").replace("<b>", "").replace("</b>", "")
     return text
 
 
-citation_text = "image2image contributors (2023). Van de Plas lab, Delft University of Technology."
+citation_text = "image2image contributors (2023-2025). Van de Plas lab, Delft University of Technology."
 title_text = "image2image - registration, visualisation and editing of multiple image types"
