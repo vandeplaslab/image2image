@@ -131,7 +131,7 @@ jobs:
         python-version: "3.10"
     - uses: tlambert03/setup-qt-libs@v1
     - name: Install Windows OpenGL
-      if: matrix.os != 'windows-latest'
+      if: matrix.os == 'windows-latest'
       run: |
         git clone --depth 1 https://github.com/pyvista/gl-ci-helpers.git
         powershell gl-ci-helpers/appveyor/install_opengl.ps1
