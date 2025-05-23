@@ -92,3 +92,7 @@ THEMES.add_theme(theme.name, theme, register=True)
 THEMES.register_themes()
 # THEMES.theme = "image2image"
 THEMES[THEMES.theme].font_size = "9pt"
+
+
+def load_assets() -> None:
+    """No-op function that ensures icons and styles are loaded properly."""

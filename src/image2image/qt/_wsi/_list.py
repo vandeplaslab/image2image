@@ -506,7 +506,7 @@ class QtModalityItem(QFrame):
 
     def on_open_preprocessing(self) -> None:
         """Open pre-processing dialog."""
-        from ._preprocessing import PreprocessingDialog
+        from image2image.qt._wsi._preprocessing import PreprocessingDialog
 
         self.previewing = True
         try:
@@ -766,8 +766,10 @@ class QtModalityList(QScrollArea):
 
     def populate(self) -> None:
         """Create list of items."""
+        from natsort import natsorted
+
         registration_model = self.registration_model
-        for name in registration_model.get_image_modalities(with_attachment=False):
+        for name in natsorted(registration_model.get_image_modalities(with_attachment=False)):
             modality = registration_model.modalities[name]
             if not self._check_existing(modality):
                 self.on_make_modality_item(modality)

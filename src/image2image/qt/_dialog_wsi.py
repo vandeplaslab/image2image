@@ -425,9 +425,9 @@ class ImageWsiWindow(SingleViewerMixin):
     def on_apply(self) -> None:
         """Apply."""
         menu = hp.make_menu(self)
-        hp.make_menu_item(self, "Select channels...", menu=menu, func=self._on_select_channels)
         if self.registration_model.n_registrations == 0:
             hp.make_menu_item(self, "Rename...", menu=menu, func=self._on_rename)
+        hp.make_menu_item(self, "Select channels...", menu=menu, func=self._on_select_channels)
         menu.addSeparator()
         hp.make_menu_from_options(
             self,
@@ -854,7 +854,7 @@ class ImageWsiWindow(SingleViewerMixin):
             "Export options",
             allow_checkbox=False,
             allow_icon=False,
-            warning_icon=("warning", {"color": THEMES.get_theme_color("warning")}),
+            warning_icon=("error", {"color": THEMES.get_theme_color("error")}),
         )
         hidden_settings.addRow(hp.make_label(self, "Write/don't write"), self.write_check)
         hidden_settings.addRow(hp.make_label(self, "Write registered images"), self.write_registered_check)

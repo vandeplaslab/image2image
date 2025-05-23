@@ -30,7 +30,9 @@ def setup_logger(
     """Setup logger."""
     from koyo.logging import set_loguru_log
 
-    import image2image.assets  # noqa: F401
+    from image2image.assets import load_assets
+
+    load_assets()
 
     # setup console logger
     set_loguru_log(

@@ -35,16 +35,17 @@ AVAILABLE_TOOLS = [
 def _cli_setup(verbosity: float, no_color: bool, info: bool = False, dev: bool = False) -> float:
     from image2image.main import setup_logger
 
-    if info:
-        from image2image.utils.system import get_system_info
-
-        print(get_system_info())
-        return sys.exit(0)
-
     if IS_MAC:
         import os
 
         os.environ["OBJC_DISABLE_INITIALIZE_FORK_SAFETY"] = "YES"
+
+    if info:
+        from image2image.utils.system import get_system_info
+
+        print("Collecting information. This might take a moment...")
+        print(get_system_info(as_html=False))
+        return sys.exit(0)
 
     if dev:
         if IS_PYINSTALLER:

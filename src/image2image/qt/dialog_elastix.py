@@ -431,6 +431,7 @@ class ImageElastixWindow(ImageWsiWindow):
             return False
         path = self.save_model()
         if path:
+            self.on_validate_path()
             hp.toast(self, "Saved", f"Saved project to {hp.hyper(path)}.", icon="success", position="top_left")
             logger.info(f"Saved project to {path}")
             return True

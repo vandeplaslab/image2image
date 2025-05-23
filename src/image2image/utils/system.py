@@ -1,6 +1,5 @@
 """System utilities."""
 
-import importlib
 import sys
 from functools import lru_cache
 
@@ -18,7 +17,7 @@ def get_launch_command() -> str:
 
 
 @lru_cache(maxsize=2)
-def get_system_info(as_html=False):
+def get_system_info(as_html=False) -> None:
     """Gathers relevant module versions for troubleshooting purposes.
 
     Parameters
@@ -32,8 +31,6 @@ def get_system_info(as_html=False):
     from napari.utils.info import _sys_name
     from qtextra.helpers import hyper
 
-    import image2image
-
     sys_version = sys.version.replace("\n", " ")
     text = f"<b>Python</b>: {sys_version}<br>"
     text += f"<b>Platform</b>: {platform.platform()}<br>"
@@ -42,11 +39,11 @@ def get_system_info(as_html=False):
         text += f"<b>System</b>: {__sys_name}<br>"
 
     text += "<br><b>image2image Packages</b><br>"
+    text += "--------------------<br>"
     modules = (
         ("image2image", "image2image"),
         ("image2image_io", "image2image-io"),
         ("image2image_reg", "image2image-reg"),
-        ("valis", "valis-wsi"),
     )
     loaded = {}
     for module, name in modules:
@@ -57,6 +54,7 @@ def get_system_info(as_html=False):
             text += f"<b>{name}</b>: Import failed ({e})<br>"
 
     text += "<br><b>Packages</b><br>"
+    text += "--------------------<br>"
     modules = (
         ("qtextra", "qtextra"),
         ("qtextraplot", "qtextraplot"),
@@ -71,8 +69,10 @@ def get_system_info(as_html=False):
         except Exception as e:  # noqa: BLE001
             text += f"<b>{name}</b>: Import failed ({e})<br>"
 
-    text += "--------------------<br>"
+    text += "<br><b>Dependencies</b><br>"
+    text += "<br>--------------------<br>"
     modules = (
+        ("valis", "valis-wsi"),
         ("itk", "ITK"),
         ("SimpleITK", "SimpleITK"),
         ("qtpy", "QtPy"),
@@ -95,9 +95,9 @@ def get_system_info(as_html=False):
     try:
         from qtpy import API_NAME, PYQT_VERSION, PYSIDE_VERSION, QtCore
 
-        if API_NAME == "PySide2":
+        if API_NAME in ["PySide2", "PySide6"]:
             API_VERSION = PYSIDE_VERSION
-        elif API_NAME == "PyQt5":
+        elif API_NAME in ["PyQt5", "PyQt6"]:
             API_VERSION = PYQT_VERSION
         else:
             API_VERSION = "N/A"
