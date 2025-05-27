@@ -44,21 +44,22 @@ class RegistrationImage(BaseModel):
     is_reference: bool = Field(False, title="Is reference")
     scale: tuple[float, float] = Field((1.0, 1.0), title="Scale")
     lock: bool = Field(False, title="Lock")
+    display_channel_id: int = Field(0, title="Channel id")
     channel_ids: list = Field(default_factory=list, title="Channel ids")
-    metadata: ty.Dict = Field(default_factory=dict, title="Metadata")
+    metadata: dict = Field(default_factory=dict, title="Metadata")
     mask_bbox: ty.Optional[tuple[int, int, int, int]] = Field(None, title="Mask bounding box")
     mask_polygon: ty.Optional[np.ndarray] = Field(None, title="Mask polygon")
 
     @classmethod
-    def from_reader(cls, reader: "BaseReader") -> "RegistrationImage":
+    def from_reader(cls, reader: "BaseReader", pyramid: int = -1) -> "RegistrationImage":
         """Initialize from reader."""
-        return cls(path=reader.path, key=reader.key, scale=reader.scale_for_pyramid(-1))  # type: ignore[call-arg]
+        return cls(path=reader.path, key=reader.key, scale=reader.scale_for_pyramid(pyramid))  # type: ignore[call-arg]
 
-    def update_from_reader(self, reader: "BaseReader") -> None:
+    def update_from_reader(self, reader: "BaseReader", pyramid: int = -1) -> None:
         """Update from reader."""
         self.path = reader.path
         self.key = reader.key
-        self.scale = reader.scale_for_pyramid(-1)
+        self.scale = reader.scale_for_pyramid(pyramid)
 
     def apply_rotate(self, which: str) -> None:
         """Apply rotation."""
@@ -108,6 +109,7 @@ class RegistrationImage(BaseModel):
         return [
             self.selected,
             self.key,
+            self.display_channel_id,
             self.keep,
             self.lock,
             as_icon(self.is_reference),
@@ -119,12 +121,13 @@ class RegistrationImage(BaseModel):
             self.flip_lr,
         ]
 
-    def to_dict(self) -> ty.Dict:
+    def to_dict(self) -> dict:
         """Convert to dict."""
         return {
             "path": str(self.path),
             "key": self.key,
             "selected": self.selected,
+            "display_channel_id": self.display_channel_id,
             "keep": self.keep,
             "lock": self.lock,
             "is_reference": self.is_reference,
@@ -167,7 +170,7 @@ class RegistrationGroup(BaseModel):
         """Remove existing keys."""
         self.keys = []
 
-    def to_dict(self) -> ty.Dict:
+    def to_dict(self) -> dict:
         """Convert to dict."""
         return {
             "keys": self.keys,
@@ -415,7 +418,7 @@ class RegistrationGroup(BaseModel):
         prefix: str = "c",
         index_mode: str = "auto",
         direct: bool = False,
-    ) -> ty.Tuple[str, list[tuple[str, str, ty.Optional[str]]]]:
+    ) -> tuple[str, list[tuple[str, str, ty.Optional[str]]]]:
         """Generate preview of the registration paths."""
         ref_image = registration.images[reference] if reference else None
         ref_name_index = 0
@@ -460,7 +463,7 @@ class RegistrationGroup(BaseModel):
         prefix: str = "c",
         index_mode: str = "auto",
         direct: bool = False,
-    ) -> ty.Tuple[str, list[tuple[str, str, ty.Optional[str]]]]:
+    ) -> tuple[str, list[tuple[str, str, ty.Optional[str]]]]:
         """Preview converge paths."""
         # find the index of reference in the index_to_image
         image_orders = list(index_to_image.keys())
@@ -592,8 +595,8 @@ class RegistrationGroup(BaseModel):
 class Registration(BaseModel):
     """Registration metadata."""
 
-    images: ty.Dict[str, RegistrationImage] = Field(default_factory=dict, title="Images")
-    groups: ty.Dict[int, RegistrationGroup] = Field(default_factory=dict, title="Groups")
+    images: dict[str, RegistrationImage] = Field(default_factory=dict, title="Images")
+    groups: dict[int, RegistrationGroup] = Field(default_factory=dict, title="Groups")
 
     def regroup(self) -> None:
         """Create groups based on the group_id attribute.
@@ -615,7 +618,7 @@ class Registration(BaseModel):
             self.groups[image.group_id] = group
             group.keys.append(image.key)
 
-    def to_dict(self) -> ty.Dict:
+    def to_dict(self) -> dict:
         """Convert to dict."""
         return {
             "version": SCHEMA_VERSION,

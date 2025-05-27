@@ -513,7 +513,7 @@ class MaskDialog(ShapesDialog):
         modality = modality or self.current_modality
         if not modality:
             return
-        yx, bbox = self._transform_to_preprocessing(modality)
+        yx, bbox = self._transform_to_preprocessing(modality, as_px=True)
         if yx is not None:
             modality.preprocessing.use_mask = True
             modality.preprocessing.mask_polygon = yx

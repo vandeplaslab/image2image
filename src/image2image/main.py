@@ -135,9 +135,16 @@ def run(
         install_segfault_handler(USER_LOG_DIR, segfault_filename)
 
         args = sys.argv
-        if args and ("image2image" in args or "image2image" in args[0]):
-            os.environ["IMAGE2IMAGE_PROGRAM"] = args[0]
-            logger.trace(f"Updated environment variable. IMAGE2IMAGE_PROGRAM={os.environ['IMAGE2IMAGE_PROGRAM']}")
+        if args:
+            for program in ["image2image", "image2image_", "i2i"]:
+                if program in args or program in args[0]:
+                    os.environ["IMAGE2IMAGE_PROGRAM"] = args[0]
+                    logger.trace(
+                        f"Updated environment variable. IMAGE2IMAGE_PROGRAM={os.environ['IMAGE2IMAGE_PROGRAM']}"
+                    )
+                    break
+        if os.environ.get("IMAGE2IMAGE_PROGRAM") is None:
+            logger.warning(f"Failed to set IMAGE2IMAGE_PROGRAM environment variable. - {args}")
 
         if tool == "launcher":
             from image2image.qt.launcher import Launcher

@@ -589,7 +589,7 @@ class Elastix3dConfig(SingleAppConfig):
 
     @field_validator("transformations", mode="before")
     @classmethod
-    def _validate_transformations(cls, value: ty.Tuple[str, ...]) -> ty.Tuple[str, ...]:  # type: ignore[misc]
+    def _validate_transformations(cls, value: tuple[str, ...]) -> tuple[str, ...]:  # type: ignore[misc]
         """Validate path."""
         if value is None:
             return ()

@@ -856,6 +856,9 @@ def create_new_window(plugin: str, *extra_args: ty.Any) -> None:
     args = sys.argv
     if not program and args:
         program = args.pop(0)
+    if program in [None, "None", ""]:
+        logger.warning("Failed to get program name from environment variable.")
+        program = "i2i"
     process.setProgram(program)
     arguments = []
     if "--dev" in args:

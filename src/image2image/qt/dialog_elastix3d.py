@@ -36,7 +36,12 @@ from tqdm import tqdm
 
 from image2image import __version__
 from image2image.config import Elastix3dConfig, get_elastix3d_config
-from image2image.enums import ALLOWED_IMAGE_FORMATS_TIFF_ONLY, ALLOWED_PROJECT_WSIPREP_FORMATS
+from image2image.enums import (
+    ALLOWED_IMAGE_FORMATS_TIFF_ONLY,
+    ALLOWED_PROJECT_WSIPREP_FORMATS,
+    LEVEL_TO_PYRAMID,
+    PYRAMID_TO_LEVEL,
+)
 from image2image.models.wsiprep import (
     Registration,
     RegistrationGroup,
@@ -69,6 +74,7 @@ class ImageElastix3dWindow(Window):
         TableConfig()  # type: ignore[no-untyped-call]
         .add("", "check", "bool", 25, no_sort=True, sizing="fixed", checkable=True)
         .add("dataset", "key", "str", 250, sizing="stretch")
+        .add("ch(id)", "channel_id", "int", 50, sizing="fixed", tooltip="Channel ID to display.")
         .add(
             "keep",
             "keep",
@@ -203,6 +209,7 @@ class ImageElastix3dWindow(Window):
                 f"There is more  than 48 images selected ({len(checked)}). Would you like to continue?",
                 "There are many images....",
             ):
+                logger.trace(f"Plotting: {checked}")
                 for index in tqdm(checked, desc="Plotting images..."):
                     key = self.table.get_value(self.TABLE_CONFIG.key, index)
                     reader = wrapper.data[key]
@@ -223,11 +230,13 @@ class ImageElastix3dWindow(Window):
             # plot reference image
             ref_key = self.registration.get_reference_for_group(group_id)
             if ref_key and ref_key in wrapper.data:
+                logger.trace(f"Plotting reference image {ref_key}")
                 reader = wrapper.data[ref_key]
                 model = self.registration.images[reader.key]
                 contrast_range = self._plot_model(reader, model)
                 if contrast_range:
                     all_contrast_range.extend(contrast_range)
+
             if all_contrast_range:
                 min_val = min(all_contrast_range)
                 max_val = max(all_contrast_range)
@@ -238,7 +247,7 @@ class ImageElastix3dWindow(Window):
             self.on_contrast_limits()
 
     def _plot_model(self, reader: BaseReader, model: RegistrationImage) -> tuple[float, float] | None:
-        image = reader.get_channel(0, -1)
+        image = reader.get_channel(model.display_channel_id, self.pyramid_level_index)
         image = rescale_intensity(image, out_range=(0, 255))
         contrast_limits, contrast_limits_range = get_contrast_limits([image])
         if contrast_limits:
@@ -256,6 +265,7 @@ class ImageElastix3dWindow(Window):
                 "contrast_limits": contrast_limits,
             },
         )
+        layer.scale = model.scale
         if contrast_limits_range:
             layer.contrast_limits_range = contrast_limits_range
         return contrast_limits
@@ -370,7 +380,8 @@ class ImageElastix3dWindow(Window):
         """Apply transformation to the specified model."""
         key = model.key
         if key in self.view.layers:
-            self.view.layers[key].affine = model.affine(self.view.layers[key].data.shape)
+            layer = self.view.layers[key]
+            layer.affine = model.affine(layer.data.shape)
 
     def on_rotate(self, which: str) -> None:
         """Rotate image."""
@@ -629,7 +640,8 @@ class ImageElastix3dWindow(Window):
             if len(group.keys) == 1:
                 continue
             # find the best reference
-            ref = natsorted(group.keys)[0]
+            sorted_keys = natsorted(group.keys)
+            ref = sorted_keys[-1]
             logger.trace(f"Selected '{ref}' as reference for group '{group_id}'")
             model = self.registration.images[ref]
             old_ref = self.registration.get_reference_for_group(group_id)
@@ -772,7 +784,7 @@ class ImageElastix3dWindow(Window):
         self.toolbar.add_qta_tool(
             "remove_image", tooltip="Remove images (X)", func=lambda x: self.on_keep(False), average=True
         )
-        self.toolbar.append_spacer()
+        self.toolbar.add_spacer()
         self.toolbar.add_qta_tool(
             "layers",
             func=self.view.widget.on_open_controls_dialog,
@@ -947,6 +959,15 @@ class ImageElastix3dWindow(Window):
         key = evt.key()
         if key == Qt.Key.Key_Escape:
             evt.ignore()
+        # movement size
+        elif key == Qt.Key.Key_Up:
+            hp.increment_combobox(self.translate_step_size, -1)
+        elif key == Qt.Key.Key_Down:
+            hp.increment_combobox(self.translate_step_size, 1)
+        elif key == Qt.Key.Key_Left:
+            hp.increment_combobox(self.rotate_step_size, -1)
+        elif key == Qt.Key.Key_Right:
+            hp.increment_combobox(self.rotate_step_size, 1)
         # rotate
         elif key == Qt.Key.Key_Q:
             self.on_rotate("left")
@@ -1022,12 +1043,55 @@ class ImageElastix3dWindow(Window):
         self.CONFIG.rotate_step_size = int(self.rotate_step_size.currentText().split(" ")[2].split("°")[0])
         self.CONFIG.translate_step_size = int(self.translate_step_size.currentText().split(" ")[2])
 
+    @property
+    def pyramid_level_index(self) -> int:
+        """Pyramid level"""
+        return PYRAMID_TO_LEVEL[self.pyramid_level.currentText()]
+
+    def on_update_pyramid_level(self) -> None:
+        """Update pyramid level."""
+        self._on_update_pyramid_level()
+
+    def _on_update_pyramid_level(self) -> None:
+        """Update pyramid level."""
+        wrapper = self.data_model.wrapper
+        if not wrapper:
+            return
+        level = PYRAMID_TO_LEVEL[self.pyramid_level.currentText()]
+        if level == 0 and not hp.confirm(
+            self,
+            "Please confirm if you wish to preview the full-resolution image.<br><b>Pre-processing might take"
+            " a bit of time.</b>",
+            "Please confirm",
+        ):
+            self.pyramid_level.setCurrentText(LEVEL_TO_PYRAMID[-1])
+            return
+        # update model scale
+        for model in self.registration.images.values():
+            reader = wrapper.data[model.key]
+            model.update_from_reader(reader, pyramid=level)
+
+        self.on_plot_selected()
+        logger.trace(f"Updated pyramid level to {level}")
+
     def _make_statusbar(self) -> None:
         """Make statusbar."""
         from qtextraplot._napari.image.components._viewer_key_bindings import toggle_grid
 
         self.statusbar = QStatusBar()  # noqa
         self.statusbar.setSizeGripEnabled(False)
+
+        self.pyramid_level = hp.make_combobox(
+            self,
+            list(PYRAMID_TO_LEVEL.keys())[0:3],
+            tooltip="Index of the polygon to show in the fixed image.\nNegative values are used go from smallest to"
+            " highest level.\nValue of 0 means that the highest resolution is shown which will be slow to pre-process.",
+            object_name="statusbar_combobox",
+        )
+        self.pyramid_level.currentIndexChanged.connect(self.on_update_pyramid_level)
+        self.pyramid_level.setSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum)
+        self.statusbar.insertPermanentWidget(0, self.pyramid_level)
+        self.statusbar.insertPermanentWidget(1, hp.make_v_line())
 
         # self.statusbar.addPermanentWidget(hp.make_v_line())
         # self.statusbar.addPermanentWidget(hp.make_label(self, "BF"))
@@ -1076,11 +1140,9 @@ class ImageElastix3dWindow(Window):
             [
                 "Rotate in 1° steps",
                 "Rotate in 5° steps",
-                "Rotate in 10° steps",
                 "Rotate in 15° steps",
                 "Rotate in 30° steps",
                 "Rotate in 45° steps",
-                "Rotate in 60° steps",
                 "Rotate in 90° steps",
             ],
             func=self.on_set_config,
@@ -1093,10 +1155,9 @@ class ImageElastix3dWindow(Window):
         self.translate_step_size = hp.make_combobox(
             self,
             [
+                "Move in 5 µm steps",
                 "Move in 10 µm steps",
-                "Move in 25 µm steps",
                 "Move in 50 µm steps",
-                "Move in 100 µm steps°",
                 "Move in 250 µm steps",
                 "Move in 500 µm steps",
                 "Move in 1000 µm steps",
