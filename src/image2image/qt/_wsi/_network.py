@@ -32,19 +32,20 @@ class NetworkViewer(QtFramelessTool):
             return self._parent.registration_model
         return None
 
-    def on_plot(self) -> None:
+    def  on_plot(self) -> None:
         """Plot workflow."""
         from image2image_reg.elastix.visuals import draw_workflow
 
         # view_type = self.view_type.currentText()
         network_type = self.network_type.currentText()
+        show_attachments = self.show_attachments.isChecked()
         registration_model = self.registration_model
         if registration_model is None:
             logger.warning("No registration model found.")
             return
 
         self.view.clear()
-        draw_workflow(registration_model, self.view.figure.ax, network_type)
+        draw_workflow(registration_model, self.view.figure.ax, network_type, show_attachments=show_attachments)
         self.view.setup_interactivity(zoom_color=Qt.GlobalColor.white)
         self.view.repaint()
         self.view.figure.tight()
@@ -70,6 +71,13 @@ class NetworkViewer(QtFramelessTool):
             value="circular",
             func=self.on_plot,
         )
+        self.show_attachments = hp.make_checkbox(
+            self,
+            "",
+            tooltip="Show attachments in the network plot.",
+            checked=True,
+            func=self.on_plot,
+        )
 
         layout = hp.make_form_layout()
         layout.setSpacing(2)
@@ -78,6 +86,7 @@ class NetworkViewer(QtFramelessTool):
         layout.addRow(hp.make_h_line(self))
         # layout.addRow("View type", self.view_type)
         layout.addRow("Network type", self.network_type)
+        layout.addRow("Show attachments", self.show_attachments)
         layout.addRow(hp.make_btn(self, "Refresh", func=self.on_plot))
         layout.addRow(self.view.figure)
         return layout
