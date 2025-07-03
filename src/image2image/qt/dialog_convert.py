@@ -356,7 +356,7 @@ class ImageConvertWindow(NoViewerMixin):
         )
         hp.disable_widgets(self.split_czi, disabled=True)
         self.as_uint8 = hp.make_checkbox(
-            self, "", tooltip=C.UINT8_TIP, checked=True, value=self.CONFIG.as_uint8, func=self.on_update_config
+            self, "", tooltip=C.UINT8_TOOLTIP, checked=True, value=self.CONFIG.as_uint8, func=self.on_update_config
         )
         self.overwrite = hp.make_checkbox(
             self,

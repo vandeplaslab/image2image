@@ -32,7 +32,7 @@ AVAILABLE_TOOLS = [
 #     AVAILABLE_TOOLS.pop(AVAILABLE_TOOLS.index("convert"))
 
 
-def _cli_setup(verbosity: float, no_color: bool, info: bool = False, dev: bool = False) -> float:
+def _cli_setup(verbosity: float, no_color: bool, info: bool = False, dev: bool = False) -> tuple[float, bool]:
     from image2image.main import setup_logger
 
     if IS_MAC:
@@ -59,7 +59,7 @@ def _cli_setup(verbosity: float, no_color: bool, info: bool = False, dev: bool =
     level = max(0.5, verbosity) * 10
 
     setup_logger(level=int(level), no_color=no_color)
-    return level
+    return level, dev
 
 
 @click.group(
@@ -150,7 +150,7 @@ def cli(
     crop - opens a dialog where you can crop (and mask) images
     fusion - opens a dialog where you can prepare data for image fusion
     """
-    level = _cli_setup(verbosity, no_color, info, dev)
+    level, dev = _cli_setup(verbosity, no_color, info, dev)
     if ctx.invoked_subcommand is None:
         from image2image.main import run
 

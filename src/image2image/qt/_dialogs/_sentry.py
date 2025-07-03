@@ -5,6 +5,12 @@ import sys
 
 from loguru import logger
 
+try:
+    from sentry_sdk.types import Event, Hint
+except ImportError:
+    # sentry_sdk is not installed, so we cannot use it
+    Event = Hint = None
+
 from image2image import __version__
 
 # setup environment variables
@@ -39,11 +45,20 @@ from qtextra.dialogs.sentry import (  # noqa: E402
 IS_PYINSTALLER = getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS")
 
 
+def filter_func(event: Event, hint: Hint) -> None | Event:
+    """Filter function for sentry events."""
+    # Filter out OSError events that are related to vispy
+    exc_info = str(hint.get("exc_info", ""))
+    if "OSError" in exc_info and "vispy" in exc_info:
+        return None
+    return event
+
+
 def install_error_monitor() -> None:
     """Initialize the error monitor with sentry.io."""
     from image2image.config import get_app_config
 
-    _install_error_monitor(get_app_config(), pyinstaller=IS_PYINSTALLER)
+    _install_error_monitor(get_app_config(), pyinstaller=IS_PYINSTALLER, before_send=filter_func)
     logger.debug("Installed sentry error monitor.")
 
 

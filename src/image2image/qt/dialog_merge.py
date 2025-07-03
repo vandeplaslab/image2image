@@ -352,7 +352,7 @@ class ImageMergeWindow(NoViewerMixin):
         self.as_uint8 = hp.make_checkbox(
             self,
             "",
-            tooltip=C.UINT8_TIP,
+            tooltip=C.UINT8_TOOLTIP,
             checked=True,
             value=self.CONFIG.as_uint8,
             func=self.on_update_config,

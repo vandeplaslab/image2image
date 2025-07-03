@@ -11,8 +11,8 @@ from natsort import natsorted
 from qtpy.QtCore import Qt, Signal
 from qtpy.QtWidgets import QWidget
 
+import image2image.constants as C
 from image2image.config import get_elastix_config
-from image2image.enums import REGISTRATION_PATH_HELP
 
 if ty.TYPE_CHECKING:
     from image2image_reg.workflows.elastix import ElastixReg
@@ -91,7 +91,7 @@ class RegistrationPaths(QWidget):
         layout.setSpacing(2)
         layout.addRow(
             hp.make_h_layout(
-                hp.make_qta_label(self, "help", hover=True, tooltip=REGISTRATION_PATH_HELP),
+                hp.make_qta_label(self, "help", hover=True, tooltip=C.REGISTRATION_PATH_HELP),
                 hp.make_qta_btn(
                     self,
                     "common",

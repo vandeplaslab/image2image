@@ -14,25 +14,10 @@ from qtextra.widgets.qt_tile import QtTileWidget, Tile
 from qtpy.QtCore import Qt
 from qtpy.QtWidgets import QVBoxLayout, QWidget
 
+import image2image.constants as C
 from image2image import __version__
 from image2image.config import STATE, get_app_config
 from image2image.utils._appdirs import USER_LOG_DIR
-
-# to add apps: volume viewer, sync viewer,
-REGISTER_TEXT = "Co-register your microscopy and imaging mass spectrometry data."
-VIEWER_TEXT = "Overlay your microscopy and imaging mass spectrometry data."
-CROP_TEXT = "Crop your microscopy data to reduce it's size (handy for Image Fusion)."
-CONVERT_TEXT = "Convert multi-scene CZI images or other formats to OME-TIFF."
-MERGE_TEXT = "Merge multiple OME-TIFF images into a single file."
-FUSION_TEXT = "Export your data for Image Fusion in MATLAB compatible format."
-ELASTIX_TEXT = "Register whole slide microscopy images<br>(<b>Elastix</b>)."
-VALIS_TEXT = "Register whole slide microscopy images<br>(<b>Valis</b>)."
-CONVERT_WARNING = ""
-if not STATE.allow_convert:
-    CONVERT_WARNING = "<i>Not available on Apple Silicon due to a bug I can't find...</i>"
-VALIS_WARNING = ""
-if not STATE.allow_valis:
-    VALIS_WARNING = "<br><br><i>Might not work without a proper setup.</i>"
 
 
 def _make_tile(
@@ -69,76 +54,92 @@ class Launcher(QtDialog):
         layout.setContentsMargins(2, 2, 2, 2)
         layout.addRow(hp.make_h_line_with_text("Viewers", self, position="left", bold=True))
         # viewer apps
-        tile = _make_tile(
-            self,
-            "Viewer<br>App",
-            VIEWER_TEXT,
-            "viewer",
-            partial(self.on_open_app, Window.on_open_viewer),
+        layout.addRow(
+            hp.make_h_layout(
+                _make_tile(
+                    self,
+                    "Viewer<br>App",
+                    C.VIEWER_TEXT,
+                    "viewer",
+                    partial(self.on_open_app, Window.on_open_viewer),
+                ),
+                stretch_after=True,
+                spacing=2,
+                margin=2,
+            )
         )
-        layout.addRow(hp.make_h_layout(tile, stretch_after=True, spacing=2, margin=2))
 
         # register apps
         layout.addRow(hp.make_h_line_with_text("Registration", self, position="left", bold=True))
-        tile_reg = _make_tile(
-            self,
-            "Registration<br>App",
-            REGISTER_TEXT,
-            "register",
-            partial(self.on_open_app, Window.on_open_register),
+        layout.addRow(
+            hp.make_h_layout(
+                _make_tile(
+                    self,
+                    "Registration<br>App",
+                    C.REGISTER_TEXT,
+                    "register",
+                    partial(self.on_open_app, Window.on_open_register),
+                ),
+                _make_tile(
+                    self,
+                    "Elastix<br>App",
+                    C.ELASTIX_TEXT,
+                    "elastix",
+                    partial(self.on_open_app, Window.on_open_elastix),
+                ),
+                # _make_tile(
+                #     self,
+                #     "Valis<br>App",
+                #     VALIS_TEXT,
+                #     "valis",
+                #     partial(self.on_open_app, Window.on_open_valis),
+                #     icon_kws=None if STATE.allow_valis else {"color": THEMES.get_hex_color("warning")},
+                #     warning=VALIS_WARNING,
+                # ),
+                stretch_after=True,
+                spacing=2,
+                margin=2,
+            ),
         )
-        tile_wsireg = _make_tile(
-            self,
-            "Elastix<br>App",
-            ELASTIX_TEXT,
-            "elastix",
-            partial(self.on_open_app, Window.on_open_elastix),
-        )
-        tile_valis = _make_tile(
-            self,
-            "Valis<br>App",
-            VALIS_TEXT,
-            "valis",
-            partial(self.on_open_app, Window.on_open_valis),
-            icon_kws=None if STATE.allow_valis else {"color": THEMES.get_hex_color("warning")},
-            warning=VALIS_WARNING,
-        )
-        layout.addRow(hp.make_h_layout(tile_reg, tile_wsireg, tile_valis, stretch_after=True, spacing=2, margin=2))
 
         # utility apps
         layout.addRow(hp.make_h_line_with_text("Utilities", self, position="left", bold=True))
-        tile_crop = _make_tile(
-            self,
-            "Image Crop<br>App",
-            CROP_TEXT,
-            "crop",
-            partial(self.on_open_app, Window.on_open_crop),
-        )
-        tile_convert = _make_tile(
-            self,
-            "Image to OME-TIFF<br>App",
-            CONVERT_TEXT,
-            "convert",
-            partial(self.on_open_app, Window.on_open_convert),
-            icon_kws=None if STATE.allow_convert else {"color": THEMES.get_hex_color("warning")},
-            warning=CONVERT_WARNING,
-        )
-        tile_merge = _make_tile(
-            self,
-            "Merge OME-TIFFs<br>App",
-            MERGE_TEXT,
-            "merge",
-            partial(self.on_open_app, Window.on_open_merge),
-        )
-        tile_fusion = _make_tile(
-            self,
-            "Fusion Preparation<br>App",
-            FUSION_TEXT,
-            "fusion",
-            partial(self.on_open_app, Window.on_open_fusion),
-        )
         layout.addRow(
-            hp.make_h_layout(tile_crop, tile_convert, tile_merge, tile_fusion, stretch_after=True, spacing=2, margin=2)
+            hp.make_h_layout(
+                _make_tile(
+                    self,
+                    "Image Crop<br>App",
+                    C.CROP_TEXT,
+                    "crop",
+                    partial(self.on_open_app, Window.on_open_crop),
+                ),
+                _make_tile(
+                    self,
+                    "Image to OME-TIFF<br>App",
+                    C.CONVERT_TEXT,
+                    "convert",
+                    partial(self.on_open_app, Window.on_open_convert),
+                    icon_kws=None if STATE.allow_convert else {"color": THEMES.get_hex_color("warning")},
+                    warning=C.CONVERT_WARNING,
+                ),
+                _make_tile(
+                    self,
+                    "Merge OME-TIFFs<br>App",
+                    C.MERGE_TEXT,
+                    "merge",
+                    partial(self.on_open_app, Window.on_open_merge),
+                ),
+                _make_tile(
+                    self,
+                    "Fusion Preparation<br>App",
+                    C.FUSION_TEXT,
+                    "fusion",
+                    partial(self.on_open_app, Window.on_open_fusion),
+                ),
+                stretch_after=True,
+                spacing=2,
+                margin=2,
+            )
         )
 
         self.progress_label = hp.make_label(self, "")
@@ -179,6 +180,12 @@ class Launcher(QtDialog):
                 {"window": self, "APP_CONFIG": get_app_config(), "READER_CONFIG": READER_CONFIG}
             )
         self.console.show()
+
+    @staticmethod
+    def on_toggle_theme() -> None:
+        """Toggle theme."""
+        THEMES.theme = "dark" if THEMES.theme == "light" else "light"
+        get_app_config().theme = THEMES.theme
 
 
 if __name__ == "__main__":  # pragma: no cover
