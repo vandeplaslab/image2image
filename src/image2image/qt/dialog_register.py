@@ -1631,53 +1631,55 @@ class ImageRegistrationWindow(Window):
         self.view_fixed.viewer.scale_bar.unit = "um"
         self.view_fixed.widget.canvas.events.key_press.connect(self.keyPressEvent)
 
-        toolbar = QtMiniToolbar(self, Qt.Orientation.Vertical, add_spacer=True, icon_size="normal")
-        _fixed_clear_btn = toolbar.insert_qta_tool(
+        toolbar = QtMiniToolbar(self, Qt.Orientation.Vertical, add_spacer=False, icon_size="normal")
+        toolbar.add_qta_tool(
+            "layers",
+            func=self.view_fixed.widget.on_open_controls_dialog,
+            tooltip="Open layers control panel.",
+        )
+        toolbar.add_qta_tool(
+            "bring_to_top",
+            func=lambda *args: self._select_point_layer("fixed"),
+            tooltip="Bring points layer to the top.",
+        )
+        self.fixed_pan_btn = toolbar.add_qta_tool(
+            "pan_zoom",
+            func=lambda *args: self.on_panzoom("fixed"),
+            tooltip="Switch to zoom-only mode. Press <b>1</b> on your keyboard to activate...",
+            checkable=True,
+        )
+        self.fixed_add_btn = toolbar.add_qta_tool(
+            "add",
+            func=lambda *args: self.on_add("fixed"),
+            tooltip="Add new point to the fixed image. Press <b>2</b> on your keyboard to activate...",
+            checkable=True,
+        )
+        self.fixed_move_btn = toolbar.add_qta_tool(
+            "select_points",
+            func=lambda *args: self.on_move("fixed"),
+            tooltip="Move points in the fixed image. Press <b>3</b> on your keyboard to activate...",
+            checkable=True,
+        )
+        hp.make_radio_btn_group(self, [self.fixed_pan_btn, self.fixed_add_btn, self.fixed_move_btn])
+        toolbar.add_qta_tool(
+            "remove_single",
+            func=lambda *args: self.on_remove("fixed"),
+            tooltip="Remove last point from the fixed image.",
+        )
+        toolbar.add_qta_tool(
+            "remove_multiple",
+            func=lambda *args: self.on_remove_selected("fixed"),
+            tooltip="Remove selected points from the fixed image.",
+        )
+        toolbar.add_qta_tool(
             "remove_all",
             func=lambda *args: self.on_clear("fixed", force=False),
             func_menu=lambda *args: self.on_clear("fixed", force=True),
             tooltip="Remove all points from the fixed image (need to confirm)."
             "\nRight-click to clear all points without confirmation.",
         )
-        _fixed_remove_selected_btn = toolbar.insert_qta_tool(
-            "remove_multiple",
-            func=lambda *args: self.on_remove_selected("fixed"),
-            tooltip="Remove selected points from the fixed image.",
-        )
-        _fixed_remove_btn = toolbar.insert_qta_tool(
-            "remove_single",
-            func=lambda *args: self.on_remove("fixed"),
-            tooltip="Remove last point from the fixed image.",
-        )
-        self.fixed_move_btn = toolbar.insert_qta_tool(
-            "select_points",
-            func=lambda *args: self.on_move("fixed"),
-            tooltip="Move points in the fixed image. Press <b>3</b> on your keyboard to activate...",
-            checkable=True,
-        )
-        self.fixed_add_btn = toolbar.insert_qta_tool(
-            "add",
-            func=lambda *args: self.on_add("fixed"),
-            tooltip="Add new point to the fixed image. Press <b>2</b> on your keyboard to activate...",
-            checkable=True,
-        )
-        self.fixed_pan_btn = toolbar.insert_qta_tool(
-            "pan_zoom",
-            func=lambda *args: self.on_panzoom("fixed"),
-            tooltip="Switch to zoom-only mode. Press <b>1</b> on your keyboard to activate...",
-            checkable=True,
-        )
-        hp.make_radio_btn_group(self, [self.fixed_pan_btn, self.fixed_add_btn, self.fixed_move_btn])
-        _fixed_bring_to_top = toolbar.insert_qta_tool(
-            "bring_to_top",
-            func=lambda *args: self._select_point_layer("fixed"),
-            tooltip="Bring points layer to the top.",
-        )
-        _fixed_layers_btn = toolbar.insert_qta_tool(
-            "layers",
-            func=self.view_fixed.widget.on_open_controls_dialog,
-            tooltip="Open layers control panel.",
-        )
+        toolbar.add_spacer()
+
         self.fixed_toolbar = toolbar
 
         layout = QHBoxLayout()

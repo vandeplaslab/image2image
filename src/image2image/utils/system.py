@@ -38,8 +38,8 @@ def get_system_info(as_html=False) -> None:
     if __sys_name:
         text += f"<b>System</b>: {__sys_name}<br>"
 
-    text += "<br><b>image2image Packages</b><br>"
-    text += "--------------------<br>"
+    text += "<br><b>image2image Packages</b>"
+    text += "<br>--------------------<br>"
     modules = (
         ("image2image", "image2image"),
         ("image2image_io", "image2image-io"),
@@ -53,8 +53,8 @@ def get_system_info(as_html=False) -> None:
         except Exception as e:  # noqa: BLE001
             text += f"<b>{name}</b>: Import failed ({e})<br>"
 
-    text += "<br><b>Packages</b><br>"
-    text += "--------------------<br>"
+    text += "<br><b>Packages</b>"
+    text += "<br>--------------------<br>"
     modules = (
         ("qtextra", "qtextra"),
         ("qtextraplot", "qtextraplot"),
@@ -69,9 +69,12 @@ def get_system_info(as_html=False) -> None:
         except Exception as e:  # noqa: BLE001
             text += f"<b>{name}</b>: Import failed ({e})<br>"
 
-    text += "<br><b>Dependencies</b><br>"
+    text += "<br><b>Dependencies</b>"
     text += "<br>--------------------<br>"
     modules = (
+        ("numpy", "NumPy"),
+        ("pandas", "Pandas"),
+        ("scipy", "SciPy"),
         ("valis", "valis-wsi"),
         ("itk", "ITK"),
         ("SimpleITK", "SimpleITK"),
@@ -80,10 +83,7 @@ def get_system_info(as_html=False) -> None:
         ("superqt", "superqt"),
         ("napari", "Napari"),
         ("vispy", "VisPy"),
-        ("numpy", "NumPy"),
-        ("scipy", "SciPy"),
         ("dask", "Dask"),
-        ("vispy", "VisPy"),
     )
     for module, name in modules:
         try:

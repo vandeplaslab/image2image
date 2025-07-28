@@ -149,12 +149,12 @@ class QtDatasetItem(QFrame):
         layout = hp.make_v_layout(
             self.modality_icon,
             self.open_dir_btn,
-            self.remove_btn,
             self.extract_btn,
             self.transform_btn,
             self.iterate_btn,
             self.save_btn,
-            stretch_after=True,
+            hp.make_vertical_spacer(),
+            self.remove_btn,
             margin=1,
             spacing=1,
         )

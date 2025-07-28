@@ -722,15 +722,15 @@ class ImageWsiWindow(SingleViewerMixin):
         project_layout.addRow(self.output_dir_label)
         return project_settings
 
-        def _make_visibility_options(self) -> None:
-            self.apply_btn = hp.make_qta_btn(
-                self,
-                "magic",
-                tooltip="Apply pre-processing to all modalities",
-                func=self.on_apply,
-                normal=True,
-                standout=True,
-            )
+    def _make_visibility_options(self) -> None:
+        self.apply_btn = hp.make_qta_btn(
+            self,
+            "magic",
+            tooltip="Apply pre-processing to all modalities",
+            func=self.on_apply,
+            normal=True,
+            standout=True,
+        )
 
         self.show_all_btn = hp.make_qta_btn(
             self,
@@ -784,7 +784,6 @@ class ImageWsiWindow(SingleViewerMixin):
             checked=self.CONFIG.hide_others,
             func=self.on_hide_not_previewed_modalities,
         )
-        return None
 
     def _make_hidden_widgets(self, side_widget: Qw.QWidget) -> QtCheckCollapsible:
         self.write_check = hp.make_checkbox(

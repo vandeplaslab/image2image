@@ -1033,7 +1033,7 @@ class ImageElastix3dWindow(Window):
 
     def on_show_grid(self) -> None:
         """Show scale bar controls for the viewer."""
-        from qtextraplot._napari.common.component_controls.qt_grid_controls import QtGridControls
+        from qtextraplot._napari.component_controls.qt_grid_controls import QtGridControls
 
         dlg = QtGridControls(self.view.viewer, self.view.widget)
         dlg.show_above_mouse()

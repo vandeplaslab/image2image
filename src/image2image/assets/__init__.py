@@ -38,7 +38,8 @@ update_icon_mapping(
         # other
         "remove_single": "mdi.close-circle",
         "remove_multiple": "mdi.close-circle-multiple",
-        "remove_all": "fa5s.trash-alt",
+        "remove_all": "mdi6.delete-empty",
+        # "remove_all": "fa5s.trash-alt",
         "bring_to_top": "fa5s.angle-double-up",
         "fiducial": "fa5s.map-marker-alt",
         "change": "fa5s.arrow-alt-circle-right",

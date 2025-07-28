@@ -153,47 +153,83 @@ def run(
         elif tool == "register":
             from image2image.qt.dialog_register import ImageRegistrationWindow
 
-            dlg = ImageRegistrationWindow(None, run_check_version=run_check_version, **kwargs)  # type: ignore[assignment]
+            dlg = ImageRegistrationWindow(  # type: ignore[assignment]
+                None,
+                run_check_version=run_check_version,
+                **kwargs,
+            )
             dlg.setMinimumSize(1800, 1200)
         elif tool == "viewer":
             from image2image.qt.dialog_viewer import ImageViewerWindow
 
-            dlg = ImageViewerWindow(None, run_check_version=run_check_version, **kwargs)  # type: ignore[assignment]
+            dlg = ImageViewerWindow(  # type: ignore[assignment]
+                None,
+                run_check_version=run_check_version,
+                **kwargs,
+            )
             dlg.setMinimumSize(1200, 800)
         elif tool == "crop":
             from image2image.qt.dialog_crop import ImageCropWindow
 
-            dlg = ImageCropWindow(None, run_check_version=run_check_version, **kwargs)  # type: ignore[assignment]
+            dlg = ImageCropWindow(  # type: ignore[assignment]
+                None,
+                run_check_version=run_check_version,
+                **kwargs,
+            )
             dlg.setMinimumSize(1200, 800)
         elif tool == "fusion":
             from image2image.qt.dialog_fusion import ImageFusionWindow
 
-            dlg = ImageFusionWindow(None, run_check_version=run_check_version, **kwargs)  # type: ignore[assignment]
+            dlg = ImageFusionWindow(  # type: ignore[assignment]
+                None,
+                run_check_version=run_check_version,
+                **kwargs,
+            )
             dlg.setMinimumSize(600, 400)
         elif tool == "convert":
             from image2image.qt.dialog_convert import ImageConvertWindow
 
-            dlg = ImageConvertWindow(None, run_check_version=run_check_version, **kwargs)  # type: ignore[assignment]
+            dlg = ImageConvertWindow(  # type: ignore[assignment]
+                None,
+                run_check_version=run_check_version,
+                **kwargs,
+            )
             dlg.setMinimumSize(600, 400)
         elif tool == "merge":
             from image2image.qt.dialog_merge import ImageMergeWindow
 
-            dlg = ImageMergeWindow(None, run_check_version=run_check_version, **kwargs)  # type: ignore[assignment]
+            dlg = ImageMergeWindow(  # type: ignore[assignment]
+                None,
+                run_check_version=run_check_version,
+                **kwargs,
+            )
             dlg.setMinimumSize(600, 400)
         elif tool == "elastix3d":
             from image2image.qt.dialog_elastix3d import ImageElastix3dWindow
 
-            dlg = ImageElastix3dWindow(None, run_check_version=run_check_version, **kwargs)  # type: ignore[assignment]
+            dlg = ImageElastix3dWindow(  # type: ignore[assignment]
+                None,
+                run_check_version=run_check_version,
+                **kwargs,
+            )
             dlg.setMinimumSize(1200, 800)
         elif tool == "elastix":
             from image2image.qt.dialog_elastix import ImageElastixWindow
 
-            dlg = ImageElastixWindow(None, run_check_version=run_check_version, **kwargs)  # type: ignore[assignment]
+            dlg = ImageElastixWindow(  # type: ignore[assignment]
+                None,
+                run_check_version=run_check_version,
+                **kwargs,
+            )
             dlg.setMinimumSize(1200, 800)
         elif tool == "valis":
             from image2image.qt.dialog_valis import ImageValisWindow
 
-            dlg = ImageValisWindow(None, run_check_version=run_check_version, **kwargs)  # type: ignore[assignment]
+            dlg = ImageValisWindow(  # type: ignore[assignment]
+                None,
+                run_check_version=run_check_version,
+                **kwargs,
+            )
             dlg.setMinimumSize(1200, 800)
         elif tool == "napari":
             from napari import Viewer
@@ -225,11 +261,11 @@ def run(
             dev_dlg = QDevPopup(dlg, modules=dev_modules)
             dev_dlg.qdev.evt_stylesheet.connect(lambda: THEMES.set_theme_stylesheet(dlg))
             if hasattr(dlg, "statusbar"):
-                dlg.dev_btn = make_qta_btn(  # type: ignore[attr-defined]
+                dlg.dev_btn = make_qta_btn(
                     dlg,
                     "dev",
                     tooltip="Open development tools.",
-                    func=dev_dlg.show,
+                    func=dev_dlg.show,  # type: ignore[attr-defined]
                     small=True,
                 )
                 dlg.statusbar.addPermanentWidget(dlg.dev_btn)  # type: ignore[attr-defined]

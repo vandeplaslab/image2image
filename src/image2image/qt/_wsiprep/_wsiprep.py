@@ -15,7 +15,7 @@ from napari.layers import Image, Shapes
 from napari.layers.shapes._shapes_constants import Box
 from qtextra.utils.utilities import connect
 from qtextra.widgets.qt_dialog import QtFramelessTool
-from qtextraplot._napari.common.layer_controls.qt_shapes_controls import QtShapesControls
+from qtextraplot._napari.layer_controls.qt_shapes_controls import QtShapesControls
 from qtpy.QtCore import Qt
 from qtpy.QtWidgets import QLayout
 from tqdm import tqdm

@@ -29,10 +29,10 @@ from image2image.config import get_crop_config
 from image2image.enums import ALLOWED_PROJECT_CROP_FORMATS
 from image2image.qt._dialog_mixins import SingleViewerMixin
 from image2image.qt._dialogs._select import LoadWidget
+from image2image.utils.crop import export_crop_regions, export_mask_regions, preview_crop_regions, preview_mask_regions
 from image2image.utils.utilities import ensure_extension, init_shapes_layer, log_exception_or_error, write_project
 
 if ty.TYPE_CHECKING:
-    from image2image_io.readers import BaseReader
     from qtextraplot._napari.image.wrapper import NapariImageView
 
     from image2image.models.data import DataModel
@@ -41,7 +41,7 @@ if ty.TYPE_CHECKING:
 def parse_crop_info(data: tuple[int, int, int, int] | np.ndarray | None = None) -> str:
     """Parse crop data."""
     if data is None:
-        return "No data"
+        return "Region not selected.\nSelect a region to see crop information."
     if isinstance(data, np.ndarray):
         left, right, top, bottom = data[:, 1].min(), data[:, 1].max(), data[:, 0].min(), data[:, 0].max()
         return (
@@ -220,9 +220,106 @@ class ImageCropWindow(SingleViewerMixin):
 
     def on_preview_mask(self):
         """Preview image cropping."""
+        regions = self.get_crop_areas()
+        if not regions:
+            return
 
-    def on_open_mask(self):
+        if regions:
+            self.worker_preview_mask = create_worker(
+                preview_mask_regions,
+                data_model=self.data_model,
+                regions=regions,
+                _start_thread=True,
+                _connect={
+                    "aborted": partial(self._on_aborted_mask, which="preview"),
+                    "finished": partial(self._on_finished_mask, which="preview"),
+                    "yielded": self._on_preview_mask_yield,
+                },
+            )
+            hp.disable_widgets(self.preview_mask_btn.active_btn, disabled=True)
+            self.preview_mask_btn.active = True
+
+    def on_export_mask(self):
         """Mask images."""
+        regions = self.get_crop_areas()
+        if not regions:
+            hp.toast(self, "No regions", "No regions to crop.", icon="error")
+            return
+
+        output_dir_ = hp.get_directory(self, "Select output directory", self.CONFIG.output_dir)
+        if not output_dir_:
+            hp.toast(self, "No output directory", "No output directory selected.", icon="error")
+            return
+
+        logger.trace("Exporting mask regions to OME-TIFF files...")
+        self.CONFIG.update(output_dir=output_dir_)
+        if regions:
+            for _ in export_mask_regions(
+                self.data_model,
+                output_dir=Path(output_dir_),
+                regions=regions,
+                tile_size=self.CONFIG.tile_size,
+                as_uint8=self.CONFIG.as_uint8,
+            ):
+                pass
+            # self.worker_crop = create_worker(
+            #     export_mask_regions,
+            #     data_model=self.data_model,
+            #     output_dir=Path(output_dir_),
+            #     regions=regions,
+            #     tile_size=self.CONFIG.tile_size,
+            #     as_uint8=self.CONFIG.as_uint8,
+            #     _start_thread=True,
+            #     _connect={
+            #         "aborted": partial(self._on_aborted_mask, which="mask"),
+            #         "finished": partial(self._on_finished_mask, which="mask"),
+            #         "yielded": self._on_export_mask_yield,
+            #         "errored": self._on_export_crop_or_mask_error,
+            #     },
+            # )
+            # hp.disable_widgets(self.mask_btn.active_btn, disabled=True)
+            # self.mask_btn.active = True
+
+    @ensure_main_thread()
+    def _on_export_mask_yield(self, args: tuple[Path, int, int]) -> None:
+        filename, current, total = args
+        self.mask_btn.setRange(0, total)
+        self.mask_btn.setValue(current)
+        logger.info(f"Exported {filename}")
+        self.statusbar.showMessage(f"Exported {filename} {current}/{total}")
+
+    @ensure_main_thread()
+    def _on_aborted_mask(self, which: str) -> None:
+        """Update CSV."""
+        if which == "preview":
+            self.worker_preview_mask = None
+        else:
+            self.worker_mask = None
+
+    @ensure_main_thread()
+    def _on_preview_mask_yield(self, args: tuple[str, str, np.ndarray, float, int, int]) -> None:
+        self.__on_preview_mask_yield(args)
+
+    def __on_preview_mask_yield(self, args: tuple[str, str, np.ndarray, float, int, int]) -> None:
+        name, channel_name, array, resolution, current, total = args
+        self.preview_mask_btn.setRange(0, total)
+        self.preview_mask_btn.setValue(current)
+        if array.size == 0:
+            return
+        self.view.viewer.add_image(array, name=f"{name}-{channel_name}", scale=(resolution, resolution))
+        self._move_layer(self.view, self.crop_layer)
+
+    @ensure_main_thread()
+    def _on_finished_mask(self, which: str) -> None:
+        """Failed exporting of the CSV."""
+        if which == "preview":
+            self.worker_preview_crop = None
+            btn = self.preview_mask_btn
+        else:
+            self.worker_mask = None
+            btn = self.mask_btn
+        hp.disable_widgets(btn.active_btn, disabled=False)
+        btn.active = False
 
     def on_preview_crop(self):
         """Preview image cropping."""
@@ -283,11 +380,14 @@ class ImageCropWindow(SingleViewerMixin):
         if which == "preview" and self.worker_preview_crop:
             self.worker_preview_crop.quit()
             logger.trace("Requested aborting of the preview process.")
-        elif which == "crop" and self.worker_crop:
+        elif which == "preview_crop" and self.worker_crop:
             self.worker_crop.quit()
             logger.trace("Requested aborting of the crop process.")
+        elif which == "preview_mask" and self.worker_mask:
+            self.worker_mask.quit()
+            logger.trace("Requested aborting of the crop process.")
 
-    def on_open_crop(self) -> None:
+    def on_export_crop(self) -> None:
         """Save data."""
         regions = self.get_crop_areas()
         if not regions:
@@ -313,7 +413,7 @@ class ImageCropWindow(SingleViewerMixin):
                     "aborted": partial(self._on_aborted_crop, which="crop"),
                     "finished": partial(self._on_finished_crop, which="crop"),
                     "yielded": self._on_export_crop_yield,
-                    "errored": self._on_export_crop_error,
+                    "errored": self._on_export_crop_or_mask_error,
                 },
             )
             hp.disable_widgets(self.crop_btn.active_btn, disabled=True)
@@ -327,7 +427,7 @@ class ImageCropWindow(SingleViewerMixin):
         logger.info(f"Exported {filename}")
         self.statusbar.showMessage(f"Exported {filename} {current}/{total}")
 
-    def _on_export_crop_error(self, exc: Exception) -> None:
+    def _on_export_crop_or_mask_error(self, exc: Exception) -> None:
         hp.toast(self, "Export failed", f"Failed to export: {exc}", icon="error")
         log_exception_or_error(exc)
 
@@ -412,7 +512,6 @@ class ImageCropWindow(SingleViewerMixin):
             return
         data = self._get_crop_area_for_index(index)
         self.crop_info.setText(parse_crop_info(data))
-        logger.trace(f"Updated region {index} (from canvas).")
 
     @property
     def crop_layer(self) -> Shapes:
@@ -475,38 +574,38 @@ class ImageCropWindow(SingleViewerMixin):
             self, "Reset crop area", tooltip="Reset crop area to center of the image.", func=self.on_reset_crop
         )
 
+        # Crop buttons
         self.preview_crop_btn = hp.make_active_progress_btn(
             self,
-            "Preview (crop)",
+            "Preview",
             tooltip="Preview how cropped image would look like.",
             func=self.on_preview_crop,
-            cancel_func=partial(self.on_cancel, which="preview"),
+            cancel_func=partial(self.on_cancel, which="preview_crop"),
         )
         self.crop_btn = hp.make_active_progress_btn(
             self,
-            "Export to OME-TIFF (crop)...",
+            "Export to OME-TIFF...",
             tooltip="Crop images and save as OME-TIFF files.",
-            func=self.on_open_crop,
+            func=self.on_export_crop,
             cancel_func=partial(self.on_cancel, which="crop"),
         )
 
+        # Mask buttons
         self.preview_mask_btn = hp.make_active_progress_btn(
             self,
-            "Preview (crop)",
+            "Preview",
             tooltip="Preview how masked image would look like.",
             func=self.on_preview_mask,
-            cancel_func=partial(self.on_cancel, which="preview"),
+            cancel_func=partial(self.on_cancel, which="preview_mask"),
         )
-        self.preview_mask_btn.hide()
 
         self.mask_btn = hp.make_active_progress_btn(
             self,
-            "Export to OME-TIFF (mask)...",
+            "Export to OME-TIFF...",
             tooltip="Mask images and save as OME-TIFF files.",
-            func=self.on_open_mask,
-            cancel_func=partial(self.on_cancel, which="crop"),
+            func=self.on_export_mask,
+            cancel_func=partial(self.on_cancel, which="mask"),
         )
-        self.mask_btn.hide()
 
         self.as_uint8 = hp.make_checkbox(
             settings_widget,
@@ -547,17 +646,43 @@ class ImageCropWindow(SingleViewerMixin):
             ),
         )
 
-        side_layout = hp.make_form_layout(parent=settings_widget)
+        side_layout = hp.make_form_layout(parent=settings_widget, margin=2)
         side_layout.addRow(self._image_widget)
         side_layout.addRow(hp.make_h_line_with_text("Image crop position"))
         side_layout.addRow(crop_layout)
         side_layout.addRow(hp.make_h_layout(self.init_btn, self.reset_btn, spacing=2))
         side_layout.addRow(hp.make_h_line_with_text("Export"))
         side_layout.addRow(self.hidden_settings)
-        side_layout.addRow(self.preview_crop_btn)
-        side_layout.addRow(self.crop_btn)
-        side_layout.addRow(self.preview_mask_btn)
-        side_layout.addRow(self.mask_btn)
+        side_layout.addRow(hp.make_h_line_with_text("Crop"))
+        side_layout.addRow(
+            hp.make_h_layout(
+                hp.make_v_layout(self.preview_crop_btn, self.crop_btn, spacing=1),
+                hp.make_help_label(
+                    self,
+                    "This action will crop the image to the smallest region of interest, reducing the final size"
+                    " of the image.",
+                    normal=True,
+                ),
+                stretch_id=(0, 1),
+                alignment=Qt.AlignmentFlag.AlignVCenter,
+                spacing=2,
+            )
+        )
+        side_layout.addRow(hp.make_h_line_with_text("Mask"))
+        side_layout.addRow(
+            hp.make_h_layout(
+                hp.make_v_layout(self.preview_mask_btn, self.mask_btn, spacing=1),
+                hp.make_help_label(
+                    self,
+                    "This action will apply a binary mask to the image, masking out the regions outside the"
+                    " masked area, keeping the original size of the image.",
+                    normal=True,
+                ),
+                stretch_id=(0, 1),
+                alignment=Qt.AlignmentFlag.AlignVCenter,
+                spacing=2,
+            )
+        )
         side_layout.addRow(hp.make_h_line_with_text("Layer controls"))
         side_layout.addRow(self.view.widget.controls)
         side_layout.addRow(self.view.widget.layerButtons)
@@ -660,125 +785,6 @@ def get_project_data(data_model: DataModel, regions: list[tuple[int, int, int, i
         "images": data_["images"],
     }
     return data
-
-
-def _crop_regions_iter(
-    data_model: DataModel, polygon_or_bbox: list[tuple[int, int, int, int] | np.ndarray], skip_empty: bool = True
-) -> ty.Generator[tuple[Path, ty.Any, int, str, np.ndarray, tuple[int, int, int, int]], None, None]:
-    """Crop regions."""
-    if isinstance(polygon_or_bbox, tuple):
-        left, right, top, bottom = polygon_or_bbox
-        for path, reader, channel_index, channel_name, cropped_channel, (
-            left,
-            right,
-            top,
-            bottom,
-        ) in data_model.crop_bbox_iter(left, right, top, bottom):
-            yield (
-                path,
-                reader,
-                channel_index,
-                channel_name,
-                cropped_channel,
-                (left, right, top, bottom),
-            )
-    else:
-        assert isinstance(polygon_or_bbox, np.ndarray), f"Invalid type: {type(polygon_or_bbox)}"
-        for path, reader, channel_index, channel_name, cropped_channel, (
-            left,
-            right,
-            top,
-            bottom,
-        ) in data_model.crop_polygon_iter(polygon_or_bbox):
-            yield (
-                path,
-                reader,
-                channel_index,
-                channel_name,
-                cropped_channel,
-                (left, right, top, bottom),
-            )
-
-
-def _get_new_image_shape(reader: BaseReader, left: int, right: int, top: int, bottom: int) -> tuple[int, ...]:
-    """Get new image shape."""
-    x_size = right - left
-    y_size = bottom - top
-    channel_axis, n_channels = reader.get_channel_axis_and_n_channels()
-    if reader.is_rgb:
-        return y_size, x_size, n_channels
-    if channel_axis is None:
-        return y_size, x_size
-    if channel_axis == 0:
-        return n_channels, y_size, x_size
-    if channel_axis == 1:
-        return y_size, n_channels, x_size
-    return y_size, x_size, n_channels
-
-
-def export_crop_regions(
-    data_model: DataModel,
-    output_dir: Path,
-    regions: list[tuple[int, int, int, int] | np.ndarray],
-    tile_size: int = 512,
-    as_uint8: bool = True,
-) -> ty.Generator[tuple[Path, int, int], None, None]:
-    """Crop images."""
-    from image2image_io.writers import OmeTiffWrapper
-
-    n = len(regions)
-    for current, polygon_or_bbox in enumerate(regions, start=1):
-        for path, reader in data_model.wrapper.path_reader_iter():
-            output_path, dtype, shape, rgb = None, None, None, []
-            wrapper = OmeTiffWrapper()
-            for channel, (left, right, top, bottom) in reader.crop_region_iter(polygon_or_bbox):
-                output_path = output_dir / f"{path.stem}_x={left}-{right}_y={top}-{bottom}".replace(".ome", "")
-                dtype = reader.dtype
-                shape = _get_new_image_shape(reader, left, right, top, bottom)
-                break
-
-            if dtype is None or shape is None or output_path is None:
-                logger.warning(f"Skipping {path} as it has no data.")
-                continue
-            if output_path.with_suffix(".ome.tiff").exists():
-                logger.warning(f"Skipping {output_path} as it already exists.")
-                yield output_path, current, n
-            else:
-                with wrapper.write(
-                    channel_names=reader.channel_names,
-                    resolution=reader.resolution,
-                    dtype=dtype,
-                    shape=shape,
-                    name=output_path.name,
-                    output_dir=output_dir,
-                    tile_size=tile_size,
-                    as_uint8=as_uint8,
-                ):
-                    channel_index = 0
-                    for channel, _ in reader.crop_region_iter(polygon_or_bbox):
-                        if channel is None:
-                            continue
-                        if reader.is_rgb:
-                            rgb.append(channel)
-                        else:
-                            wrapper.add_channel(channel_index, reader.channel_names[channel_index], channel)
-                            channel_index += 1
-                    if rgb:
-                        wrapper.add_channel([0, 1, 2], ["R", "G", "B"], np.dstack(rgb))
-                yield wrapper.path, current, n
-
-
-def preview_crop_regions(
-    data_model: DataModel, regions: list[tuple[int, int, int, int] | np.ndarray]
-) -> ty.Generator[tuple[str, str, np.ndarray, float, int, int], None, None]:
-    """Preview images."""
-    n = len(regions)
-    for current, polygon_or_bbox in enumerate(regions, start=1):
-        for path, reader, _channel_index, channel_name, cropped, (left, right, top, bottom) in _crop_regions_iter(
-            data_model, polygon_or_bbox
-        ):
-            name = f"{path.stem}_x={left}-{right}_y={top}-{bottom}".replace(".ome", "")
-            yield name, channel_name, cropped, reader.resolution, current, n
 
 
 if __name__ == "__main__":  # pragma: no cover

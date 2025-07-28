@@ -711,7 +711,7 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
 
     def on_show_save_figure(self) -> None:
         """Show scale bar controls for the viewer."""
-        from qtextraplot._napari.common.widgets.screenshot_dialog import QtScreenshotDialog
+        from qtextraplot._napari.widgets.screenshot_dialog import QtScreenshotDialog
 
         if self.view is None:
             raise ValueError("View is not initialized.")

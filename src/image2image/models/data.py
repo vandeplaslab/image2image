@@ -366,14 +366,24 @@ class DataModel(BaseModel):
         """Returns True if there is some data on the model."""
         return self.n_paths > 0
 
-    def crop_region(
-        self, bbox_or_polygon: ty.Union[tuple[int, int, int, int], np.ndarray]
-    ) -> ty.Generator[tuple[Path, "BaseReader", tuple[np.ndarray, tuple[int, int, int, int]]], None, None]:
-        """Crop image(s) to the specified region."""
-        wrapper = self.wrapper
-        if wrapper:
-            for path, reader in wrapper.path_reader_iter():
-                yield path, reader, reader.crop_region(bbox_or_polygon)
+    # def crop_region(
+    #     self, bbox_or_polygon: ty.Union[tuple[int, int, int, int], np.ndarray]
+    # ) -> ty.Generator[tuple[Path, "BaseReader", tuple[np.ndarray, tuple[int, int, int, int]]], None, None]:
+    #     """Crop image(s) to the specified region."""
+    #     wrapper = self.wrapper
+    #     if wrapper:
+    #         for path, reader in wrapper.path_reader_iter():
+    #             yield path, reader, reader.crop_region(bbox_or_polygon)
+
+    # def crop_polygon_mask(
+    #     self, yx: np.ndarray
+    # ) -> ty.Generator[tuple[Path, "BaseReader", np.ndarray, tuple[int, int, int, int]], None, None]:
+    #     """Crop image(s) to the specified polygon region."""
+    #     wrapper = self.wrapper
+    #     if wrapper:
+    #         for path, reader in wrapper.path_reader_iter():
+    #             cropped, bbox = reader.crop_polygon_mask(yx)
+    #             yield path, reader, cropped, bbox
 
     def crop_bbox_iter(
         self, left: int, right: int, top: int, bottom: int
@@ -405,15 +415,35 @@ class DataModel(BaseModel):
                     yield path, reader, channel_index, channel_names[channel_index], cropped_channel, bbox
                     channel_index += 1
 
-    def crop_polygon_mask(
+    def mask_bbox_iter(
+        self, left: int, right: int, top: int, bottom: int
+    ) -> ty.Generator[tuple[Path, "BaseReader", int, str, np.ndarray, tuple[int, int, int, int]], None, None]:
+        """Crop image(s) to the specified region."""
+        wrapper = self.wrapper
+        if wrapper:
+            for path, reader in wrapper.path_reader_iter():
+                channel_index = 0
+                channel_names = reader.get_channel_names(split_rgb=True)
+                for cropped_channel, bbox in reader.mask_bbox_iter(left, right, top, bottom):
+                    if cropped_channel is None:
+                        continue
+                    yield path, reader, channel_index, channel_names[channel_index], cropped_channel, bbox
+                    channel_index += 1
+
+    def mask_polygon_iter(
         self, yx: np.ndarray
-    ) -> ty.Generator[tuple[Path, "BaseReader", np.ndarray, tuple[int, int, int, int]], None, None]:
+    ) -> ty.Generator[tuple[Path, "BaseReader", int, str, np.ndarray, tuple[int, int, int, int]], None, None]:
         """Crop image(s) to the specified polygon region."""
         wrapper = self.wrapper
         if wrapper:
             for path, reader in wrapper.path_reader_iter():
-                cropped, bbox = reader.crop_polygon_mask(yx)
-                yield path, reader, cropped, bbox
+                channel_index = 0
+                channel_names = reader.get_channel_names(split_rgb=True)
+                for cropped_channel, bbox in reader.mask_polygon_iter(yx):
+                    if cropped_channel is None:
+                        continue
+                    yield path, reader, channel_index, channel_names[channel_index], cropped_channel, bbox
+                    channel_index += 1
 
 
 def load_viewer_setup_from_file(path: PathLike) -> I2V_METADATA:

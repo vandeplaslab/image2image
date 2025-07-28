@@ -143,11 +143,11 @@ def cli(
     launcher - opens a dialog where you can launch any of the tools.
     viewer - opens a dialog where you can view images, shapes and points data
     register - opens a dialog where you can co-register images using affine transformation
+    crop - opens a dialog where you can crop (and mask) images
     elastix - opens a dialog where you can co-register whole slide images using i2reg-elastix
     valis - opens a dialog where you can co-register whole-slide images using i2reg-valis
     convert - opens a dialog where you can convert images to OME-TIFF
     merge - opens a dialog where you can merge multiple image channels and images together
-    crop - opens a dialog where you can crop (and mask) images
     fusion - opens a dialog where you can prepare data for image fusion
     """
     level, dev = _cli_setup(verbosity, no_color, info, dev)

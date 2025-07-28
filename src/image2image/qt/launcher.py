@@ -187,6 +187,13 @@ class Launcher(QtDialog):
         THEMES.theme = "dark" if THEMES.theme == "light" else "light"
         get_app_config().theme = THEMES.theme
 
+    def keyPressEvent(self, evt):
+        """Key press event."""
+        if evt.key() == Qt.Key.Key_Escape:
+            evt.ignore()
+        else:
+            super().keyPressEvent(evt)
+
 
 if __name__ == "__main__":  # pragma: no cover
     from image2image.main import run
