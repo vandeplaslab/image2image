@@ -15,11 +15,10 @@ update_just_app=false
 update_pip=false
 no_docs=true
 help=false
-uv=false
 package=false
 debug=false
 
-while getopts uadrwjpnvgzh opt; do
+while getopts uadrwjpngzh opt; do
   case $opt in
     u) update=true;;
     a) update_app=true;;
@@ -29,7 +28,6 @@ while getopts uadrwjpnvgzh opt; do
     j) update_just_app=true;;
     p) update_pip=true;;
     n) no_docs=true;;
-    v) uv=true;;
     g) debug=true;;
     z) package=true;;
     h) help=true;;
@@ -43,17 +41,16 @@ shift "$(( OPTIND - 1 ))"
 if $help
 then
   echo "Usage: ./build.sh [-update] [-update_app] [-update_deps] [-update_just_reader] [-update_just_register] [-update_just_app] [-update_pip] [-no_docs] [-uv] [-package] [-help]"
-  echo "  -u / update: update the i2i package before building"
-  echo "  -a / update_app: update the i2i and i2i-io packages before building"
-  echo "  -d / update_deps: update dependencies before building"
-  echo "  -r / update_just_reader: update the i2i-io package to a specific commit before building"
-  echo "  -w / update_just_register: update the i2i-register package to a specific commit before building"
-  echo "  -j / update_just_app: update the i2i package to a specific commit before building"
-  echo "  -i / update_pip: update the pip packages before building"
-  echo "  -n / no_docs: do not build the documentation"
-  echo "  -v / uv: use uv for updates"
-  echo "  -g / debug: enable debug mode"
-  echo "  -p / package: package the application"
+  echo "  -u / update ($update): update the i2i package before building"
+  echo "  -a / update_app ($update_app): update the i2i and i2i-io packages before building"
+  echo "  -d / update_deps ($update_deps): update dependencies before building"
+  echo "  -r / update_just_reader ($update_just_reader): update the i2i-io package to a specific commit before building"
+  echo "  -w / update_just_register ($update_just_register): update the i2i-register package to a specific commit before building"
+  echo "  -j / update_just_app ($update_just_app): update the i2i package to a specific commit before building"
+  echo "  -i / update_pip ($update_pip): update the pip packages before building"
+  echo "  -n / no_docs ($no_docs): do not build the documentation"
+  echo "  -g / debug ($debug): enable debug mode"
+  echo "  -z / package ($package): package the application"
   echo "  -h / help: show this help message"
   exit 0
 fi
@@ -79,15 +76,11 @@ fi
 
 start_dir=$PWD
 echo "Current directory: " $start_dir
+app_dir=$(realpath $start_dir/../../)
+echo "GitHub directory: " $app_dir
 github_dir=$(realpath $start_dir/../../../)
 echo "GitHub directory: " $github_dir
-if $uv
-then
-#  source_path=$(realpath $start_dir/../../venv_package_uv/bin/activate)
-  source_path=$(realpath $start_dir/../../venv_package_uv/bin/activate)
-else
-  source_path=$(realpath $start_dir/../../venv_package/bin/activate)
-fi
+source_path=$(realpath $start_dir/../../venv_package_uv/bin/activate)
 echo "Source path: " $source_path
 
 # activate appropriate environment
@@ -103,10 +96,7 @@ declare -a pip_install=()
 declare -a local_install=()
 
 always_install+=("pip")
-if $uv
-then
-  always_install+=("uv")
-fi
+always_install+=("uv")
 
 if $update
 then
@@ -132,7 +122,6 @@ echo "update_just_app: $update_just_app"
 echo "update_just_register: $update_just_register"
 echo "update_pip: $update_pip"
 echo "no_docs: $no_docs"
-echo "uv: $uv"
 echo "package: $package"
 echo "help: $help"
 
@@ -164,11 +153,11 @@ local_install+=("koyo")
 
 if $update_pip
 then
-    pip_install+=("napari==0.5.6")
+    pip_install+=("napari==0.6.4")
     pip_install+=("pydantic>=2")
     pip_install+=("pandas<2")
     pip_install+=("numpy<2")
-    pip_install+=("PyQt6==6.5.3")
+    pip_install+=("PyQt6==6.9.1")
     pip_install+=("pyinstaller")
 fi
 
@@ -176,13 +165,8 @@ fi
 for pkg in "${always_install[@]}"
 do
     echo "Installing package: " $pkg
-    if $uv
-    then
-      uv pip uninstall $pkg
-      uv pip install -U $pkg
-    else
-      pip install -U $pkg
-    fi
+    uv pip uninstall $pkg
+    uv pip install -U $pkg
     echo "Installed package: " $pkg
 done
 
@@ -191,25 +175,15 @@ if $qtextra
 then
     echo "Installing qtextra..."
     cd $(realpath $github_dir/qtextra) || exit 1
-    if $uv
-    then
-      uv pip uninstall qtextra
-      uv pip install -U ".[console,sentry]"
-    else
-      pip install -U ".[console,sentry]"
-    fi
+    uv pip uninstall qtextra
+    uv pip install -U ".[console,sentry]"
     echo "Installed qtextra."
     cd $start_dir
 
     echo "Installing qtextraplot..."
     cd $(realpath $github_dir/qtextraplot) || exit 1
-    if $uv
-    then
-      uv pip uninstall qtextraplot
-      uv pip install -U ".[2d]"
-    else
-      pip install -U ".[2d]"
-    fi
+    uv pip uninstall qtextraplot
+    uv pip install -U ".[2d]"
     echo "Installed qtextraplot."
     cd $start_dir
 fi
@@ -219,13 +193,8 @@ for pkg in "${local_install[@]}"
 do
     echo "Installing package: " $pkg
     cd $(realpath $github_dir/$pkg) || exit 1
-    if $uv
-    then
-      uv pip uninstall $pkg
-      uv pip install -U "$pkg @ ." --refresh
-    else
-      pip install -U .
-    fi
+    uv pip uninstall $pkg
+    uv pip install -U "$pkg @ ." --refresh
     echo "Installed package: " $pkg
     cd $start_dir
 done
@@ -234,13 +203,8 @@ done
 for pkg in "${pip_install[@]}"
 do
     echo "Installing package: " $pkg
-    if $uv
-    then
-      uv pip uninstall $pkg
-      uv pip install -U $pkg
-    else
-      pip install -U $pkg
-    fi
+    uv pip uninstall $pkg
+    uv pip install -U $pkg
     echo "Installed package: " $pkg
 done
 
@@ -248,27 +212,17 @@ done
 filename="image2image.spec"
 
 echo "### Printing versions ###"
-print_script_path=$(realpath $github_dir/scripts/print_versions.py)
+print_script_path=$(realpath $app_dir/scripts/print_versions.py)
 python $print_script_path
 echo "### End of versions ###"
 
 # Build bundle
 echo "Building bundle... filename=$filename"
-#if $debug
-#then
 pyinstaller --noconfirm --clean $filename
-#else
-#  pyinstaller --noconfirm --clean --noconsole $filename
-#fi
 
 if $package
 then
   echo "Packaging application..."
-  if $uv
-  then
-    sh ./package.sh -v
-  else
-    sh ./package.sh
-  fi
+  sh ./package.sh
   echo "Packaging complete."
 fi

@@ -6,14 +6,12 @@ help=false
 while getopts vh opt; do
   case $opt in
     h) help=true;;
-    v) uv=true;;
     *) echo "Invalid option: -$OPTARG" >&2
        exit 1;;
   esac
 done
 
 echo "Packaging macOS app..."
-echo "uv: $uv"
 echo "help: $help"
 
 shift "$(( OPTIND - 1 ))"
@@ -27,12 +25,7 @@ then
 fi
 
 start_dir=$PWD
-if $uv
-then
-  source_path=$(realpath $start_dir/../../venv_package_uv/bin/activate)
-else
-  source_path=$(realpath $start_dir/../../venv_package/bin/activate)
-fi
+source_path=$(realpath $start_dir/../../venv_package_uv/bin/activate)
 echo "Source path: " $source_path
 
 # sign app with hash of my securityDeveloper ID Application

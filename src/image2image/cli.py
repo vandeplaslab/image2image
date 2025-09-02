@@ -55,6 +55,8 @@ def _cli_setup(verbosity: float, no_color: bool, info: bool = False, dev: bool =
             verbosity = 0.5
     else:
         verbosity = 5 - int(verbosity)  # default is WARNING
+    if verbosity is None:
+        verbosity = 1
     verbosity = max(0, verbosity)
     level = max(0.5, verbosity) * 10
 
