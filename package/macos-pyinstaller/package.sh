@@ -1,9 +1,8 @@
 #!/bin/sh
 
-uv=false
 help=false
 
-while getopts vh opt; do
+while getopts h opt; do
   case $opt in
     h) help=true;;
     *) echo "Invalid option: -$OPTARG" >&2
@@ -19,7 +18,6 @@ shift "$(( OPTIND - 1 ))"
 if $help
 then
   echo "Usage: ./package.sh [-u] [-h]"
-  echo "  -v / uv: use uv for updates"
   echo "  -h / help: show this help message"
   exit 0
 fi
@@ -58,8 +56,9 @@ hdiutil create \
   -srcfolder ./dist/dmg \
   -ov \
   -format UDZO \
+  -verbose \
   ./dist/image2image.dmg
-echo "Created dmg"
+echo "Created dmg file at ./dist/image2image.dmg"
 
 # notarize the package
 # can also add --wait \ to wait for notarization to complete

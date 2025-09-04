@@ -127,11 +127,6 @@ echo "help: $help"
 
 
 # actually install the packages
-if $update_just_app
-then
-    local_install+=("image2image")
-fi
-
 if $update_just_reader
 then
     local_install+=("image2image-io")
@@ -140,6 +135,11 @@ fi
 if $update_just_register
 then
     local_install+=("image2image-reg")
+fi
+
+if $update_just_app
+then
+    local_install+=("image2image")
 fi
 
 qtextra=false
