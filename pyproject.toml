@@ -110,13 +110,13 @@ repository = "https://github.com/vandeplaslab/image2image"
 
  # same as console_scripts entry point
 [project.scripts]
-i2i = "image2image.cli:cli"
-image2image = "image2image.cli:cli"
-i2viewer = "image2image.cli:cli_viewer"
-i2crop = "image2image.cli:cli_crop"
-i2convert = "image2image.cli:cli_convert"
-i2elastix = "image2image.cli:cli_elastix"
-i2register = "image2image.cli:cli_register"
+i2i = "image2image.cli:main"
+image2image = "image2image.cli:main"
+i2viewer = "image2image.cli:main_viewer"
+i2crop = "image2image.cli:main_crop"
+i2convert = "image2image.cli:main_convert"
+i2elastix = "image2image.cli:main_elastix"
+i2register = "image2image.cli:main_register"
 
 
 # https://github.com/charliermarsh/ruff
