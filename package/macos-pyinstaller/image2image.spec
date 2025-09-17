@@ -35,7 +35,7 @@ assert HOOKS_DIR.exists(), f"Hooks directory does not exist - {HOOKS_DIR}"
 RUNTIMEHOOKS_DIR = BASE_DIR / "package" / "_runtimehooks"
 assert RUNTIMEHOOKS_DIR.exists(), f"Runtime hooks directory does not exist - {RUNTIMEHOOKS_DIR}"
 
-PY_SCRIPT_FILE = GITHUB_DIR / "image2image" / "src" / "ionglow" / "__main__.py"
+PY_SCRIPT_FILE = GITHUB_DIR / "image2image" / "src" / "image2image" / "__main__.py"
 assert PY_SCRIPT_FILE.exists(), f"Script file does not exist - {PY_SCRIPT_FILE}"
 
 
