@@ -18,7 +18,7 @@ jobs:
     name: Check Manifest
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: astral-sh/setup-uv@v6
       - run: uvx check-manifest
 
@@ -73,7 +73,7 @@ jobs:
             platform: windows-latest
 
 #    steps:
-#      - uses: actions/checkout@v4
+#      - uses: actions/checkout@v5
 #
 #      - uses: astral-sh/setup-uv@v6
 #        with:
@@ -123,7 +123,7 @@ jobs:
       with:
         packages: create-dmg
 
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v5
     - uses: astral-sh/setup-uv@v6
       with:
         enable-cache: true
@@ -361,7 +361,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -390,7 +390,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -429,7 +429,7 @@ jobs:
       - deploy
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - uses: actions/download-artifact@v4
         with:
