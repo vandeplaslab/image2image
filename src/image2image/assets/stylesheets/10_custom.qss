@@ -104,3 +104,17 @@ QComboBox#statusbar_combobox {
 QtModalityList {
     background: {{ foreground }};
 }
+
+/*QMenu {*/
+/*    border: 2px solid {{ highlight }};*/
+/*    padding: 5px;*/
+/*}*/
+/*QMenuBar {*/
+/*    margin: 0px;*/
+/*    background-color: {{ foreground }};*/
+/*    color: {{ text }};*/
+/*}*/
+/*QMenuBar::item {*/
+/*    height: 20px;*/
+/*    margin: 5px;*/
+/*}*/

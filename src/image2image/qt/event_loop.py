@@ -123,6 +123,7 @@ def get_app(
             # automatically determine monitor DPI.
             # Note: this MUST be set before the QApplication is instantiated
             os.environ["QT_AUTO_SCREEN_SCALE_FACTOR"] = "1"
+            os.environ["QT_SCALE_FACTOR_ROUNDING_POLICY"] = "PassThrough"
             if hasattr(Qt, "AA_EnableHighDpiScaling"):
                 QApplication.setAttribute(Qt.AA_EnableHighDpiScaling, True)
             if hasattr(Qt, "AA_UseHighDpiPixmaps"):

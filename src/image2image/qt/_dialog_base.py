@@ -52,8 +52,8 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
     def __init__(self, parent: QWidget | None, title: str, delay_events: bool = False, run_check_version: bool = True):
         super().__init__(parent)
         self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
-        self.setWindowTitle(title)
         self.setUnifiedTitleAndToolBarOnMac(True)
+        self.setWindowTitle(title)
         self.setMouseTracking(True)
         self.setAcceptDrops(True)
         self.setMinimumSize(1200, 800)
@@ -426,12 +426,11 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
 
     def _make_icon(self) -> None:
         """Make icon."""
+        from image2image.assets import ICON_ICO
 
-    #     from image2image.assets import ICON_ICO
-    #
-    #     icon = hp.get_icon_from_img(ICON_ICO)
-    #     if icon:
-    #         self.setWindowIcon(icon)
+        icon = hp.get_icon_from_img(ICON_ICO)
+        if icon:
+            self.setWindowIcon(icon)
 
     def _make_tools_menu(self, scalebar: bool = False, shortcut: bool = False) -> QMenu:
         """Make tools menu."""
