@@ -82,7 +82,7 @@ def _make_exe(pyz: PYZ, analysis: Analysis, name: str):
 
 # main app / launcher
 with MeasureTimer() as timer:
-    launcher_analysis = _make_analysis(script_file)
+    launcher_analysis = _make_analysis(PY_SCRIPT_FILE)
     print(f"Analysis took {timer.format(timer.elapsed_since_last())}")
 
     launcher_pyz = PYZ(launcher_analysis.pure)
