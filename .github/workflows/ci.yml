@@ -163,10 +163,7 @@ jobs:
       if: matrix.os == 'windows-latest'
       run: |
         uv pip install pyinstaller
-        uv pip install "."
-        uv pip install --index-url "https://www.riverbankcomputing.com/pypi/simple/" --no-deps --pre --upgrade PyQt6
-        uv pip install --index-url "https://www.riverbankcomputing.com/pypi/simple/" --no-deps --pre --upgrade PyQt6-qt6
-        uv pip install --index-url "https://www.riverbankcomputing.com/pypi/simple/" --no-deps --pre --upgrade PyQt6-sip
+        uv pip install ".[pyqt6]"
 
     - name: Build (Windows)
       if: matrix.os == 'windows-latest'
