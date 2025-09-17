@@ -32,7 +32,7 @@ AVAILABLE_TOOLS = [
 #     AVAILABLE_TOOLS.pop(AVAILABLE_TOOLS.index("convert"))
 
 
-def _cli_setup(verbosity: float, no_color: bool, info: bool = False, dev: bool = False) -> tuple[float, bool]:
+def _cli_setup(verbosity: float, no_color: bool, info: bool = False, dev: bool = False, setup: bool = True) -> tuple[float, bool]:
     from image2image.main import setup_logger
 
     if IS_MAC:
@@ -47,12 +47,12 @@ def _cli_setup(verbosity: float, no_color: bool, info: bool = False, dev: bool =
         print(get_system_info(as_html=False))
         return sys.exit(0)
 
+    if dev and IS_PYINSTALLER:
+        click.echo("Developer mode is disabled in bundled app.")
+        dev = False
+
     if dev:
-        if IS_PYINSTALLER:
-            click.echo("Developer mode is disabled in bundled app.")
-            dev = False
-        else:
-            verbosity = 0.5
+        verbosity = 0.5
     else:
         verbosity = 5 - int(verbosity)  # default is WARNING
     if verbosity is None:
@@ -60,7 +60,7 @@ def _cli_setup(verbosity: float, no_color: bool, info: bool = False, dev: bool =
     verbosity = max(0, verbosity)
     level = max(0.5, verbosity) * 10
 
-    setup_logger(level=int(level), no_color=no_color)
+    setup_logger(level=int(level), no_color=no_color, setup=setup)
     return level, dev
 
 
@@ -68,7 +68,7 @@ def _cli_setup(verbosity: float, no_color: bool, info: bool = False, dev: bool =
     context_settings={
         "help_option_names": ["-h", "--help"],
         "max_content_width": 120,
-        "ignore_unknown_options": True,
+        "ignore_unknown_options": True
     },
     invoke_without_command=True,
     cls=GroupedGroup,
@@ -152,7 +152,7 @@ def cli(
     merge - opens a dialog where you can merge multiple image channels and images together
     fusion - opens a dialog where you can prepare data for image fusion
     """
-    level, dev = _cli_setup(verbosity, no_color, info, dev)
+    level, dev = _cli_setup(verbosity, no_color, info, dev, setup=ctx.invoked_subcommand is None)
     if ctx.invoked_subcommand is None:
         from image2image.main import run
 
@@ -239,7 +239,6 @@ def cli_viewer(
     from image2image.main import run
 
     level = _cli_setup(verbosity, no_color)
-
     run(level=int(level), no_color=no_color, tool="viewer", image_path=file, image_dir=file_dir)
 
 
@@ -287,7 +286,6 @@ def cli_elastix(
     from image2image.main import run
 
     level = _cli_setup(verbosity, no_color)
-
     run(level=int(level), no_color=no_color, tool="elastix", project_dir=project_dir)
 
 
@@ -323,7 +321,6 @@ def cli_crop(verbosity: float, no_color: bool) -> None:
     from image2image.main import run
 
     level = _cli_setup(verbosity, no_color)
-
     run(level=int(level), no_color=no_color, tool="crop")
 
 
@@ -359,7 +356,6 @@ def cli_convert(verbosity: float, no_color: bool) -> None:
     from image2image.main import run
 
     level = _cli_setup(verbosity, no_color)
-
     run(level=int(level), no_color=no_color, tool="convert")
 
 
@@ -395,7 +391,6 @@ def cli_register(verbosity: float, no_color: bool) -> None:
     from image2image.main import run
 
     level = _cli_setup(verbosity, no_color)
-
     run(level=int(level), no_color=no_color, tool="register")
 
 
@@ -429,6 +424,22 @@ def main_register() -> None:
     if sys.platform == "darwin":
         set_start_method("spawn", True)
     cli_register.main(windows_expand_args=False)  # type: ignore[attr-defined]
+
+
+def main_convert() -> None:
+    """Execute the "i2i" command line program."""
+    freeze_support()
+    if sys.platform == "darwin":
+        set_start_method("spawn", True)
+    cli_convert.main(windows_expand_args=False)  # type: ignore[attr-defined]
+
+
+def main_crop() -> None:
+    """Execute the "i2i" command line program."""
+    freeze_support()
+    if sys.platform == "darwin":
+        set_start_method("spawn", True)
+    cli_crop.main(windows_expand_args=False)  # type: ignore[attr-defined]
 
 
 if __name__ == "__main__":

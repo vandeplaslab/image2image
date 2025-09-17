@@ -26,6 +26,7 @@ def setup_logger(
     level: int = 10,
     no_color: bool = False,
     modules: tuple[str, ...] = ("image2image", "image2image_io", "image2image_reg", "koyo"),
+    setup: bool = True,
 ) -> None:
     """Setup logger."""
     from koyo.logging import set_loguru_log
@@ -35,18 +36,20 @@ def setup_logger(
     load_assets()
 
     # setup console logger
-    set_loguru_log(
-        level=level,
-        no_color=no_color,
-        diagnose=True,
-        catch=True,
-        logger=logger,
-        remove=False,
-        fmt=LOG_FMT if no_color else COLOR_LOG_FMT,
-    )
-    logger.configure(extra={"src": "CLI"})
-    [logger.enable(module) for module in modules]  # type: ignore
-    logger.trace(f"Enabled logger at level={level}")
+    if setup:
+        set_loguru_log(
+            level=level,
+            no_color=no_color,
+            diagnose=True,
+            catch=True,
+            logger=logger,
+            remove=False,
+            enqueue=True,
+            fmt=LOG_FMT if no_color else COLOR_LOG_FMT,
+        )
+        logger.configure(extra={"src": "CLI"})
+        [logger.enable(module) for module in modules]  # type: ignore
+        logger.trace(f"Enabled logger at level={level}")
 
 
 def run(
@@ -73,7 +76,7 @@ def run(
 
     # setup file logger
     with MeasureTimer() as timer:
-        dev_modules = ["qtextra", "qtextraplot", "koyo", "image2image", "image2image_io", "image2image_reg"]
+        dev_modules = ["koyo", "qtextra", "qtextraplot", "image2image", "image2image_io", "image2image_reg"]
         if log:
             from koyo.logging import set_loguru_log
 
@@ -86,6 +89,7 @@ def run(
                 catch=True,
                 logger=logger,
                 fmt=LOG_FMT,
+                enqueue=True,
             )
 
             # setup console logger
@@ -96,11 +100,11 @@ def run(
                 catch=True,
                 logger=logger,
                 remove=False,
+                enqueue=True,
                 fmt=LOG_FMT if no_color else COLOR_LOG_FMT,
             )
-            logger.configure(extra={"src": "CLI"})
-            for module in dev_modules:
-                logger.enable(module)
+            logger.configure(extra={"src": "Base"})
+            [logger.enable(module) for module in dev_modules]
             logger.info(f"Enabled logger - logging to '{log_path}' at level={level}")
 
         run_check_version = not dev
