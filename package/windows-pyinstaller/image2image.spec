@@ -9,20 +9,11 @@ import napari
 import qtpy
 from koyo.timer import MeasureTimer
 from koyo.pyinstaller import load_hooks, get_runtime_hooks
-from PyInstaller.building.build_main import COLLECT, EXE, MERGE, PYZ, TOC, Analysis
-from PyInstaller.utils.hooks import (
-    collect_data_files,
-    get_package_paths,
-    remove_prefix,
-)
+from PyInstaller.building.build_main import COLLECT, EXE, PYZ, Analysis
 
 import image2image
 from image2image.assets import ICON_ICO as ICON_APP_ICO
 
-# TODO change to it's own icon
-from image2image.assets import ICON_ICO as ICON_REG_ICO
-
-block_cipher = None
 # allowed values: all, imports, bootloader, noarchive
 DEBUG_MODE = os.getenv("PYINSTALLER_DEBUG", "imports")
 print("DEBUG_MODE", DEBUG_MODE)
@@ -84,7 +75,7 @@ def _make_analysis(path: str):
         hiddenimports=hiddenimports,
         runtime_hooks=runtime_hooks,
         excludes=["tcl", "Tkconstants", "Tkinter"],
-        cipher=block_cipher,
+        cipher=None,
     )
 
 
