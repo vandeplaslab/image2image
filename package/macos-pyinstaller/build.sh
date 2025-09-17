@@ -112,6 +112,12 @@ then
   update_just_register=true
 fi
 
+update_qtextra=false
+if $update_deps
+then
+  update_qtextra=true
+fi
+
 # inform user what's happening
 echo "Building macOS pyinstaller package..."
 echo "update: $update"
@@ -121,6 +127,7 @@ echo "update_just_reader: $update_just_reader"
 echo "update_just_app: $update_just_app"
 echo "update_just_register: $update_just_register"
 echo "update_pip: $update_pip"
+echo "update_qtextra: $update_qtextra"
 echo "no_docs: $no_docs"
 echo "package: $package"
 echo "help: $help"
@@ -140,12 +147,6 @@ fi
 if $update_just_app
 then
     local_install+=("image2image")
-fi
-
-qtextra=false
-if $update_deps
-then
-  qtextra=true
 fi
 
 # always install latest version of koyo
@@ -171,7 +172,7 @@ do
 done
 
 # install qtextra
-if $qtextra
+if $update_qtextra
 then
     echo "Installing qtextra..."
     cd $(realpath $github_dir/qtextra) || exit 1

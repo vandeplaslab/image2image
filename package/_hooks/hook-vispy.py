@@ -13,8 +13,19 @@
 from PyInstaller.utils.hooks import collect_data_files, collect_submodules
 from qtpy import PYQT5, PYQT6, PYSIDE2, PYSIDE6
 
+
+def filter_vispy(name: str) -> bool:
+    """Filter which hidden imports should be included."""
+    if "tests" in name or "docs" in name:
+        return False
+    # Handled separately below
+    if "backends" in name:
+        return False
+    return True
+
+
 datas = collect_data_files("vispy")
-hiddenimports = collect_submodules("vispy")
+hiddenimports = collect_submodules("vispy", filter=filter_vispy)
 
 if PYQT5:
     hiddenimports += [

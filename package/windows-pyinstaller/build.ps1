@@ -56,6 +56,12 @@ if ($debug) {
     $env:PYINSTALLER_DEBUG="imports"
 }
 
+# disable extra apps
+$env:IMAGE2IMAGE_BUILD_I2REG="false"
+$env:IMAGE2IMAGE_BUILD_REGISTER="false"
+$env:IMAGE2IMAGE_BUILD_VIEWER="false"
+$env:IMAGE2IMAGE_BUILD_ELASTIX="false"
+
 $python_ver = &{python -V} 2>&1
 echo "Python version "$python_ver
 
