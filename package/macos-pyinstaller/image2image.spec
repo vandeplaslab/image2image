@@ -9,46 +9,53 @@ import imagecodecs
 import napari
 import qtpy
 from koyo.timer import MeasureTimer
-from PyInstaller.building.build_main import COLLECT, EXE, MERGE, PYZ, TOC, Analysis
-from PyInstaller.utils.hooks import collect_data_files
+from koyo.pyinstaller import load_hooks, get_runtime_hooks
+from PyInstaller.building.build_main import COLLECT, EXE, PYZ, TOC, Analysis
 
 import image2image
 from image2image.assets import ICON_ICO
 
 block_cipher = None
-DEBUG_MODE = os.getenv("PYINSTALLER_DEBUG", "all")
+# allowed values: all, imports, bootloader, noarchive
+DEBUG_MODE = os.getenv("PYINSTALLER_DEBUG", "imports")
+print("DEBUG_MODE", DEBUG_MODE)
+# allowed values: debug, info, warning, error, critical
+LOG_MODE = os.getenv("PYINSTALLER_LOG", "DEBUG")
+print("LOG_MODE", LOG_MODE)
+# allowed values: hide-early, minimize-late, minimize-early, hide-late
+CONSOLE_MODE = os.getenv("PYINSTALLER_CONSOLE", "hide-early")
+print("CONSOLE_MODE", CONSOLE_MODE)
 
-# Get the parent directory of this file
-parent = Path(inspect.getfile(lambda: None)).parent.resolve()
-hooks_dir = parent.parent / "_hooks"
-assert hooks_dir.exists(), "Hooks directory does not exist"
-runtimehooks_dir = parent.parent / "_runtimehooks"
+FILE_DIR = Path.cwd()
+BASE_DIR = FILE_DIR.parent.parent
+GITHUB_DIR = BASE_DIR.parent
 
-assert runtimehooks_dir.exists(), "Runtime hooks directory does not exist"
-runtimehooks = [str(f) for f in runtimehooks_dir.glob("hook-*.py")]
-print(runtimehooks)
+HOOKS_DIR = BASE_DIR / "package" / "_hooks"
+assert HOOKS_DIR.exists(), f"Hooks directory does not exist - {HOOKS_DIR}"
+RUNTIMEHOOKS_DIR = BASE_DIR / "package" / "_runtimehooks"
+assert RUNTIMEHOOKS_DIR.exists(), f"Runtime hooks directory does not exist - {RUNTIMEHOOKS_DIR}"
 
-script_file = parent.parent.parent / "src" / "image2image" / "__main__.py"
-assert script_file.exists(), "Script file does not exist"
+PY_SCRIPT_FILE = GITHUB_DIR / "image2image" / "src" / "ionglow" / "__main__.py"
+assert PY_SCRIPT_FILE.exists(), f"Script file does not exist - {PY_SCRIPT_FILE}"
 
 
 def _make_analysis(path: str):
+    print(f"Make analysis for {path}")
+
+    # manually load hooks
+    hiddenimports, datas, binaries = load_hooks(HOOKS_DIR)
+    print(f"  hiddenimports: {len(hiddenimports)}")
+    print(f"  datas: {len(datas)}")
+    print(f"  binaries: {len(binaries)}")
+    runtime_hooks = get_runtime_hooks(RUNTIMEHOOKS_DIR)
+    print(f"  runtime_hooks: {runtime_hooks}")
+
     return Analysis(
         [str(path)],
-        binaries=[],
-        datas=[]
-        + collect_data_files("qtextra")
-        + collect_data_files("qtextraplot")
-        + collect_data_files("image2image")
-        + collect_data_files("napari")
-        + collect_data_files("xmlschema")
-        + collect_data_files("ome_types")
-        + collect_data_files("distributed")
-        + collect_data_files("freetype")
-        + [(os.path.dirname(debugpy._vendored.__file__), "debugpy/_vendored")],
-        hiddenimports=["freetype", "six", "pkg_resources"],
-        hookspath=[str(hooks_dir)],
-        runtime_hooks=runtimehooks,
+        binaries=binaries,
+        datas=datas,
+        hiddenimports=hiddenimports,
+        runtime_hooks=runtime_hooks,
         excludes=["tcl", "Tkconstants", "Tkinter"],
         cipher=block_cipher,
     )
