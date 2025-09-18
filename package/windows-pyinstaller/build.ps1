@@ -95,12 +95,12 @@ if ($update_just_app) {
     $local_install.Add("image2image")
 }
 
-if ($update_just_reader) {
-    $local_install.Add("image2image-io")
-}
-
 if ($update_just_register) {
     $local_install.Add("image2image-reg")
+}
+
+if ($update_just_reader) {
+    $local_install.Add("image2image-io")
 }
 
 # only update dependencies
@@ -182,4 +182,3 @@ if ($run) {
     Start-Process "run_image2image.bat"
     cd ../
 }
-conda deactivate image2image_package
