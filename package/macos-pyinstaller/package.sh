@@ -57,8 +57,16 @@ hdiutil create \
   -ov \
   -format UDZO \
   -verbose \
-  ./dist/image2image.dmg
-echo "Created dmg file at ./dist/image2image.dmg"
+  ./dist/tmp.dmg
+echo "Created dmg file at ./dist/tmp.dmg"
+
+# reduce size and improve compression
+echo "Compressing dmg..."
+hdiutil convert \
+  -ov ./dist/tmp.dmg \
+  -format ULFO \
+  -o ./dist/image2image.dmg
+echo "Compressed dmg file at ./dist/image2image.dmg"
 
 # notarize the package
 # can also add --wait \ to wait for notarization to complete
