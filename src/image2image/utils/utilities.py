@@ -755,6 +755,8 @@ def get_i2reg_path() -> str:
 
     You can force a specific path by setting the environment variable `IMAGE2IMAGE_I2REG`.
     """
+    import os
+
     try:
         return get_cli_path("i2reg")
     except RuntimeError as exc:
@@ -768,6 +770,8 @@ def get_i2reg_path() -> str:
                     return get_cli_path("i2i")
                 except RuntimeError:
                     log_exception_or_error(exc)
+        if os.environ.get("IMAGE2IMAGE_PROGRAM", None):
+            return os.environ["IMAGE2IMAGE_PROGRAM"]
         return "i2reg"
 
 
