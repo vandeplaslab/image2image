@@ -757,6 +757,9 @@ def get_i2reg_path() -> str:
     """
     import os
 
+    if os.environ.get("IMAGE2IMAGE_PROGRAM", None):
+        return str(Path(os.environ["IMAGE2IMAGE_PROGRAM"]).resolve())
+
     try:
         return get_cli_path("i2reg")
     except RuntimeError as exc:
@@ -770,8 +773,6 @@ def get_i2reg_path() -> str:
                     return get_cli_path("i2i")
                 except RuntimeError:
                     log_exception_or_error(exc)
-        if os.environ.get("IMAGE2IMAGE_PROGRAM", None):
-            return os.environ["IMAGE2IMAGE_PROGRAM"]
         return "i2reg"
 
 
