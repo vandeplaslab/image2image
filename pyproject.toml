@@ -44,7 +44,7 @@ classifiers = [
 dynamic = ["version"]
 dependencies = [
     "qtpy",
-    "napari>=0.6.5",
+    "napari>=0.6.4",
     "toml",
     "qtconsole>=4.5.1,!=4.7.6,!=5.4.2",
     "ipykernel>=5.2.0",

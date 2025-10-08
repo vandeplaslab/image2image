@@ -51,6 +51,10 @@ def filter_func(event: Event, hint: Hint) -> None | Event:
     exc_info = str(hint.get("exc_info", ""))
     if "OSError" in exc_info and "vispy" in exc_info:
         return None
+    if "RuntimeError" in exc_info and "vispy" in exc_info:
+        return None
+    if "TypeError" in exc_info and "invalid argument to sipBadCatcherResult()" in exc_info:
+        return None
     return event
 
 

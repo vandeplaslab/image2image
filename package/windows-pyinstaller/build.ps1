@@ -76,7 +76,7 @@ if ($update) {
 # update all dependencies and app
 [System.Collections.ArrayList]$pip_install = @()
 if ($update_pip) {
-    $pip_install.Add("napari==0.6.5")
+    $pip_install.Add("napari==0.6.4")
     $pip_install.Add("pydantic>=2")
     $pip_install.Add("pyqt6>=6.9.1")
     $pip_install.Add("pyinstaller")
