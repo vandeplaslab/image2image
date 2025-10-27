@@ -431,13 +431,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v6
         with:
           pattern: 'image2image-v*'
           path: pyinstaller
           merge-multiple: true
 
-#      - uses: actions/download-artifact@v4
+#      - uses: actions/download-artifact@v6
 #        with:
 #          name: Packages
 #          path: dist
