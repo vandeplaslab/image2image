@@ -243,8 +243,9 @@ def run(
         else:
             raise ValueError("Launcher is not implemented yet.")
 
-        THEMES.set_theme_stylesheet(dlg)
-        THEMES.evt_theme_changed.connect(lambda: THEMES.set_theme_stylesheet(dlg))
+        if tool != "napari":
+            THEMES.set_theme_stylesheet(dlg)
+            THEMES.evt_theme_changed.connect(lambda: THEMES.set_theme_stylesheet(dlg))
 
         # disable some annoying warnings from napari
         warnings.filterwarnings("ignore", message="RuntimeWarning: overflow encountered in multiply")
