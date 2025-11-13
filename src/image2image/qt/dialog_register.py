@@ -1392,9 +1392,8 @@ class ImageRegistrationWindow(Window):
         self.close_btn = hp.make_qta_btn(
             side_widget,
             "delete",
-            tooltip="Close project.<br>Right-click to open menu.",
-            func=self.on_close,
-            func_menu=self.on_close_menu,
+            tooltip="Close project.",
+            func=self.on_close_menu,
             standout=True,
             normal=True,
         )
@@ -1512,6 +1511,11 @@ class ImageRegistrationWindow(Window):
     def on_close_menu(self) -> None:
         """Save menu."""
         menu = hp.make_menu(self.close_btn)
+        hp.make_menu_item(self, "Close project", menu=menu, func=self.on_close, icon="delete")
+        hp.make_menu_item(
+            self, "Close project (without confirmation)", menu=menu, func=lambda: self.on_close(True), icon="delete"
+        )
+        menu.addSeparator()
         hp.make_menu_item(self, "Clear fixed modality", menu=menu, func=lambda: self.on_clear_modality("fixed"))
         hp.make_menu_item(self, "Clear moving modality", menu=menu, func=lambda: self.on_clear_modality("moving"))
         menu.addSeparator()
@@ -1522,9 +1526,11 @@ class ImageRegistrationWindow(Window):
             func=lambda *args: self.on_clear("both", force=True),
         )
         menu.addSeparator()
-        hp.make_menu_item(self, "Close project", menu=menu, func=self.on_close, icon="delete")
         hp.make_menu_item(
-            self, "Close project (without confirmation)", menu=menu, func=lambda: self.on_close(True), icon="delete"
+            self,
+            "Replace fixed modality",
+            menu=menu,
+            func=(lambda: self.on_clear_modality("fixed"), lambda *args: self.on_clear("both", force=True)),
         )
         hp.show_right_of_mouse(menu)
 

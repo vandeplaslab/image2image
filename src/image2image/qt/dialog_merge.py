@@ -380,7 +380,7 @@ class ImageMergeWindow(NoViewerMixin):
             "Merge to OME-TIFF",
             tooltip="Merge to OME-TIFF...",
             func=self.on_merge,
-            cancel_func=self.on_cancel,
+            func_cancel=self.on_cancel,
         )
 
         side_layout = hp.make_form_layout()

@@ -157,6 +157,7 @@ class SelectChannelsToLoadDialog(QtDialog):
         super().__init__(parent, title="Select Channels to Load")
         self.model = model
 
+        self.setWindowFlags(self.windowFlags() | Qt.WindowType.WindowStaysOnTopHint)
         self.setMinimumWidth(600)
         self.setMinimumHeight(400)
         self.on_load()
@@ -655,6 +656,7 @@ class DatasetDialog(QtDialog):
                     options=options,
                     orientation="vertical",
                 )
+                dlg.setWindowFlags(dlg.windowFlags() | Qt.WindowType.WindowStaysOnTopHint)
                 which = None
                 hp.show_in_center_of_screen(dlg)
                 if dlg.exec_() == QDialog.DialogCode.Accepted:
