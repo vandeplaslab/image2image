@@ -362,7 +362,7 @@ class ImageRegistrationWindow(Window):
     def _on_load_fixed(self, model: DataModel, channel_list: list[str] | None = None) -> None:
         with MeasureTimer() as timer:
             logger.info(f"Loading fixed data with {model.n_paths} paths...")
-            need_reset = len(self.view_fixed.layers) == 0
+            need_reset = len(self.view_fixed.get_layers_of_type(Image)) == 0
             self._plot_fixed_layers(channel_list)
             if need_reset:
                 self.view_fixed.viewer.reset_view()
@@ -423,7 +423,7 @@ class ImageRegistrationWindow(Window):
     def _on_load_moving(self, model: DataModel, channel_list: list[str] | None = None) -> None:
         with MeasureTimer() as timer:
             logger.info(f"Loading moving data with {model.n_paths} paths...")
-            need_reset = len(self.view_moving.layers) == 0
+            need_reset = len(self.view_moving.get_layers_of_type(Image)) == 0
             self._plot_moving_layers(channel_list)
             self.on_apply(update_data=True)
             if need_reset:
@@ -521,7 +521,7 @@ class ImageRegistrationWindow(Window):
     def get_current_fixed_reader(self) -> ty.Any:
         """Get current reader."""
         try:
-            reader = next(self.fixed_model.wrapper.reader_iter())
+            reader = next(self.fixed_model.wrapper.reader_iter())  # type: ignore[union-attr]
             return reader
         except AttributeError:
             return None
@@ -906,13 +906,19 @@ class ImageRegistrationWindow(Window):
                                 fixed_paths_missing,
                                 fixed_paths,  # type: ignore[arg-type]
                             )
-                            fixed_reader_kws = _remove_missing_from_dict(fixed_reader_kws, fixed_paths)
+                            fixed_reader_kws = _remove_missing_from_dict(
+                                fixed_reader_kws,
+                                fixed_paths,  # type: ignore[arg-type]
+                            )
                         if moving_paths_missing:
                             moving_paths = locate_dlg.fix_missing_paths(  # type: ignore[assignment]
                                 moving_paths_missing,
                                 moving_paths,  # type: ignore[arg-type]
                             )
-                            moving_reader_kws = _remove_missing_from_dict(moving_reader_kws, moving_paths)
+                            moving_reader_kws = _remove_missing_from_dict(
+                                moving_reader_kws,
+                                moving_paths,  # type: ignore[arg-type]
+                            )
                 # reset initial transform
                 self.transform_model.clear(clear_data=False, clear_model=False, clear_initial=True)
                 # set new paths
@@ -1020,12 +1026,12 @@ class ImageRegistrationWindow(Window):
         update = self.transformed_moving_image_layer is not None
         if update:
             try:
-                self.transformed_moving_image_layer.affine = affine
+                self.transformed_moving_image_layer.affine = affine  # type: ignore[union-attr]
                 if update_data:
-                    self.transformed_moving_image_layer.data = moving_image_layer.data
-                    self.transformed_moving_image_layer.colormap = colormap
-                    self.transformed_moving_image_layer.reset_contrast_limits()
-                    self.transformed_moving_image_layer.contrast_limits = contrast_limits
+                    self.transformed_moving_image_layer.data = moving_image_layer.data  # type: ignore[union-attr]
+                    self.transformed_moving_image_layer.colormap = colormap  # type: ignore[union-attr]
+                    self.transformed_moving_image_layer.reset_contrast_limits()  # type: ignore[union-attr]
+                    self.transformed_moving_image_layer.contrast_limits = contrast_limits  # type: ignore[union-attr]
             except (ValueError, TypeError, KeyError):
                 update = False
                 self.view_fixed.remove_layer(self.transformed_moving_image_layer)
@@ -1040,7 +1046,7 @@ class ImageRegistrationWindow(Window):
                 contrast_limits=contrast_limits,
             )
         try:
-            self.transformed_moving_image_layer.visible = READER_CONFIG.show_transformed
+            self.transformed_moving_image_layer.visible = READER_CONFIG.show_transformed  # type: ignore[union-attr]
         except TypeError:
             logger.warning("Failed to apply transformation to the moving image.")
         self._move_layer(self.view_fixed, self.transformed_moving_image_layer, -1, False)
@@ -1276,7 +1282,7 @@ class ImageRegistrationWindow(Window):
             self._on_sync_views("moving")
 
     @qdebounced(timeout=200, leading=False)
-    def _on_sync_views(self, from_which: str):
+    def _on_sync_views(self, from_which: str) -> None:
         self.__on_sync_views(from_which)
 
     def __on_sync_views(self, from_which: str, force: bool = False) -> None:
@@ -1310,9 +1316,9 @@ class ImageRegistrationWindow(Window):
             # predict where to zoom
             center = camera.center[1::]
             zoom = camera.zoom * ratio  # zoom must be multiplied by the ratio of pixel sizes
-            transformed_center = before_func(center)
+            transformed_center = before_func(center)  # type: ignore[no-untyped-call]
             transformed_center = func(transformed_center)
-            transformed_center = after_func(transformed_center)[0]
+            transformed_center = after_func(transformed_center)[0]  # type: ignore[no-untyped-call]
             with other_view.viewer.camera.events.blocker(callback):
                 other_view.viewer.camera.zoom = zoom
                 other_view.viewer.camera.center = (0.0, transformed_center[0], transformed_center[1])
@@ -1637,11 +1643,16 @@ class ImageRegistrationWindow(Window):
         self.view_fixed.viewer.scale_bar.unit = "um"
         self.view_fixed.widget.canvas.events.key_press.connect(self.keyPressEvent)
 
-        toolbar = QtMiniToolbar(self, Qt.Orientation.Vertical, add_spacer=False, icon_size="normal")
+        toolbar = QtMiniToolbar(self, Qt.Orientation.Vertical, add_spacer=True, icon_size="normal")
         toolbar.add_qta_tool(
             "layers",
             func=self.view_fixed.widget.on_open_controls_dialog,
             tooltip="Open layers control panel.",
+        )
+        toolbar.add_qta_tool(
+            "zoom_out",
+            func=self.view_fixed.viewer.reset_view,
+            tooltip="Reset view to show the entire canvas.",
         )
         toolbar.add_qta_tool(
             "bring_to_top",
@@ -1705,52 +1716,58 @@ class ImageRegistrationWindow(Window):
         self.view_moving.widget.canvas.events.key_press.connect(self.keyPressEvent)
 
         toolbar = QtMiniToolbar(self, Qt.Orientation.Vertical, add_spacer=True, icon_size="normal")
-        _moving_clear_btn = toolbar.insert_qta_tool(
+        toolbar.add_qta_tool(
+            "layers",
+            func=self.view_moving.widget.on_open_controls_dialog,
+            tooltip="Open layers control panel.",
+        )
+        toolbar.add_qta_tool(
+            "zoom_out",
+            func=self.view_moving.viewer.reset_view,
+            tooltip="Reset view to show the entire canvas.",
+        )
+        toolbar.add_qta_tool(
+            "bring_to_top",
+            func=lambda *args: self._select_point_layer("moving"),
+            tooltip="Bring points layer to the top.",
+        )
+        self.moving_pan_btn = toolbar.add_qta_tool(
+            "pan_zoom",
+            func=lambda *args: self.on_panzoom("moving"),
+            tooltip="Switch to zoom-only mode. Press <b>1</b> on your keyboard to activate...",
+            checkable=True,
+        )
+        self.moving_add_btn = toolbar.add_qta_tool(
+            "add",
+            func=lambda *args: self.on_add("moving"),
+            tooltip="Add new point to the moving image. Press <b>2</b> on your keyboard to activate..",
+            checkable=True,
+        )
+        self.moving_move_btn = toolbar.add_qta_tool(
+            "select_points",
+            func=lambda *args: self.on_move("moving"),
+            tooltip="Move points in the fixed image. Press <b>3</b> on your keyboard to activate...",
+            checkable=True,
+        )
+        toolbar.add_qta_tool(
+            "remove_single",
+            func=lambda *args: self.on_remove("moving"),
+            tooltip="Remove last point from the moving image.",
+        )
+        toolbar.add_qta_tool(
+            "remove_multiple",
+            func=lambda *args: self.on_remove_selected("moving"),
+            tooltip="Remove selected points from the moving image.",
+        )
+        toolbar.add_qta_tool(
             "remove_all",
             func=lambda *args: self.on_clear("moving", force=False),
             func_menu=lambda *args: self.on_clear("moving", force=True),
             tooltip="Remove all points from the moving image (need to confirm)."
             "\nRight-click to clear all points without confirmation.",
         )
-        _moving_remove_selected_btn = toolbar.insert_qta_tool(
-            "remove_multiple",
-            func=lambda *args: self.on_remove_selected("moving"),
-            tooltip="Remove selected points from the moving image.",
-        )
-        _moving_remove_btn = toolbar.insert_qta_tool(
-            "remove_single",
-            func=lambda *args: self.on_remove("moving"),
-            tooltip="Remove last point from the moving image.",
-        )
-        self.moving_move_btn = toolbar.insert_qta_tool(
-            "select_points",
-            func=lambda *args: self.on_move("moving"),
-            tooltip="Move points in the fixed image. Press <b>3</b> on your keyboard to activate...",
-            checkable=True,
-        )
-        self.moving_add_btn = toolbar.insert_qta_tool(
-            "add",
-            func=lambda *args: self.on_add("moving"),
-            tooltip="Add new point to the moving image. Press <b>2</b> on your keyboard to activate..",
-            checkable=True,
-        )
-        self.moving_pan_btn = toolbar.insert_qta_tool(
-            "pan_zoom",
-            func=lambda *args: self.on_panzoom("moving"),
-            tooltip="Switch to zoom-only mode. Press <b>1</b> on your keyboard to activate...",
-            checkable=True,
-        )
         hp.make_radio_btn_group(self, [self.moving_pan_btn, self.moving_add_btn, self.moving_move_btn])
-        _moving_bring_to_top = toolbar.insert_qta_tool(
-            "bring_to_top",
-            func=lambda *args: self._select_point_layer("moving"),
-            tooltip="Bring points layer to the top.",
-        )
-        _moving_layers_btn = toolbar.insert_qta_tool(
-            "layers",
-            func=self.view_moving.widget.on_open_controls_dialog,
-            tooltip="Open layers control panel.",
-        )
+        toolbar.add_spacer()
         self.moving_toolbar = toolbar
 
         layout = QHBoxLayout()
