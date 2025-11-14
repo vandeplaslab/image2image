@@ -532,10 +532,10 @@ class ImageRegistrationWindow(Window):
 
     def on_toggle_moving_image(self, value: str) -> None:
         """Change displayed image in the moving image."""
-        for layer in self.moving_image_layer:
+        for layer in self.moving_image_layer:  # type: ignore[union-attr]
             layer.visible = False
         self._plot_moving_layers([value])
-        print([layer.visible for layer in self.moving_image_layer])
+        # print([layer.visible for layer in self.moving_image_layer])  # type: ignore[union-attr]
 
     def _select_point_layer(self, which: str) -> Points:
         """Select layer."""
@@ -898,7 +898,7 @@ class ImageRegistrationWindow(Window):
                     locate_dlg = LocateFilesDialog(
                         self,
                         self.CONFIG,
-                        fixed_paths_missing + moving_paths_missing or [],  # type: ignore[arg-type]
+                        (fixed_paths_missing + moving_paths_missing) or [],  # type: ignore[arg-type]
                     )
                     if locate_dlg.exec_():  # type: ignore[attr-defined]
                         if fixed_paths_missing:
@@ -1034,7 +1034,7 @@ class ImageRegistrationWindow(Window):
                     self.transformed_moving_image_layer.contrast_limits = contrast_limits  # type: ignore[union-attr]
             except (ValueError, TypeError, KeyError):
                 update = False
-                self.view_fixed.remove_layer(self.transformed_moving_image_layer)
+                self.view_fixed.remove_layer(self.transformed_moving_image_layer)  # type: ignore[arg-type]
         if not update:
             self.view_fixed.viewer.add_image(
                 moving_image_layer.data,
@@ -1443,7 +1443,7 @@ class ImageRegistrationWindow(Window):
         hidden_settings.addRow(hp.make_label(self, "Tile size"), self.tile_size)
         hidden_settings.addRow(
             hp.make_label(self, "Reduce data size"),
-            hp.make_h_layout(
+            hp.make_h_layout(  # type: ignore[arg-type]
                 self.as_uint8,
                 hp.make_warning_label(
                     self,
@@ -1978,7 +1978,7 @@ class ImageRegistrationWindow(Window):
             position="top_right",
         )
 
-    def close(self, force=False):
+    def close(self, force=False) -> bool:
         """Override to handle closing app or just the window."""
         if (
             not force
@@ -1987,9 +1987,9 @@ class ImageRegistrationWindow(Window):
             == QDialog.DialogCode.Accepted
         ):
             return super().close()
-        return None
+        return False
 
-    def closeEvent(self, evt):
+    def closeEvent(self, evt) -> None:  # type: ignore[no-untyped-def]
         """Close."""
         if (
             evt.spontaneous()
@@ -2007,7 +2007,7 @@ class ImageRegistrationWindow(Window):
         READER_CONFIG.save()
         evt.accept()
 
-    def dropEvent(self, event):
+    def dropEvent(self, event) -> None:  # type: ignore[no-untyped-def]
         """Override Qt method."""
         from qtextra.widgets.qt_select_one import QtScrollablePickOption
 
