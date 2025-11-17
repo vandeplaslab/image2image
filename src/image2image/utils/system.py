@@ -75,6 +75,7 @@ def get_system_info(as_html=False) -> None:
         ("numpy", "NumPy"),
         ("pandas", "Pandas"),
         ("scipy", "SciPy"),
+        ("dask", "Dask"),
         ("valis", "valis-wsi"),
         ("itk", "ITK"),
         ("SimpleITK", "SimpleITK"),
@@ -83,7 +84,6 @@ def get_system_info(as_html=False) -> None:
         ("superqt", "superqt"),
         ("napari", "Napari"),
         ("vispy", "VisPy"),
-        ("dask", "Dask"),
     )
     for module, name in modules:
         try:

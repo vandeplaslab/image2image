@@ -693,7 +693,7 @@ def ensure_extension(path: PathLike, extension: str) -> Path:
 
 
 def get_cli_path(name: str) -> str:
-    """Get path to imimspy executable.
+    """Get path to CLI executable.
 
     The path is determined in the following order:
     1. First, we check whether environment variable `AUTOIMS_{name.upper()}_PATH` is set.

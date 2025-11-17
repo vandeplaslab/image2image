@@ -18,7 +18,7 @@ jobs:
     name: Check Manifest
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: astral-sh/setup-uv@v7
       - run: uvx check-manifest
 
@@ -73,7 +73,7 @@ jobs:
             platform: windows-latest
 
 #    steps:
-#      - uses: actions/checkout@v4
+#      - uses: actions/checkout@v5
 #
 #      - uses: astral-sh/setup-uv@v7
 #        with:
@@ -123,7 +123,7 @@ jobs:
       with:
         packages: create-dmg
 
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v5
     - uses: astral-sh/setup-uv@v7
       with:
         enable-cache: true
@@ -137,7 +137,7 @@ jobs:
         powershell gl-ci-helpers/appveyor/install_opengl.ps1
         if (Test-Path -Path "C:\Windows\system32\opengl32.dll" -PathType Leaf) {Exit 0} else {Exit 1}
       shell: powershell
-    - uses: pyvista/setup-headless-display-action@v3
+    - uses: pyvista/setup-headless-display-action@v4
       with:
         qt: true
 
@@ -361,10 +361,10 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.x"
 
@@ -390,10 +390,10 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.x"
 
@@ -429,7 +429,7 @@ jobs:
       - deploy
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - uses: actions/download-artifact@v4
         with:

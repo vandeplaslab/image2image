@@ -580,14 +580,14 @@ class ImageCropWindow(SingleViewerMixin):
             "Preview",
             tooltip="Preview how cropped image would look like.",
             func=self.on_preview_crop,
-            cancel_func=partial(self.on_cancel, which="preview_crop"),
+            func_cancel=partial(self.on_cancel, which="preview_crop"),
         )
         self.crop_btn = hp.make_active_progress_btn(
             self,
             "Export to OME-TIFF...",
             tooltip="Crop images and save as OME-TIFF files.",
             func=self.on_export_crop,
-            cancel_func=partial(self.on_cancel, which="crop"),
+            func_cancel=partial(self.on_cancel, which="crop"),
         )
 
         # Mask buttons
@@ -596,7 +596,7 @@ class ImageCropWindow(SingleViewerMixin):
             "Preview",
             tooltip="Preview how masked image would look like.",
             func=self.on_preview_mask,
-            cancel_func=partial(self.on_cancel, which="preview_mask"),
+            func_cancel=partial(self.on_cancel, which="preview_mask"),
         )
 
         self.mask_btn = hp.make_active_progress_btn(
@@ -604,7 +604,7 @@ class ImageCropWindow(SingleViewerMixin):
             "Export to OME-TIFF...",
             tooltip="Mask images and save as OME-TIFF files.",
             func=self.on_export_mask,
-            cancel_func=partial(self.on_cancel, which="mask"),
+            func_cancel=partial(self.on_cancel, which="mask"),
         )
 
         self.as_uint8 = hp.make_checkbox(

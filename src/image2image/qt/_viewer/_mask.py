@@ -489,7 +489,7 @@ class MasksDialog(QtFramelessTool):
             "Preview",
             tooltip="Preview mask in the viewer.",
             func=self.on_preview,
-            cancel_func=partial(self.on_cancel, which="preview"),
+            func_cancel=partial(self.on_cancel, which="preview"),
         )
 
         self.export_btn = hp.make_active_progress_btn(
@@ -497,7 +497,7 @@ class MasksDialog(QtFramelessTool):
             "Export masks...",
             tooltip="Export mask as a AutoIMS compatible HDF5, GeoJSON or binary file.",
             func=self.on_export_choose,
-            cancel_func=partial(self.on_cancel, which="export"),
+            func_cancel=partial(self.on_cancel, which="export"),
         )
 
         layout = hp.make_form_layout(parent=self, margin=6)

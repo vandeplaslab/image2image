@@ -371,7 +371,7 @@ class ImageConvertWindow(NoViewerMixin):
             "Convert to OME-TIFF",
             tooltip="Convert to OME-TIFF...",
             func=self.on_open_convert,
-            cancel_func=self.on_cancel,
+            func_cancel=self.on_cancel,
         )
 
         side_layout = hp.make_form_layout()
