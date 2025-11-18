@@ -42,7 +42,7 @@ jobs:
       fail-fast: false
       matrix:
         platform: [ubuntu-latest, windows-latest, macos-latest]
-        python-version: ["3.9", "3.10", "3.11", "3.12"]
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
         backend: [pyside6, pyqt6]
         exclude:
           # Abort (core dumped) on linux pyqt6, unknown reason
