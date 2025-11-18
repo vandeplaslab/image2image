@@ -547,7 +547,7 @@ class QtDatasetList(QScrollArea):
             widget.set_resolution(resolution)
 
     def populate(self) -> None:
-        """Create list of items."""
+        """Create a list of items."""
         wrapper = self.wrapper
         if wrapper:
             for _path, reader in wrapper.path_reader_iter():
@@ -570,20 +570,29 @@ class QtDatasetList(QScrollArea):
     def on_filter_by_reader_type(self, filters: str | list[str]) -> None:
         """Filter by reader type."""
         self._reader_type_filters = ensure_list(filters)
-        self._filter_by_reader_type_and_name()
+        self._filter_by_reader_type_and_name_and_channels()
 
     def on_filter_by_dataset_name(self, filters: str | list[str]) -> None:
         """Filter by dataset name."""
         if filters == "":
             filters = []
         self._dataset_filters = ensure_list(filters)
-        self._filter_by_reader_type_and_name()
+        self._filter_by_reader_type_and_name_and_channels()
 
-    def _filter_by_reader_type_and_name(self) -> None:
+    def on_filter_by_channel_name(self, filters: str) -> None:
+        """Filter by dataset name."""
+        if not self.allow_channels:
+            return
+
+        self._channel_filters = filters
+        self._filter_by_reader_type_and_name_and_channels()
+
+    def _filter_by_reader_type_and_name_and_channels(self) -> None:
         widget: QtDatasetItem
 
         check_reader = any(self._reader_type_filters)
         check_dataset_name = any(self._dataset_filters)
+        check_channel_names = any(self._channel_filters) and self.allow_channels
 
         for widget in self.widget_iter():
             visible = True
@@ -598,15 +607,10 @@ class QtDatasetList(QScrollArea):
                 and not any(filter_ in reader.name.lower() for filter_ in self._dataset_filters)
             ):
                 visible = False
+            if check_channel_names and visible:
+                widget.table_proxy.setFilterByColumn(self._channel_filters, TABLE_CONFIG.channel_name)
+                visible = widget.table.row_visible_count() != 0
             widget.setVisible(visible)
-
-    def on_filter_by_channel_name(self, filters: str) -> None:
-        """Filter by dataset name."""
-        self._channel_filters = filters
-        widget: QtDatasetItem
-        for widget in self.widget_iter():
-            widget.table_proxy.setFilterByColumn(filters, TABLE_CONFIG.channel_name)
-            widget.setVisible(widget.table.row_visible_count() != 0)
 
     def sync_layers(self) -> None:
         """Manually synchronize layers."""
@@ -740,7 +744,9 @@ class QtDatasetToolbar(QtMiniToolbar):
         )
         self.add_widget(
             hp.make_line_edit(
-                self, placeholder="Type in dataset name...", func_changed=self.dataset_list.on_filter_by_dataset_name
+                self,
+                placeholder="Type in dataset name...",
+                func_changed=self.dataset_list.on_filter_by_dataset_name,
             ),
             stretch=True,
         )
