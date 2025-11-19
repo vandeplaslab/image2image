@@ -48,7 +48,8 @@ dependencies = [
     "lxml==4.9.2; python_version < '3.12'",
     "lxml==5.4.0; python_version >= '3.12'",
     "rasterio",
-    "pandas<2",
+    "pandas<2; python_version < '3.13'",
+    "pandas>=2; python_version >= '3.13'",
     "xarray<=2024.3.0",  # needs to be lower until we migrate to pandas>2
     "numpy",
     "numba<0.60; python_version < '3.13'",
