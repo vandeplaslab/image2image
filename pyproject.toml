@@ -51,7 +51,8 @@ dependencies = [
     "pandas<2",
     "xarray<=2024.3.0",  # needs to be lower until we migrate to pandas>2
     "numpy",
-    "numba<0.60",
+    "numba<0.60; python_version < '3.13'",
+    "numba; python_version >= '3.13'",
     "pydantic>=2",
     "glasbey",
     "qtextra[sentry,console]",
@@ -285,4 +286,5 @@ ignore = [
     "examples/**/*",
     "MANIFEST.in",
     "Makefile",
+    "WARP.md",
 ]
