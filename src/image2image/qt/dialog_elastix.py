@@ -25,7 +25,7 @@ from image2image.qt._dialog_wsi import ImageWsiWindow
 from image2image.qt._dialogs._select import LoadWidget
 from image2image.qt._wsi._list import QtModalityList
 from image2image.qt._wsi._paths import RegistrationMap
-from image2image.utils.utilities import check_image_size, get_i2reg_path, pad_str
+from image2image.utils.utilities import get_i2reg_path, pad_str
 from image2image.utils.valis import guess_preprocessing
 
 if ty.TYPE_CHECKING:
@@ -229,7 +229,8 @@ class ImageElastixWindow(ImageWsiWindow):
             with MeasureTimer() as timer:
                 reader = wrapper.get_reader_for_path(modality.path)
                 scale = reader.scale_for_pyramid(pyramid)
-                image = preprocess_preview(reader.pyramid[pyramid], reader.is_rgb, scale[0], preprocessing)
+                image, resolution = preprocess_preview(reader.pyramid[pyramid], reader.is_rgb, scale[0], preprocessing)
+                scale = (resolution, resolution)
                 self.view.add_image(
                     image,
                     name=modality.name,
@@ -262,7 +263,8 @@ class ImageElastixWindow(ImageWsiWindow):
             with MeasureTimer() as timer:
                 reader = wrapper.get_reader_for_path(modality.path)
                 scale = reader.scale_for_pyramid(pyramid)
-                image = preprocess_preview(reader.pyramid[pyramid], reader.is_rgb, scale[0], preprocessing)
+                image, resolution = preprocess_preview(reader.pyramid[pyramid], reader.is_rgb, scale[0], preprocessing)
+                scale = (resolution, resolution)
                 self.view.add_image(
                     image,
                     name=modality.name,
@@ -302,11 +304,10 @@ class ImageElastixWindow(ImageWsiWindow):
                 reader.resolution = modality.pixel_size
                 scale = reader.scale_for_pyramid(pyramid)
                 image = reader.pyramid[pyramid]
-                if pyramid == -1 and reader.n_in_pyramid == 1:
-                    image, scale = check_image_size(image, scale, pyramid, channel_axis)
 
                 if preview:
-                    image = preprocess_preview(image, reader.is_rgb, scale[0], modality.preprocessing)
+                    image, resolution = preprocess_preview(image, reader.is_rgb, scale[0], modality.preprocessing)
+                    scale = (resolution, resolution)
                 else:
                     image = reader.get_channel(0, pyramid)
 

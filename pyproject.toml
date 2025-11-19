@@ -44,22 +44,18 @@ classifiers = [
 dynamic = ["version"]
 dependencies = [
     "qtpy",
-    "napari[optional]>=0.6.6",
     "toml",
-    "qtconsole>=4.5.1,!=4.7.6,!=5.4.2",
-    "ipykernel>=5.2.0",
-    "sentry_sdk>2",
     "lxml==4.9.2; python_version < '3.12'",
     "lxml==5.4.0; python_version >= '3.12'",
     "rasterio",
     "pandas<2",
     "xarray<=2024.3.0",  # needs to be lower until we migrate to pandas>2
-    "numpy<2",
+    "numpy",
     "numba<0.60",
     "pydantic>=2",
     "glasbey",
-    "qtextra",
-    "qtextraplot",
+    "qtextra[sentry,console]",
+    "qtextraplot[2d,mpl]",
     "image2image-io",
     "image2image-reg",
 ]
