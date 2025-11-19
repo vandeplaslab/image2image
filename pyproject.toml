@@ -217,6 +217,7 @@ filterwarnings = [
     "ignore::DeprecationWarning:pydantic",
     "ignore::DeprecationWarning:image2image_io",
     "ignore::DeprecationWarning:image2image_reg",
+    "ignore::pydantic.warnings.PydanticDeprecatedSince20",
     "ignore:numpy.ufunc size changed:RuntimeWarning",
     "ignore:There is no current event loop:DeprecationWarning:",
     "ignore:builtin type SwigPyPacked has no __module__ attribute:DeprecationWarning:",
