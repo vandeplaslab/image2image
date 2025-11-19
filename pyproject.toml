@@ -210,10 +210,11 @@ minversion = "8.0"
 console_output_style = "count"
 testpaths = ["image2image", "tests"]
 filterwarnings = [
-  "error:::image2image", # turn warnings from qtextra into errors
+  "error:::image2image", # turn warnings from image2image into errors
   "error:::test_.*", # turn warnings in our own tests into errors
   "ignore::DeprecationWarning:shibokensupport",
   "ignore::DeprecationWarning:ipykernel",
+  "ignore::DeprecationWarning:pydantic",
   "ignore:numpy.ufunc size changed:RuntimeWarning",
   "ignore:There is no current event loop:DeprecationWarning:",
   "ignore:builtin type SwigPyPacked has no __module__ attribute:DeprecationWarning:",
