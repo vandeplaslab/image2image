@@ -5,23 +5,23 @@ from pathlib import Path
 
 from koyo.typing import PathLike
 from pydantic import BaseModel as _BaseModel
+from pydantic import ConfigDict
 
 
 class BaseModel(_BaseModel):
     """Base model."""
 
-    class Config:
-        """Config."""
+    model_config = ConfigDict(
+        arbitrary_types_allowed=True,
+    )
 
-        arbitrary_types_allowed = True
-
-    def update(self, **kwargs: ty.Dict) -> None:
+    def update(self, **kwargs: dict) -> None:
         """Update transformation."""
         for key, value in kwargs.items():
             if hasattr(self, key):
                 setattr(self, key, value)
 
-    def to_dict(self, **kwargs: ty.Any) -> ty.Dict:
+    def to_dict(self, **kwargs: ty.Any) -> dict:
         """Convert to dict."""
         raise NotImplementedError("Must implement method")
 

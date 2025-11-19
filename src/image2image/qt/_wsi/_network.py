@@ -32,7 +32,7 @@ class NetworkViewer(QtFramelessTool):
             return self._parent.registration_model
         return None
 
-    def  on_plot(self) -> None:
+    def on_plot(self) -> None:
         """Plot workflow."""
         from image2image_reg.elastix.visuals import draw_workflow
 
@@ -98,7 +98,6 @@ if __name__ == "__main__":  # pragma: no cover
     from qtextra.utils.dev import apply_style, qapplication
 
     _ = qapplication()  # analysis:ignore
-    # dlg = SpectrumPlotPopup(None, title="Spectrum viewer")
     dlg = NetworkViewer(None)
     apply_style(dlg)
     dlg.show()

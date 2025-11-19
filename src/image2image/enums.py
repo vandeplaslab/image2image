@@ -1,5 +1,5 @@
 """Enums."""
-
+import typing as ty
 from enum import auto
 
 from image2image_io.enums import ViewType
@@ -137,3 +137,5 @@ PYRAMID_TO_LEVEL = {
     "0 (full resolution image - not recommended)": 0,
 }
 LEVEL_TO_PYRAMID = {v: k for k, v in PYRAMID_TO_LEVEL.items()}
+
+RegisterFields = ty.Literal["fixed_image", "moving_image", "fixed_points", "moving_points"]

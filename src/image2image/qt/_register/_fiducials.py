@@ -109,7 +109,7 @@ class FiducialsDialog(QtFramelessTool):
             row = self.last_point
             self.on_select_point(row)
 
-    def on_select_point(self, row: int):
+    def on_select_point(self, row: int) -> None:
         """Zoom in on point."""
         get_register_config().zoom_factor = self.zoom_factor.value()
 

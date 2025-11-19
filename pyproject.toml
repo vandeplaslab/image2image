@@ -216,6 +216,9 @@ filterwarnings = [
   "ignore::DeprecationWarning:ipykernel",
   "ignore:numpy.ufunc size changed:RuntimeWarning",
   "ignore:There is no current event loop:DeprecationWarning:",
+  "ignore:builtin type SwigPyPacked has no __module__ attribute:DeprecationWarning:",
+  "ignore:builtin type SwigPyObject has no __module__ attribute:DeprecationWarning:",
+  "ignore:builtin type swigvarlink has no __module__ attribute:DeprecationWarning:"
 ]
 
 # https://coverage.readthedocs.io/en/6.4/config.html

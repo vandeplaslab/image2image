@@ -53,12 +53,12 @@ class GuessDialog(QtFramelessTool):
         return int(current.split(" ")[1])
 
     @property
-    def fixed_point_set(self) -> None:
-        """Get fixed point set."""
+    def fixed_point_set(self) -> np.ndarray | None:
+        """Get a fixed point set."""
         return self._fixed_point_set
 
     @fixed_point_set.setter
-    def fixed_point_set(self, value):
+    def fixed_point_set(self, value: np.ndarray | None) -> None:
         """Set fixed point set."""
         self._fixed_point_set = value
         hp.disable_widgets(self.ok_btn, disabled=value is None)

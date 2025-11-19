@@ -2,18 +2,18 @@
 
 from __future__ import annotations
 
-from typing import Optional
-
 from qtextra import helpers as hp
 from qtextra.widgets.qt_dialog import QtDialog
 from qtpy.QtCore import Qt
 from qtpy.QtWidgets import QFormLayout
 
+from image2image.enums import RegisterFields
+
 
 class ImportSelectDialog(QtDialog):
     """Dialog that lets you select what should be imported."""
 
-    def __init__(self, parent, disable: tuple[str, ...] = ()):
+    def __init__(self, parent, disable: tuple[RegisterFields, ...] = ()):
         self.disable = disable
         super().__init__(parent)
         self.config = self.get_config()
