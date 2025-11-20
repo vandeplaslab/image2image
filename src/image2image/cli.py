@@ -10,8 +10,7 @@ import click
 import koyo.compat  # noqa
 from click_groups import GroupedGroup
 from koyo.click import cli_parse_paths_sort, dev_options
-from koyo.system import IS_MAC, IS_PYINSTALLER
-from koyo.utilities import is_installed
+from koyo.system import IS_MAC, IS_PYINSTALLER, is_installed
 
 from image2image import __version__
 
@@ -32,7 +31,9 @@ AVAILABLE_TOOLS = [
 #     AVAILABLE_TOOLS.pop(AVAILABLE_TOOLS.index("convert"))
 
 
-def _cli_setup(verbosity: float, no_color: bool, info: bool = False, dev: bool = False, setup: bool = True) -> tuple[float, bool]:
+def _cli_setup(
+    verbosity: float, no_color: bool, info: bool = False, dev: bool = False, setup: bool = True
+) -> tuple[float, bool]:
     from image2image.main import setup_logger
 
     if IS_MAC:
@@ -65,11 +66,7 @@ def _cli_setup(verbosity: float, no_color: bool, info: bool = False, dev: bool =
 
 
 @click.group(
-    context_settings={
-        "help_option_names": ["-h", "--help"],
-        "max_content_width": 120,
-        "ignore_unknown_options": True
-    },
+    context_settings={"help_option_names": ["-h", "--help"], "max_content_width": 120, "ignore_unknown_options": True},
     invoke_without_command=True,
     cls=GroupedGroup,
 )
