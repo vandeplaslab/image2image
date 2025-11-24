@@ -56,10 +56,10 @@ dependencies = [
     "numba; python_version >= '3.13'",
     "pydantic>=2",
     "glasbey",
-    "qtextra[sentry,console]>=0.1.6",
+    "qtextra[sentry,console]>=0.1.7",
     "qtextraplot[2d,mpl]>=0.1.1",
-    "image2image-io>=0.2.2",
-    "image2image-reg>=0.2.2",
+    "image2image-io>=0.2.3",
+    "image2image-reg>=0.2.3",
 ]
 
 

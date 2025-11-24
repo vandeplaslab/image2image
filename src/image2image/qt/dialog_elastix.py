@@ -228,8 +228,12 @@ class ImageElastixWindow(ImageWsiWindow):
             colormap = "gray" if widget is None else widget.colormap
             with MeasureTimer() as timer:
                 reader = wrapper.get_reader_for_path(modality.path)
-                scale = reader.scale_for_pyramid(pyramid)
-                image, resolution = preprocess_preview(reader.pyramid[pyramid], reader.is_rgb, scale[0], preprocessing)
+                if pyramid == -1:
+                    image, scale = reader.get_thumbnail()
+                else:
+                    scale = reader.scale_for_pyramid(pyramid)
+                    image = reader.pyramid[pyramid]
+                image, resolution = preprocess_preview(image, reader.is_rgb, scale[0], preprocessing, resize=False)
                 scale = (resolution, resolution)
                 self.view.add_image(
                     image,
@@ -262,8 +266,12 @@ class ImageElastixWindow(ImageWsiWindow):
             colormap = "gray" if widget is None else widget.colormap
             with MeasureTimer() as timer:
                 reader = wrapper.get_reader_for_path(modality.path)
-                scale = reader.scale_for_pyramid(pyramid)
-                image, resolution = preprocess_preview(reader.pyramid[pyramid], reader.is_rgb, scale[0], preprocessing)
+                if pyramid == -1:
+                    image, scale = reader.get_thumbnail()
+                else:
+                    scale = reader.scale_for_pyramid(pyramid)
+                    image = reader.pyramid[pyramid]
+                image, resolution = preprocess_preview(image, reader.is_rgb, scale[0], preprocessing, resize=False)
                 scale = (resolution, resolution)
                 self.view.add_image(
                     image,
@@ -302,11 +310,16 @@ class ImageElastixWindow(ImageWsiWindow):
                 reader = wrapper.get_reader_for_path(modality.path)
                 channel_axis, _ = reader.get_channel_axis_and_n_channels()
                 reader.resolution = modality.pixel_size
-                scale = reader.scale_for_pyramid(pyramid)
-                image = reader.pyramid[pyramid]
+                if pyramid == -1:
+                    image, scale = reader.get_thumbnail()
+                else:
+                    scale = reader.scale_for_pyramid(pyramid)
+                    image = reader.pyramid[pyramid]
 
                 if preview:
-                    image, resolution = preprocess_preview(image, reader.is_rgb, scale[0], modality.preprocessing)
+                    image, resolution = preprocess_preview(
+                        image, reader.is_rgb, scale[0], modality.preprocessing, resize=False
+                    )
                     scale = (resolution, resolution)
                 else:
                     image = reader.get_channel(0, pyramid)

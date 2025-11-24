@@ -28,6 +28,7 @@ update_icon_mapping(
         # wsireg
         "mask": "mdi6.drama-masks",
         "process": "msc.wand",
+        "refresh": "mdi6.refresh",
         # "preview": "mdi6.image-edit",
         "preview": "mdi6.camera-iris",
         "attachment": "ri.attachment-2",

@@ -36,8 +36,9 @@ class NetworkViewer(QtFramelessTool):
         """Plot workflow."""
         from image2image_reg.elastix.visuals import draw_workflow
 
-        # view_type = self.view_type.currentText()
         network_type = self.network_type.currentText()
+        hp.disable_widgets(self.refresh_btn, disabled=network_type != "random")
+
         show_attachments = self.show_attachments.isChecked()
         registration_model = self.registration_model
         if registration_model is None:
@@ -78,6 +79,14 @@ class NetworkViewer(QtFramelessTool):
             checked=True,
             func=self.on_plot,
         )
+        self.refresh_btn = hp.make_qta_btn(
+            self,
+            "refresh",
+            tooltip="Refresh the network plot.",
+            func=self.on_plot,
+            normal=True,
+            disabled=True,
+        )
 
         layout = hp.make_form_layout()
         layout.setSpacing(2)
@@ -85,9 +94,8 @@ class NetworkViewer(QtFramelessTool):
         layout.addRow(handle_layout)
         layout.addRow(hp.make_h_line(self))
         # layout.addRow("View type", self.view_type)
-        layout.addRow("Network type", self.network_type)
+        layout.addRow("Network type", hp.make_h_layout(self.network_type, self.refresh_btn, stretch_id=(0,)))
         layout.addRow("Show attachments", self.show_attachments)
-        layout.addRow(hp.make_btn(self, "Refresh", func=self.on_plot))
         layout.addRow(self.view.figure)
         return layout
 
