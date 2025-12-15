@@ -71,28 +71,14 @@ def check_image_size(
         while max(image.shape) > max_size:
             scale = (scale[0] * 0.5, scale[1] * 0.5)
             if channel_axis is None:
-                image = np.asarray(
-                    [
-                        np.asarray([image[int(i / 2), int(j / 2)] for j in range(0, image.shape[1], 2)])
-                        for i in range(0, image.shape[0], 2)
-                    ]
-                )
-            elif channel_axis == 1 or channel_axis == 0:
-                image = np.asarray(
-                    [
-                        np.asarray([image[k, int(i / 2), int(j / 2)] for j in range(0, image.shape[2], 2)])
-                        for i in range(0, image.shape[1], 2)
-                        for k in range(image.shape[0])
-                    ]
-                )
+                image = image[::2, ::2]
+            elif channel_axis == 0:
+                image = image[:, ::2, ::2]
+            elif channel_axis == 1:
+                # Assuming spatial dimensions are 0 and 2 for Y, C, X layout
+                image = image[::2, :, ::2]
             elif channel_axis == 2:
-                image = np.asarray(
-                    [
-                        np.asarray([image[k, int(i / 2), int(j / 2)] for j in range(0, image.shape[1], 2)])
-                        for i in range(0, image.shape[0], 2)
-                        for k in range(image.shape[2])
-                    ]
-                )
+                image = image[::2, ::2, :]
     return image, scale
 
 
@@ -455,8 +441,10 @@ def sanitize_path(path: PathLike) -> Path | None:
     return path
 
 
-def round_to_half(*values: tuple[float, ...]) -> np.ndarray:
+def round_to_half(*values: ty.Any) -> np.ndarray:
     """Round values to nearest .5."""
+    if len(values) == 1 and hasattr(values[0], "__len__"):
+        return np.round(np.asarray(values[0]) * 2) / 2
     return np.round(np.asarray(values) * 2) / 2
 
 
