@@ -46,7 +46,6 @@ class AttachWidget(QtDialog):
     # noinspection PyAttributeOutsideInit
     def make_panel(self) -> QFormLayout:
         """Make panel."""
-
         default, modality = self._pixel_sizes
         options = [
             f"<b>{default:.5f}</b><br>coordinates are in µm<br><b>don't need to rescale</b>",

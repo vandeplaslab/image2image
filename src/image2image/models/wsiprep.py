@@ -695,7 +695,7 @@ class Registration(BaseModel):
     def reorder(self) -> None:
         """Apply ordering."""
         for group in self.groups.values():
-            index_to_image, _, reference = group.sort(self)
+            index_to_image, _, _reference = group.sort(self)
             for index, key in index_to_image.items():
                 self.images[key].image_order = index
 
@@ -750,7 +750,7 @@ class Registration(BaseModel):
                 for index, image in enumerate(natsorted(images, key=lambda x: x.key)):
                     image.image_order = index
 
-            index_to_image, kind, reference = group.sort(self)
+            index_to_image, _kind, _reference = group.sort(self)
             for index, key in index_to_image.items():
                 image = self.images[key]
                 name_index = index if index_mode == "auto" else image.metadata[index_mode]

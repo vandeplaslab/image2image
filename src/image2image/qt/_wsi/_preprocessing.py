@@ -296,7 +296,6 @@ class PreprocessingDialog(QtFramelessTool):
 
     def on_set_defaults(self, text: str) -> None:
         """Set defaults."""
-
         if not hp.confirm(
             self, f"Are you sure you want to set to <b>{text}</b> defaults? This will overwrite other settings."
         ):
@@ -347,7 +346,6 @@ class PreprocessingDialog(QtFramelessTool):
     # noinspection PyAttributeOutsideInit
     def make_panel(self) -> QFormLayout:
         """Make panel."""
-
         button_layout = hp.make_h_layout(
             hp.make_btn(self, "Basic", tooltip="Basic pre-processing.", func=lambda: self.on_set_defaults("Basic")),
             hp.make_btn(

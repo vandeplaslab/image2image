@@ -12,7 +12,6 @@ def get_launch_command() -> str:
     str
         The command used to launch the program.
     """
-
     return " ".join(sys.argv)
 
 

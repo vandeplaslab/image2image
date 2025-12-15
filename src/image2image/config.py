@@ -100,7 +100,7 @@ class Config(BaseConfig):
 
 
 class SingleAppConfig(BaseConfig):
-    """Basic app configuration"""
+    """Basic app configuration."""
 
     USER_CONFIG_DIR = USER_CONFIG_DIR
 
@@ -765,7 +765,6 @@ APP_CONFIG: ty.Optional[Config] = None
 
 def get_app_config() -> Config:
     """Get App config."""
-
     global APP_CONFIG
     if APP_CONFIG is None:
         APP_CONFIG = Config(_auto_load=True)  # type: ignore[call-arg]
@@ -777,7 +776,6 @@ VIEWER_CONFIG: ty.Optional[ViewerConfig] = None
 
 def get_viewer_config() -> ViewerConfig:
     """Get Viewer config."""
-
     global VIEWER_CONFIG
     if VIEWER_CONFIG is None:
         VIEWER_CONFIG = ViewerConfig(_auto_load=True)  # type: ignore[call-arg]
@@ -789,7 +787,6 @@ CROP_CONFIG: ty.Optional[CropConfig] = None
 
 def get_crop_config() -> CropConfig:
     """Get Crop config."""
-
     global CROP_CONFIG
     if CROP_CONFIG is None:
         CROP_CONFIG = CropConfig(_auto_load=True)  # type: ignore[call-arg]
@@ -801,7 +798,6 @@ MERGE_CONFIG: ty.Optional[MergeConfig] = None
 
 def get_merge_config() -> MergeConfig:
     """Get Merge config."""
-
     global MERGE_CONFIG
     if MERGE_CONFIG is None:
         MERGE_CONFIG = MergeConfig(_auto_load=True)  # type: ignore[call-arg]
@@ -813,7 +809,6 @@ FUSION_CONFIG: ty.Optional[FusionConfig] = None
 
 def get_fusion_config() -> FusionConfig:
     """Get Fusion config."""
-
     global FUSION_CONFIG
     if FUSION_CONFIG is None:
         FUSION_CONFIG = FusionConfig(_auto_load=True)  # type: ignore[call-arg]
@@ -825,7 +820,6 @@ CONVERT_CONFIG: ty.Optional[ConvertConfig] = None
 
 def get_convert_config() -> ConvertConfig:
     """Get Convert config."""
-
     global CONVERT_CONFIG
     if CONVERT_CONFIG is None:
         CONVERT_CONFIG = ConvertConfig(_auto_load=True)  # type: ignore[call-arg]
@@ -837,7 +831,6 @@ REGISTER_CONFIG: ty.Optional[RegisterConfig] = None
 
 def get_register_config() -> RegisterConfig:
     """Get Register config."""
-
     global REGISTER_CONFIG
     if REGISTER_CONFIG is None:
         REGISTER_CONFIG = RegisterConfig(_auto_load=True)  # type: ignore[call-arg]
@@ -849,7 +842,6 @@ VALIS_CONFIG: ty.Optional[ValisConfig] = None
 
 def get_valis_config() -> ValisConfig:
     """Get Valis config."""
-
     global VALIS_CONFIG
     if VALIS_CONFIG is None:
         VALIS_CONFIG = ValisConfig(_auto_load=True)  # type: ignore[call-arg]
@@ -861,7 +853,6 @@ ELASTIX_CONFIG: ty.Optional[ElastixConfig] = None
 
 def get_elastix_config() -> ElastixConfig:
     """Get Elastix config."""
-
     global ELASTIX_CONFIG
     if ELASTIX_CONFIG is None:
         ELASTIX_CONFIG = ElastixConfig(_auto_load=True)  # type: ignore[call-arg]
@@ -873,7 +864,6 @@ ELASTIX3D_CONFIG: ty.Optional[Elastix3dConfig] = None
 
 def get_elastix3d_config() -> Elastix3dConfig:
     """Get Elastix3d config."""
-
     global ELASTIX3D_CONFIG
     if ELASTIX3D_CONFIG is None:
         ELASTIX3D_CONFIG = Elastix3dConfig(_auto_load=True)  # type: ignore[call-arg]

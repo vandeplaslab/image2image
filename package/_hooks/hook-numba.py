@@ -28,5 +28,4 @@ hiddenimports = [
     "numba.np.random",
     "numba.np.random.old_distributions",
     "numba.np.random.old_random_methods",
-
 ]

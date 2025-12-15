@@ -1142,7 +1142,7 @@ class ImageWsiWindow(SingleViewerMixin):
 
     @qdebounced(timeout=100, leading=True)
     def on_handle_key_press(self, key: int) -> bool:
-        """Handle key-press event"""
+        """Handle key-press event."""
         return self._handle_key_press(key)
 
     def _handle_key_press(self, key: int) -> bool:

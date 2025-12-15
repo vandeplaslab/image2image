@@ -308,7 +308,7 @@ class ImageElastixWindow(ImageWsiWindow):
         if wrapper:
             with MeasureTimer() as timer:
                 reader = wrapper.get_reader_for_path(modality.path)
-                channel_axis, _ = reader.get_channel_axis_and_n_channels()
+                _channel_axis, _ = reader.get_channel_axis_and_n_channels()
                 reader.resolution = modality.pixel_size
                 if pyramid == -1:
                     image, scale = reader.get_thumbnail()

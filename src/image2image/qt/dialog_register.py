@@ -560,7 +560,7 @@ class ImageRegistrationWindow(Window):
                 Mode.SELECT: self.moving_move_btn,
                 Mode.PAN_ZOOM: self.moving_pan_btn,
             }
-        return widgets.get(mode, None)
+        return widgets.get(mode)
 
     def on_points_mode(self, which: str, evt: ty.Any = None, mode: Mode | None = None) -> None:
         """Update mode."""
@@ -836,7 +836,7 @@ class ImageRegistrationWindow(Window):
         for layer in self.view_moving.get_layers_of_type(Image):
             name = layer.name
             if " | " in name:
-                channel_name, dataset = name.split(" | ")
+                _channel_name, dataset = name.split(" | ")
                 datasets.append(dataset)
         return list(set(datasets))
 
@@ -876,7 +876,7 @@ class ImageRegistrationWindow(Window):
                 # load data from config file
                 try:
                     (
-                        transformation_type,
+                        _transformation_type,
                         fixed_paths,
                         fixed_paths_missing,
                         fixed_points,
@@ -1892,7 +1892,7 @@ class ImageRegistrationWindow(Window):
 
     @qdebounced(timeout=100, leading=True)
     def on_handle_key_press(self, key: int) -> bool:
-        """Handle key-press event"""
+        """Handle key-press event."""
         return self._handle_key_press(key)
 
     def _handle_key_press(self, key: int) -> bool:

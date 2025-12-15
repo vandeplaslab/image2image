@@ -409,8 +409,6 @@ def get_simple_contrast_limits(
     array: list[np.ndarray],
 ) -> tuple[tuple[float, float] | None, tuple[float, float] | None]:
     """Estimate contrast limits."""
-    import dask.array as da
-
     if len(array) == 0:
         return None, None
 

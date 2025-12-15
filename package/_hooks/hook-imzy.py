@@ -1,5 +1,6 @@
 from pathlib import Path
-from koyo.system import IS_MAC, IS_LINUX, IS_WIN
+
+from koyo.system import IS_LINUX, IS_MAC, IS_WIN
 from PyInstaller.utils.hooks import collect_data_files
 
 
@@ -11,11 +12,9 @@ def filter_imzy_data(data: list[tuple[str, str]]) -> list[tuple[str, str]]:
         if module == "imzy/_readers/waters" and (IS_MAC or IS_LINUX):
             continue
         if module == "imzy/_readers/bruker":
-            if IS_MAC:  # never available on MacOS
+            if IS_MAC or (IS_LINUX and src.suffix in {".dll", ".dylib"}):  # never available on MacOS or Linux
                 continue
-            elif IS_LINUX and src.suffix in {".dll", ".dylib"}:
-                continue
-            elif IS_WIN and src.suffix in {".so", ".dylib"}:
+            if IS_WIN and src.suffix in {".so", ".dylib"}:
                 continue
         filtered.append((src, module))
     return filtered

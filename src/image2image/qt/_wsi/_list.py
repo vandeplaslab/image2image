@@ -350,7 +350,7 @@ class QtModalityItem(QFrame):
         return None, None
 
     def auto_add_attachments(self, filelist: list[str]) -> None:
-        """Add any attachment"""
+        """Add any attachment."""
         shapes, points = [], []
         for file in filelist:
             file = Path(file)
@@ -539,12 +539,12 @@ class QtModalityItem(QFrame):
         logger.trace(f"Pre-processing dialog closed for {self.modality.name}.")
 
     def on_preview(self) -> None:
-        """Preview image"""
+        """Preview image."""
         self.evt_preview_preprocessing.emit(self.modality, self.modality.preprocessing)
         logger.trace(f"Pre-processing previewed for {self.modality.name}.")
 
     def on_update_preprocessing(self) -> None:
-        """Update pre-processing"""
+        """Update pre-processing."""
         self._on_update_preprocessing(self.modality.preprocessing)
 
     def _on_update_preprocessing(self, preprocessing: Preprocessing) -> None:

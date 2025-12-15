@@ -19,9 +19,7 @@ def filter_vispy(name: str) -> bool:
     if "tests" in name or "docs" in name:
         return False
     # Handled separately below
-    if "backends" in name:
-        return False
-    return True
+    return "backends" not in name
 
 
 datas = collect_data_files("vispy")

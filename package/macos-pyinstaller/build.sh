@@ -154,11 +154,11 @@ local_install+=("koyo")
 
 if $update_pip
 then
-    pip_install+=("napari==0.6.5")
+    pip_install+=("napari==0.6.6")
     pip_install+=("pydantic>=2")
     pip_install+=("pandas<2")
     pip_install+=("numpy<2")
-    pip_install+=("PyQt6==6.9.1")
+    pip_install+=("PyQt6>=6.9.1")
     pip_install+=("pyinstaller")
 fi
 

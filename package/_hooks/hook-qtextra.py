@@ -1,6 +1,5 @@
-import qtextra
-import qtextraplot
-    
+import qtextra  # noqa: F401
+import qtextraplot # noqa: F401
 from PyInstaller.utils.hooks import collect_data_files
 
 hiddenimports = ["qtextra", "qtextraplot"]

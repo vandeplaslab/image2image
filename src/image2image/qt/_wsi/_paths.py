@@ -446,7 +446,7 @@ class RegistrationMap(QWidget):
 
     def on_image_choice(self, _: ty.Any = None) -> None:
         """Handle image selection."""
-        valid, source, target, through, source_on, target_on, through_on, _ = self._get_registration_path_data()
+        _valid, source, target, through, source_on, target_on, through_on, _ = self._get_registration_path_data()
         hp.set_object_name(self._source_choice, object_name=source_on)
         hp.set_object_name(self._target_choice, object_name=target_on)
         hp.set_object_name(self._through_choice, object_name=through_on)

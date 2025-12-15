@@ -240,7 +240,7 @@ class ImageElastix3dWindow(Window):
             if all_contrast_range:
                 min_val = min(all_contrast_range)
                 max_val = max(all_contrast_range)
-                self.contrast_limit.setRange(0 if min_val > 0 else min_val, 255 if max_val < 255 else max_val)
+                self.contrast_limit.setRange(min(min_val, 0), max(max_val, 255))
                 if not self.common_contrast_limit.isChecked():
                     self.contrast_limit.setValue((min_val, max_val))
                 self.contrast_limit.setDecimals(2 if max(all_contrast_range) < 1 else 0)
@@ -1045,7 +1045,7 @@ class ImageElastix3dWindow(Window):
 
     @property
     def pyramid_level_index(self) -> int:
-        """Pyramid level"""
+        """Pyramid level."""
         return PYRAMID_TO_LEVEL[self.pyramid_level.currentText()]
 
     def on_update_pyramid_level(self) -> None:

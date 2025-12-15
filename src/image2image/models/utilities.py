@@ -8,7 +8,7 @@ from koyo.utilities import clean_path
 from loguru import logger
 
 
-def _read_config_from_file(path: PathLike) -> ty.Dict[str, ty.Any]:
+def _read_config_from_file(path: PathLike) -> dict[str, ty.Any]:
     """Read config data from file."""
     path = Path(path)
     if path.suffix not in [".json", ".toml"]:
@@ -17,15 +17,15 @@ def _read_config_from_file(path: PathLike) -> ty.Dict[str, ty.Any]:
     if path.suffix == ".json":
         from koyo.json import read_json_data
 
-        data: ty.Dict = read_json_data(path)
+        data: dict = read_json_data(path)
     else:
         from koyo.toml import read_toml_data
 
-        data: ty.Dict = read_toml_data(path)
+        data: dict = read_toml_data(path)
     return data
 
 
-def _remove_missing_from_dict(data_dict: ty.Dict[str, ty.Any], paths: ty.List[PathLike]) -> ty.Dict[str, ty.Any]:
+def _remove_missing_from_dict(data_dict: dict[str, ty.Any], paths: list[PathLike]) -> dict[str, ty.Any]:
     """Remove elements that are not present in the list of paths from the dictionary."""
     names = [Path(path).name for path in paths]
     for name in list(data_dict.keys()):
@@ -35,7 +35,7 @@ def _remove_missing_from_dict(data_dict: ty.Dict[str, ty.Any], paths: ty.List[Pa
     return data_dict
 
 
-def _get_paths(paths: ty.List[PathLike]) -> ty.Tuple[ty.Optional[ty.List[Path]], ty.Optional[ty.List[Path]]]:
+def _get_paths(paths: list[PathLike]) -> tuple[ty.Optional[list[Path]], ty.Optional[list[Path]]]:
     _paths_exist, _paths_missing = [], []
     for path in paths:
         path = clean_path(path)

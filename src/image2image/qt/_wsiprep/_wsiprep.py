@@ -99,7 +99,7 @@ class GroupByDialog(WsiPrepMixin):
         if self.table.n_rows == 0:
             logger.trace("No images loaded")
             return
-        groups, dataset_to_group_map = self._get_groups()
+        _groups, dataset_to_group_map = self._get_groups()
         if dataset_to_group_map:
             value = self.group_by.text()
             value = value.strip("= ")
@@ -317,7 +317,7 @@ class MaskDialog(WsiPrepMixin):
             self.horizontal_label.setText("")
             self.vertical_label.setText("")
             return
-        left, right, top, bottom, shape_type, data = self._get_crop_area_for_index(index)
+        left, right, top, bottom, _shape_type, _data = self._get_crop_area_for_index(index)
         self.horizontal_label.setText(f"{left:<10} - {right:>10} ({right - left:>7})")
         self.vertical_label.setText(f"{top:<10} - {bottom:>10} ({bottom - top:>7})")
 
@@ -359,7 +359,7 @@ class MaskDialog(WsiPrepMixin):
 
     def on_select_mask(self) -> None:
         """Select mask from a list of available options."""
-        current, group_id, group = self._get_current_group_id()
+        current, _group_id, group = self._get_current_group_id()
         if not group:
             return
         with self._editing_crop():

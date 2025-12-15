@@ -123,16 +123,21 @@ i2register = "image2image.cli:main_register"
 line-length = 120
 target-version = "py39"
 src = ["src", "tests"]
-
+fix = true
+unsafe-fixes = true
 
 # https://beta.ruff.rs/docs/rules/
 [tool.ruff.lint]
 select = [
-    "E", "F", "W", #flake8
+    "F",    # Pyflakes
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
     "UP", # pyupgrade
     "I", # isort
+    "S", # flake8-bandit
+    "D", # pydocstyle
     "YTT", #flake8-2020
-    "TC", # flake8-type-checing
+#    "TC", # flake8-type-checing
     "BLE", # flake8-blind-exception
     "B", # flake8-bugbear
     "A", # flake8-builtins
@@ -141,7 +146,7 @@ select = [
     "G", # flake8-logging-format
     "PIE", # flake8-pie
     "COM", # flake8-commas
-    "SIM", # flake8-simplify
+    "SIM",  # Common simplification rules
     "INP", # flake8-no-pep420
     "PYI", # flake8-pyi
     "Q", # flake8-quotes
@@ -156,6 +161,7 @@ select = [
     "FA", # flake8-future-annotations
     "LOG", # flake8-logging
     "SLOT", # flake8-slots
+    "FURB", # refurb
 ]
 # I do this to get numpy-style docstrings AND retain
 # D417 (Missing argument descriptions in the docstring)
@@ -187,6 +193,8 @@ extend-ignore = [
     "W191", "Q000", "Q001", "Q002", "Q003", "ISC001", # https://docs.astral.sh/ruff/formatter/#conflicting-lint-rules
     "FA100", "FA102",  # missing __future__
     "G004", # flake8-logging-format
+    "COM812", # Missing trailing comma in a list or tuple
+    "ISC001", # Implicit string concatenation detected
 ]
 
 [tool.ruff.lint.per-file-ignores]

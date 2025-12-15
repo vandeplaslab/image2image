@@ -1,6 +1,7 @@
 import os.path
-from PyInstaller.utils.hooks import collect_data_files
+
 import debugpy._vendored
+from PyInstaller.utils.hooks import collect_data_files
 
 hiddenimports = [
     "glasbey",

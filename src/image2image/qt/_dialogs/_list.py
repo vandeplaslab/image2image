@@ -311,7 +311,6 @@ class QtDatasetItem(QFrame):
 
     def on_save(self) -> None:
         """Save data."""
-
         reader = self.get_model()
         if reader:
             from image2image.qt._dialogs._save import ExportImageDialog
@@ -541,7 +540,7 @@ class QtDatasetList(QScrollArea):
         del widget
 
     def set_resolution(self, key: str, resolution: float) -> None:
-        """Update resolution"""
+        """Update resolution."""
         widget: QtDatasetItem = self.get_widget_for_key(key)
         if widget:
             widget.set_resolution(resolution)

@@ -1,4 +1,4 @@
-"""multi-processing hooks"""
+"""multi-processing hooks."""
 
 import os
 import sys

@@ -1,6 +1,6 @@
 """Focus model."""
 
-import typing as ty
+from __future__ import annotations
 
 from image2image.models.base import BaseModel
 
@@ -8,7 +8,7 @@ from image2image.models.base import BaseModel
 class Focus(BaseModel):
     """Focus model."""
 
-    position: ty.Tuple[float, float, float] = (0, 0, 0)
+    position: tuple[float, float, float] = (0, 0, 0)
     zoom: float = 1.0
 
 

@@ -1,4 +1,5 @@
 """Enums."""
+
 import typing as ty
 from enum import auto
 
