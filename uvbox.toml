@@ -1,6 +1,6 @@
 [package]
 name = "image2image[pyqt6]"
-script = "i2i"
+script = "image2image"
 
 [package.version]
 # Pin to specific version
