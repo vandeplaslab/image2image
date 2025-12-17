@@ -30,6 +30,7 @@ auto-update = true
 # Configure uv runtime behavior with environment variables
 environment = [
     "UV_PYTHON=3.11",
+    "UV_NO_CACHE=1",  # reduce the size of the uv environment
 #    "UV_INDEX_URL=https://pypi.example.com/simple",
 #    "UV_PYTHON_INSTALL_MIRROR=https://mirror.example.com/python-builds"
 ]
