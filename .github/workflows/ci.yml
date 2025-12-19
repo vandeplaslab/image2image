@@ -34,14 +34,6 @@ jobs:
         os: [windows-latest, macos-latest, ubuntu-latest]
         python-version: ["3.10", "3.11", "3.12", "3.13"]
         backend: [pyside6, pyqt6]
-#        exclude:
-#          # Thread stack overflow issues on Windows
-#          - python-version: "3.13"
-#            os: windows-latest
-#            backend: pyside6
-#          - python-version: "3.13"
-#            os: windows-latest
-#            backend: pyqt6
 
     steps:
       - uses: actions/checkout@v6
@@ -59,7 +51,7 @@ jobs:
         run: uv run coverage run -p -m pytest -v --color=yes
 
       - name: Upload coverage
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: covreport-${{ matrix.os }}-py${{ matrix.python-version }}-${{ matrix.backend }}
           path: ./.coverage*
@@ -283,7 +275,7 @@ jobs:
         # Check notarization status
         spctl --assess -vv --type install "$I2I_APP_PATH" 2>&1 | tee /dev/stderr | grep accepted
 
-    - uses: actions/upload-artifact@v5
+    - uses: actions/upload-artifact@v6
       if: matrix.os == 'macos-latest' && failure()
       name: Build (MaxOS) - Upload dmg
       env:
@@ -300,7 +292,7 @@ jobs:
             echo "I2I_FILENAME_AVAILABLE=1" >> $GITHUB_ENV
         fi
 
-    - uses: actions/upload-artifact@v5
+    - uses: actions/upload-artifact@v6
       if: success() && env.I2I_FILENAME_AVAILABLE == '1'
       with:
         compression-level: 0  # no compression
@@ -309,12 +301,37 @@ jobs:
           dist/image2image*.zip
           dist/image2image*.dmg
           dist/image2image*.tar.gz
-          
+
+  # before we submit to PyPi, let's test that it gets built correctly and we can submit to TestPyPi
+  uvbox_build:
+    name: Build app with UV Box
+    needs: [check-manifest, test_uv]
+    if: success() && startsWith(github.ref, 'refs/tags/') && github.event_name != 'schedule'
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.x"
+
+      - name: Build the UV Box app
+        run: uvx uvbox pypi -o uvbox
+
+      - uses: actions/upload-artifact@v6
+        if: success()
+        with:
+          compression-level: 0  # no compression
+          path: |
+            uvbox/image2image*.zip
+            uvbox/image2image*.tar.gz
 
   # before we submit to PyPi, let's test that it gets built correctly and we can submit to TestPyPi
   deploy_test:
     name: Deploy to PyPI (test)
-    needs: [test_uv, check-manifest]
+    needs: [check-manifest, test_uv]
     if: success() && startsWith(github.ref, 'refs/tags/') && github.event_name != 'schedule'
     runs-on: ubuntu-latest
 
@@ -363,7 +380,7 @@ jobs:
           twine check dist/*
           ls -lh dist
 
-#      - uses: actions/upload-artifact@v5
+#      - uses: actions/upload-artifact@v6
 #        if: success()
 #        with:
 #          compression-level: 0  # no compression
@@ -387,13 +404,13 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - uses: actions/download-artifact@v6
+      - uses: actions/download-artifact@v7
         with:
           pattern: 'image2image-v*'
           path: pyinstaller
           merge-multiple: true
 
-#      - uses: actions/download-artifact@v6
+#      - uses: actions/download-artifact@v7
 #        with:
 #          name: Packages
 #          path: dist
@@ -410,4 +427,5 @@ jobs:
           prerelease: ${{ contains(env.tag, 'rc') || contains(env.tag, 'a') || contains(env.tag, 'b')}}
           files: |
             dist/*
+            uvbox/*
             pyinstaller/*

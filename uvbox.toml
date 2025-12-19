@@ -1,0 +1,36 @@
+[package]
+name = "image2image[pyqt6]"
+script = "image2image"
+
+[package.version]
+# Pin to specific version
+static = "0.2.3"
+## Or use a dynamic version from URL
+#dynamic = "src/image2image/_version.py"
+# Enable automatic updates before each run
+auto-update = true
+
+#[package.constraints]
+# Use a static constraints file
+#static = "./constraints.txt"
+# Freeze dependencies with a constraints file
+# <VERSION> placeholder is automatically replaced
+#dynamic = "https://example.com/my-app/<VERSION>/constraints.txt"
+
+
+#[certificates]
+## Bundle custom CA certificates (useful behind corporate firewalls)
+#path = "./ca-bundle.crt"
+
+[uv]
+# Optional: Specify which uv version to use
+#version = "0.4.20"
+# Optional: Use a mirror for downloading uv itself
+#mirror = "https://mirror.example.com/uv/releases/download"
+# Configure uv runtime behavior with environment variables
+environment = [
+    "UV_PYTHON=3.11",
+    "UV_NO_CACHE=1",  # reduce the size of the uv environment
+#    "UV_INDEX_URL=https://pypi.example.com/simple",
+#    "UV_PYTHON_INSTALL_MIRROR=https://mirror.example.com/python-builds"
+]

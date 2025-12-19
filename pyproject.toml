@@ -180,7 +180,7 @@ extend-ignore = [
     "RUF100", # Do not remove NOQA lines
     "C901", # Function is too complex
     "D301", # Use r""" if any backslashes in a docstring
-    "E501", "TC001", "TC002", "TC003",
+    "E501",
     "A003", # flake8-builtins - we have class attributes violating these rule
     "COM812", # flake8-commas - we don't like adding comma on single line of arguments
     "COM819", # conflicts with ruff-format

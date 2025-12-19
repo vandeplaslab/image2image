@@ -1,4 +1,4 @@
-"""image2image - suite of tools to visualise imaging data."""
+"""image2image - suite of tools to visualize imaging data."""
 
 import sys
 import typing as ty
