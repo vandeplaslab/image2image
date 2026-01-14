@@ -399,6 +399,7 @@ class PreprocessingDialog(QtFramelessTool):
             "Smooth",
             "Blackhat",
             "Tophat",
+            "Bilateral",
             tooltip="Background subtraction to increase contrast of the image.",
             func=self.on_update_model,
         )
