@@ -95,6 +95,7 @@ def make_registration_task(
         task_name_repr=hp.hyper(project.project_dir, value=project.project_dir.name),
         task_name_tooltip=str(project.project_dir),
         commands=commands,
+        metadata={"project_dir": project.project_dir},
     )
 
 

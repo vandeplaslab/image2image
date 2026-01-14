@@ -84,6 +84,9 @@ class ImageWsiWindow(SingleViewerMixin):
         self.setup_i2reg_path()
         self.on_set_write_warning()
 
+        # add extra actions
+        QUEUE.add_action("Open in viewer", self.on_open_task_in_viewer, "viewer")
+
     @staticmethod
     def _setup_config() -> None:
         READER_CONFIG.only_last_pyramid = True
@@ -293,7 +296,9 @@ class ImageWsiWindow(SingleViewerMixin):
             if path.suffix in [".wsireg", ".valis"]:
                 path = path.parent
             common_output_dir.append(path)
-        if len(set(common_output_dir)) == 1:
+        # update the output directory if the directory is currently not set AND all the files are coming from the
+        # same base directory
+        if not self.output_dir and len(set(common_output_dir)) == 1:
             self.output_dir = common_output_dir[0]
             self.output_dir_label.setText(hp.hyper(self.output_dir))
             self.output_dir_label.setToolTip(str(self.output_dir))
@@ -599,6 +604,15 @@ class ImageWsiWindow(SingleViewerMixin):
     ) -> None:
         """Hide other modalities."""
         self.on_hide_not_previewed_modalities()
+
+    def on_open_task_in_viewer(self, task: Task) -> None:
+        """Open task in a viewer."""
+        metadata = task.metadata
+        if "project_dir" not in metadata:
+            return
+        path = Path(metadata["project_dir"]) / "Images"
+        if path.exists():
+            self.on_open_viewer("--file_dir", str(path))
 
     def on_open_in_viewer(self) -> None:
         """Open registration in viewer."""
@@ -1154,3 +1168,9 @@ class ImageWsiWindow(SingleViewerMixin):
         elif key == Qt.Key.Key_P:
             self.use_preview_check.setChecked(not self.use_preview_check.isChecked())
         return ignore
+
+    def can_window_be_closed(self) -> bool:
+        """Check whether the window can be closed."""
+        if QUEUE.is_running():
+            return False
+        return True

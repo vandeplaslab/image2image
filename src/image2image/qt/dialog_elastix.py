@@ -111,6 +111,7 @@ def make_registration_task(
         task_name_repr=hp.hyper(project.project_dir, value=project.project_dir.name),
         task_name_tooltip=str(project.project_dir),
         commands=commands,
+        metadata={"project_dir": project.project_dir},
     )
 
 
@@ -557,9 +558,9 @@ class ImageElastixWindow(ImageWsiWindow):
             self.view.clear()
             self.modality_list.populate()
             self.registration_map.populate()
-            self.output_dir_label.setText("")
-            self.output_dir_label.setToolTip("")
-            self.output_dir = None
+            # self.output_dir_label.setText("")
+            # self.output_dir_label.setToolTip("")
+            # self.output_dir = None
             logger.trace("Closed project.")
 
     def _setup_ui(self) -> None:
@@ -589,8 +590,8 @@ class ImageElastixWindow(ImageWsiWindow):
         )
 
         side_widget = QWidget()
-        side_widget.setMinimumWidth(450)
-        side_widget.setMaximumWidth(450)
+        side_widget.setMinimumWidth(525)
+        side_widget.setMaximumWidth(525)
 
         self.modality_list = QtModalityList(self)
 

@@ -109,11 +109,20 @@ class SingleViewerMixin(Window):
         self._make_scalebar_statusbar()
         self._make_export_statusbar()
 
+    def can_window_be_closed(self) -> bool:
+        """Check if the window can be closed.
+
+        This function should be overwritten by subclasses to provide custom logic for determining if the window
+        can be closed.
+        """
+        return True
+
     def close(self, force=False):
         """Override to handle closing app or just the window."""
         if (
             not force
             or not self.CONFIG.confirm_close
+            # and self.can_window_be_closed()
             or QtConfirmCloseDialog(
                 self,
                 "confirm_close",
@@ -130,6 +139,7 @@ class SingleViewerMixin(Window):
         if (
             evt.spontaneous()
             and self.CONFIG.confirm_close
+            # and not self.can_window_be_closed()
             and QtConfirmCloseDialog(
                 self,
                 "confirm_close",

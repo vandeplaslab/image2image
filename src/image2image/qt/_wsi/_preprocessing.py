@@ -212,7 +212,7 @@ class PreprocessingDialog(QtFramelessTool):
         self.evt_preview_transform_preprocessing.emit(self.modality, self.preprocessing)
 
     def set_from_model(self) -> None:
-        """Set from model."""
+        """Set from the model."""
         from image2image_reg.models.preprocessing import CoordinateFlip
 
         with self.setting_config():
@@ -225,8 +225,10 @@ class PreprocessingDialog(QtFramelessTool):
                 "MaxIntensityProjection": "MaxIntensityProjection (no preview)",
             }.get(self.preprocessing.method, self.preprocessing.method)
             self.method.setCurrentText(method)
-            image_type = {"BF": 0, "FL": 1}[self.preprocessing.image_type]
+            image_type = {"BF": 0, "FL": 1}[self.preprocessing.image_type.value]
             self.type_choice_toggle.value = ["Brightfield", "Fluorescence"][image_type]
+            background_subtract = self.preprocessing.background_subtract.value.capitalize()
+            self.background_toggle.value = background_subtract
             # spectral
             self.contrast_check.setChecked(self.preprocessing.contrast_enhance)
             self.equalize_check.setChecked(self.preprocessing.equalize_histogram)
@@ -262,13 +264,15 @@ class PreprocessingDialog(QtFramelessTool):
         """Update model."""
         if self._is_setting_config:
             return
-        image_type = self.type_choice_toggle.value
+        image_type = self.type_choice_toggle.value.lower()
+        background_subtract = self.background_toggle.value.lower()
         method = self.method.currentText()
         if "(no preview)" in method:
             method = method.split(" (no preview)")[0]
             logger.warning(f"Method {method} does not support previewing.")
         self.preprocessing.method = method
-        self.preprocessing.image_type = {"Brightfield": "BF", "Fluorescence": "FL"}[image_type]
+        self.preprocessing.image_type = {"brightfield": "BF", "fluorescence": "FL"}[image_type]
+        self.preprocessing.background_subtract = background_subtract
         self.preprocessing.max_intensity_projection = True
         self.preprocessing.contrast_enhance = self.contrast_check.isChecked()
         self.preprocessing.equalize_histogram = self.equalize_check.isChecked()
@@ -388,6 +392,16 @@ class PreprocessingDialog(QtFramelessTool):
             self, "", tooltip="Equalize histogram enhancement", func=self.on_update_model
         )
         self.contrast_check = hp.make_checkbox(self, "", tooltip="Contrast enhancement", func=self.on_update_model)
+        self.background_toggle = hp.make_toggle(
+            self,
+            "None",
+            "Sharp",
+            "Smooth",
+            "Blackhat",
+            "Tophat",
+            tooltip="Background subtraction to increase contrast of the image.",
+            func=self.on_update_model,
+        )
         self.invert_check = hp.make_checkbox(self, "", tooltip="Invert intensity", func=self.on_update_model)
         self.channel_table = QtCheckableTableView(
             self, config=self.TABLE_CONFIG, enable_all_check=True, sortable=True, double_click_to_check=True
@@ -541,6 +555,7 @@ class PreprocessingDialog(QtFramelessTool):
         layout.addRow("Image type", self.type_choice_toggle)
         layout.addRow("Histogram equalization", self.equalize_check)
         layout.addRow("Contrast enhancement", self.contrast_check)
+        layout.addRow("Background subtraction", self.background_toggle)
         layout.addRow("Invert intensity", self.invert_check)
         layout.addRow(self.channel_table)
         layout.addRow(hp.make_h_layout(self.filter_by_channel, stretch_id=(0,), spacing=1))
