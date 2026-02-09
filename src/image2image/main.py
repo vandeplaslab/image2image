@@ -62,20 +62,23 @@ def run(
 ) -> None:
     """Execute command."""
     import warnings
-
-    from image2image_io.config import CONFIG as READER_CONFIG
-    from koyo.faulthandler import install_segfault_handler, maybe_submit_segfault
     from koyo.timer import MeasureTimer
-    from qtextra.config import THEMES
-    from qtextra.utils.context import _maybe_allow_interrupt
-
-    import image2image.assets  # noqa: F401
-    from image2image.config import get_app_config
-    from image2image.qt.event_loop import get_app
-    from image2image.utils._appdirs import USER_LOG_DIR
 
     # setup file logger
     with MeasureTimer() as timer:
+        from image2image_io.config import CONFIG as READER_CONFIG
+        from koyo.faulthandler import install_segfault_handler, maybe_submit_segfault
+
+        from qtextra.config import THEMES
+        from qtextra.utils.context import _maybe_allow_interrupt
+
+        import image2image.assets  # noqa: F401
+        from image2image.config import get_app_config
+        from image2image.qt.event_loop import get_app
+        from image2image.utils._appdirs import USER_LOG_DIR
+
+        time_import = timer(since_last=True)
+
         dev_modules = ["koyo", "qtextra", "qtextraplot", "image2image", "image2image_io", "image2image_reg"]
         if log:
             from koyo.logging import set_loguru_log
@@ -116,6 +119,7 @@ def run(
 
         # make app
         app = get_app()
+        time_app = timer(since_last=True)
 
         # load config
         try:
@@ -137,6 +141,7 @@ def run(
         segfault_filename = f"segfault_{tool}.log"
         maybe_submit_segfault(USER_LOG_DIR, segfault_filename)
         install_segfault_handler(USER_LOG_DIR, segfault_filename)
+        time_setup = timer(since_last=True)
 
         args = sys.argv
         if args:
@@ -242,6 +247,7 @@ def run(
             dlg = viewer.window._qt_window
         else:
             raise ValueError("Launcher is not implemented yet.")
+        time_widget = timer(since_last=True)
 
         if tool != "napari":
             THEMES.set_theme_stylesheet(dlg)
@@ -275,9 +281,14 @@ def run(
                 )
                 dlg.statusbar.addPermanentWidget(dlg.dev_btn)  # type: ignore[attr-defined]
         os.environ["IMAGE2IMAGE_DEV_MODE"] = "1" if dev else "0"
+        time_dev = timer(since_last=True)
 
         # show dialog
         dlg.show()
+        time_show = timer(since_last=True)
         with _maybe_allow_interrupt(app):
-            logger.trace(f"Launched {tool} in {timer()}")
+            logger.trace(
+                f"Launched {tool} in {timer()}, Import={time_import}; App={time_app}; Setup={time_setup}; "
+                f"Widget={time_widget}; Dev={time_dev}; Show={time_show}"
+            )
             sys.exit(app.exec_())
