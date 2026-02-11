@@ -137,7 +137,12 @@ class QtModalityItem(QFrame):
 
         self.modality_icon = QtModalityLabel(self)
         self.open_dir_btn = hp.make_qta_btn(
-            self, "folder", tooltip="Open directory containing the image.", normal=True, func=self.on_open_directory
+            self,
+            "folder",
+            tooltip="Open directory containing the image.\nRight-click on the button to open a copy to clipboard menu.",
+            normal=True,
+            func=self.on_open_directory,
+            func_menu=self.on_copy_to_clipboard_menu,
         )
         self.remove_btn = hp.make_qta_btn(
             self,
@@ -278,10 +283,26 @@ class QtModalityItem(QFrame):
         self.setToolTip(f"<b>Modality</b>: {self.modality.name}<br><b>Path</b>: {self.modality.path}")
 
     def on_open_directory(self) -> None:
-        """Open directory where the image is located."""
+        """Open the directory where the image is located."""
         from koyo.path import open_directory_alt
 
         open_directory_alt(self.modality.path)
+
+    def on_copy_to_clipboard_menu(self) -> None:
+        """Copt the directory to clipboard."""
+        menu = hp.make_menu()
+        hp.make_menu_item(
+            self,
+            "Copy image path to clipboard.",
+            menu=menu,
+            func=lambda: hp.copy_text_to_clipboard(str(self.modality.path)),
+        )
+        hp.make_menu_item(
+            self,
+            "Copy directory containing the image to clipboard.",
+            menu=menu,
+            func=lambda: hp.copy_text_to_clipboard(str(self.modality.path.parent)),
+        )
 
     def on_remove(self) -> None:
         """Remove image/modality from the list."""
