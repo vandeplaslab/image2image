@@ -290,7 +290,7 @@ class QtModalityItem(QFrame):
 
     def on_copy_to_clipboard_menu(self) -> None:
         """Copt the directory to clipboard."""
-        menu = hp.make_menu()
+        menu = hp.make_menu(self.open_dir_btn)
         hp.make_menu_item(
             self,
             "Copy image path to clipboard.",
@@ -303,6 +303,7 @@ class QtModalityItem(QFrame):
             menu=menu,
             func=lambda: hp.copy_text_to_clipboard(str(self.modality.path.parent)),
         )
+        hp.show_menu(menu)
 
     def on_remove(self) -> None:
         """Remove image/modality from the list."""
