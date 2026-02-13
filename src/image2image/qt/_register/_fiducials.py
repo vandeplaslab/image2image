@@ -198,7 +198,7 @@ class FiducialsDialog(QtFramelessTool):
         )
         self.zoom_factor = hp.make_double_spin_box(
             self,
-            1,
+            0.05,
             100,
             n_decimals=2,
             default=get_register_config().zoom_factor,
