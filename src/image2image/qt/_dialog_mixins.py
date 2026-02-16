@@ -351,6 +351,8 @@ class NoViewerMixin(Window):
                 self.reader_metadata[reader.path][reader.scene_index] = dlg.scene_metadata
                 self.on_update_reader_metadata()
                 logger.trace(f"Updated metadata for {name}")
+        elif column == self.TABLE_CONFIG.key:
+            hp.open_file(reader.path.parent)
         # elif column == self.TABLE_CONFIG.resolution:
         #     new_resolution = hp.get_double(
         #         self,

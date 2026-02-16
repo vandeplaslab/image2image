@@ -177,9 +177,12 @@ class ImageConvertWindow(NoViewerMixin):
         """Process data."""
         from image2image_io.writers import images_to_ome_tiff
 
-        if self.output_dir is None:
-            hp.warn_pretty(self, "No output directory was selected. Please select directory where to save data.")
-            return
+        output_dir = None
+        if not self.same_output_as_input_dir.isChecked():
+            output_dir = self.output_dir
+            if output_dir is None:
+                hp.warn_pretty(self, "No output directory was selected. Please select directory where to save data.")
+                return
 
         paths, scenes = set(), {}
         for row in range(self.table.rowCount()):
@@ -193,8 +196,6 @@ class ImageConvertWindow(NoViewerMixin):
                 if reader.path not in scenes:
                     scenes[reader.path] = set()
                 scenes[reader.path].add(reader.scene_index)
-
-        output_dir = self.output_dir
 
         if paths:
             if STATE.is_mac_arm_pyinstaller:
@@ -299,6 +300,16 @@ class ImageConvertWindow(NoViewerMixin):
         )
         READER_CONFIG.split_czi = self.split_czi.isChecked()
 
+    def on_set_output_dir_same_as_input(self) -> None:
+        """Update output directory to be the same as the input directory."""
+        is_checked = self.same_output_as_input_dir.isChecked()
+        if is_checked:
+            self.output_dir_label.setText("<output directory same as input directory>")
+        else:
+            if self.output_dir is not None:
+                self.output_dir_label.setText(hp.hyper(self.output_dir))
+        hp.disable_widgets(self.directory_btn, self.output_dir_label, disabled=is_checked)
+
     def _setup_ui(self) -> None:
         """Create panel."""
         self.output_dir_label = hp.make_label(self, hp.hyper(self.output_dir), enable_url=True)
@@ -337,6 +348,14 @@ class ImageConvertWindow(NoViewerMixin):
             func=self.on_set_output_dir,
         )
 
+        self.same_output_as_input_dir = hp.make_checkbox(
+            self,
+            "",
+            tooltip="Save files in the same directory as the input directory.",
+            checked=True,
+            # value=READER_CONFIG.split_czi,
+            func=self.on_set_output_dir_same_as_input,
+        )
         self.tile_size = hp.make_combobox(
             self,
             ["256", "512", "1024", "2048", "4096"],
@@ -407,6 +426,7 @@ class ImageConvertWindow(NoViewerMixin):
         side_layout.addRow(
             hp.make_label(
                 self,
+                "<b>Tip.</b> Double-click on the <b>key</b> field to open the image in the file explorer.<br>"
                 "<b>Tip.</b> Double-click on the <b>scenes & channels</b> field to select/deselect"
                 " scenes/channels, rename channel names or merge multiple channels together.",
                 alignment=Qt.AlignmentFlag.AlignHCenter,
@@ -417,6 +437,9 @@ class ImageConvertWindow(NoViewerMixin):
         )
         side_layout.addRow(hp.make_h_line(self))
         side_layout.addRow(self.directory_btn)
+        side_layout.addRow(
+            "Same directory as input", hp.make_h_layout(self.same_output_as_input_dir, stretch_after=True)
+        )
         side_layout.addRow("Output directory", self.output_dir_label)
         side_layout.addRow("Split CZI", hp.make_h_layout(self.split_czi, stretch_after=True))
         side_layout.addRow("Tile size", hp.make_h_layout(self.tile_size, stretch_after=True))
