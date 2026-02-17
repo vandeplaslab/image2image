@@ -617,8 +617,8 @@ class ImageCropWindow(SingleViewerMixin):
         self.tile_size = hp.make_combobox(
             settings_widget,
             ["256", "512", "1024", "2048", "4096"],
-            tooltip="Specify size of the tile. Default is 512",
-            default="512",
+            tooltip="Specify size of the tile. Default is 1024",
+            default="1024",
             value=f"{self.CONFIG.tile_size}",
             func=self.on_update_config,
         )

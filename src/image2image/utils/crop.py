@@ -76,7 +76,7 @@ def export_crop_regions(
     data_model: DataModel,
     output_dir: Path,
     regions: list[tuple[int, int, int, int] | np.ndarray],
-    tile_size: int = 512,
+    tile_size: int = 1024,
     as_uint8: bool = True,
 ) -> ty.Generator[tuple[Path, int, int], None, None]:
     """Crop images."""
@@ -184,7 +184,7 @@ def export_mask_regions(
     data_model: DataModel,
     output_dir: Path,
     regions: list[tuple[int, int, int, int] | np.ndarray],
-    tile_size: int = 512,
+    tile_size: int = 1024,
     as_uint8: bool = True,
 ) -> ty.Generator[tuple[Path, int, int], None, None]:
     """Export mask images."""

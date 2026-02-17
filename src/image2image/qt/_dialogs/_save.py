@@ -46,8 +46,8 @@ class ExportImageDialog(QtDialog):
         self.tile_size = hp.make_combobox(
             self,
             ["256", "512", "1024", "2048", "4096"],
-            tooltip="Specify size of the tile. Default is 512",
-            default="512",
+            tooltip="Specify size of the tile. Default is 1024",
+            default="1024",
             value=f"{self.CONFIG.tile_size}",
         )
         self.as_uint8 = hp.make_checkbox(
