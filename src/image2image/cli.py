@@ -164,11 +164,24 @@ def cli(
 
 merge = None
 if is_installed("image2image_io"):
-    from image2image_io.cli import convert, merge, thumbnail, transform  # type: ignore[assignment]
+    from image2image_io.cli import (  # type: ignore[assignment]
+        combine,
+        convert,
+        czi2tiff,
+        cziinfo,
+        czimerge,
+        merge,
+        thumbnail,
+        transform,
+    )
 
-    cli.add_command(convert, help_group="Utility")  # type: ignore[attr-defined]
-    cli.add_command(thumbnail, help_group="Utility")  # type: ignore[attr-defined]
+    cli.add_command(convert, help_group="OME-TIFF")  # type: ignore[attr-defined]
+    cli.add_command(combine, help_group="OME-TIFF")  # type: ignore[attr-defined]
+    cli.add_command(cziinfo, help_group="CZI")
+    cli.add_command(czi2tiff, help_group="CZI")
+    cli.add_command(czimerge, help_group="CZI")
     cli.add_command(transform, help_group="Utility")  # type: ignore[attr-defined]
+    cli.add_command(thumbnail, help_group="Utility")  # type: ignore[attr-defined]
 
 
 if is_installed("image2image_reg"):
