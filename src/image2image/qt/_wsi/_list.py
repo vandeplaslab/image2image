@@ -506,13 +506,13 @@ class QtModalityItem(QFrame):
         self.evt_resolution.emit(self.modality)
 
     def _on_update_output_resolution(self) -> None:
-        """ "Update output resolution."""
+        """Update output resolution."""
         resolution = self.output_resolution_label.text()
         self.modality.output_pixel_size = float(resolution) if resolution else None
         self._set_output_resolution(self.modality.output_pixel_size)
 
     def _on_update_output_resolution_clear(self) -> None:
-        """ "Update output resolution."""
+        """Update output resolution."""
         self.modality.output_pixel_size = None
         self._set_output_resolution(self.modality.output_pixel_size)
 

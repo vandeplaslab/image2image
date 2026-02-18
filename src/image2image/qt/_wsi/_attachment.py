@@ -1,4 +1,4 @@
-""" "Attachment widgets."""
+"""Attachment widgets."""
 
 from __future__ import annotations
 
