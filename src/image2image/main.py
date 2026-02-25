@@ -61,7 +61,13 @@ def run(
     **kwargs: ty.Any,
 ) -> None:
     """Execute command."""
+    # disable some annoying warnings from napari
     import warnings
+
+    warnings.filterwarnings("ignore", message="RuntimeWarning: overflow encountered in multiply")
+    warnings.filterwarnings("ignore", message="RuntimeWarning: overflow encountered in square")
+    warnings.filterwarnings("ignore", message="RuntimeWarning: overflow encountered in cast")
+
     from koyo.timer import MeasureTimer
 
     # setup file logger
@@ -252,11 +258,6 @@ def run(
         if tool != "napari":
             THEMES.set_theme_stylesheet(dlg)
             THEMES.evt_theme_changed.connect(lambda: THEMES.set_theme_stylesheet(dlg))
-
-        # disable some annoying warnings from napari
-        warnings.filterwarnings("ignore", message="RuntimeWarning: overflow encountered in multiply")
-        warnings.filterwarnings("ignore", message="RuntimeWarning: overflow encountered in square")
-        warnings.filterwarnings("ignore", message="RuntimeWarning: overflow encountered in cast")
 
         if dev:
             import logging
