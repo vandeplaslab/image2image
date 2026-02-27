@@ -34,6 +34,25 @@ class DataModel(BaseModel):
     wrapper: ty.Optional[ImageWrapper] = None
     is_fixed: bool = False
 
+    def __del__(self) -> None:
+        """Close resources."""
+        self.close()
+
+    def __enter__(self) -> None:
+        """Setup context manager."""
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb) -> bool:
+        """Tear down for context manager."""
+        self.close()
+        return False
+
+    def close(self) -> None:
+        """Close all readers."""
+        if self.wrapper is not None:
+            for reader in self.wrapper.reader_iter():
+                reader.close()
+
     # noinspection PyMethodFirstArgAssignment,PyMethodParameters
     @field_validator("paths", mode="before")
     def _validate_path(value: ty.Union[PathLike, list[PathLike]]) -> list[Path]:  # type: ignore[misc]
