@@ -51,7 +51,7 @@ jobs:
         run: uv run coverage run -p -m pytest -v --color=yes
 
       - name: Upload coverage
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: covreport-${{ matrix.os }}-py${{ matrix.python-version }}-${{ matrix.backend }}
           path: ./.coverage*
@@ -275,7 +275,7 @@ jobs:
         # Check notarization status
         spctl --assess -vv --type install "$I2I_APP_PATH" 2>&1 | tee /dev/stderr | grep accepted
 
-    - uses: actions/upload-artifact@v6
+    - uses: actions/upload-artifact@v7
       if: matrix.os == 'macos-latest' && failure()
       name: Build (MaxOS) - Upload dmg
       env:
@@ -292,7 +292,7 @@ jobs:
             echo "I2I_FILENAME_AVAILABLE=1" >> $GITHUB_ENV
         fi
 
-    - uses: actions/upload-artifact@v6
+    - uses: actions/upload-artifact@v7
       if: success() && env.I2I_FILENAME_AVAILABLE == '1'
       with:
         compression-level: 0  # no compression
@@ -320,7 +320,7 @@ jobs:
       - name: Build the UV Box app
         run: uvx uvbox pypi -o uvbox
 
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@v7
         if: success()
         with:
           compression-level: 0  # no compression
@@ -380,7 +380,7 @@ jobs:
           twine check dist/*
           ls -lh dist
 
-#      - uses: actions/upload-artifact@v6
+#      - uses: actions/upload-artifact@v7
 #        if: success()
 #        with:
 #          compression-level: 0  # no compression
