@@ -535,7 +535,6 @@ class ImageRegistrationWindow(Window):
         for layer in self.moving_image_layer:  # type: ignore[union-attr]
             layer.visible = False
         self._plot_moving_layers([value])
-        # print([layer.visible for layer in self.moving_image_layer])  # type: ignore[union-attr]
 
     def _select_point_layer(self, which: str) -> Points:
         """Select layer."""
