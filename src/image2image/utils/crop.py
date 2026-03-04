@@ -42,7 +42,6 @@ def _crop_regions_iter(
             crop_top,
             crop_bottom,
         ) in data_model.crop_bbox_iter(left, right, top, bottom):
-
             yield (
                 path,
                 reader,
@@ -60,7 +59,6 @@ def _crop_regions_iter(
             crop_top,
             crop_bottom,
         ) in data_model.crop_polygon_iter(polygon_or_bbox):
-
             yield (
                 path,
                 reader,
@@ -68,13 +66,12 @@ def _crop_regions_iter(
                 channel_name,
                 cropped_channel,
                 (crop_left, crop_right, crop_top, crop_bottom),
-
             )
 
 
 def export_crop_regions(
     data_model: DataModel,
-    output_dir: Path,
+    output_dir: Path | None,
     regions: list[tuple[int, int, int, int] | np.ndarray],
     tile_size: int = 1024,
     as_uint8: bool = True,
@@ -82,13 +79,16 @@ def export_crop_regions(
     """Crop images."""
     from image2image_io.writers import OmeTiffWrapper
 
+    output_dir_ = output_dir
     n = len(regions)
     for current, polygon_or_bbox in enumerate(regions, start=1):
         for path, reader in data_model.wrapper.path_reader_iter():
+            if output_dir_ is None:
+                output_dir = path.parent
+
             output_path, dtype, shape, rgb = None, None, None, []
             wrapper = OmeTiffWrapper()
             for _, (left, right, top, bottom) in reader.crop_region_iter(polygon_or_bbox):
-
                 output_path = output_dir / f"{path.stem}_x={left}-{right}_y={top}-{bottom}".replace(".ome", "")
                 dtype = reader.dtype
                 shape = _get_new_image_shape(reader, left, right, top, bottom)
@@ -150,7 +150,6 @@ def _mask_regions_iter(
             crop_top,
             crop_bottom,
         ) in data_model.mask_bbox_iter(left, right, top, bottom):
-
             yield (
                 path,
                 reader,
@@ -158,7 +157,6 @@ def _mask_regions_iter(
                 channel_name,
                 cropped_channel,
                 (crop_left, crop_right, crop_top, crop_bottom),
-
             )
     else:
         assert isinstance(polygon_or_bbox, np.ndarray), f"Invalid type: {type(polygon_or_bbox)}"
@@ -168,7 +166,6 @@ def _mask_regions_iter(
             crop_top,
             crop_bottom,
         ) in data_model.mask_polygon_iter(polygon_or_bbox):
-
             yield (
                 path,
                 reader,
@@ -176,13 +173,12 @@ def _mask_regions_iter(
                 channel_name,
                 cropped_channel,
                 (crop_left, crop_right, crop_top, crop_bottom),
-
             )
 
 
 def export_mask_regions(
     data_model: DataModel,
-    output_dir: Path,
+    output_dir: Path | None,
     regions: list[tuple[int, int, int, int] | np.ndarray],
     tile_size: int = 1024,
     as_uint8: bool = True,
@@ -190,13 +186,16 @@ def export_mask_regions(
     """Export mask images."""
     from image2image_io.writers import OmeTiffWrapper
 
+    output_dir_ = output_dir
     n = len(regions)
     for current, polygon_or_bbox in enumerate(regions, start=1):
         for path, reader in data_model.wrapper.path_reader_iter():
+            if output_dir_ is None:
+                output_dir = path.parent
+
             output_path, dtype, hash_str, shape, rgb = None, None, None, None, []
             wrapper = OmeTiffWrapper()
             for _, hash_str in reader.mask_region_iter(polygon_or_bbox):
-
                 output_path = output_dir / f"{path.stem}_{hash_str}".replace(".ome", "")
                 dtype = reader.dtype
                 shape = reader.shape
