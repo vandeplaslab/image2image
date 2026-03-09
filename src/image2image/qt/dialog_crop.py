@@ -246,17 +246,20 @@ class ImageCropWindow(SingleViewerMixin):
             hp.toast(self, "No regions", "No regions to crop.", icon="error")
             return
 
-        output_dir_ = hp.get_directory(self, "Select output directory", self.CONFIG.output_dir)
-        if not output_dir_:
-            hp.toast(self, "No output directory", "No output directory selected.", icon="error")
-            return
+        output_dir_ = None
+        if not self.same_output_as_input_dir_mask.isChecked():
+            output_dir_ = hp.get_directory(self, "Select output directory", self.CONFIG.output_dir)
+            if not output_dir_:
+                hp.toast(self, "No output directory", "No output directory selected.", icon="error")
+                return
+            self.CONFIG.update(output_dir=output_dir_)
+            output_dir_ = Path(output_dir_)
 
         logger.trace("Exporting mask regions to OME-TIFF files...")
-        self.CONFIG.update(output_dir=output_dir_)
         if regions:
             for _ in export_mask_regions(
                 self.data_model,
-                output_dir=Path(output_dir_),
+                output_dir=output_dir_,
                 regions=regions,
                 tile_size=self.CONFIG.tile_size,
                 as_uint8=self.CONFIG.as_uint8,
@@ -394,17 +397,20 @@ class ImageCropWindow(SingleViewerMixin):
             hp.toast(self, "No regions", "No regions to crop.", icon="error")
             return
 
-        output_dir_ = hp.get_directory(self, "Select output directory", self.CONFIG.output_dir)
-        if not output_dir_:
-            hp.toast(self, "No output directory", "No output directory selected.", icon="error")
-            return
+        output_dir_ = None
+        if not self.same_output_as_input_dir_crop.isChecked():
+            output_dir_ = hp.get_directory(self, "Select output directory", self.CONFIG.output_dir)
+            if not output_dir_:
+                hp.toast(self, "No output directory", "No output directory selected.", icon="error")
+                return
+            self.CONFIG.update(output_dir=output_dir_)
+            output_dir_ = Path(output_dir_)
 
-        self.CONFIG.update(output_dir=output_dir_)
         if regions:
             self.worker_crop = create_worker(
                 export_crop_regions,
                 data_model=self.data_model,
-                output_dir=Path(output_dir_),
+                output_dir=output_dir_,
                 regions=regions,
                 tile_size=self.CONFIG.tile_size,
                 as_uint8=self.CONFIG.as_uint8,
@@ -589,6 +595,14 @@ class ImageCropWindow(SingleViewerMixin):
             func=self.on_export_crop,
             func_cancel=partial(self.on_cancel, which="crop"),
         )
+        self.same_output_as_input_dir_crop = hp.make_checkbox(
+            self,
+            "",
+            tooltip="Save files in the same directory as the input directory.",
+            checked=True,
+            # value=READER_CONFIG.split_czi,
+            # func=self.on_set_output_dir_same_as_input_crop,
+        )
 
         # Mask buttons
         self.preview_mask_btn = hp.make_active_progress_btn(
@@ -598,13 +612,20 @@ class ImageCropWindow(SingleViewerMixin):
             func=self.on_preview_mask,
             func_cancel=partial(self.on_cancel, which="preview_mask"),
         )
-
         self.mask_btn = hp.make_active_progress_btn(
             self,
             "Export to OME-TIFF...",
             tooltip="Mask images and save as OME-TIFF files.",
             func=self.on_export_mask,
             func_cancel=partial(self.on_cancel, which="mask"),
+        )
+        self.same_output_as_input_dir_mask = hp.make_checkbox(
+            self,
+            "",
+            tooltip="Save files in the same directory as the input directory.",
+            checked=True,
+            # value=READER_CONFIG.split_czi,
+            # func=self.on_set_output_dir_same_as_input_mask,
         )
 
         self.as_uint8 = hp.make_checkbox(
@@ -668,6 +689,8 @@ class ImageCropWindow(SingleViewerMixin):
                 spacing=2,
             )
         )
+        side_layout.addRow(self.same_output_as_input_dir_crop)
+
         side_layout.addRow(hp.make_h_line_with_text("Mask"))
         side_layout.addRow(
             hp.make_h_layout(
@@ -683,6 +706,8 @@ class ImageCropWindow(SingleViewerMixin):
                 spacing=2,
             )
         )
+        side_layout.addRow(self.same_output_as_input_dir_mask)
+
         side_layout.addRow(hp.make_h_line_with_text("Layer controls"))
         side_layout.addRow(self.view.widget.controls)
         side_layout.addRow(self.view.widget.layerButtons)
