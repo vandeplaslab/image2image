@@ -120,7 +120,7 @@ fi
 
 # inform user what's happening
 echo "Building macOS pyinstaller package..."
-echo "update(u): $update"
+echo "update(-u): $update"
 echo "update_app(-a): $update_app"
 echo "update_deps(-d): $update_deps"
 echo "update_just_reader(-r): $update_just_reader"
@@ -128,9 +128,9 @@ echo "update_just_app(-j): $update_just_app"
 echo "update_just_register(-w): $update_just_register"
 echo "update_pip(-i): $update_pip"
 echo "update_qtextra: $update_qtextra"
-echo "no_docs: $no_docs"
-echo "package: $package"
-echo "help: $help"
+echo "no_docs(-n): $no_docs"
+echo "package(-z): $package"
+echo "help(-h): $help"
 
 
 # actually install the packages
