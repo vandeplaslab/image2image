@@ -50,6 +50,7 @@ dependencies = [
     "rasterio",
     "pandas<2; python_version < '3.13'",
     "pandas>=2; python_version >= '3.13'",
+    "setuptools; python_version >= '3.13'",
     "xarray<=2024.3.0",  # needs to be lower until we migrate to pandas>2
     "numpy",
     "numba<0.60; python_version < '3.13'",
@@ -58,8 +59,8 @@ dependencies = [
     "glasbey",
     "qtextra[sentry,console]>=0.1.8",
     "qtextraplot[2d,mpl]>=0.1.2",
-    "image2image-io>=0.2.3",
-    "image2image-reg>=0.2.3",
+    "image2image-io>=0.3.0",
+    "image2image-reg>=0.3.0",
 ]
 
 
