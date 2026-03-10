@@ -689,7 +689,7 @@ class ImageCropWindow(SingleViewerMixin):
                 spacing=2,
             )
         )
-        side_layout.addRow(self.same_output_as_input_dir_crop)
+        side_layout.addRow("Same directory as input", self.same_output_as_input_dir_crop)
 
         side_layout.addRow(hp.make_h_line_with_text("Mask"))
         side_layout.addRow(
@@ -706,7 +706,7 @@ class ImageCropWindow(SingleViewerMixin):
                 spacing=2,
             )
         )
-        side_layout.addRow(self.same_output_as_input_dir_mask)
+        side_layout.addRow("Same directory as input", self.same_output_as_input_dir_mask)
 
         side_layout.addRow(hp.make_h_line_with_text("Layer controls"))
         side_layout.addRow(self.view.widget.controls)

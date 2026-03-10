@@ -97,6 +97,7 @@ def export_crop_regions(
             if dtype is None or shape is None or output_path is None:
                 logger.warning(f"Skipping {path} as it has no data.")
                 continue
+            yield output_path, current - 1, n
             if output_path.with_suffix(".ome.tiff").exists():
                 logger.warning(f"Skipping {output_path} as it already exists.")
                 yield output_path, current, n
