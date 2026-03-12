@@ -11,7 +11,7 @@ from koyo.timer import MeasureTimer
 from koyo.typing import PathLike
 from loguru import logger
 from napari.layers import Image, Layer, Points, Shapes
-from qtextra.dialogs.qt_close_window import QtConfirmCloseDialog
+
 from qtextra.utils.utilities import connect
 from qtpy.QtCore import QModelIndex
 from qtpy.QtWidgets import QDialog, QLabel, QMenuBar, QTableWidget
