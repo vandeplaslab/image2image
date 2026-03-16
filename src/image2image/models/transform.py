@@ -1,5 +1,6 @@
 """Transform."""
 
+from pathlib import Path
 from image2image_io.models.transform import TransformData as _TransformData
 from image2image_io.models.transform import TransformModel
 from koyo.typing import PathLike
@@ -42,6 +43,7 @@ class TransformData(_TransformData):
         from koyo.json import read_json, write_json
 
         # initialize model
+        path = Path(path)
         obj = cls.from_i2r(path, validate_paths=False)
 
         # create backup in case something goes wrong
