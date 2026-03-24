@@ -515,7 +515,7 @@ class QtDatasetList(QScrollArea):
             or not model
             or hp.confirm(
                 self,
-                f"Are you sure you want to remove <b>{model.name}</b> from the list?",
+                f"Are you sure you want to remove<br><b>{model.name}</b><br>from the list?<br>Please confirm.",
                 "Please confirm.",
             )
         ):
