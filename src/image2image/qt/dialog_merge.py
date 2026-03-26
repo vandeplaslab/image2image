@@ -10,6 +10,7 @@ from image2image_io.config import CONFIG as READER_CONFIG
 from loguru import logger
 from qtextra.dialogs.qt_close_window import QtConfirmCloseDialog
 from qtextra.utils.table_config import TableConfig
+from qtextra.widgets.qt_label_icon import QtPulsingAttentionLabel
 from qtpy.QtCore import Qt
 from qtpy.QtGui import QDropEvent
 from qtpy.QtWidgets import QDialog, QHeaderView, QMenuBar, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget
@@ -308,6 +309,7 @@ class ImageMergeWindow(NoViewerMixin):
             overwrite=self.overwrite.isChecked(),
             tile_size=int(self.tile_size.currentText()),
         )
+        self.as_uint8_warning.pulse(self.CONFIG.as_uint8)
 
     def _setup_ui(self):
         """Create panel."""
@@ -349,6 +351,10 @@ class ImageMergeWindow(NoViewerMixin):
             value=f"{self.CONFIG.tile_size}",
             func=self.on_update_config,
         )
+        self.as_uint8_warning = QtPulsingAttentionLabel(color_from_key="icon", color_to_key="warning")
+        self.as_uint8_warning.set_normal()
+        self.as_uint8_warning.setToolTip(C.UINT8_WARNING)
+        self.as_uint8_warning.pulse(self.CONFIG.as_uint8)
         self.as_uint8 = hp.make_checkbox(
             self,
             "",
@@ -418,17 +424,7 @@ class ImageMergeWindow(NoViewerMixin):
         side_layout.addRow("Tile size", hp.make_h_layout(self.tile_size, stretch_after=True))
         side_layout.addRow(
             "Reduce file size",
-            hp.make_h_layout(
-                self.as_uint8,
-                hp.make_warning_label(
-                    self,
-                    "While this option reduces the amount of space an image takes on your disk, it can lead to data"
-                    " loss and should be used with caution.",
-                    normal=True,
-                ),
-                spacing=2,
-                stretch_after=True,
-            ),
+            hp.make_h_layout(self.as_uint8, self.as_uint8_warning, spacing=2, stretch_after=True),
         )
         side_layout.addRow("Overwrite", hp.make_h_layout(self.overwrite, stretch_after=True))
         side_layout.addRow(self.export_btn)

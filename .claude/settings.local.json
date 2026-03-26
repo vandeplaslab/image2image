@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git:*)",
+      "Bash(for f:*)",
+      "Bash(do echo:*)",
+      "Read(//Users/lgmigas/Documents/GitHub/image2image/**)",
+      "Bash(done)"
+    ]
+  }
+}

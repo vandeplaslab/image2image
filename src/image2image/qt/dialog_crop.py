@@ -17,6 +17,7 @@ from napari.layers import Shapes
 from napari.layers.shapes._shapes_constants import Box
 from qtextra.config import THEMES
 from qtextra.utils.utilities import connect
+from qtextra.widgets.qt_label_icon import QtPulsingAttentionLabel
 from qtpy.QtCore import Qt
 from qtpy.QtGui import QKeyEvent
 from qtpy.QtWidgets import QHBoxLayout, QVBoxLayout, QWidget
@@ -628,6 +629,10 @@ class ImageCropWindow(SingleViewerMixin):
             # func=self.on_set_output_dir_same_as_input_mask,
         )
 
+        self.as_uint8_warning = QtPulsingAttentionLabel(color_from_key="icon", color_to_key="warning")
+        self.as_uint8_warning.set_normal()
+        self.as_uint8_warning.setToolTip(C.UINT8_WARNING)
+        self.as_uint8_warning.pulse(self.CONFIG.as_uint8)
         self.as_uint8 = hp.make_checkbox(
             settings_widget,
             "",
@@ -654,17 +659,7 @@ class ImageCropWindow(SingleViewerMixin):
         self.hidden_settings.addRow(hp.make_label(self, "Tile size"), self.tile_size)
         self.hidden_settings.addRow(
             hp.make_label(self, "Reduce data size"),
-            hp.make_h_layout(
-                self.as_uint8,
-                hp.make_warning_label(
-                    self,
-                    C.UINT8_WARNING,
-                    normal=True,
-                    icon_name=("warning", {"color": THEMES.get_theme_color("warning")}),
-                ),
-                spacing=2,
-                stretch_id=(0,),
-            ),
+            hp.make_h_layout(self.as_uint8, self.as_uint8_warning, spacing=2, stretch_after=True),
         )
 
         side_layout = hp.make_form_layout(parent=settings_widget, margin=2)
@@ -735,6 +730,7 @@ class ImageCropWindow(SingleViewerMixin):
         """Update values in config."""
         self.CONFIG.as_uint8 = self.as_uint8.isChecked()
         self.CONFIG.tile_size = int(self.tile_size.currentText())
+        self.as_uint8_warning.pulse(self.CONFIG.as_uint8)
         self.on_set_write_warning()
 
     def on_set_write_warning(self) -> None:
