@@ -169,7 +169,7 @@ def get_app(
                 # can be used in qss files and elsewhere.
                 plugin_manager.discover_icons()
                 plugin_manager.discover_qss()
-            except ImportError:
+            except (ImportError, AttributeError):
                 pass
 
         _app_ref = app  # prevent garbage collection

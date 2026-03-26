@@ -8,8 +8,6 @@ from pathlib import Path
 import qtextra.helpers as hp
 import qtextra.queue.cli_queue as _q
 from image2image_io.config import CONFIG as READER_CONFIG
-from image2image_reg.enums import ValisDetectorMethod, ValisMatcherMethod
-from image2image_reg.workflows.valis import ValisReg
 from koyo.secret import hash_parameters
 from koyo.timer import MeasureTimer
 from koyo.typing import PathLike
@@ -30,10 +28,9 @@ from image2image.utils.utilities import get_i2reg_path, pad_str
 from image2image.utils.valis import guess_preprocessing
 
 if ty.TYPE_CHECKING:
+    from image2image_reg.enums import ValisDetectorMethod, ValisMatcherMethod
     from image2image_reg.models import Modality, Preprocessing
-
-_q.N_PARALLEL = get_valis_config().n_parallel
-
+    from image2image_reg.workflows.valis import ValisReg
 
 def make_registration_task(
     project: ValisReg,
@@ -116,6 +113,7 @@ class ImageValisWindow(ImageWsiWindow):
         self, parent: QWidget | None, run_check_version: bool = True, project_dir: PathLike | None = None, **_kwargs
     ):
         self.CONFIG: ValisConfig = get_valis_config()
+        _q.N_PARALLEL = self.CONFIG.n_parallel
         super().__init__(parent, run_check_version=run_check_version, project_dir=project_dir)
         self.WINDOW_CONSOLE_ARGS = (("view", "viewer"), "data_model", ("data_model", "wrapper"), "registration_model")
         if self.CONFIG.first_time:
@@ -156,6 +154,8 @@ class ImageValisWindow(ImageWsiWindow):
     def registration_model(self) -> ValisReg | None:
         """Registration model."""
         if self._registration_model is None:
+            from image2image_reg.workflows.valis import ValisReg
+
             name = self.name_label.text() or "project"
             name = ValisReg.format_project_name(name)
             self._registration_model = ValisReg(name=name, output_dir=self.CONFIG.output_dir, init=False)
@@ -228,6 +228,8 @@ class ImageValisWindow(ImageWsiWindow):
             " selected.",
             func=self.on_set_reference,
         )
+        from image2image_reg.enums import ValisDetectorMethod, ValisMatcherMethod
+
         self.feature_choice = hp.make_combobox(
             self,
             ty.get_args(ValisDetectorMethod),
@@ -407,6 +409,8 @@ class ImageValisWindow(ImageWsiWindow):
 
     def _on_load_from_project(self, path_: PathLike) -> None:
         if path_:
+            from image2image_reg.workflows.valis import ValisReg
+
             path_ = Path(path_)
             try:
                 project = ValisReg.from_path(path_.parent if path_.is_file() else path_)

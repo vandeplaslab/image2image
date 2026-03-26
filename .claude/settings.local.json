@@ -5,7 +5,9 @@
       "Bash(for f:*)",
       "Bash(do echo:*)",
       "Read(//Users/lgmigas/Documents/GitHub/image2image/**)",
-      "Bash(done)"
+      "Bash(done)",
+      "Bash(grep -r 'at module level' /Users/lgmigas/Documents/GitHub/image2image/src/image2image --include=*.py)",
+      "Bash(python3:*)"
     ]
   }
 }

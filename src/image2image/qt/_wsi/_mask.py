@@ -354,6 +354,18 @@ class ShapesDialog(QtFramelessTool):
                 self.evt_mask.emit(copy_to_modality)
                 logger.trace(f"Copied mask from {copy_from} to {copy_to}")
 
+    def on_associate_mask_with_all_modalities(self) -> None:
+        """Associate current mask/crop with all modalities."""
+        if not hp.confirm(
+            self,
+            f"Add {self.MASK_OR_CROP} to <b>all</b> modalities?",
+            f"Add {self.MASK_OR_CROP} to all",
+        ):
+            return
+        for name in self._parent.registration_model.get_image_modalities(with_attachment=False):
+            modality = self._parent.registration_model.modalities[name]
+            self.on_associate_mask_with_modality(modality)
+
     def on_copy_to_all(self) -> None:
         """Copy mask from one modality to all the others."""
         copy_from = self.copy_from_choice.currentText()
@@ -414,6 +426,9 @@ class ShapesDialog(QtFramelessTool):
         self.copy_from_color_icon.setEnabled(False)
 
         self.add_btn = hp.make_btn(self, f"Add {self.MASK_OR_CROP}", func=self.on_associate_mask_with_modality)
+        self.add_to_all_btn = hp.make_btn(
+            self, f"Add {self.MASK_OR_CROP} to all", func=self.on_associate_mask_with_all_modalities
+        )
         self.remove_btn = hp.make_btn(self, f"Remove {self.MASK_OR_CROP}", func=self.on_dissociate_mask_from_modality)
         self.auto_update = hp.make_checkbox(self, "", tooltip="Auto-associate mask when making changes", value=True)
 
@@ -476,7 +491,7 @@ class ShapesDialog(QtFramelessTool):
                 alignment=Qt.AlignmentFlag.AlignVCenter,
             ),
         )
-        layout.addRow(hp.make_h_layout(self.add_btn, self.remove_btn))
+        layout.addRow(hp.make_h_layout(self.add_btn, self.add_to_all_btn, self.remove_btn))
         layout.addRow(
             hp.make_label(self, "Auto-update"),
             hp.make_h_layout(
