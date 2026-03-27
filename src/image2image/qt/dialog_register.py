@@ -97,7 +97,7 @@ def get_random_image(array: list[np.ndarray]) -> list[np.ndarray]:
     fill_value = np.nan
     if not np.any(nan_mask):
         nan_mask = array_ == 0
-    array_ = np.random.randint(128, 255, array_.shape)
+    array_ = np.random.default_rng().integers(128, 255, array_.shape)
     if np.any(nan_mask):
         array_ = array_.astype(np.float32) / 255
         array_[nan_mask] = fill_value

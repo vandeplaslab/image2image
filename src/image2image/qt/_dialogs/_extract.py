@@ -49,9 +49,9 @@ class ExtractChannelsDialog(QtDialog):
         if path:
             df = pd.read_csv(path, sep=",")
             if "mz" in df.columns:
-                mzs = df.mz.values
+                mzs = df["mz"].to_numpy()
             elif "m/z" in df.columns:
-                mzs = df["m/z"].values
+                mzs = df["m/z"].to_numpy()
             else:
                 hp.warn_pretty(self, "The file does not contain a column named 'mz' or 'm/z'.")
                 return
