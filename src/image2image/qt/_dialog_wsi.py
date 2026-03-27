@@ -700,7 +700,7 @@ class ImageWsiWindow(SingleViewerMixin):
 
     def _make_output_widgets(self, side_widget: Qw.QWidget) -> Qw.QGroupBox:
         # regex = r"^[a-zA-Z0-9_\-.,=]"
-        regex = r"^[a-zA-Z0-9_\-.,=]{1,50}$"
+        regex = r"^[a-zA-Z0-9_\-.,;=]{1,50}$"
 
         self.name_label = hp.make_line_edit(
             side_widget,
