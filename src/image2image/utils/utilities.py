@@ -499,7 +499,7 @@ def replace_shapes_layer(widget: QtShapesControls, layer: Shapes) -> None:
     # update values
     widget._on_opacity_change()
     # widget._on_mode_change()
-    widget._on_current_edge_color_change()
+    widget._on_current_border_color_change()
     widget._on_current_face_color_change()
     widget._on_edge_width_change()
     widget._on_text_visibility_change()
@@ -518,7 +518,7 @@ def replace_shapes_layer(widget: QtShapesControls, layer: Shapes) -> None:
     widget.layer.events.blending.connect(widget._on_blending_change)
     widget.layer.events.opacity.connect(widget._on_opacity_change)
     widget.layer.events.edge_width.connect(widget._on_edge_width_change)
-    widget.layer.events.current_edge_color.connect(widget._on_current_edge_color_change)
+    widget.layer.events.current_border_color.connect(widget._on_current_border_color_change)
     widget.layer.events.current_face_color.connect(widget._on_current_face_color_change)
     widget.layer.text.events.visible.connect(widget._on_text_visibility_change)
 

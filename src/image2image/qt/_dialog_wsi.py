@@ -10,8 +10,6 @@ import numpy as np
 import qtextra.helpers as hp
 import qtpy.QtWidgets as Qw
 from image2image_io.config import CONFIG as READER_CONFIG
-from image2image_reg.models import Modality, Preprocessing
-from image2image_reg.workflows import ElastixReg, ValisReg
 from koyo.typing import PathLike
 from loguru import logger
 from qtextra.config import THEMES
@@ -32,6 +30,9 @@ from image2image.utils.valis import hash_preprocessing
 if ty.TYPE_CHECKING:
     from qtextra.widgets.qt_collapsible import QtCheckCollapsible
     from qtextraplot._napari.image import NapariImageView
+
+    from image2image_reg.models import Modality, Preprocessing
+    from image2image_reg.workflows import ElastixReg, ValisReg
 
     from image2image.config import ElastixConfig
     from image2image.qt._wsi._list import QtModalityItem, QtModalityList

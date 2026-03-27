@@ -20,6 +20,7 @@ from napari.layers.utils._link_layers import link_layers
 from napari.utils.events import Event
 from qtextra.config import THEMES
 from qtextra.dialogs.qt_close_window import QtConfirmCloseDialog
+from qtextra.widgets.qt_label_icon import QtPulsingAttentionLabel
 from qtextra.utils.utilities import connect
 from qtextra.widgets.qt_toolbar_mini import QtMiniToolbar
 from qtextraplot._napari.image.wrapper import NapariImageView
@@ -1327,6 +1328,7 @@ class ImageRegistrationWindow(Window):
         """Update values in config."""
         self.CONFIG.as_uint8 = self.as_uint8.isChecked()
         self.CONFIG.tile_size = int(self.tile_size.currentText())
+        self.as_uint8_warning.pulse(self.CONFIG.as_uint8)
 
     # noinspection PyAttributeOutsideInit
     def _setup_ui(self) -> None:
@@ -1409,6 +1411,10 @@ class ImageRegistrationWindow(Window):
             func=self.on_save_to_project,
         )
 
+        self.as_uint8_warning = QtPulsingAttentionLabel(color_from_key="icon", color_to_key="warning")
+        self.as_uint8_warning.set_normal()
+        self.as_uint8_warning.setToolTip(C.UINT8_WARNING)
+        self.as_uint8_warning.pulse(self.CONFIG.as_uint8)
         self.as_uint8 = hp.make_checkbox(
             self,
             "",
@@ -1442,17 +1448,7 @@ class ImageRegistrationWindow(Window):
         hidden_settings.addRow(hp.make_label(self, "Tile size"), self.tile_size)
         hidden_settings.addRow(
             hp.make_label(self, "Reduce data size"),
-            hp.make_h_layout(  # type: ignore[arg-type]
-                self.as_uint8,
-                hp.make_warning_label(
-                    self,
-                    C.UINT8_WARNING,
-                    normal=True,
-                    icon_name=("warning", {"color": THEMES.get_theme_color("warning")}),
-                ),
-                spacing=2,
-                stretch_id=(0,),
-            ),
+            hp.make_h_layout(self.as_uint8, self.as_uint8_warning, spacing=2, stretch_after=True),
         )
         hidden_settings.addRow(
             hp.make_btn(

@@ -10,10 +10,7 @@ import qtextra.helpers as hp
 from image2image_io.config import CONFIG as READER_CONFIG
 from koyo.typing import PathLike
 from loguru import logger
-from napari.layers import Image, Points, Shapes
-from napari.utils.events import Event
 from qtextra.utils.utilities import connect
-from qtpy.QtGui import QKeyEvent
 from qtpy.QtWidgets import QDialog, QWidget
 from superqt.utils import qdebounced
 
@@ -25,6 +22,10 @@ from image2image.qt._dialogs._select import LoadWidget
 from image2image.utils.utilities import ensure_extension, get_resolution_options
 
 if ty.TYPE_CHECKING:
+    from napari.layers import Image, Points, Shapes
+    from napari.utils.events import Event
+    from qtpy.QtGui import QKeyEvent
+
     from image2image_io.readers import ShapesReader
     from qtextraplot._napari.image.wrapper import NapariImageView
 

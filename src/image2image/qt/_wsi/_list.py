@@ -97,8 +97,7 @@ class QtModalityItem(QFrame):
             func=self.on_open_preprocessing,
             normal=True,
         )
-        self.color_btn = hp.make_swatch(self, color, tooltip="Click here to change color.")
-        self.color_btn.evt_color_changed.connect(self._on_change_color)
+        self.color_btn = hp.make_swatch(self, color, tooltip="Click here to change color.", func=self._on_change_color)
         self.attach_image_btn = hp.make_qta_btn(
             self,
             "image",
@@ -780,7 +779,7 @@ class QtModalityList(QScrollArea):
             or not modality
             or hp.confirm(
                 self,
-                f"Are you sure you want to remove <b>{modality.name}</b> from the list?",
+                f"Are you sure you want to remove<br><b>{modality.name}</b><br>from the list?<br>Please confirm.",
                 "Please confirm.",
             )
         ):

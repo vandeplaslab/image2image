@@ -7,7 +7,6 @@ from pathlib import Path
 
 import qtextra.helpers as hp
 import qtextra.queue.cli_queue as _q
-from image2image_reg.workflows.elastix import ElastixReg
 from koyo.secret import hash_parameters
 from koyo.timer import MeasureTimer
 from koyo.typing import PathLike
@@ -30,9 +29,7 @@ from image2image.utils.valis import guess_preprocessing
 
 if ty.TYPE_CHECKING:
     from image2image_reg.models import Modality, Preprocessing
-
-
-_q.N_PARALLEL = get_elastix_config().n_parallel
+    from image2image_reg.workflows.elastix import ElastixReg
 
 
 def make_registration_task(
@@ -136,6 +133,7 @@ class ImageElastixWindow(ImageWsiWindow):
         **_kwargs: ty.Any,
     ):
         self.CONFIG = get_elastix_config()
+        _q.N_PARALLEL = self.CONFIG.n_parallel
         super().__init__(parent, run_check_version=run_check_version, project_dir=project_dir)
         self.WINDOW_CONSOLE_ARGS = (("view", "viewer"), "data_model", ("data_model", "wrapper"), "registration_model")
 
@@ -143,6 +141,8 @@ class ImageElastixWindow(ImageWsiWindow):
     def registration_model(self) -> ElastixReg | None:
         """Registration model."""
         if self._registration_model is None:
+            from image2image_reg.workflows.elastix import ElastixReg
+
             name = self.name_label.text() or "project"
             name = ElastixReg.format_project_name(name)
             self._registration_model = ElastixReg(name=name, output_dir=self.CONFIG.output_dir, init=False)
@@ -505,6 +505,8 @@ class ImageElastixWindow(ImageWsiWindow):
 
     def _on_load_from_project(self, path_: PathLike) -> None:
         if path_:
+            from image2image_reg.workflows.elastix import ElastixReg
+
             path_ = Path(path_)
             try:
                 project_path = path_.parent if path_.is_file() else path_

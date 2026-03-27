@@ -10,6 +10,7 @@ from image2image_io.config import CONFIG as READER_CONFIG
 from loguru import logger
 from qtextra.dialogs.qt_close_window import QtConfirmCloseDialog
 from qtextra.utils.table_config import TableConfig
+from qtextra.widgets.qt_label_icon import QtPulsingAttentionLabel
 from qtpy.QtCore import Qt
 from qtpy.QtGui import QDropEvent
 from qtpy.QtWidgets import QDialog, QHeaderView, QMenuBar, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget
@@ -299,6 +300,7 @@ class ImageConvertWindow(NoViewerMixin):
             tile_size=int(self.tile_size.currentText()),
         )
         READER_CONFIG.split_czi = self.split_czi.isChecked()
+        self.as_uint8_warning.pulse(self.CONFIG.as_uint8)
 
     def on_set_output_dir_same_as_input(self) -> None:
         """Update output directory to be the same as the input directory."""
@@ -374,8 +376,17 @@ class ImageConvertWindow(NoViewerMixin):
             func=self.on_update_config,
         )
         hp.disable_widgets(self.split_czi, disabled=True)
+        self.as_uint8_warning = QtPulsingAttentionLabel(color_from_key="icon", color_to_key="warning")
+        self.as_uint8_warning.set_normal()
+        self.as_uint8_warning.setToolTip(C.UINT8_WARNING)
+        self.as_uint8_warning.pulse(self.CONFIG.as_uint8)
         self.as_uint8 = hp.make_checkbox(
-            self, "", tooltip=C.UINT8_TOOLTIP, checked=True, value=self.CONFIG.as_uint8, func=self.on_update_config
+            self,
+            "",
+            tooltip=C.UINT8_TOOLTIP,
+            checked=True,
+            value=self.CONFIG.as_uint8,
+            func=self.on_update_config,
         )
         self.overwrite = hp.make_checkbox(
             self,
@@ -445,17 +456,7 @@ class ImageConvertWindow(NoViewerMixin):
         side_layout.addRow("Tile size", hp.make_h_layout(self.tile_size, stretch_after=True))
         side_layout.addRow(
             "Reduce file size",
-            hp.make_h_layout(
-                self.as_uint8,
-                hp.make_warning_label(
-                    self,
-                    "While this option reduces the amount of space an image takes on your disk, it can lead to data"
-                    " loss and should be used with caution.",
-                    normal=True,
-                ),
-                spacing=2,
-                stretch_after=True,
-            ),
+            hp.make_h_layout(self.as_uint8, self.as_uint8_warning, spacing=2, stretch_after=True),
         )
         side_layout.addRow("Overwrite", hp.make_h_layout(self.overwrite, stretch_after=True))
         side_layout.addRow(self.export_btn)
@@ -542,6 +543,28 @@ class ImageConvertWindow(NoViewerMixin):
             self._console.close()
         self.CONFIG.save()
         evt.accept()
+
+    def on_delete_scene(self) -> None:
+        """Remove selected scene rows from the table and data model."""
+        sel_model = self.table.selectionModel()
+        if not sel_model.hasSelection():
+            return
+        indices = sorted({index.row() for index in sel_model.selectedRows()}, reverse=True)
+        for row in indices:
+            key = self.table.item(row, self.TABLE_CONFIG.key).text()
+            if self.data_model.has_key(key):
+                self.data_model.remove_keys(key)
+            self.table.removeRow(row)
+            logger.debug(f"Removed scene '{key}' from convert table")
+        self.on_cleanup_reader_metadata(self.data_model)
+
+    def keyPressEvent(self, evt) -> None:
+        """Key press event."""
+        if evt.key() in (Qt.Key.Key_Delete, Qt.Key.Key_Backspace):
+            self.on_delete_scene()
+            evt.accept()
+        else:
+            super().keyPressEvent(evt)
 
     def dropEvent(self, event: QDropEvent) -> None:
         """Drop event."""
