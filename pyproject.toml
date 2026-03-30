@@ -48,7 +48,7 @@ dependencies = [
     "lxml==4.9.2; python_version < '3.12'",
     "lxml==5.4.0; python_version >= '3.12'",
     "rasterio",
-    "pandas>=2",
+    "pandas>=2.2,<4",
     "setuptools; python_version >= '3.13'",
     "xarray",
     "numpy",

@@ -3,7 +3,7 @@
 import os
 
 import pytest
-from koyo.utilities import is_installed
+from koyo.system import is_installed
 
 has_i2reg = is_installed("image2image_reg")
 has_i2io = is_installed("image2image_io")

@@ -39,7 +39,7 @@ class State:
     @property
     def allow_valis(self) -> bool:
         """Allow Valis app."""
-        from koyo.utilities import is_installed
+        from koyo.system import is_installed
 
         return is_installed("valis") and is_installed("pyvips")
 

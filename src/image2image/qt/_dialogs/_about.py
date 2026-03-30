@@ -21,7 +21,7 @@ class AboutDialog(QtFramelessPopup):
     # noinspection PyAttributeOutsideInit
     def make_panel(self):
         """Make panel."""
-        from koyo.utilities import get_version
+        from koyo.system import get_version
         from qtextra.widgets.qt_svg import QtColoredSVGIcon
 
         from image2image import __version__
