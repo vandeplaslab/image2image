@@ -11,7 +11,6 @@ from koyo.timer import MeasureTimer
 from koyo.typing import PathLike
 from loguru import logger
 from napari.layers import Image, Layer, Points, Shapes
-
 from qtextra.utils.utilities import connect
 from qtpy.QtCore import QModelIndex
 from qtpy.QtWidgets import QDialog, QLabel, QMenuBar, QTableWidget
@@ -29,7 +28,7 @@ if ty.TYPE_CHECKING:
 
 
 class SingleViewerMixin(Window):
-    """Mixin class for single viewer."""
+    """Mixin class for a single viewer."""
 
     # Mixin arguments
     WINDOW_CONSOLE_ARGS: tuple[str, ...] = ()
