@@ -706,7 +706,7 @@ class ImageWsiWindow(SingleViewerMixin):
         self.name_label = hp.make_line_edit(
             side_widget,
             "",
-            tooltip="Name of the project",
+            tooltip="Project name.",
             placeholder=f"e.g. project{self.PROJECT_SUFFIX}",
             func=self.on_validate_path,
             func_changed=self.on_validate_path,
@@ -716,7 +716,7 @@ class ImageWsiWindow(SingleViewerMixin):
         self.output_dir_btn = hp.make_qta_btn(
             side_widget,
             "folder",
-            tooltip="Change output directory",
+            tooltip="Change the output directory.",
             func=self.on_set_output_dir,
             normal=True,
             standout=True,
@@ -741,7 +741,7 @@ class ImageWsiWindow(SingleViewerMixin):
         self.apply_btn = hp.make_qta_btn(
             self,
             "magic",
-            tooltip="Apply pre-processing to all modalities",
+            tooltip="Apply preprocessing to all modalities.",
             func=self.on_apply,
             normal=True,
             standout=True,
@@ -1032,7 +1032,7 @@ class ImageWsiWindow(SingleViewerMixin):
             menu=menu,
             func=lambda: self.on_copy_to_clipboard("all"),
             icon="cli",
-            tooltip="Copy the registration command to clipboard so it can be executed externally.",
+            tooltip="Copy the preprocessing, registration, and transformation commands to the clipboard.",
         )
         hp.make_menu_item(
             self,
@@ -1040,7 +1040,7 @@ class ImageWsiWindow(SingleViewerMixin):
             menu=menu,
             func=lambda: self.on_copy_to_clipboard("preprocess"),
             icon="cli",
-            tooltip="Copy the registration command to clipboard so it can be executed externally.",
+            tooltip="Copy the preprocessing command to the clipboard.",
         )
         hp.make_menu_item(
             self,

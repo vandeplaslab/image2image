@@ -139,6 +139,8 @@ class PreprocessingDialog(QtFramelessTool):
         .add("index", "channel_index", "int", 100, sizing="contents")
         .add("name", "channel_name", "str", 250, sizing="stretch")
     )
+    MINIMUM_WIDTH = 360
+    MAXIMUM_WIDTH = 425
 
     def __init__(
         self,
@@ -152,7 +154,8 @@ class PreprocessingDialog(QtFramelessTool):
         self.color = color
         self.modality = modality
         super().__init__(parent)
-        self.setMinimumWidth(400)
+        self.setMinimumWidth(self.MINIMUM_WIDTH)
+        self.setMaximumWidth(self.MAXIMUM_WIDTH)
         self.setMinimumHeight(400)
 
         self.preprocessing = deepcopy(modality.preprocessing)
@@ -324,7 +327,7 @@ class PreprocessingDialog(QtFramelessTool):
         new_hash = hash_parameters(**self.preprocessing.to_dict())
         if new_hash != self.original_hash and not hp.confirm(
             self,
-            "You've made changes to the pre-processing settings. Closing will discard them. "
+            "You've made changes to the preprocessing settings. Closing will discard them. "
             "<br><b>Are you sure you wish to continue?</b>",
         ):
             return False
@@ -351,22 +354,36 @@ class PreprocessingDialog(QtFramelessTool):
     def make_panel(self) -> QFormLayout:
         """Make panel."""
         button_layout = hp.make_h_layout(
-            hp.make_btn(self, "Basic", tooltip="Basic pre-processing.", func=lambda: self.on_set_defaults("Basic")),
             hp.make_btn(
-                self, "Brightfield", tooltip="Basic pre-processing.", func=lambda: self.on_set_defaults("Brightfield")
+                self, "Basic", tooltip="Apply basic preprocessing.", func=lambda: self.on_set_defaults("Basic")
             ),
             hp.make_btn(
-                self, "Fluorescence", tooltip="Basic pre-processing.", func=lambda: self.on_set_defaults("Fluorescence")
-            ),
-            hp.make_btn(self, "H&E", tooltip="Basic pre-processing.", func=lambda: self.on_set_defaults("H&E")),
-            hp.make_btn(self, "PAS", tooltip="Basic pre-processing.", func=lambda: self.on_set_defaults("PAS")),
-            hp.make_btn(
-                self, "postAF(B)", tooltip="Basic pre-processing.", func=lambda: self.on_set_defaults("postAF(B)")
+                self,
+                "Brightfield",
+                tooltip="Apply brightfield preprocessing.",
+                func=lambda: self.on_set_defaults("Brightfield"),
             ),
             hp.make_btn(
-                self, "postAF(E)", tooltip="Basic pre-processing.", func=lambda: self.on_set_defaults("postAF(E)")
+                self,
+                "Fluorescence",
+                tooltip="Apply fluorescence preprocessing.",
+                func=lambda: self.on_set_defaults("Fluorescence"),
             ),
-            hp.make_btn(self, "DAPI", tooltip="Basic pre-processing.", func=lambda: self.on_set_defaults("DAPI")),
+            hp.make_btn(self, "H&E", tooltip="Apply H&E preprocessing.", func=lambda: self.on_set_defaults("H&E")),
+            hp.make_btn(self, "PAS", tooltip="Apply PAS preprocessing.", func=lambda: self.on_set_defaults("PAS")),
+            hp.make_btn(
+                self,
+                "postAF(B)",
+                tooltip="Apply postAF(B) preprocessing.",
+                func=lambda: self.on_set_defaults("postAF(B)"),
+            ),
+            hp.make_btn(
+                self,
+                "postAF(E)",
+                tooltip="Apply postAF(E) preprocessing.",
+                func=lambda: self.on_set_defaults("postAF(E)"),
+            ),
+            hp.make_btn(self, "DAPI", tooltip="Apply DAPI preprocessing.", func=lambda: self.on_set_defaults("DAPI")),
             spacing=1,
             margin=1,
         )
@@ -375,7 +392,7 @@ class PreprocessingDialog(QtFramelessTool):
         self.method = hp.make_combobox(
             self,
             get_methods_for_modality(self.modality),
-            tooltip="Pre-processing method (only valid for Valis registration)",
+            tooltip="Preprocessing method. This is only available for Valis registration.",
             func=[self.on_toggle_available, self.on_update_model],
         )
         self.method.setHidden(not self.valis)
@@ -385,7 +402,7 @@ class PreprocessingDialog(QtFramelessTool):
             self,
             "Brightfield",
             "Fluorescence",
-            tooltip="Image type - this determines how certain pre-processing steps are conducted.",
+            tooltip="Image type. This determines how certain preprocessing steps are applied.",
             func=self.on_update_model,
         )
         self.equalize_check = hp.make_checkbox(
@@ -526,18 +543,21 @@ class PreprocessingDialog(QtFramelessTool):
 
         self.preview_check = hp.make_checkbox(self, "", func=self.on_preview_preprocessing, value=True)
 
-        _, title_layout = self._make_close_handle("Pre-processing")
+        _, title_layout = self._make_close_handle("Preprocessing")
         color_icon = hp.make_swatch(self, self.color, tooltip="Color of the modality (for reference only).")
         color_icon.setEnabled(False)
         title_layout.insertWidget(0, color_icon)
 
         layout = hp.make_form_layout()
         layout.setContentsMargins(6, 6, 6, 6)
+        layout.setHorizontalSpacing(8)
+        layout.setVerticalSpacing(6)
+        layout.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.ExpandingFieldsGrow)
         layout.addRow(title_layout)
         layout.addRow(
             hp.make_label(
                 self,
-                "Pre-processing will be applied to the image before registration. You want images that look most"
+                "Preprocessing will be applied to the image before registration. You want images that look most"
                 " alike to each other as it will improve registration.<br><b>Note</b> If you are using spatial"
                 " transformations, make sure images are not cropped.",
                 wrap=True,

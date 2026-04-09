@@ -18,7 +18,7 @@ class QtModalityLabel(QtQtaLabel):
             self._icon_color = color
         self._state: str = "image"
         self.state = "image"
-        self.set_normal()
+        self.set_qta_size_preset("normal")
 
     @property
     def state(self) -> str:

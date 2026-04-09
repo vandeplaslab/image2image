@@ -352,7 +352,7 @@ class ImageMergeWindow(NoViewerMixin):
             func=self.on_update_config,
         )
         self.as_uint8_warning = QtPulsingAttentionLabel(color_from_key="icon", color_to_key="warning")
-        self.as_uint8_warning.set_normal()
+        self.as_uint8_warning.set_qta_size_preset("normal")
         self.as_uint8_warning.setToolTip(C.UINT8_WARNING)
         self.as_uint8_warning.pulse(self.CONFIG.as_uint8)
         self.as_uint8 = hp.make_checkbox(

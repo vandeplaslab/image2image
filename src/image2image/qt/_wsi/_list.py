@@ -93,7 +93,7 @@ class QtModalityItem(QFrame):
         self.preprocessing_btn = hp.make_qta_btn(
             self,
             "process",
-            tooltip="Click here to set pre-processing parameters.",
+            tooltip="Open preprocessing settings.",
             func=self.on_open_preprocessing,
             normal=True,
         )
@@ -101,7 +101,7 @@ class QtModalityItem(QFrame):
         self.attach_image_btn = hp.make_qta_btn(
             self,
             "image",
-            tooltip="Click here to attach Image file. (.czi, .tiff)<br>Right-click to remove images.",
+            tooltip="Attach an image file (.czi, .tiff).<br>Right-click to remove images.",
             normal=True,
             func=self.on_attach_image,
             func_menu=lambda _: self.on_edit_attachment(which="image"),
@@ -110,7 +110,7 @@ class QtModalityItem(QFrame):
         self.attach_geojson_btn = hp.make_qta_btn(
             self,
             "shapes",
-            tooltip="Click here to attach GeoJSON file (.geojson).<br>Right-click to remove shapes.",
+            tooltip="Attach a GeoJSON file (.geojson).<br>Right-click to remove shapes.",
             normal=True,
             func=self.on_attach_geojson,
             func_menu=lambda _: self.on_edit_attachment(which="shapes"),
@@ -119,7 +119,7 @@ class QtModalityItem(QFrame):
         self.attach_points_btn = hp.make_qta_btn(
             self,
             "points",
-            tooltip="Click here to attach points file (.csv, .txt).<br>Right-click to remove points.",
+            tooltip="Attach a points file (.csv, .txt).<br>Right-click to remove points.",
             normal=True,
             func=self.on_attach_points,
             func_menu=lambda _: self.on_edit_attachment(which="points"),
@@ -128,7 +128,7 @@ class QtModalityItem(QFrame):
 
         self.preprocessing_label = hp.make_scrollable_label(
             self,
-            "<no pre-processing>",
+            "<no preprocessing>",
             alignment=Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop,
         )
         self.preprocessing_label.evt_clicked.connect(self.on_open_preprocessing)
@@ -138,7 +138,7 @@ class QtModalityItem(QFrame):
         self.open_dir_btn = hp.make_qta_btn(
             self,
             "folder",
-            tooltip="Open directory containing the image.\nRight-click on the button to open a copy to clipboard menu.",
+            tooltip="Open the directory containing the image.\nRight-click to open the copy-to-clipboard menu.",
             normal=True,
             func=self.on_open_directory,
             func_menu=self.on_copy_to_clipboard_menu,
@@ -167,13 +167,13 @@ class QtModalityItem(QFrame):
 
         self.lock_btn = QtLockButton(self)
         self.lock_btn.setToolTip("Prevent spatial transformation to the layer.")
-        self.lock_btn.set_normal()
+        self.lock_btn.set_qta_size_preset("normal")
         self.lock_btn.auto_connect()
         self.lock_btn.evt_toggled.connect(self._on_lock_preprocessing)
 
         self.visible_btn = QtVisibleButton(self, state=True, auto_connect=True)
         self.visible_btn.setToolTip("Show/hide image from the canvas.")
-        self.visible_btn.set_normal()
+        self.visible_btn.set_qta_size_preset("normal")
         self.visible_btn.evt_toggled.connect(self._on_show_image)
 
         self.opacity_slider = QLabeledDoubleSlider(Qt.Orientation.Horizontal, parent=self)
@@ -197,10 +197,14 @@ class QtModalityItem(QFrame):
 
         grid = QGridLayout(self)
         # widget, row, column, rowspan, colspan
-        grid.setSpacing(0)
+        grid.setHorizontalSpacing(6)
+        grid.setVerticalSpacing(4)
         grid.setContentsMargins(0, 0, 0, 0)
-        grid.setColumnStretch(3, True)
-        grid.setColumnStretch(5, True)
+        grid.setColumnStretch(3, 1)
+        grid.setColumnStretch(5, 0)
+        grid.setRowMinimumHeight(0, 26)
+        grid.setRowMinimumHeight(1, 26)
+        grid.setRowMinimumHeight(2, 26)
         # column 1
         grid.addWidget(self.modality_icon, 0, 0)
         grid.addWidget(self.open_dir_btn, 1, 0)
@@ -231,6 +235,9 @@ class QtModalityItem(QFrame):
         self.mode = False
         self._set_from_model()
         self._old_hex_color = self.hex_color
+
+        self.output_resolution_label.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
+        self.preprocessing_label.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.MinimumExpanding)
 
         self.name_label.installEventFilter(self)
         self.resolution_label.installEventFilter(self)
@@ -640,7 +647,7 @@ class QtModalityList(QScrollArea):
         self.setWidgetResizable(True)
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)  # type: ignore[attr-defined]
         self.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)  # type: ignore[attr-defined]
-        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)  # type: ignore[attr-defined]
+        self.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Expanding)  # type: ignore[attr-defined]
 
     def model_widget_iter(self) -> ty.Generator[tuple[Modality, QtModalityItem]]:
         """Iterate over widgets."""

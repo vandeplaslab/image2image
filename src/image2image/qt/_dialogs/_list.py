@@ -103,7 +103,7 @@ class QtDatasetItem(QFrame):
         self.size_label = hp.make_label(self, "", tooltip="Uncompressed size of the modality in GB.")
 
         self.modality_icon = QtModalityLabel(self)
-        self.modality_icon.set_average()
+        self.modality_icon.set_qta_size_preset("average")
         self.open_dir_btn = hp.make_qta_btn(
             self, "folder", tooltip="Open directory containing the image.", normal=True, func=self.on_open_directory
         )

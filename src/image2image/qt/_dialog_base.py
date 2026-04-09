@@ -564,7 +564,7 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
         with hp.qt_signals_blocked(self.theme_btn):
             self.theme_btn.dark = get_app_config().theme == "dark"
         self.theme_btn.clicked.connect(self.on_toggle_theme)  # noqa
-        self.theme_btn.set_small()
+        self.theme_btn.set_qta_size_preset("small")
         self.statusbar.addPermanentWidget(self.theme_btn)
 
     def _make_update_statusbar(self) -> None:

@@ -592,8 +592,9 @@ class ImageElastixWindow(ImageWsiWindow):
         )
 
         side_widget = QWidget()
-        side_widget.setMinimumWidth(525)
-        side_widget.setMaximumWidth(525)
+        side_widget.setMinimumWidth(420)
+        side_widget.setMaximumWidth(500)
+        side_widget.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Expanding)
 
         self.modality_list = QtModalityList(self)
 
