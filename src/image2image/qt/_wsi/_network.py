@@ -84,7 +84,7 @@ class NetworkViewer(QtFramelessTool):
             "refresh",
             tooltip="Refresh the network plot.",
             func=self.on_plot,
-            normal=True,
+            size_preset="normal",
             disabled=True,
         )
 

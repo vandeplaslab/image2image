@@ -747,42 +747,42 @@ class ImageElastix3dWindow(Window):
 
         self.toolbar = QtMiniToolbar(self, orientation=Qt.Orientation.Vertical, add_spacer=False)
         self.toolbar.add_qta_tool(
-            "rotate_left", tooltip="Rotate image left (E)", func=lambda: self.on_rotate("left"), average=True
+            "rotate_left", tooltip="Rotate image left (E)", func=lambda: self.on_rotate("left"), size_preset="average"
         )
         self.toolbar.add_qta_tool(
-            "rotate_right", tooltip="Rotate image right (Q)", func=lambda: self.on_rotate("right"), average=True
+            "rotate_right", tooltip="Rotate image right (Q)", func=lambda: self.on_rotate("right"), size_preset="average"
         )
         self.toolbar.add_qta_tool(
-            "translate_up", tooltip="Translate image up (W)", func=lambda: self.on_translate("up"), average=True
+            "translate_up", tooltip="Translate image up (W)", func=lambda: self.on_translate("up"), size_preset="average"
         )
         self.toolbar.add_qta_tool(
-            "translate_down", tooltip="Translate image down (S)", func=lambda: self.on_translate("down"), average=True
+            "translate_down", tooltip="Translate image down (S)", func=lambda: self.on_translate("down"), size_preset="average"
         )
         self.toolbar.add_qta_tool(
-            "translate_left", tooltip="Translate image left (A)", func=lambda: self.on_translate("left"), average=True
+            "translate_left", tooltip="Translate image left (A)", func=lambda: self.on_translate("left"), size_preset="average"
         )
         self.toolbar.add_qta_tool(
             "translate_right",
             tooltip="Translate image right (D)",
             func=lambda: self.on_translate("right"),
-            average=True,
+            size_preset="average",
         )
-        self.toolbar.add_qta_tool("flip_lr", tooltip="Flip image left-right (F)", func=self.on_flip_lr, average=True)
-        self.toolbar.add_qta_tool("group", tooltip="Group images", func=lambda x: self.on_group(True), average=True)
+        self.toolbar.add_qta_tool("flip_lr", tooltip="Flip image left-right (F)", func=self.on_flip_lr, size_preset="average")
+        self.toolbar.add_qta_tool("group", tooltip="Group images", func=lambda x: self.on_group(True), size_preset="average")
         self.toolbar.add_qta_tool(
-            "ungroup", tooltip="Ungroup images", func=lambda x: self.on_group(False), average=True
-        )
-        self.toolbar.add_qta_tool(
-            "lock_open", tooltip="Lock images (L)", func=lambda x: self.on_lock(True), average=True
+            "ungroup", tooltip="Ungroup images", func=lambda x: self.on_group(False), size_preset="average"
         )
         self.toolbar.add_qta_tool(
-            "lock_closed", tooltip="Unlock images (U)", func=lambda x: self.on_lock(False), average=True
+            "lock_open", tooltip="Lock images (L)", func=lambda x: self.on_lock(True), size_preset="average"
         )
         self.toolbar.add_qta_tool(
-            "keep_image", tooltip="Keep images (Z)", func=lambda x: self.on_keep(True), average=True
+            "lock_closed", tooltip="Unlock images (U)", func=lambda x: self.on_lock(False), size_preset="average"
         )
         self.toolbar.add_qta_tool(
-            "remove_image", tooltip="Remove images (X)", func=lambda x: self.on_keep(False), average=True
+            "keep_image", tooltip="Keep images (Z)", func=lambda x: self.on_keep(True), size_preset="average"
+        )
+        self.toolbar.add_qta_tool(
+            "remove_image", tooltip="Remove images (X)", func=lambda x: self.on_keep(False), size_preset="average"
         )
         self.toolbar.add_spacer()
         self.toolbar.add_qta_tool(

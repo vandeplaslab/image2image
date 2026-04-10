@@ -95,14 +95,14 @@ class QtModalityItem(QFrame):
             "process",
             tooltip="Open preprocessing settings.",
             func=self.on_open_preprocessing,
-            normal=True,
+            size_preset="normal",
         )
         self.color_btn = hp.make_swatch(self, color, tooltip="Click here to change color.", func=self._on_change_color)
         self.attach_image_btn = hp.make_qta_btn(
             self,
             "image",
             tooltip="Attach an image file (.czi, .tiff).<br>Right-click to remove images.",
-            normal=True,
+            size_preset="normal",
             func=self.on_attach_image,
             func_menu=lambda _: self.on_edit_attachment(which="image"),
             properties={"with_count": True},
@@ -111,7 +111,7 @@ class QtModalityItem(QFrame):
             self,
             "shapes",
             tooltip="Attach a GeoJSON file (.geojson).<br>Right-click to remove shapes.",
-            normal=True,
+            size_preset="normal",
             func=self.on_attach_geojson,
             func_menu=lambda _: self.on_edit_attachment(which="shapes"),
             properties={"with_count": True},
@@ -120,7 +120,7 @@ class QtModalityItem(QFrame):
             self,
             "points",
             tooltip="Attach a points file (.csv, .txt).<br>Right-click to remove points.",
-            normal=True,
+            size_preset="normal",
             func=self.on_attach_points,
             func_menu=lambda _: self.on_edit_attachment(which="points"),
             properties={"with_count": True},
@@ -139,7 +139,7 @@ class QtModalityItem(QFrame):
             self,
             "folder",
             tooltip="Open the directory containing the image.\nRight-click to open the copy-to-clipboard menu.",
-            normal=True,
+            size_preset="normal",
             func=self.on_open_directory,
             func_menu=self.on_copy_to_clipboard_menu,
         )
@@ -147,20 +147,20 @@ class QtModalityItem(QFrame):
             self,
             "delete",
             tooltip="Remove modality from the list.",
-            normal=True,
+            size_preset="normal",
             func=self.on_remove,
         )
         self.mask_btn = hp.make_qta_label(
             self,
             "mask",
-            normal=True,
+            size_preset="normal",
             tooltip="When mask is applied to the image, this icon will be visible.",
         )
         self.mask_btn.setHidden(self.valis)
         self.crop_btn = hp.make_qta_label(
             self,
             "crop",
-            normal=True,
+            size_preset="normal",
             tooltip="When cropping is applied to the image, this icon will be visible.",
         )
         self.crop_btn.setHidden(self.valis)

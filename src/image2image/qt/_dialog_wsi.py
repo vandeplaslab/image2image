@@ -718,7 +718,7 @@ class ImageWsiWindow(SingleViewerMixin):
             "folder",
             tooltip="Change the output directory.",
             func=self.on_set_output_dir,
-            normal=True,
+            size_preset="normal",
             standout=True,
         )
 
@@ -743,7 +743,7 @@ class ImageWsiWindow(SingleViewerMixin):
             "magic",
             tooltip="Apply preprocessing to all modalities.",
             func=self.on_apply,
-            normal=True,
+            size_preset="normal",
             standout=True,
         )
 
@@ -752,7 +752,7 @@ class ImageWsiWindow(SingleViewerMixin):
             "visible_on",
             tooltip="Show all modalities",
             func=self.modality_list.on_show_all,
-            normal=True,
+            size_preset="normal",
             standout=True,
         )
         self.hide_all_btn = hp.make_qta_btn(
@@ -760,7 +760,7 @@ class ImageWsiWindow(SingleViewerMixin):
             "visible_off",
             tooltip="Hide all modalities",
             func=self.modality_list.on_hide_all,
-            normal=True,
+            size_preset="normal",
             standout=True,
         )
         self.recolor_btn = hp.make_qta_btn(
@@ -768,7 +768,7 @@ class ImageWsiWindow(SingleViewerMixin):
             "color_palette",
             tooltip="Change colors...",
             func=self.on_recolor,
-            normal=True,
+            size_preset="normal",
             standout=True,
         )
         self.sort_btn = hp.make_qta_btn(
@@ -776,7 +776,7 @@ class ImageWsiWindow(SingleViewerMixin):
             "sort",
             tooltip="Sort list by...",
             func=self.on_sort,
-            normal=True,
+            size_preset="normal",
             standout=True,
         )
         self.filter_modalities_by = hp.make_line_edit(
@@ -886,7 +886,7 @@ class ImageWsiWindow(SingleViewerMixin):
                 hp.make_warning_label(
                     self,
                     C.UINT8_WARNING,
-                    normal=True,
+                    size_preset="normal",
                     icon_name=("warning", {"color": THEMES.get_theme_color("warning")}),
                 ),
                 spacing=2,
@@ -1082,7 +1082,7 @@ class ImageWsiWindow(SingleViewerMixin):
         self.save_btn = hp.make_qta_btn(
             self,
             "save",
-            normal=True,
+            size_preset="normal",
             tooltip=f"Save {self.APP_NAME.capitalize()} project to disk.",
             func=self.on_save_to_project,
             func_menu=self.on_save_menu,
@@ -1095,7 +1095,7 @@ class ImageWsiWindow(SingleViewerMixin):
             func_menu=self.on_view_menu,
             tooltip="Open the project in the viewer. This only makes sense if registration is complete.",
             standout=True,
-            normal=True,
+            size_preset="normal",
         )
         self.close_btn = hp.make_qta_btn(
             side_widget,
@@ -1104,7 +1104,7 @@ class ImageWsiWindow(SingleViewerMixin):
             func=self.on_close,
             func_menu=self.on_close_menu,
             standout=True,
-            normal=True,
+            size_preset="normal",
         )
         self.run_btn = hp.make_btn(
             side_widget,

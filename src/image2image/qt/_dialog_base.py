@@ -580,7 +580,7 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
 
     def _make_tutorial_statusbar(self) -> None:
         self.tutorial_btn = hp.make_qta_btn(
-            self, "help", tooltip="Give me a quick tutorial!", func=self.on_show_tutorial, small=True
+            self, "help", tooltip="Give me a quick tutorial!", func=self.on_show_tutorial, size_preset="small"
         )
         self.statusbar.addPermanentWidget(self.tutorial_btn)
 
@@ -590,14 +590,14 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
                 self,
                 "ipython",
                 tooltip="Open IPython console",
-                small=True,
+                size_preset="small",
                 func=self.on_show_console,
             )
         )
 
     def _make_shortcut_statusbar(self) -> None:
         self.shortcuts_btn = hp.make_qta_btn(
-            self, "shortcut", tooltip="Show me shortcuts", func=self.on_show_shortcuts, small=True
+            self, "shortcut", tooltip="Show me shortcuts", func=self.on_show_shortcuts, size_preset="small"
         )
         self.statusbar.addPermanentWidget(self.shortcuts_btn)
         self.shortcuts_btn.hide()
@@ -610,7 +610,7 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
             "feedback",
             tooltip="Send feedback to the developers.",
             func=partial(send_feedback, parent=self),
-            small=True,
+            size_preset="small",
         )
         self.statusbar.addPermanentWidget(self.feedback_btn)
 
@@ -620,7 +620,7 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
             "log",
             tooltip="Open log window.",
             func=self.on_show_logger,
-            small=True,
+            size_preset="small",
         )
         self.statusbar.addPermanentWidget(self.logger_btn)
 
@@ -631,7 +631,7 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
             tooltip="Show scalebar.",
             func=self.on_activate_scalebar,
             func_menu=self.on_show_scalebar,
-            small=True,
+            size_preset="small",
         )
         if front:
             self.statusbar.insertPermanentWidget(0, self.scalebar_btn)
@@ -649,7 +649,7 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
             " more options.",
             func=lambda _: self.view.widget.clipboard(),
             func_menu=self.on_show_save_figure,
-            small=True,
+            size_preset="small",
         )
         if front:
             self.statusbar.insertPermanentWidget(0, self.clipboard_btn)
@@ -662,7 +662,7 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
             tooltip="Save snapshot of the canvas to file. Right-click to show dialog with more options.",
             func=lambda _: self.view.widget.on_save_figure(),
             func_menu=self.on_show_save_figure,
-            small=True,
+            size_preset="small",
         )
         if front:
             self.statusbar.insertPermanentWidget(0, self.screenshot_btn)

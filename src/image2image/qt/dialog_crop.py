@@ -677,7 +677,7 @@ class ImageCropWindow(SingleViewerMixin):
                     self,
                     "This action will crop the image to the smallest region of interest, reducing the final size"
                     " of the image.",
-                    normal=True,
+                    size_preset="normal",
                 ),
                 stretch_id=(0, 1),
                 alignment=Qt.AlignmentFlag.AlignVCenter,
@@ -694,7 +694,7 @@ class ImageCropWindow(SingleViewerMixin):
                     self,
                     "This action will apply a binary mask to the image, masking out the regions outside the"
                     " masked area, keeping the original size of the image.",
-                    normal=True,
+                    size_preset="normal",
                 ),
                 stretch_id=(0, 1),
                 alignment=Qt.AlignmentFlag.AlignVCenter,

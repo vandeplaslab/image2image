@@ -68,7 +68,7 @@ class ExportImageDialog(QtDialog):
                 hp.make_warning_label(
                     self,
                     C.UINT8_WARNING,
-                    normal=True,
+                    size_preset="normal",
                     icon_name=("warning", {"color": THEMES.get_theme_color("warning")}),
                 ),
                 spacing=2,

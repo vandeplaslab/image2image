@@ -694,7 +694,7 @@ class ImageElastixWindow(ImageWsiWindow):
         self.spinner, _ = hp.make_loading_gif(self, which="infinity", size=(20, 20), retain_size=False, hide=True)
         self.statusbar.insertPermanentWidget(2, self.spinner)
 
-        self.queue_btn = hp.make_qta_btn(self, "queue", tooltip="Open queue popup.", small=True)
+        self.queue_btn = hp.make_qta_btn(self, "queue", tooltip="Open queue popup.", size_preset="small")
         self.statusbar.insertPermanentWidget(3, self.queue_btn)
 
     def on_show_tutorial(self) -> None:

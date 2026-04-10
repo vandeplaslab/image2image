@@ -467,7 +467,7 @@ class PreprocessingDialog(QtFramelessTool):
             tooltip="Add 500um from current value (it might not be left!)\nRight-click will add 1500um",
             func=partial(self.on_translate_x, value=500),
             func_menu=lambda _: self.on_translate_x(value=1500),
-            normal=True,
+            size_preset="normal",
             standout=True,
         )
         self.translate_right = hp.make_qta_btn(
@@ -476,7 +476,7 @@ class PreprocessingDialog(QtFramelessTool):
             tooltip="Subtract 500um to the current value (it might not be right!) \nRight-click will subtract 1500um",
             func=partial(self.on_translate_x, value=-500),
             func_menu=lambda _: self.on_translate_x(value=-1500),
-            normal=True,
+            size_preset="normal",
             standout=True,
         )
         self.translate_y = hp.make_int_spin_box(
@@ -488,7 +488,7 @@ class PreprocessingDialog(QtFramelessTool):
             suffix="µm",
             tooltip="Translate Y",
             func=self.on_update_transform_model,
-            normal=True,
+            size_preset="normal",
             standout=True,
         )
         self.translate_up = hp.make_qta_btn(
@@ -497,7 +497,7 @@ class PreprocessingDialog(QtFramelessTool):
             tooltip="Add 500um from current value (it might not be up!)\nRight-click will add 1500um)",
             func=partial(self.on_translate_y, value=500),
             func_menu=lambda _: self.on_translate_y(value=1500),
-            normal=True,
+            size_preset="normal",
             standout=True,
         )
         self.translate_down = hp.make_qta_btn(
@@ -506,7 +506,7 @@ class PreprocessingDialog(QtFramelessTool):
             tooltip="Subtract 500um to the current value (it might not be down!)\nRight-click will subtract 1500um",
             func=partial(self.on_translate_y, value=-500),
             func_menu=lambda _: self.on_translate_y(value=-1500),
-            normal=True,
+            size_preset="normal",
             standout=True,
         )
         self.rotate_bck = hp.make_qta_btn(
@@ -515,7 +515,7 @@ class PreprocessingDialog(QtFramelessTool):
             tooltip="Rotate (counter-clockwise) -90 degrees.\nRight-click will rotate -15 degrees.",
             func=partial(self.on_rotate, value=-15),
             func_menu=lambda _: self.on_rotate(value=-90),
-            normal=True,
+            size_preset="normal",
             standout=True,
         )
         self.rotate_fwd = hp.make_qta_btn(
@@ -524,7 +524,7 @@ class PreprocessingDialog(QtFramelessTool):
             tooltip="Rotate (clockwise) 90 degrees.\nRight-click will rotate 15 degrees.",
             func=partial(self.on_rotate, value=15),
             func_menu=lambda _: self.on_rotate(value=90),
-            normal=True,
+            size_preset="normal",
             standout=True,
         )
         self.rotate_spin = hp.make_double_spin_box(
@@ -588,7 +588,7 @@ class PreprocessingDialog(QtFramelessTool):
                 hp.make_warning_label(
                     self,
                     "Setting this value is not fully supported yet.<br>Aim to move your image to the <b>top left!</b>",
-                    small=True,
+                    size_preset="small",
                 ),
                 self.translate_x,
                 self.translate_left,
@@ -604,7 +604,7 @@ class PreprocessingDialog(QtFramelessTool):
                 hp.make_warning_label(
                     self,
                     "Setting this value is not fully supported yet.<br>Aim to move your images to the <b>top left!</b>",
-                    small=True,
+                    size_preset="small",
                 ),
                 self.translate_y,
                 self.translate_up,

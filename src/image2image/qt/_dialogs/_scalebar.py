@@ -16,7 +16,7 @@ class QtScaleBarControls(_QtScaleBarControls):
 
         self.HIDE_WHEN_CLOSE = False
 
-        close_btn = hp.make_qta_btn(self, "cross", tooltip="Click here to close the popup window", normal=True)
+        close_btn = hp.make_qta_btn(self, "cross", tooltip="Click here to close the popup window", size_preset="normal")
         close_btn.clicked.connect(self.close)
         self._title_layout.addWidget(close_btn)
 

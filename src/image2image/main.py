@@ -278,7 +278,7 @@ def run(
                     "dev",
                     tooltip="Open development tools.",
                     func=dev_dlg.show,  # type: ignore[attr-defined]
-                    small=True,
+                    size_preset="small",
                 )
                 dlg.statusbar.addPermanentWidget(dlg.dev_btn)  # type: ignore[attr-defined]
         os.environ["IMAGE2IMAGE_DEV_MODE"] = "1" if dev else "0"

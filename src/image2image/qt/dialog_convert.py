@@ -419,7 +419,7 @@ class ImageConvertWindow(NoViewerMixin):
         if STATE.is_mac_arm_pyinstaller:
             side_layout.addRow(
                 hp.make_h_layout(
-                    hp.make_warning_label(self, "", average=True),
+                    hp.make_warning_label(self, "", size_preset="average"),
                     hp.make_label(
                         self,
                         "Warning: On Apple Silicon, the conversion process happens in the UI thread, meaning that"

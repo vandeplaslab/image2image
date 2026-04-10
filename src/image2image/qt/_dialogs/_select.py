@@ -116,17 +116,17 @@ class LoadWidget(QWidget):
 
         self.active_icon = QtActiveIcon()
         self.import_btn = hp.make_qta_btn(
-            self, "import", func=self.on_import_project, tooltip="Open project file.", standout=True, normal=True
+            self, "import", func=self.on_import_project, tooltip="Open project file.", standout=True, size_preset="normal"
         )
         if not self.allow_import_project:
             self.import_btn.setVisible(False)
         self.export_btn = hp.make_qta_btn(
-            self, "export", func=self.on_export_project, tooltip="Save project file.", standout=True, normal=True
+            self, "export", func=self.on_export_project, tooltip="Save project file.", standout=True, size_preset="normal"
         )
         if not self.allow_export_project:
             self.export_btn.setVisible(False)
         self.add_btn = hp.make_qta_btn(
-            self, "add", func=self.on_select_dataset, tooltip="Add image(s) to the viewer.", standout=True, normal=True
+            self, "add", func=self.on_select_dataset, tooltip="Add image(s) to the viewer.", standout=True, size_preset="normal"
         )
         self.more_btn = hp.make_btn(
             self,
@@ -148,7 +148,7 @@ class LoadWidget(QWidget):
                     func_menu=self.on_clear_menu,
                     tooltip="Remove image(s) from the viewer.<br>Right-click to open menu.",
                     standout=True,
-                    normal=True,
+                    size_preset="normal",
                 ),
                 self.export_btn,
                 self.active_icon,

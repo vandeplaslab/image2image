@@ -105,27 +105,27 @@ class QtDatasetItem(QFrame):
         self.modality_icon = QtModalityLabel(self)
         self.modality_icon.set_qta_size_preset("average")
         self.open_dir_btn = hp.make_qta_btn(
-            self, "folder", tooltip="Open directory containing the image.", normal=True, func=self.on_open_directory
+            self, "folder", tooltip="Open directory containing the image.", size_preset="normal", func=self.on_open_directory
         )
         self.remove_btn = hp.make_qta_btn(
             self,
             "delete",
             tooltip="Remove modality from the list.<br>Right-click to remove without confirmation.",
-            normal=True,
+            size_preset="normal",
             func=self.on_remove,
             func_menu=self.on_force_remove,
         )
         self.extract_btn = hp.make_qta_btn(
-            self, "extract", tooltip="Extract images for dataset (e.g. from IMS).", normal=True, func=self.on_extract
+            self, "extract", tooltip="Extract images for dataset (e.g. from IMS).", size_preset="normal", func=self.on_extract
         )
         self.transform_btn = hp.make_qta_btn(
-            self, "transform", tooltip="Apply transform...", normal=True, func=self.on_transform_menu
+            self, "transform", tooltip="Apply transform...", size_preset="normal", func=self.on_transform_menu
         )
         self.iterate_btn = hp.make_qta_btn(
-            self, "iterate", tooltip="Activate iteration...", normal=True, func=self.on_iterate
+            self, "iterate", tooltip="Activate iteration...", size_preset="normal", func=self.on_iterate
         )
         self.save_btn = hp.make_qta_btn(
-            self, "save", tooltip="Save data as...", normal=True, func=self.on_save, hide=not allow_save
+            self, "save", tooltip="Save data as...", size_preset="normal", func=self.on_save, hide=not allow_save
         )
 
         self.table = QtCheckableTableView(self, config=TABLE_CONFIG, enable_all_check=True, sortable=True)

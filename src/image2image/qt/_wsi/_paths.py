@@ -83,7 +83,7 @@ class RegistrationPaths(QWidget):
             func=self.on_auto_create_paths,
             tooltip="Automatically create registration paths.",
             standout=True,
-            normal=True,
+            size_preset="normal",
         )
 
         layout = hp.make_form_layout(parent=self)
@@ -98,7 +98,7 @@ class RegistrationPaths(QWidget):
                     func=self.on_select_from_common,
                     tooltip="Select from a list of commonly used transformation combinations.",
                     standout=True,
-                    normal=True,
+                    size_preset="normal",
                 ),
                 hp.make_qta_btn(
                     self,
@@ -106,7 +106,7 @@ class RegistrationPaths(QWidget):
                     func=self.evt_override.emit,
                     tooltip="Override existing transformations on each set of paths using the existing selection.",
                     standout=True,
-                    normal=True,
+                    size_preset="normal",
                 ),
                 self.auto_create_btn,
                 self._choice,
@@ -116,7 +116,7 @@ class RegistrationPaths(QWidget):
                     func=self.on_add_transformation,
                     tooltip="Add selected transformation to the list.",
                     standout=True,
-                    normal=True,
+                    size_preset="normal",
                 ),
                 hp.make_qta_btn(
                     self,
@@ -125,7 +125,7 @@ class RegistrationPaths(QWidget):
                     func_menu=self.on_reset_transformation,
                     tooltip="Remove last transformation from the list.\nRight-click to reset all transformations.",
                     standout=True,
-                    normal=True,
+                    size_preset="normal",
                 ),
                 stretch_id=(4,),
                 spacing=2,
@@ -278,7 +278,7 @@ class RegistrationMap(QWidget):
                     self,
                     "previous",
                     tooltip="Show previous ion image.",
-                    normal=True,
+                    size_preset="normal",
                     func=partial(self.on_increment_source, -1),
                     standout=True,
                 ),
@@ -286,7 +286,7 @@ class RegistrationMap(QWidget):
                     self,
                     "next",
                     tooltip="Show next ion image.",
-                    normal=True,
+                    size_preset="normal",
                     func=partial(self.on_increment_source, 1),
                     standout=True,
                 ),
@@ -302,7 +302,7 @@ class RegistrationMap(QWidget):
                     self,
                     "previous",
                     tooltip="Show previous ion image.",
-                    normal=True,
+                    size_preset="normal",
                     func=partial(self.on_increment_through, -1),
                     standout=True,
                 ),
@@ -310,7 +310,7 @@ class RegistrationMap(QWidget):
                     self,
                     "next",
                     tooltip="Show next ion image.",
-                    normal=True,
+                    size_preset="normal",
                     func=partial(self.on_increment_through, 1),
                     standout=True,
                 ),
@@ -326,7 +326,7 @@ class RegistrationMap(QWidget):
                     self,
                     "previous",
                     tooltip="Show previous ion image.",
-                    normal=True,
+                    size_preset="normal",
                     func=partial(self.on_increment_target, -1),
                     standout=True,
                 ),
@@ -334,7 +334,7 @@ class RegistrationMap(QWidget):
                     self,
                     "next",
                     tooltip="Show next ion image.",
-                    normal=True,
+                    size_preset="normal",
                     func=partial(self.on_increment_target, 1),
                     standout=True,
                 ),
@@ -373,10 +373,10 @@ class RegistrationMap(QWidget):
                 hp.make_label(self, "Paths"),
                 self._choice,
                 hp.make_qta_btn(
-                    self, "graph", tooltip="Preview paths", func=self.on_preview, standout=True, normal=True
+                    self, "graph", tooltip="Preview paths", func=self.on_preview, standout=True, size_preset="normal"
                 ),
                 hp.make_qta_btn(
-                    self, "reload", tooltip="Refresh paths", func=self.populate, standout=True, normal=True
+                    self, "reload", tooltip="Refresh paths", func=self.populate, standout=True, size_preset="normal"
                 ),
                 spacing=2,
                 stretch_id=(1,),
