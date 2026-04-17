@@ -139,8 +139,8 @@ class PreprocessingDialog(QtFramelessTool):
         .add("index", "channel_index", "int", 100, sizing="contents")
         .add("name", "channel_name", "str", 250, sizing="stretch")
     )
-    MINIMUM_WIDTH = 360
-    MAXIMUM_WIDTH = 425
+    MINIMUM_WIDTH = 400
+    MAXIMUM_WIDTH = 450
 
     def __init__(
         self,

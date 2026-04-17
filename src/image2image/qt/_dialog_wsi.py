@@ -28,11 +28,10 @@ from image2image.qt._dialog_mixins import SingleViewerMixin
 from image2image.utils.valis import hash_preprocessing
 
 if ty.TYPE_CHECKING:
-    from qtextra.widgets.qt_collapsible import QtCheckCollapsible
-    from qtextraplot._napari.image import NapariImageView
-
     from image2image_reg.models import Modality, Preprocessing
     from image2image_reg.workflows import ElastixReg, ValisReg
+    from qtextra.widgets.qt_collapsible import QtCheckCollapsible
+    from qtextraplot._napari.image import NapariImageView
 
     from image2image.config import ElastixConfig
     from image2image.qt._wsi._list import QtModalityItem, QtModalityList
@@ -870,7 +869,7 @@ class ImageWsiWindow(SingleViewerMixin):
             "Export options",
             allow_checkbox=False,
             allow_icon=False,
-            warning_icon=("error", {"color": THEMES.get_theme_color("error")}),
+            warning_icon=("warning", {"color": THEMES.get_theme_color("error")}),
         )
         hidden_settings.addRow(hp.make_label(self, "Write/don't write"), self.write_check)
         hidden_settings.addRow(hp.make_label(self, "Write registered images"), self.write_registered_check)
@@ -1172,6 +1171,4 @@ class ImageWsiWindow(SingleViewerMixin):
 
     def can_window_be_closed(self) -> bool:
         """Check whether the window can be closed."""
-        if QUEUE.is_running():
-            return False
-        return True
+        return not QUEUE.is_running()
