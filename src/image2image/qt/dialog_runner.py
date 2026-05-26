@@ -54,6 +54,13 @@ class RunnerProject:
     project: ElastixReg | ValisReg
 
 
+def is_empty(path: Path) -> bool:
+    """Check whether the directory is empty."""
+    if not path.exists():
+        return True
+    return not any(path.iterdir())
+
+
 class QtRunnerProjectCard(QFrame):
     """Card describing a loaded registration project."""
 
@@ -94,19 +101,19 @@ class QtRunnerProjectCard(QFrame):
         self.network_btn = hp.make_btn(
             self,
             "Network...",
-            tooltip="Show the Elastix registration network.",
+            tooltip="Show the Elastix registration network."
+            if project.kind == "elastix"
+            else "Registration network preview is currently available for Elastix projects.",
             func=lambda: self.evt_network.emit(self.project.project_dir),
+            disabled=project.kind != "elastix",
         )
         self.viewer_btn = hp.make_btn(
             self,
             "Open in viewer",
             tooltip="Open completed registration images in the viewer.",
             func=lambda: self.evt_viewer.emit(self.project.project_dir),
+            disabled=is_empty(self.project.project_dir / "Images"),
         )
-        hp.disable_widgets(self.viewer_btn, disabled=True)
-        if project.kind != "elastix":
-            hp.disable_widgets(self.network_btn, disabled=True)
-            self.network_btn.setToolTip("Registration network preview is currently available for Elastix projects.")
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(8, 8, 8, 8)
@@ -147,7 +154,7 @@ class QtRunnerProjectCard(QFrame):
         """Update card status and progress text."""
         self.status = status
         self.status_label.setText(status)
-        hp.disable_widgets(self.viewer_btn, disabled=status != "Finished")
+        # hp.disable_widgets(self.viewer_btn, disabled=status != "Finished")
         if progress:
             self.progress_label.setText(progress)
 
