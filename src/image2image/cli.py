@@ -21,6 +21,7 @@ AVAILABLE_TOOLS = [
     "crop",
     "elastix",
     "valis",
+    "runner",
     "elastix3d",
     "fusion",
     "convert",
@@ -142,6 +143,7 @@ def cli(
     crop - opens a dialog where you can crop (and mask) images
     elastix - opens a dialog where you can co-register whole slide images using i2reg-elastix
     valis - opens a dialog where you can co-register whole-slide images using i2reg-valis
+    runner - opens a dialog where you can queue Elastix/Valis registration projects
     convert - opens a dialog where you can convert images to OME-TIFF
     merge - opens a dialog where you can merge multiple image channels and images together
     fusion - opens a dialog where you can prepare data for image fusion
@@ -306,6 +308,52 @@ def cli_elastix(
     cls=GroupedGroup,
 )
 @click.option(
+    "-p",
+    "--project_dir",
+    help="Path to an Elastix/Valis registration project directory.",
+    type=click.Path(exists=True, resolve_path=True, file_okay=False, dir_okay=True),
+    show_default=True,
+)
+@click.option(
+    "--no_color",
+    help="Flag to enable colored logs.",
+    default=False,
+    is_flag=True,
+    show_default=True,
+)
+@click.option("-q", "--quiet", "verbosity", flag_value=0, help="Minimal output")
+@click.option("--debug", "verbosity", flag_value=45, help="Maximum output")
+@click.option(
+    "-v",
+    "--verbose",
+    "verbosity",
+    default=1,
+    count=True,
+    help="Verbose output. This is additive flag so `-vvv` will print `INFO` messages and -vvvv will print `DEBUG`"
+    " information.",
+)
+def cli_runner(
+    verbosity: float,
+    no_color: bool,
+    project_dir: str | None = None,
+) -> None:
+    """Launch image2image Elastix/Valis Runner app."""
+    from image2image.main import run
+
+    level = _cli_setup(verbosity, no_color)
+    run(level=int(level), no_color=no_color, tool="runner", project_dir=project_dir)
+
+
+@click.group(
+    context_settings={
+        "help_option_names": ["-h", "--help"],
+        "max_content_width": 120,
+        "ignore_unknown_options": True,
+    },
+    invoke_without_command=True,
+    cls=GroupedGroup,
+)
+@click.option(
     "--no_color",
     help="Flag to enable colored logs.",
     default=False,
@@ -423,6 +471,14 @@ def main_elastix() -> None:
     if sys.platform == "darwin":
         set_start_method("spawn", True)
     cli_elastix.main(windows_expand_args=False)  # type: ignore[attr-defined]
+
+
+def main_runner() -> None:
+    """Execute the "i2runner" command line program."""
+    freeze_support()
+    if sys.platform == "darwin":
+        set_start_method("spawn", True)
+    cli_runner.main(windows_expand_args=False)  # type: ignore[attr-defined]
 
 
 def main_register() -> None:

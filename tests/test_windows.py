@@ -7,6 +7,7 @@ from image2image.qt.dialog_elastix3d import ImageElastix3dWindow
 from image2image.qt.dialog_fusion import ImageFusionWindow
 from image2image.qt.dialog_merge import ImageMergeWindow
 from image2image.qt.dialog_register import ImageRegistrationWindow
+from image2image.qt.dialog_runner import ImageRunnerWindow
 from image2image.qt.dialog_valis import ImageValisWindow
 from image2image.qt.dialog_viewer import ImageViewerWindow
 from image2image.qt.launcher import Launcher
@@ -52,6 +53,13 @@ def test_window_valis(qtbot) -> None:
     window = ImageValisWindow(None)
     qtbot.addWidget(window)
     assert isinstance(window, ImageValisWindow), "Window is not an instance of ImageValisWindow."
+
+
+def test_window_runner(qtbot) -> None:
+    """Test ImageRunnerWindow."""
+    window = ImageRunnerWindow(None)
+    qtbot.addWidget(window)
+    assert isinstance(window, ImageRunnerWindow), "Window is not an instance of ImageRunnerWindow."
 
 
 def test_window_elastix3d(qtbot) -> None:

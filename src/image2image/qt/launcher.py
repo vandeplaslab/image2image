@@ -87,6 +87,13 @@ class Launcher(QtDialog):
                     "elastix",
                     partial(self.on_open_app, Window.on_open_elastix),
                 ),
+                _make_tile(
+                    self,
+                    "Elastix/Valis<br>Runner",
+                    C.RUNNER_TEXT,
+                    "queue",
+                    partial(self.on_open_app, Window.on_open_runner),
+                ),
                 # _make_tile(
                 #     self,
                 #     "Valis<br>App",

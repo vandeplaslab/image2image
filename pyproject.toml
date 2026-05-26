@@ -115,6 +115,7 @@ i2viewer = "image2image.cli:main_viewer"
 i2crop = "image2image.cli:main_crop"
 i2convert = "image2image.cli:main_convert"
 i2elastix = "image2image.cli:main_elastix"
+i2runner = "image2image.cli:main_runner"
 i2register = "image2image.cli:main_register"
 
 

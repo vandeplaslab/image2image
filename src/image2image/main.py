@@ -18,7 +18,7 @@ COLOR_LOG_FMT = (
 )
 
 AvailableTools = ty.Literal[
-    "launcher", "register", "viewer", "crop", "fusion", "convert", "merge", "wsiprep", "elastix", "valis"
+    "launcher", "register", "viewer", "crop", "fusion", "convert", "merge", "wsiprep", "elastix", "valis", "runner"
 ]
 
 
@@ -246,6 +246,15 @@ def run(
                 **kwargs,
             )
             dlg.setMinimumSize(1200, 800)
+        elif tool == "runner":
+            from image2image.qt.dialog_runner import ImageRunnerWindow
+
+            dlg = ImageRunnerWindow(  # type: ignore[assignment]
+                None,
+                run_check_version=run_check_version,
+                **kwargs,
+            )
+            dlg.setMinimumSize(900, 700)
         elif tool == "napari":
             from napari import Viewer
 

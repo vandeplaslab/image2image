@@ -38,6 +38,7 @@ MERGE_TEXT = "Merge multiple OME-TIFF images into a single file."
 FUSION_TEXT = "Export your data for Image Fusion in MATLAB compatible format."
 ELASTIX_TEXT = "Register whole slide microscopy images<br>(<b>Elastix</b>)."
 VALIS_TEXT = "Register whole slide microscopy images<br>(<b>Valis</b>)."
+RUNNER_TEXT = "Queue and run whole slide registration projects<br>(<b>Elastix/Valis</b>)."
 CONVERT_WARNING = ""
 if not STATE.allow_convert:
     CONVERT_WARNING = "<i>Not available on Apple Silicon due to a bug I can't find...</i>"

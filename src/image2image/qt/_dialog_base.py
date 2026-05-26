@@ -477,6 +477,7 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
         hp.make_menu_item(self, "Open Register App", menu=menu_apps, func=self.on_open_register, icon="register")
         hp.make_menu_item(self, "Open Elastix App", menu=menu_apps, func=self.on_open_elastix, icon="elastix")
         hp.make_menu_item(self, "Open Valis App", menu=menu_apps, func=self.on_open_valis, icon="valis")
+        hp.make_menu_item(self, "Open Elastix/Valis Runner", menu=menu_apps, func=self.on_open_runner, icon="queue")
         menu_apps.addSection("Utilities")
         hp.make_menu_item(self, "Open Crop App", menu=menu_apps, func=self.on_open_crop, icon="crop")
         hp.make_menu_item(
@@ -838,6 +839,11 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
         # return
 
         create_new_window("valis", *args)
+
+    @staticmethod
+    def on_open_runner(*args: str) -> None:
+        """Open Elastix/Valis runner application."""
+        create_new_window("runner", *args)
 
 
 def create_new_window(plugin: str, *extra_args: ty.Any) -> None:

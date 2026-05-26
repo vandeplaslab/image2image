@@ -523,6 +523,74 @@ class ValisConfig(SingleAppConfig):
         return str(value)
 
 
+class RunnerConfig(SingleAppConfig):
+    """Configuration for the registration runner app."""
+
+    USER_CONFIG_FILENAME = "config.runner.json"
+
+    n_parallel: int = Field(
+        1,
+        ge=1,
+        le=8,
+        title="Number of parallel processes",
+        description="Number of parallel processes.",
+        json_schema_extra={
+            "in_app": True,
+        },
+    )
+    write_registered: bool = Field(
+        True,
+        title="Write registered",
+        description="Write registered.",
+        json_schema_extra={
+            "in_app": True,
+        },
+    )
+    write_not_registered: bool = Field(
+        True,
+        title="Write not registered",
+        description="Write not registered.",
+        json_schema_extra={
+            "in_app": True,
+        },
+    )
+    write_attached: bool = Field(
+        True,
+        title="Write attached",
+        description="Write attached.",
+        json_schema_extra={
+            "in_app": True,
+        },
+    )
+    write_merged: bool = Field(
+        True,
+        title="Write merged",
+        description="Write merged.",
+        json_schema_extra={
+            "in_app": True,
+        },
+    )
+    remove_merged: bool = Field(
+        False,
+        title="Remove merged",
+        description="Remove merged.",
+        json_schema_extra={
+            "in_app": True,
+        },
+    )
+    rename: bool = Field(
+        False,
+        title="Rename",
+        description="Rename.",
+        json_schema_extra={
+            "in_app": True,
+        },
+    )
+    clip: ty.Literal["ignore", "clip", "remove", "part-remove"] = Field(
+        "remove", title="Clip", description="Clip.", json_schema_extra={"in_app": True}
+    )
+
+
 class ConvertConfig(SingleAppConfig):
     """Configuration for the viewer app."""
 
@@ -846,6 +914,17 @@ def get_valis_config() -> ValisConfig:
     if VALIS_CONFIG is None:
         VALIS_CONFIG = ValisConfig(_auto_load=True)  # type: ignore[call-arg]
     return VALIS_CONFIG
+
+
+RUNNER_CONFIG: ty.Optional[RunnerConfig] = None
+
+
+def get_runner_config() -> RunnerConfig:
+    """Get Runner config."""
+    global RUNNER_CONFIG
+    if RUNNER_CONFIG is None:
+        RUNNER_CONFIG = RunnerConfig(_auto_load=True)  # type: ignore[call-arg]
+    return RUNNER_CONFIG
 
 
 ELASTIX_CONFIG: ty.Optional[ElastixConfig] = None
