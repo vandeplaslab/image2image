@@ -93,7 +93,7 @@ QStatusBar QCheckBox::indicator {
 /*}*/
 
 
-QtDatasetItem, QtModalityItem {
+QtDatasetItem, QtModalityItem, QtRunnerProjectCard{
     border: 2px solid {{ highlight }};
 }
 

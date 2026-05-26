@@ -12,23 +12,23 @@ from loguru import logger
 from qtextra.config import THEMES
 from qtextra.queue.popup import QUEUE, QueuePopup
 from qtextra.queue.task import Task
-from qtextra.utils.table_config import TableConfig
-from qtpy.QtCore import Qt
+from qtextra.utils.utilities import connect
+from qtpy.QtCore import Qt, Signal  # type: ignore[attr-defined]
 from qtpy.QtGui import QDropEvent
 from qtpy.QtWidgets import (
-    QAbstractItemView,
+    QDialog,
     QFileDialog,
-    QHeaderView,
+    QFrame,
+    QListWidget,
     QMenuBar,
-    QTableWidget,
-    QTableWidgetItem,
+    QScrollArea,
     QVBoxLayout,
     QWidget,
 )
 
 import image2image.constants as C
 from image2image import __version__
-from image2image.config import RunnerConfig, STATE, get_runner_config
+from image2image.config import STATE, RunnerConfig, get_runner_config
 from image2image.qt._dialog_base import Window
 
 if ty.TYPE_CHECKING:
@@ -54,6 +54,114 @@ class RunnerProject:
     project: ElastixReg | ValisReg
 
 
+class QtRunnerProjectCard(QFrame):
+    """Card describing a loaded registration project."""
+
+    evt_queue = Signal(object)
+    evt_images = Signal(object)
+    evt_network = Signal(object)
+
+    def __init__(self, project: RunnerProject, parent: QWidget | None = None):
+        super().__init__(parent)
+        self.project = project
+        self.status = "Ready"
+        self.setFrameShape(QFrame.Shape.StyledPanel)
+        self.setFrameShadow(QFrame.Shadow.Raised)
+
+        self.name_label = hp.make_label(
+            self,
+            f"<b>{project.project.name}</b>",
+            enable_url=True,
+            object_name="large_text",
+        )
+        self.summary_label = hp.make_label(self, self._summarize_project(), enable_url=True, wrap=True)
+        self.status_label = hp.make_label(self, "Ready", object_name="tip_label")
+        self.progress_label = hp.make_label(self, "Waiting to be queued.", wrap=True)
+
+        self.queue_btn = hp.make_btn(
+            self,
+            "Queue",
+            tooltip="Validate and add this project to the queue.",
+            func=lambda: self.evt_queue.emit(self.project.project_dir),
+        )
+        self.images_btn = hp.make_btn(
+            self,
+            "Images...",
+            tooltip="Show the project image list.",
+            func=lambda: self.evt_images.emit(self.project.project_dir),
+        )
+        self.network_btn = hp.make_btn(
+            self,
+            "Network...",
+            tooltip="Show the Elastix registration network.",
+            func=lambda: self.evt_network.emit(self.project.project_dir),
+        )
+        if project.kind != "elastix":
+            hp.disable_widgets(self.network_btn, disabled=True)
+            self.network_btn.setToolTip("Registration network preview is currently available for Elastix projects.")
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(8, 8, 8, 8)
+        layout.setSpacing(4)
+        layout.addWidget(self.name_label)
+        layout.addWidget(self.summary_label)
+        layout.addLayout(
+            hp.make_h_layout(
+                hp.make_label(self, "Status"),
+                self.status_label,
+                spacing=2,
+                stretch_id=(1,),
+            )
+        )
+        layout.addWidget(self.progress_label)
+        layout.addLayout(
+            hp.make_h_layout(
+                self.queue_btn,
+                self.images_btn,
+                self.network_btn,
+                spacing=2,
+                stretch_after=True,
+            )
+        )
+
+    @property
+    def registration_model(self) -> ElastixReg | ValisReg:
+        """Return the registration model for auxiliary viewers."""
+        return self.project.project
+
+    @property
+    def modalities(self) -> list[ty.Any]:
+        """Return project modalities."""
+        return list(self.project.project.modalities.values())
+
+    def set_status(self, status: str, progress: str = "") -> None:
+        """Update card status and progress text."""
+        self.status = status
+        self.status_label.setText(status)
+        if progress:
+            self.progress_label.setText(progress)
+
+    def image_lines(self) -> list[str]:
+        """Return a simple image list for the project."""
+        lines = []
+        for index, modality in enumerate(self.modalities, start=1):
+            lines.append(f"{index}. {modality.name}: {modality.path}")
+        return lines
+
+    def _summarize_project(self) -> str:
+        """Return a short project summary."""
+        project = self.project.project
+        n_modalities = len(project.modalities)
+        output_dir = hp.hyper(project.output_dir, value=str(project.output_dir))
+        project_dir = hp.hyper(project.project_dir, value=str(project.project_dir))
+        return (
+            f"<b>Type</b>: {self.project.kind.capitalize()} &nbsp; "
+            f"<b>Modalities</b>: {n_modalities}<br>"
+            f"<b>Project</b>: {project_dir}<br>"
+            f"<b>Output</b>: {output_dir}"
+        )
+
+
 def _path_to_project_dir(path: Path) -> Path:
     """Return a project directory for a dropped project path."""
     return path.parent if path.is_file() else path
@@ -64,12 +172,12 @@ def _preferred_project_kinds(path: Path) -> tuple[ProjectKind, ...]:
     name = path.name.lower()
     suffix = path.suffix.lower()
     if suffix == ".valis" or name in {"valis.config.json"} or ".valis." in name:
-        return ("valis", "elastix")
+        return "valis", "elastix"
     if suffix in {".wsireg", ".i2reg"} or ".i2wsireg." in name or ".i2reg." in name:
-        return ("elastix", "valis")
+        return "elastix", "valis"
     if name.endswith(".config.json"):
-        return ("elastix", "valis")
-    return ("elastix", "valis")
+        return "elastix", "valis"
+    return "elastix", "valis"
 
 
 def load_registration_project(path: Path) -> RunnerProject:
@@ -113,12 +221,6 @@ class ImageRunnerWindow(Window):
 
     APP_NAME = "runner"
     CONFIG: RunnerConfig
-    TABLE_CONFIG = (
-        TableConfig()  # type: ignore[no-untyped-call]
-        .add("kind", "kind", "str", 0)
-        .add("project", "project", "str", 0)
-        .add("status", "status", "str", 0)
-    )
 
     def __init__(
         self,
@@ -129,8 +231,12 @@ class ImageRunnerWindow(Window):
     ):
         self.CONFIG = get_runner_config()
         self.projects: dict[Path, RunnerProject] = {}
+        self.cards: dict[Path, QtRunnerProjectCard] = {}
+        self.task_to_project: dict[str, Path] = {}
+        self._dialogs: list[QWidget] = []
         self.queue_popup: QueuePopup | None = None
         _q.N_PARALLEL = self.CONFIG.n_parallel
+        QUEUE.n_parallel = self.CONFIG.n_parallel
         super().__init__(
             parent,
             f"image2image: Elastix/Valis Runner (v{__version__})",
@@ -145,10 +251,16 @@ class ImageRunnerWindow(Window):
 
     def setup_events(self, state: bool = True) -> None:
         """Setup events."""
-        if state:
-            self.evt_dropped.connect(self.on_drop_projects)
-        else:
-            self.evt_dropped.disconnect(self.on_drop_projects)
+        connect(self.evt_dropped, self.on_drop_projects, state=state)
+        connect(QUEUE.evt_queued, self.on_task_queued, state=state)
+        connect(QUEUE.evt_started, self.on_task_started, state=state)
+        connect(QUEUE.evt_next, self.on_task_progress, state=state)
+        connect(QUEUE.evt_progress, self.on_task_progress, state=state)
+        connect(QUEUE.evt_finished, self.on_task_finished, state=state)
+        connect(QUEUE.evt_errored, self.on_task_failed, state=state)
+        connect(QUEUE.evt_cancelled, self.on_task_cancelled, state=state)
+        connect(QUEUE.evt_remove_task, self.on_task_removed, state=state)
+        connect(QUEUE.evt_empty, self.on_queue_empty, state=state)
 
     def on_add_project_files(self) -> None:
         """Select registration project files."""
@@ -188,24 +300,60 @@ class ImageRunnerWindow(Window):
                 self._update_project_status(project.project_dir, "Already loaded")
                 continue
             self.projects[project.project_dir] = project
-            self._add_project_row(project)
+            self._add_project_card(project)
             loaded += 1
         if loaded:
             hp.toast(self, "Loaded projects", f"Loaded {loaded} registration project(s).", icon="success")
+            self._refresh_progress_report()
 
     def on_queue_all_projects(self) -> None:
         """Add all loaded projects to the queue as pending tasks."""
         self._queue_projects(list(self.projects))
 
-    def on_queue_selected_projects(self) -> None:
-        """Add selected projects to the queue as pending tasks."""
-        rows = sorted({index.row() for index in self.table.selectionModel().selectedRows()})
-        paths = []
-        for row in rows:
-            item = self.table.item(row, self.TABLE_CONFIG.project)
-            if item:
-                paths.append(Path(item.data(Qt.ItemDataRole.UserRole)))
-        self._queue_projects(paths)
+    def on_start_queue(self) -> None:
+        """Start pending queue tasks."""
+        if not QUEUE.pending_queue:
+            hp.toast(self, "Queue empty", "There are no pending tasks to start.", icon="warning", position="top_left")
+            return
+        QUEUE.run_queued()
+        self._refresh_progress_report()
+
+    def on_show_project_images(self, path: Path) -> None:
+        """Show the image list for a loaded project."""
+        card = self.cards.get(path)
+        if card is None:
+            logger.warning(f"Could not find project card for {path}")
+            return
+        dlg = QDialog(self)
+        dlg.setWindowTitle(f"Images: {card.project.project.name}")
+        dlg.setMinimumSize(700, 400)
+        image_list = QListWidget(dlg)
+        image_list.addItems(card.image_lines())
+        layout = QVBoxLayout(dlg)
+        layout.addWidget(image_list)
+        self._dialogs.append(dlg)
+        dlg.show()
+
+    def on_show_project_network(self, path: Path) -> None:
+        """Show the registration network for an Elastix project."""
+        card = self.cards.get(path)
+        if card is None:
+            logger.warning(f"Could not find project card for {path}")
+            return
+        if card.project.kind != "elastix":
+            hp.toast(
+                self,
+                "Network unavailable",
+                "Registration network preview is currently available for Elastix projects.",
+                icon="warning",
+                position="top_left",
+            )
+            return
+        from image2image.qt._wsi._network import NetworkViewer
+
+        dlg = NetworkViewer(card)
+        self._dialogs.append(dlg)
+        dlg.show()
 
     def _queue_projects(self, paths: list[Path]) -> None:
         """Add projects to the shared queue."""
@@ -224,18 +372,43 @@ class ImageRunnerWindow(Window):
             if project is None:
                 logger.warning(f"Could not find loaded registration project for {path}")
                 continue
+            if not self._validate_project(project):
+                continue
             task = self._make_registration_task(project)
+            self.task_to_project[task.task_id] = path
             if QUEUE.is_queued(task.task_id):
-                self._update_project_status(path, "Already queued")
+                self._update_project_status(path, "Already queued", "This valid project is already in the queue.")
                 continue
             if QUEUE.is_finished(task.task_id) and self.queue_popup is not None:
                 self.queue_popup.queue_list.on_remove_task(task.task_id)
                 logger.info(f"Removed finished task {task.task_id}.")
             QUEUE.add_task(task, add_delayed=True)
-            self._update_project_status(path, "Queued")
+            self._update_project_status(path, "Queued", "Project validated and queued. Press 'Start queue' to run.")
             queued += 1
         if queued:
             hp.toast(self, "Queued projects", f"Added {queued} registration project(s) to the queue.", icon="success")
+        self._refresh_progress_report()
+
+    def _validate_project(self, project: RunnerProject) -> bool:
+        """Validate a project before adding it to the queue."""
+        is_valid, errors = project.project.validate(require_paths=True)
+        if is_valid:
+            self._update_project_status(project.project_dir, "Valid", "Project validation passed.")
+            hp.toast(
+                self,
+                "Project valid",
+                f"{project.project.name} is ready to queue.",
+                icon="success",
+                position="top_left",
+            )
+            return True
+
+        from image2image.qt._dialogs._errors import ErrorsDialog
+
+        self._update_project_status(project.project_dir, "Invalid", "Project validation failed.")
+        dlg = ErrorsDialog(self, errors)
+        dlg.show()
+        return False
 
     def _make_registration_task(self, project: RunnerProject) -> Task:
         """Create a qtextra task for a loaded registration project."""
@@ -271,7 +444,67 @@ class ImageRunnerWindow(Window):
     def on_clear_projects(self) -> None:
         """Clear loaded projects."""
         self.projects.clear()
-        self.table.setRowCount(0)
+        self.cards.clear()
+        self.task_to_project.clear()
+        while self.cards_layout.count() > 1:
+            item = self.cards_layout.takeAt(0)
+            widget = item.widget()
+            if widget:
+                widget.deleteLater()
+        self._refresh_progress_report()
+
+    def on_task_queued(self, task: Task) -> None:
+        """Update project state when a task is queued."""
+        path = self._project_path_from_task(task)
+        if path:
+            self._update_project_status(path, "Queued", "Project is waiting in the queue.")
+            self._refresh_progress_report()
+
+    def on_task_started(self, task: Task) -> None:
+        """Update project state when a task starts."""
+        path = self._project_path_from_task(task)
+        if path:
+            self._update_project_status(path, "Running", f"Running {task.pretty_info}.")
+            self._refresh_progress_report()
+
+    def on_task_progress(self, task: Task) -> None:
+        """Update project state on queue progress."""
+        path = self._project_path_from_task(task)
+        if path:
+            self._update_project_status(path, "In progress", f"Running {task.pretty_info}.")
+            self._refresh_progress_report()
+
+    def on_task_finished(self, task: Task) -> None:
+        """Update project state when a task finishes."""
+        path = self._project_path_from_task(task)
+        if path:
+            self._update_project_status(path, "Finished", "Registration task finished.")
+            self._refresh_progress_report()
+
+    def on_task_failed(self, task: Task, _exc: object) -> None:
+        """Update project state when a task fails."""
+        path = self._project_path_from_task(task)
+        if path:
+            self._update_project_status(path, "Failed", "Registration task failed. Open the queue for details.")
+            self._refresh_progress_report()
+
+    def on_task_cancelled(self, task: Task) -> None:
+        """Update project state when a task is cancelled."""
+        path = self._project_path_from_task(task)
+        if path:
+            self._update_project_status(path, "Cancelled", "Registration task was cancelled.")
+            self._refresh_progress_report()
+
+    def on_task_removed(self, task_id: str) -> None:
+        """Update project state when a task is removed from the queue."""
+        path = self.task_to_project.pop(task_id, None)
+        if path:
+            self._update_project_status(path, "Ready", "Task was removed from the queue.")
+            self._refresh_progress_report()
+
+    def on_queue_empty(self) -> None:
+        """Update progress when the queue becomes empty."""
+        self._refresh_progress_report()
 
     def on_update_config(self, *_args: ty.Any) -> None:
         """Update runner configuration."""
@@ -285,6 +518,7 @@ class ImageRunnerWindow(Window):
         self.CONFIG.as_uint8 = self.as_uint8_check.isChecked()
         self.CONFIG.clip = self.clip_combo.currentText()
         _q.N_PARALLEL = self.CONFIG.n_parallel
+        QUEUE.n_parallel = self.CONFIG.n_parallel
         self.on_set_write_warning()
 
     def on_toggle_write(self) -> None:
@@ -313,34 +547,51 @@ class ImageRunnerWindow(Window):
         self.hidden_settings.warning_label.setToolTip("<br>".join(tooltip))
         self.hidden_settings.set_warning_visible(len(tooltip) > 0)
 
-    def _add_project_row(self, project: RunnerProject) -> None:
-        """Add a loaded project to the table."""
-        row = self.table.rowCount()
-        self.table.insertRow(row)
+    def _add_project_card(self, project: RunnerProject) -> None:
+        """Add a loaded project card."""
+        card = QtRunnerProjectCard(project, self)
+        card.evt_queue.connect(lambda path: self._queue_projects([Path(path)]))
+        card.evt_images.connect(lambda path: self.on_show_project_images(Path(path)))
+        card.evt_network.connect(lambda path: self.on_show_project_network(Path(path)))
+        self.cards[project.project_dir] = card
+        self.cards_layout.insertWidget(max(0, self.cards_layout.count() - 1), card)
 
-        kind_item = QTableWidgetItem(project.kind.capitalize())
-        kind_item.setFlags(kind_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
-        kind_item.setTextAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignHCenter)
-        self.table.setItem(row, self.TABLE_CONFIG.kind, kind_item)
+    def _update_project_status(self, path: Path, status: str, progress: str = "") -> None:
+        """Update a project card status."""
+        card = self.cards.get(path)
+        if card:
+            card.set_status(status, progress)
 
-        project_item = QTableWidgetItem(str(project.project_dir))
-        project_item.setData(Qt.ItemDataRole.UserRole, str(project.project_dir))
-        project_item.setFlags(project_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
-        project_item.setTextAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
-        self.table.setItem(row, self.TABLE_CONFIG.project, project_item)
+    def _project_path_from_task(self, task: Task) -> Path | None:
+        """Return the loaded project path associated with a queue task."""
+        path = self.task_to_project.get(task.task_id)
+        if path:
+            return path
+        metadata = task.metadata or {}
+        project_dir = metadata.get("project_dir")
+        if project_dir is None:
+            return None
+        path = Path(project_dir)
+        if path in self.cards:
+            self.task_to_project[task.task_id] = path
+            return path
+        return None
 
-        status_item = QTableWidgetItem("Ready")
-        status_item.setFlags(status_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
-        status_item.setTextAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignHCenter)
-        self.table.setItem(row, self.TABLE_CONFIG.status, status_item)
-
-    def _update_project_status(self, path: Path, status: str) -> None:
-        """Update a project row status."""
-        for row in range(self.table.rowCount()):
-            item = self.table.item(row, self.TABLE_CONFIG.project)
-            if item and Path(item.data(Qt.ItemDataRole.UserRole)) == path:
-                self.table.item(row, self.TABLE_CONFIG.status).setText(status)
-                return
+    def _refresh_progress_report(self) -> None:
+        """Refresh the visible progress report."""
+        statuses = [card.status for card in self.cards.values()]
+        loaded = len(statuses)
+        valid = statuses.count("Valid")
+        queued = statuses.count("Queued") + statuses.count("Already queued")
+        running = statuses.count("Running") + statuses.count("In progress")
+        finished = statuses.count("Finished")
+        failed = statuses.count("Failed") + statuses.count("Invalid")
+        cancelled = statuses.count("Cancelled")
+        self.progress_report.setText(
+            "<b>Progress</b>: "
+            f"{loaded} loaded | {valid} valid | {queued} queued | {running} running | "
+            f"{finished} finished | {failed} failed/invalid | {cancelled} cancelled"
+        )
 
     def _make_export_options(self, parent: QWidget):
         """Create export option controls."""
@@ -441,21 +692,6 @@ class ImageRunnerWindow(Window):
 
     def _setup_ui(self) -> None:
         """Create panel."""
-        columns = self.TABLE_CONFIG.to_columns()
-        self.table = QTableWidget(self)
-        self.table.setColumnCount(len(columns))
-        self.table.setHorizontalHeaderLabels(columns)
-        self.table.setCornerButtonEnabled(False)
-        self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
-        self.table.setTextElideMode(Qt.TextElideMode.ElideLeft)
-        self.table.setWordWrap(True)
-
-        horizontal_header = self.table.horizontalHeader()
-        horizontal_header.setSectionResizeMode(self.TABLE_CONFIG.kind, QHeaderView.ResizeMode.ResizeToContents)
-        horizontal_header.setSectionResizeMode(self.TABLE_CONFIG.project, QHeaderView.ResizeMode.Stretch)
-        horizontal_header.setSectionResizeMode(self.TABLE_CONFIG.status, QHeaderView.ResizeMode.ResizeToContents)
-        self.table.verticalHeader().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
-
         self.add_files_btn = hp.make_btn(
             self,
             "Add project files...",
@@ -468,11 +704,11 @@ class ImageRunnerWindow(Window):
             tooltip="Select an Elastix or Valis registration project directory.",
             func=self.on_add_project_directory,
         )
-        self.queue_selected_btn = hp.make_btn(
+        self.start_queue_btn = hp.make_btn(
             self,
-            "Queue selected",
-            tooltip="Add selected projects to the queue as pending tasks.",
-            func=self.on_queue_selected_projects,
+            "Start queue",
+            tooltip="Start pending queue tasks.",
+            func=self.on_start_queue,
         )
         self.queue_all_btn = hp.make_btn(
             self,
@@ -488,6 +724,23 @@ class ImageRunnerWindow(Window):
             maximum=8,
             tooltip="Number of parallel queue processes.",
             func=self.on_update_config,
+        )
+
+        self.scroll_area = QScrollArea(self)
+        self.scroll_area.setWidgetResizable(True)
+        self.scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        scroll_widget = QWidget(self.scroll_area)
+        self.scroll_area.setWidget(scroll_widget)
+        self.cards_layout = QVBoxLayout(scroll_widget)
+        self.cards_layout.setContentsMargins(2, 2, 2, 2)
+        self.cards_layout.setSpacing(4)
+        self.cards_layout.addStretch(1)
+
+        self.progress_report = hp.make_label(
+            self,
+            "<b>Progress</b>: 0 loaded | 0 valid | 0 queued | 0 running | 0 finished | 0 failed/invalid",
+            enable_url=True,
         )
 
         widget = QWidget(self)
@@ -508,14 +761,15 @@ class ImageRunnerWindow(Window):
             hp.make_h_layout(
                 self.add_files_btn,
                 self.add_directory_btn,
-                self.queue_selected_btn,
                 self.queue_all_btn,
+                self.start_queue_btn,
                 self.clear_btn,
                 spacing=2,
                 stretch_after=True,
             )
         )
-        layout.addWidget(self.table)
+        layout.addWidget(self.scroll_area, stretch=1)
+        layout.addWidget(self.progress_report)
         layout.addWidget(self._make_export_options(widget))
         layout.addLayout(
             hp.make_h_layout(
@@ -530,6 +784,7 @@ class ImageRunnerWindow(Window):
         self._make_icon()
         self._make_statusbar()
         self.on_set_write_warning()
+        self._refresh_progress_report()
 
     def _make_menu(self) -> None:
         """Make menu items."""
@@ -539,8 +794,8 @@ class ImageRunnerWindow(Window):
             self, "Add project directory...", "Ctrl+D", menu=menu_file, func=self.on_add_project_directory
         )
         menu_file.addSeparator()
-        hp.make_menu_item(self, "Queue selected", menu=menu_file, func=self.on_queue_selected_projects, icon="queue")
         hp.make_menu_item(self, "Queue all", menu=menu_file, func=self.on_queue_all_projects, icon="queue")
+        hp.make_menu_item(self, "Start queue", menu=menu_file, func=self.on_start_queue, icon="run")
         menu_file.addSeparator()
         hp.make_menu_item(self, "Quit", menu=menu_file, func=self.close)
 
