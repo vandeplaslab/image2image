@@ -60,6 +60,7 @@ class QtRunnerProjectCard(QFrame):
     evt_queue = Signal(object)
     evt_images = Signal(object)
     evt_network = Signal(object)
+    evt_viewer = Signal(object)
 
     def __init__(self, project: RunnerProject, parent: QWidget | None = None):
         super().__init__(parent)
@@ -96,6 +97,13 @@ class QtRunnerProjectCard(QFrame):
             tooltip="Show the Elastix registration network.",
             func=lambda: self.evt_network.emit(self.project.project_dir),
         )
+        self.viewer_btn = hp.make_btn(
+            self,
+            "Open in viewer",
+            tooltip="Open completed registration images in the viewer.",
+            func=lambda: self.evt_viewer.emit(self.project.project_dir),
+        )
+        hp.disable_widgets(self.viewer_btn, disabled=True)
         if project.kind != "elastix":
             hp.disable_widgets(self.network_btn, disabled=True)
             self.network_btn.setToolTip("Registration network preview is currently available for Elastix projects.")
@@ -119,6 +127,7 @@ class QtRunnerProjectCard(QFrame):
                 self.queue_btn,
                 self.images_btn,
                 self.network_btn,
+                self.viewer_btn,
                 spacing=2,
                 stretch_after=True,
             )
@@ -138,6 +147,7 @@ class QtRunnerProjectCard(QFrame):
         """Update card status and progress text."""
         self.status = status
         self.status_label.setText(status)
+        hp.disable_widgets(self.viewer_btn, disabled=status != "Finished")
         if progress:
             self.progress_label.setText(progress)
 
@@ -242,6 +252,7 @@ class ImageRunnerWindow(Window):
             f"image2image: Elastix/Valis Runner (v{__version__})",
             run_check_version=run_check_version,
         )
+        QUEUE.add_action("Open in viewer", self.on_open_task_in_viewer, "viewer")
         if project_dir:
             self.on_add_project_paths([Path(project_dir)])
 
@@ -354,6 +365,45 @@ class ImageRunnerWindow(Window):
         dlg = NetworkViewer(card)
         self._dialogs.append(dlg)
         dlg.show()
+
+    def on_open_project_in_viewer(self, path: Path) -> None:
+        """Open completed registration images for a loaded project."""
+        project = self.projects.get(path)
+        if project is None:
+            logger.warning(f"Could not find loaded registration project for {path}")
+            return
+        self._open_registration_in_viewer(project.project.project_dir)
+
+    def on_open_task_in_viewer(self, task: Task) -> None:
+        """Open completed registration images for a queue task."""
+        metadata = task.metadata or {}
+        project_dir = metadata.get("project_dir")
+        if project_dir is None:
+            logger.warning(f"Could not find project directory in task metadata for {task.task_id}")
+            return
+        self._open_registration_in_viewer(Path(project_dir))
+
+    def _open_registration_in_viewer(self, project_dir: Path) -> None:
+        """Open registration output images in the viewer."""
+        path = Path(project_dir) / "Images"
+        if path.exists():
+            self.on_open_viewer("--file_dir", str(path))
+            hp.toast(
+                self,
+                "Opening viewer...",
+                f"Opening viewer for {hp.hyper(path, path.name)}.",
+                icon="info",
+                position="top_left",
+            )
+            logger.trace(f"Opening viewer for {path}.")
+            return
+        hp.toast(
+            self,
+            "Viewer unavailable",
+            f"Could not find completed registration images in {hp.hyper(path, path.name)}.",
+            icon="warning",
+            position="top_left",
+        )
 
     def _queue_projects(self, paths: list[Path]) -> None:
         """Add projects to the shared queue."""
@@ -553,6 +603,7 @@ class ImageRunnerWindow(Window):
         card.evt_queue.connect(lambda path: self._queue_projects([Path(path)]))
         card.evt_images.connect(lambda path: self.on_show_project_images(Path(path)))
         card.evt_network.connect(lambda path: self.on_show_project_network(Path(path)))
+        card.evt_viewer.connect(lambda path: self.on_open_project_in_viewer(Path(path)))
         self.cards[project.project_dir] = card
         self.cards_layout.insertWidget(max(0, self.cards_layout.count() - 1), card)
 
