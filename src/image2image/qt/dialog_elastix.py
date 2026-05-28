@@ -160,6 +160,7 @@ class ImageElastixWindow(ImageWsiWindow):
         rename: bool = False,
         **_kwargs: ty.Any,
     ) -> Task:
+        """Make registration task."""
         return make_registration_task(
             project,
             write_not_registered=write_not_registered,

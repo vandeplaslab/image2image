@@ -19,5 +19,7 @@ Contributions are always welcome. Please feel free to submit PRs with new featur
 ```bash
 git clone https://github.com/vandeplaslab/image2image.git
 
-pip install -e .[dev]
+cd image2image
+
+pip install -e .[pyqt6,dev]
 ```

@@ -32,6 +32,7 @@ if ty.TYPE_CHECKING:
     from image2image_reg.models import Modality, Preprocessing
     from image2image_reg.workflows.valis import ValisReg
 
+
 def make_registration_task(
     project: ValisReg,
     write_not_registered: bool = False,
@@ -138,6 +139,7 @@ class ImageValisWindow(ImageWsiWindow):
         with_i2reg: bool = True,
         **_kwargs: ty.Any,
     ) -> Task:
+        """Make registration task."""
         return make_registration_task(
             project,
             write_not_registered=write_not_registered,
