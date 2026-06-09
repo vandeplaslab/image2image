@@ -469,7 +469,7 @@ class ImageValisWindow(ImageWsiWindow):
                         channel_names=reader.channel_names,
                         preprocessing=preprocessing,
                         reader_kws=reader.reader_kws,
-                        raise_on_error=False,
+                        on_error="ignore",
                     )
         # Populate table
         self.modality_list.populate()
