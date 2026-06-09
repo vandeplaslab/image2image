@@ -455,16 +455,16 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
         return menu_tools
 
     def _make_config_menu(self) -> QMenu:
-        from koyo.path import open_directory_alt
+        from koyo.path import open_directory_universal
 
         from image2image.utils._appdirs import USER_CONFIG_DIR, USER_LOG_DIR
 
         menu_config = hp.make_menu(self, "Config")
         hp.make_menu_item(self, "Save config", menu=menu_config, icon="save", func=self.on_save_config)
         hp.make_menu_item(
-            self, "Open Config directory", menu=menu_config, func=lambda: open_directory_alt(USER_CONFIG_DIR)
+            self, "Open Config directory", menu=menu_config, func=lambda: open_directory_universal(USER_CONFIG_DIR)
         )
-        hp.make_menu_item(self, "Open Log directory", menu=menu_config, func=lambda: open_directory_alt(USER_LOG_DIR))
+        hp.make_menu_item(self, "Open Log directory", menu=menu_config, func=lambda: open_directory_universal(USER_LOG_DIR))
         return menu_config
 
     def _make_apps_menu(self) -> QMenu:

@@ -415,10 +415,10 @@ class QtDatasetItem(QFrame):
 
     def on_open_directory(self) -> None:
         """Open directory where the image is located."""
-        from koyo.path import open_directory_alt
+        from koyo.path import open_directory_universal
 
         model = self.get_model()
-        open_directory_alt(model.path)
+        open_directory_universal(model.path)
 
 
 class QtDatasetList(QScrollArea):

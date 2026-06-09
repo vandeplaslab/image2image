@@ -290,9 +290,9 @@ class QtModalityItem(QFrame):
 
     def on_open_directory(self) -> None:
         """Open the directory where the image is located."""
-        from koyo.path import open_directory_alt
+        from koyo.path import open_directory_universal
 
-        open_directory_alt(self.modality.path)
+        open_directory_universal(self.modality.path)
 
     def on_copy_to_clipboard_menu(self) -> None:
         """Copt the directory to clipboard."""
