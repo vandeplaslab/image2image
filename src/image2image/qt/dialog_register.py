@@ -20,8 +20,8 @@ from napari.layers.utils._link_layers import link_layers
 from napari.utils.events import Event
 from qtextra.config import THEMES
 from qtextra.dialogs.qt_close_window import QtConfirmCloseDialog
-from qtextra.widgets.qt_label_icon import QtPulsingAttentionLabel
 from qtextra.utils.utilities import connect
+from qtextra.widgets.qt_label_icon import QtPulsingAttentionLabel
 from qtextra.widgets.qt_toolbar_mini import QtMiniToolbar
 from qtextraplot._napari.image.wrapper import NapariImageView
 from qtpy.QtCore import Qt, Signal  # type: ignore[attr-defined]
@@ -35,7 +35,7 @@ from image2image.config import RegisterConfig, get_register_config
 from image2image.enums import ALLOWED_PROJECT_EXPORT_REGISTER_FORMATS, ALLOWED_PROJECT_IMPORT_REGISTER_FORMATS
 from image2image.models.data import DataModel
 from image2image.models.transformation import Transformation
-from image2image.qt._dialog_base import Window
+from image2image.qt._dialog_base import BasePluginMixin, Window
 from image2image.qt._dialogs._select import FixedWidget, MovingWidget
 from image2image.utils.utilities import (
     _get_text_data,
@@ -105,8 +105,8 @@ def get_random_image(array: list[np.ndarray]) -> list[np.ndarray]:
     return [array_]
 
 
-class ImageRegistrationWindow(Window):
-    """Image registration dialog."""
+class ImageRegistrationPlugin(QWidget, BasePluginMixin):
+    """Image registration widget / plugin."""
 
     APP_NAME = "register"
 
@@ -125,14 +125,12 @@ class ImageRegistrationWindow(Window):
     evt_fixed_dropped = Signal("QEvent")
     evt_moving_dropped = Signal("QEvent")
 
-    def __init__(self, parent: QWidget | None, run_check_version: bool = True, **kwargs: ty.Any):
+    def __init__(self, parent: QWidget | None = None, **kwargs: ty.Any):
+        super().__init__(parent)
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         self.CONFIG: RegisterConfig = get_register_config()
-        super().__init__(
-            parent,
-            f"image2image: Registration app (v{__version__})",
-            delay_events=True,
-            run_check_version=run_check_version,
-        )
+        self.temporary_layers: dict[str, Layer] = {}
+        self._setup_ui()
         self.transform_model = Transformation(
             fixed_model=self.fixed_model,
             moving_model=self.moving_model,
@@ -141,7 +139,7 @@ class ImageRegistrationWindow(Window):
         )
         if self.CONFIG.first_time:
             hp.call_later(self, self.on_show_tutorial, 10_000)
-        self._setup_config()
+        self.setup_events()
 
     @staticmethod
     def _setup_config() -> None:
@@ -250,6 +248,12 @@ class ImageRegistrationWindow(Window):
             visual = self.view_moving.widget.canvas.layer_to_visual[layer]
             init_points_layer(layer, visual, True)
         return self.view_moving.layers[MOVING_TMP_POINTS]
+
+    def _status_changed(self, event) -> None:
+        """Forward status change to parent window if it supports it."""
+        parent = self.parent()
+        if parent and hasattr(parent, "_status_changed"):
+            parent._status_changed(event)
 
     def setup_events(self, state: bool = True) -> None:
         """Additional setup."""
@@ -1333,6 +1337,7 @@ class ImageRegistrationWindow(Window):
     # noinspection PyAttributeOutsideInit
     def _setup_ui(self) -> None:
         """Create panel."""
+        self._setup_statusbar_widgets()
         view_layout = self._make_image_layout()
 
         side_widget = QWidget()
@@ -1485,17 +1490,10 @@ class ImageRegistrationWindow(Window):
         layout.addWidget(hp.make_v_line())
         layout.addWidget(side_widget)
 
-        widget = QWidget()  # noqa
-        self.setCentralWidget(widget)
-        main_layout = QVBoxLayout(widget)
+        main_layout = QVBoxLayout(self)
         main_layout.setSpacing(0)
         main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.addLayout(layout, stretch=True)
-
-        # extra settings
-        self._make_menu()
-        self._make_icon()
-        self._make_statusbar()
 
     def on_close(self, force: bool = False) -> None:
         """Close project and clear all data."""
@@ -1772,11 +1770,8 @@ class ImageRegistrationWindow(Window):
         layout.addWidget(self.view_moving.widget, stretch=True)
         return layout
 
-    def _make_statusbar(self) -> None:
-        """Make statusbar."""
-        super()._make_statusbar()
-        self.shortcuts_btn.show()
-
+    def _setup_statusbar_widgets(self) -> None:
+        """Initialize statusbar widgets."""
         self.synchronize_zoom = hp.make_checkbox(
             self,
             "Sync views",
@@ -1786,8 +1781,6 @@ class ImageRegistrationWindow(Window):
             func=self.on_toggle_synchronization,
         )
         self.synchronize_zoom.setSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum)
-        self.statusbar.insertPermanentWidget(0, self.synchronize_zoom)
-        self.statusbar.insertPermanentWidget(1, hp.make_v_line())
 
         self.fixed_point_size = hp.make_int_spin_box(
             self,
@@ -1798,8 +1791,6 @@ class ImageRegistrationWindow(Window):
         )
         self.fixed_point_size.setSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum)
         self.fixed_point_size.valueChanged.connect(partial(self.on_update_layer, "fixed"))  # noqa
-        self.statusbar.insertPermanentWidget(2, hp.make_label(self, "Marker size (F)"))
-        self.statusbar.insertPermanentWidget(3, self.fixed_point_size)
 
         self.moving_point_size = hp.make_int_spin_box(
             self,
@@ -1810,9 +1801,6 @@ class ImageRegistrationWindow(Window):
         )
         self.moving_point_size.setSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum)
         self.moving_point_size.valueChanged.connect(partial(self.on_update_layer, "moving"))  # noqa
-        self.statusbar.insertPermanentWidget(4, hp.make_label(self, "(M)"))
-        self.statusbar.insertPermanentWidget(5, self.moving_point_size)
-        self.statusbar.insertPermanentWidget(6, hp.make_v_line())
 
         self.text_size = hp.make_int_spin_box(
             self,
@@ -1823,16 +1811,12 @@ class ImageRegistrationWindow(Window):
         )
         self.text_size.setSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum)
         self.text_size.valueChanged.connect(self.on_update_text)  # noqa
-        self.statusbar.insertPermanentWidget(7, hp.make_label(self, "Label size"))
-        self.statusbar.insertPermanentWidget(8, self.text_size)
 
         self.text_color = hp.make_swatch(
             self, default=self.CONFIG.label_color, tooltip="Color of the text associated with each label."
         )
         self.text_color.setSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum)  # type: ignore[attr-defined]
         self.text_color.evt_color_changed.connect(self.on_update_text)  # noqa
-        self.statusbar.insertPermanentWidget(9, self.text_color)
-        self.statusbar.insertPermanentWidget(10, hp.make_v_line(), stretch=1)
 
         self.fixed_opacity = hp.make_int_spin_box(
             self,
@@ -1842,8 +1826,6 @@ class ImageRegistrationWindow(Window):
         )
         self.fixed_opacity.setSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum)
         self.fixed_opacity.valueChanged.connect(partial(self.on_update_layer, "fixed"))  # noqa
-        self.statusbar.insertPermanentWidget(11, hp.make_label(self, "Image opacity (F)"))
-        self.statusbar.insertPermanentWidget(12, self.fixed_opacity)
 
         self.moving_opacity = hp.make_int_spin_box(
             self,
@@ -1853,9 +1835,25 @@ class ImageRegistrationWindow(Window):
         )
         self.moving_opacity.setSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum)
         self.moving_opacity.valueChanged.connect(partial(self.on_update_layer, "moving"))  # noqa
-        self.statusbar.insertPermanentWidget(13, hp.make_label(self, "(M)"))
-        self.statusbar.insertPermanentWidget(14, self.moving_opacity)
-        self.statusbar.insertPermanentWidget(15, hp.make_v_line())
+
+    def _make_statusbar(self, statusbar) -> None:
+        """Make statusbar."""
+        statusbar.insertPermanentWidget(0, self.synchronize_zoom)
+        statusbar.insertPermanentWidget(1, hp.make_v_line())
+        statusbar.insertPermanentWidget(2, hp.make_label(self, "Marker size (F)"))
+        statusbar.insertPermanentWidget(3, self.fixed_point_size)
+        statusbar.insertPermanentWidget(4, hp.make_label(self, "(M)"))
+        statusbar.insertPermanentWidget(5, self.moving_point_size)
+        statusbar.insertPermanentWidget(6, hp.make_v_line())
+        statusbar.insertPermanentWidget(7, hp.make_label(self, "Label size"))
+        statusbar.insertPermanentWidget(8, self.text_size)
+        statusbar.insertPermanentWidget(9, self.text_color)
+        statusbar.insertPermanentWidget(10, hp.make_v_line(), stretch=1)
+        statusbar.insertPermanentWidget(11, hp.make_label(self, "Image opacity (F)"))
+        statusbar.insertPermanentWidget(12, self.fixed_opacity)
+        statusbar.insertPermanentWidget(13, hp.make_label(self, "(M)"))
+        statusbar.insertPermanentWidget(14, self.moving_opacity)
+        statusbar.insertPermanentWidget(15, hp.make_v_line())
 
     def on_toggle_mode(self, which: str | ty.Literal["fixed", "moving", "both"], mode: str | Mode) -> None:
         """Toggle mode."""
@@ -1981,33 +1979,19 @@ class ImageRegistrationWindow(Window):
             or QtConfirmCloseDialog(self, "confirm_close", self.on_save_to_project, self.CONFIG).exec_()  # type: ignore[attr-defined]
             == QDialog.DialogCode.Accepted
         ):
-            return super().close()
+            if self._console:
+                self._console.close()
+            self.CONFIG.save()
+            READER_CONFIG.save()
+            return True
         return False
-
-    def closeEvent(self, evt) -> None:  # type: ignore[no-untyped-def]
-        """Close."""
-        if (
-            evt.spontaneous()
-            and self.CONFIG.confirm_close
-            and self.transform_model.is_valid()
-            and QtConfirmCloseDialog(self, "confirm_close", self.on_save_to_project, self.CONFIG).exec_()  # type: ignore[attr-defined]
-            != QDialog.DialogCode.Accepted
-        ):
-            evt.ignore()
-            return
-
-        if self._console:
-            self._console.close()
-        self.CONFIG.save()
-        READER_CONFIG.save()
-        evt.accept()
 
     def dropEvent(self, event) -> None:  # type: ignore[no-untyped-def]
         """Override Qt method."""
         from qtextra.widgets.qt_select_one import QtScrollablePickOption
 
         self._setup_config()
-        hp.update_property(self.centralWidget(), "drag", False)
+        hp.update_property(self, "drag", False)
 
         which = None
         files = event.mimeData().urls()
@@ -2039,6 +2023,165 @@ class ImageRegistrationWindow(Window):
 
         if show_register_tutorial(self):
             self.CONFIG.update(first_time=False)
+
+
+class ImageRegistrationWindow(Window):
+    """Image registration dialog window container."""
+
+    APP_NAME = "register"
+
+    def __init__(self, parent: QWidget | None, run_check_version: bool = True, **kwargs: ty.Any):
+        self.CONFIG: RegisterConfig = get_register_config()
+        super().__init__(
+            parent,
+            f"image2image: Registration app (v{__version__})",
+            delay_events=True,
+            run_check_version=run_check_version,
+        )
+        self._setup_config()
+
+    @staticmethod
+    def _setup_config() -> None:
+        READER_CONFIG.auto_pyramid = True
+        READER_CONFIG.init_pyramid = True
+        READER_CONFIG.split_roi = True
+        READER_CONFIG.split_rgb = False
+        READER_CONFIG.only_last_pyramid = False
+
+    def _setup_ui(self) -> None:
+        """Create panel and set central widget."""
+        self.plugin = ImageRegistrationPlugin(self)
+        self.setCentralWidget(self.plugin)
+
+        # connect drops
+        self.evt_dropped.connect(self.plugin.dropEvent)
+
+        self._make_menu()
+        self._make_icon()
+        self._make_statusbar()
+
+    def setup_events(self, state: bool = True) -> None:
+        """Setup events."""
+        connect(self.plugin.view_fixed.viewer.events.status, self._status_changed, state=state)
+        connect(self.plugin.view_moving.viewer.events.status, self._status_changed, state=state)
+
+    def _make_menu(self) -> None:
+        """Make menu items."""
+        # File menu
+        menu_file = hp.make_menu(self, "File")
+        hp.make_menu_item(
+            self,
+            "Import project (.i2r.json, .i2r.toml)...",
+            "Ctrl+O",
+            menu=menu_file,
+            func=self.plugin.on_load_from_project,
+        )
+        hp.make_menu_item(
+            self,
+            "Export project (.i2r.json, .i2r.toml)...",
+            "Ctrl+S",
+            menu=menu_file,
+            func=self.plugin.on_save_to_project,
+        )
+        menu_file.addSeparator()
+        hp.make_menu_item(self, "Quit", menu=menu_file, func=self.close)
+
+        # Tools menu
+        menu_tools = self._make_tools_menu()
+        hp.make_menu_item(
+            self,
+            "Show Shortcuts...",
+            "Ctrl+Y",
+            menu=menu_tools,
+            func=self.plugin.on_show_shortcuts,
+        )
+
+        self.menubar = QMenuBar(self)
+        self.menubar.addAction(menu_file.menuAction())
+        self.menubar.addAction(menu_tools.menuAction())
+        self.menubar.addAction(self._make_apps_menu().menuAction())
+        self.menubar.addAction(self._make_config_menu().menuAction())
+        self.menubar.addAction(self._make_help_menu().menuAction())
+        self.setMenuBar(self.menubar)
+
+    def _make_statusbar(self) -> None:
+        """Make status bar."""
+        super()._make_statusbar()
+        self.shortcuts_btn.show()
+        self.plugin._make_statusbar(self.statusbar)
+
+    def closeEvent(self, evt) -> None:
+        """Close event."""
+        if self.plugin.close(force=False):
+            evt.accept()
+        else:
+            evt.ignore()
+
+    # delegate properties/methods for backwards compatibility
+    @property
+    def view_fixed(self):
+        return self.plugin.view_fixed
+
+    @property
+    def view_moving(self):
+        return self.plugin.view_moving
+
+    @property
+    def fixed_points_layer(self):
+        return self.plugin.fixed_points_layer
+
+    @property
+    def moving_points_layer(self):
+        return self.plugin.moving_points_layer
+
+    @property
+    def temporary_fixed_points_layer(self):
+        return self.plugin.temporary_fixed_points_layer
+
+    @property
+    def temporary_moving_points_layer(self):
+        return self.plugin.temporary_moving_points_layer
+
+    @property
+    def transform_model(self):
+        return self.plugin.transform_model
+
+    @property
+    def transform(self):
+        return self.plugin.transform
+
+    @property
+    def initial_btn(self):
+        return self.plugin.initial_btn
+
+    @property
+    def guess_btn(self):
+        return self.plugin.guess_btn
+
+    @property
+    def moving_image_layer(self):
+        return self.plugin.moving_image_layer
+
+    @property
+    def evt_predicted(self):
+        return self.plugin.evt_predicted
+
+    def get_current_moving_reader(self):
+        return self.plugin.get_current_moving_reader()
+
+    def get_current_fixed_reader(self):
+        return self.plugin.get_current_fixed_reader()
+
+    def _update_layer_points(self, *args, **kwargs):
+        return self.plugin._update_layer_points(*args, **kwargs)
+
+    def on_update_text(self, *args, **kwargs):
+        return self.plugin.on_update_text(*args, **kwargs)
+
+    def __getattr__(self, name: str) -> ty.Any:
+        if name != "plugin" and hasattr(self, "plugin"):
+            return getattr(self.plugin, name)
+        raise AttributeError(f"'{self.__class__.__name__}' object has no attribute '{name}'")
 
 
 if __name__ == "__main__":  # pragma: no cover
