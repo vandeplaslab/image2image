@@ -17,11 +17,10 @@ from qtextra.widgets.qt_button_icon import QtThemeButton
 from qtextraplot._napari.mixins import ImageViewMixin
 from qtpy.QtCore import QProcess, Qt, Signal  # type: ignore[attr-defined]
 from qtpy.QtWidgets import QMainWindow, QMenu, QProgressBar, QStatusBar, QWidget
-from superqt.utils import create_worker, ensure_main_thread
 
 from image2image.config import STATE, SingleAppConfig, get_app_config
 from image2image.models.data import DataModel
-from image2image.qt._dialogs._update import check_version
+from image2image.qt._mixins import NewVersionMixin, ThemeMixin
 from image2image.utils._appdirs import USER_LOG_DIR
 from image2image.utils.utilities import (
     get_colormap,
@@ -35,7 +34,7 @@ if ty.TYPE_CHECKING:
     from qtextraplot._napari.image.wrapper import NapariImageView
 
 
-class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
+class Window(QMainWindow, IndicatorMixin, ImageViewMixin, NewVersionMixin, ThemeMixin):
     """Base class window for all apps."""
 
     APP_NAME: str = ""
@@ -80,45 +79,6 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
     @staticmethod
     def _setup_config() -> None:
         raise NotImplementedError("Must implement method")
-
-    def on_toggle_theme(self) -> None:
-        """Toggle theme."""
-        THEMES.theme = "dark" if self.theme_btn.dark else "light"
-        get_app_config().theme = THEMES.theme
-
-    def on_changed_theme(self) -> None:
-        """Update theme of the app."""
-        get_app_config().theme = THEMES.theme
-        THEMES.set_theme_stylesheet(self)
-        # update console
-        if self._console:
-            self._console._console._update_theme()
-
-    def on_check_new_version(self) -> None:
-        """Check for the new version."""
-        create_worker(
-            check_version,
-            _connect={
-                "returned": self._on_set_new_version,
-                "errored": lambda: hp.toast(
-                    self, "Failed", "Failed checking for new version", icon="error", position="top_left"
-                ),
-            },
-        )
-
-    @ensure_main_thread()
-    def _on_set_new_version(self, res: tuple[bool, str]) -> None:
-        """Set the result of version check."""
-        is_new_available, reason = res
-        if not is_new_available:
-            logger.debug("Using the latest version of the app.")
-            hp.toast(
-                self, "No new version", "You are using the latest version of the app.", icon="info", position="top_left"
-            )
-            return
-        hp.long_toast(self, "New version available!", reason, 15_000, icon="info", position="top_left")
-        logger.debug("Checked for latest version.")
-        self.update_status_btn.show()
 
     def _setup_ui(self) -> None:
         """Create panel."""
@@ -361,7 +321,7 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
             for name in channel_names:
                 if view_wrapper.remove_layer(name, silent=True):
                     logger.trace(f"Removed '{name}' from {view_kind}.")
-        except Exception:  # noqa: BLE001
+        except Exception as exc:  # noqa: BLE001
             log_exception_or_error(exc)
 
     @staticmethod
@@ -464,7 +424,9 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
         hp.make_menu_item(
             self, "Open Config directory", menu=menu_config, func=lambda: open_directory_universal(USER_CONFIG_DIR)
         )
-        hp.make_menu_item(self, "Open Log directory", menu=menu_config, func=lambda: open_directory_universal(USER_LOG_DIR))
+        hp.make_menu_item(
+            self, "Open Log directory", menu=menu_config, func=lambda: open_directory_universal(USER_LOG_DIR)
+        )
         return menu_config
 
     def _make_apps_menu(self) -> QMenu:
