@@ -14,11 +14,10 @@ from image2image_io.config import CONFIG as READER_CONFIG
 from image2image_io.enums import ViewType
 from koyo.timer import MeasureTimer
 from loguru import logger
-from napari.layers import Image, Points
+from napari.layers import Image, Layer, Points
 from napari.layers.points.points import Mode
 from napari.layers.utils._link_layers import link_layers
 from napari.utils.events import Event
-from qtextra.config import THEMES
 from qtextra.dialogs.qt_close_window import QtConfirmCloseDialog
 from qtextra.utils.utilities import connect
 from qtextra.widgets.qt_label_icon import QtPulsingAttentionLabel
