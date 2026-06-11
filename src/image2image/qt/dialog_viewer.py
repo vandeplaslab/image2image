@@ -22,12 +22,11 @@ from image2image.qt._dialogs._select import LoadWidget
 from image2image.utils.utilities import ensure_extension, get_resolution_options
 
 if ty.TYPE_CHECKING:
+    from image2image_io.readers import ShapesReader
     from napari.layers import Image, Points, Shapes
     from napari.utils.events import Event
-    from qtpy.QtGui import QKeyEvent
-
-    from image2image_io.readers import ShapesReader
     from qtextraplot._napari.image.wrapper import NapariImageView
+    from qtpy.QtGui import QKeyEvent
 
     from image2image.models.transform import TransformModel
 
