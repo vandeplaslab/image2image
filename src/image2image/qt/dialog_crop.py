@@ -25,6 +25,7 @@ from superqt import ensure_main_thread
 from superqt.utils import GeneratorWorker, create_worker, qdebounced
 
 import image2image.constants as C
+import image2image.qt.helpers as ih
 from image2image import __version__
 from image2image.config import get_crop_config
 from image2image.enums import ALLOWED_PROJECT_CROP_FORMATS
@@ -258,6 +259,8 @@ class ImageCropWindow(SingleViewerMixin):
 
         logger.trace("Exporting mask regions to OME-TIFF files...")
         if regions:
+            ih.warn_if_uint8(self)
+
             for _ in export_mask_regions(
                 self.data_model,
                 output_dir=output_dir_,
@@ -408,6 +411,8 @@ class ImageCropWindow(SingleViewerMixin):
             output_dir_ = Path(output_dir_)
 
         if regions:
+            ih.warn_if_uint8(self)
+
             self.worker_crop = create_worker(
                 export_crop_regions,
                 data_model=self.data_model,

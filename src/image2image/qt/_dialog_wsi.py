@@ -21,10 +21,11 @@ from superqt import ensure_main_thread
 from superqt.utils import qdebounced
 
 import image2image.constants as C
+import image2image.qt.helpers as ih
 from image2image.config import ValisConfig
 from image2image.enums import LEVEL_TO_PYRAMID, PYRAMID_TO_LEVEL
 from image2image.models.data import DataModel
-from image2image.qt._dialog_base import BasePluginMixin, Window
+from image2image.qt._dialog_base import BasePluginMixin
 from image2image.qt._dialog_mixins import SingleViewerMixin, SingleViewerPluginMixin
 from image2image.utils.valis import hash_preprocessing
 
@@ -148,6 +149,7 @@ class ImageWsiPluginWidget(Qw.QWidget, BasePluginMixin, SingleViewerPluginMixin)
             return False
         if save and not self.save_model():
             return False
+        ih.warn_if_uint8(self)
         task = self.make_registration_task(
             project=self.registration_model,
             write_transformed=self.write_registered_check.isChecked(),

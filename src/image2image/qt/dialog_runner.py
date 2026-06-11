@@ -27,6 +27,7 @@ from qtpy.QtWidgets import (
 )
 
 import image2image.constants as C
+import image2image.qt.helpers as ih
 from image2image import __version__
 from image2image.config import STATE, RunnerConfig, get_runner_config
 from image2image.qt._dialog_base import Window
@@ -424,6 +425,7 @@ class ImageRunnerWindow(Window):
             )
             return
         queued = 0
+        ih.warn_if_uint8(self)
         for path in paths:
             project = self.projects.get(path)
             if project is None:
