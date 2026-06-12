@@ -425,14 +425,13 @@ class ImageViewerWindow(SingleViewerMixin):
                 " viewer.",
             )
 
-    @qdebounced(timeout=50, leading=True)
     def keyPressEvent(self, evt: QKeyEvent) -> None:  # type: ignore[override]
         """Key press event."""
         if hasattr(evt, "native"):
             evt = evt.native
         try:
             key = evt.key()
-            ignore = self._handle_key_press(key)
+            ignore = self._handle_key_press_limited(key)
             if ignore:
                 evt.ignore()
             if not evt.isAccepted():
@@ -444,6 +443,10 @@ class ImageViewerWindow(SingleViewerMixin):
     @qdebounced(timeout=100, leading=True)
     def on_handle_key_press(self, key: int) -> bool:
         """Handle key-press event."""
+        return self._handle_key_press(key)
+
+    @qdebounced(timeout=50, leading=True)
+    def _handle_key_press_limited(self, key: int) -> bool:
         return self._handle_key_press(key)
 
     def _handle_key_press(self, key: int) -> bool:

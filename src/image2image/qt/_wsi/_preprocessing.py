@@ -353,7 +353,7 @@ class PreprocessingDialog(QtFramelessTool):
     # noinspection PyAttributeOutsideInit
     def make_panel(self) -> QFormLayout:
         """Make panel."""
-        button_layout = hp.make_h_layout(
+        button_layout_1 = hp.make_h_layout(
             hp.make_btn(
                 self, "Basic", tooltip="Apply basic preprocessing.", func=lambda: self.on_set_defaults("Basic")
             ),
@@ -371,6 +371,12 @@ class PreprocessingDialog(QtFramelessTool):
             ),
             hp.make_btn(self, "H&E", tooltip="Apply H&E preprocessing.", func=lambda: self.on_set_defaults("H&E")),
             hp.make_btn(self, "PAS", tooltip="Apply PAS preprocessing.", func=lambda: self.on_set_defaults("PAS")),
+            spacing=1,
+            margin=1,
+            stretch_after=True,
+            stretch_before=True,
+        )
+        button_layout_2 = hp.make_h_layout(
             hp.make_btn(
                 self,
                 "postAF(B)",
@@ -386,6 +392,8 @@ class PreprocessingDialog(QtFramelessTool):
             hp.make_btn(self, "DAPI", tooltip="Apply DAPI preprocessing.", func=lambda: self.on_set_defaults("DAPI")),
             spacing=1,
             margin=1,
+            stretch_after=True,
+            stretch_before=True,
         )
 
         # pre-processing method
@@ -564,7 +572,8 @@ class PreprocessingDialog(QtFramelessTool):
             )
         )
         layout.addRow(hp.make_h_line_with_text("Defaults", self))
-        layout.addRow(button_layout)
+        layout.addRow(button_layout_1)
+        layout.addRow(button_layout_2)
         if self.valis:
             layout.addRow(hp.make_h_line_with_text("Valis", self))
         method_label = hp.make_label(self, "Method")

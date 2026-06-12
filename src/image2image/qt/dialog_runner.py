@@ -76,6 +76,7 @@ class QtRunnerProjectCard(QFrame):
         self.status = "Ready"
         self.setFrameShape(QFrame.Shape.StyledPanel)
         self.setFrameShadow(QFrame.Shadow.Raised)
+        self.setProperty("card", True)
 
         self.name_label = hp.make_label(
             self,
@@ -469,7 +470,7 @@ class ImageRunnerWindow(Window):
         dlg.show()
         return False
 
-    def _make_registration_task(self, project: RunnerProject) -> Task:
+    def _make_registration_task(self, project: RunnerProject, cli_command_func: ty.Callable | None = None) -> Task:
         """Create a qtextra task for a loaded registration project."""
         if project.kind == "elastix":
             from image2image.qt.dialog_elastix import make_registration_task
@@ -484,6 +485,7 @@ class ImageRunnerWindow(Window):
                 as_uint8=self.CONFIG.as_uint8,
                 rename=self.CONFIG.rename,
                 clip=self.CONFIG.clip,
+                cli_command_func=cli_command_func,
             )
         from image2image.qt.dialog_valis import make_registration_task
 
@@ -498,6 +500,7 @@ class ImageRunnerWindow(Window):
             rename=self.CONFIG.rename,
             clip=self.CONFIG.clip,
             with_i2reg=STATE.allow_valis_run,
+            cli_command_func=cli_command_func,
         )
 
     def on_clear_projects(self) -> None:

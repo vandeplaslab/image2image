@@ -42,8 +42,12 @@ def make_registration_task(
     as_uint8: bool = False,
     rename: bool = True,
     clip: str = "remove",
+    cli_command_func: ty.Callable | None = get_i2reg_path,
 ) -> Task:
     """Make registration task."""
+    if cli_command_func is None:
+        cli_command_func = get_i2reg_path
+
     task_id = hash_parameters(
         project_dir=project.project_dir,
         write_transformed=write_transformed,
@@ -57,7 +61,7 @@ def make_registration_task(
 
     # pre-processing command
     preprocess_command = [
-        get_i2reg_path(),
+        cli_command_func(),
         "--no_color",
         "--debug",
         "elastix",
@@ -69,7 +73,7 @@ def make_registration_task(
 
     # registration command
     register_command = [
-        get_i2reg_path(),
+        cli_command_func(),
         "--no_color",
         "--debug",
         "elastix",
@@ -83,7 +87,7 @@ def make_registration_task(
     # write command
     if any([write_attached, write_transformed, write_not_registered, write_merged]):
         write_command = [
-            get_i2reg_path(),
+            cli_command_func(),
             "--no_color",
             "--debug",
             "elastix",
@@ -157,6 +161,7 @@ class ImageElastixPlugin(ImageWsiPluginWidget):
         remove_merged: bool = False,
         as_uint8: bool = False,
         rename: bool = False,
+        cli_command_func: ty.Callable | None = None,
         **_kwargs: ty.Any,
     ) -> Task:
         """Make registration task."""
@@ -169,6 +174,7 @@ class ImageElastixPlugin(ImageWsiPluginWidget):
             remove_merged=remove_merged,
             as_uint8=as_uint8,
             rename=rename,
+            cli_command_func=cli_command_func,
         )
 
     def setup_events(self, state: bool = True) -> None:

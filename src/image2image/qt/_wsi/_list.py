@@ -66,6 +66,7 @@ class QtModalityItem(QFrame):
         self.key = modality.name
         self.modality = modality
         super().__init__(parent)
+        self.setProperty("card", True)
         self.setMouseTracking(True)
         self._parent = parent
         self.valis = valis
@@ -633,6 +634,7 @@ class QtModalityList(QScrollArea):
 
     def __init__(self, parent: ImageElastixWindow | ImageValisWindow, valis: bool = False):
         super().__init__(parent)
+        self.setProperty("cardList", True)
         self.view = parent.view
         self._parent = parent
         self.valis = valis

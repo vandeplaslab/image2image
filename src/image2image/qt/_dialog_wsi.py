@@ -141,7 +141,9 @@ class ImageWsiPluginWidget(Qw.QWidget, BasePluginMixin, SingleViewerPluginMixin)
             dlg.show()
         return is_valid
 
-    def _queue_registration_model(self, add_delayed: bool, save: bool = True, cli: bool = False) -> bool | Task:
+    def _queue_registration_model(
+        self, add_delayed: bool, save: bool = True, cli: bool = False, cli_command_func: ty.Callable | None = None
+    ) -> bool | Task:
         """Queue registration model."""
         if not self.registration_model:
             return False
@@ -160,6 +162,7 @@ class ImageWsiPluginWidget(Qw.QWidget, BasePluginMixin, SingleViewerPluginMixin)
             rename=self.rename_check.isChecked(),
             clip=self.clip_combo.currentText(),
             with_i2reg=not self.RUN_DISABLED,
+            cli_command_func=cli_command_func,
         )
         if task:
             if cli:
@@ -1156,14 +1159,13 @@ class ImageWsiPluginWidget(Qw.QWidget, BasePluginMixin, SingleViewerPluginMixin)
                 os.environ["IMAGE2IMAGE_I2REG_PATH"] = str(env_path)
                 logger.trace(f"Set i2reg path to {env_path}.")
 
-    @qdebounced(timeout=50, leading=True)
     def keyPressEvent(self, evt: QKeyEvent) -> None:
         """Key press event."""
         if hasattr(evt, "native"):
             evt = evt.native
         try:
             key = evt.key()
-            ignore = self._handle_key_press(key)
+            ignore = self._handle_key_press_limited(key)
             if ignore:
                 evt.ignore()
             if not evt.isAccepted():
@@ -1175,6 +1177,10 @@ class ImageWsiPluginWidget(Qw.QWidget, BasePluginMixin, SingleViewerPluginMixin)
     @qdebounced(timeout=100, leading=True)
     def on_handle_key_press(self, key: int) -> bool:
         """Handle key-press event."""
+        return self._handle_key_press(key)
+
+    @qdebounced(timeout=50, leading=True)
+    def _handle_key_press_limited(self, key: int) -> bool:
         return self._handle_key_press(key)
 
     def _handle_key_press(self, key: int) -> bool:

@@ -1,12 +1,4 @@
 /* ----------------- QtFramelessPopup ----------------- */
-QtFramelessPopup {
-    border: 2px solid {{ highlight }};
-}
-
-QtFramelessPopup #move_handle:focus {
-    background-color: {{ darken(background, 10) }};
-}
-
 QLineEdit#table_cell {
     background-color: {{ background }};
 }
@@ -24,13 +16,6 @@ QLabel#reg_warning {
 
 QLabel#shortcuts, QLabel#errors {
     font-size: {{ increase(font_size, 3) }};
-}
-
-QPushButton#update_btn{
-    color: {{ replace(success) }};
-    background-color: {{ success }};
-    font-size: {{ increase(font_size, 1) }};
-    font-weight: bold;
 }
 
 QLabel#crop_label {
@@ -55,30 +40,6 @@ QtImagePushButton[disabled=true] {
     background-color: {{ warning }};
 }
 
-QStatusBar {
-    background-color: {{ foreground }};
-    max-height: 28px;
-}
-
-QStatusBar QSpinBox {
-    background-color: {{ background }};
-    color: {{ text }};
-}
-
-QStatusBar QSpinBox::up-button, QStatusBar QSpinBox::down-button {
-    border: 1px solid {{ background }};
-    background-color: {{ foreground }};
-}
-
-QStatusBar QSpinBox::up-button:hover, QStatusBar QSpinBox::down-button:hover {
-    background-color: {{ darken(foreground, 10) }};
-}
-
-QStatusBar QCheckBox::indicator {
-    background-color: {{ background }};
-    color: {{ text }};
-}
-
 /*QtImagePushButton[wide_border=true] {*/
 /*    background-color: {{ background }};*/
 /*}*/
@@ -93,17 +54,11 @@ QStatusBar QCheckBox::indicator {
 /*}*/
 
 
-QtDatasetItem, QtModalityItem, QtRunnerProjectCard{
-    border: 2px solid {{ highlight }};
-}
 
 QComboBox#statusbar_combobox {
     border: 2px solid {{ secondary }};
 }
 
-QtModalityList {
-    background: {{ foreground }};
-}
 
 /*QMenu {*/
 /*    border: 2px solid {{ highlight }};*/

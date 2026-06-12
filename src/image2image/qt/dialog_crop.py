@@ -767,7 +767,7 @@ class ImageCropWindow(SingleViewerMixin):
         show_crop_tutorial(self)
         self.CONFIG.update(first_time=False)
 
-    @qdebounced(timeout=50, leading=True)
+    # @qdebounced(timeout=50, leading=True)
     def keyPressEvent(self, evt: QKeyEvent) -> None:
         """Key press event."""
         if hasattr(evt, "native"):

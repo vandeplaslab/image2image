@@ -28,7 +28,6 @@ from image2image.utils.utilities import get_i2reg_path, pad_str
 from image2image.utils.valis import guess_preprocessing
 
 if ty.TYPE_CHECKING:
-    from image2image_reg.enums import ValisDetectorMethod, ValisMatcherMethod
     from image2image_reg.models import Modality, Preprocessing
     from image2image_reg.workflows.valis import ValisReg
 
@@ -44,8 +43,11 @@ def make_registration_task(
     rename: bool = True,
     clip: str = "remove",
     with_i2reg: bool = True,
+    cli_command_func: ty.Callable | None = get_i2reg_path,
 ) -> Task:
     """Make registration task."""
+    if cli_command_func is None:
+        cli_command_func = get_i2reg_path
     task_id = hash_parameters(
         project_dir=project.project_dir,
         write_transformed=write_transformed,
@@ -57,7 +59,7 @@ def make_registration_task(
 
     commands = []
     register_command = [
-        get_i2reg_path() if with_i2reg else "i2reg",
+        cli_command_func() if with_i2reg else "i2reg",
         "--no_color",
         "--debug",
         "valis",
@@ -69,7 +71,7 @@ def make_registration_task(
     commands.append(register_command)
     if any([write_attached, write_transformed, write_not_registered, write_merged]):
         write_command = [
-            get_i2reg_path(),
+            cli_command_func(),
             "--no_color",
             "--debug",
             "valis",
@@ -110,9 +112,7 @@ class ImageValisPlugin(ImageWsiPluginWidget):
     OTHER_PROJECT: str = "Elastix"
     IS_VALIS = True
 
-    def __init__(
-        self, parent: QWidget | None, project_dir: PathLike | None = None, **_kwargs
-    ):
+    def __init__(self, parent: QWidget | None, project_dir: PathLike | None = None, **_kwargs):
         self.CONFIG: ValisConfig = get_valis_config()
         _q.N_PARALLEL = self.CONFIG.n_parallel
         super().__init__(parent, project_dir=project_dir)
@@ -192,6 +192,8 @@ class ImageValisPlugin(ImageWsiPluginWidget):
 
     def _setup_ui(self):
         """Create panel."""
+        from image2image_reg.enums import ValisDetectorMethod, ValisMatcherMethod
+
         self._setup_statusbar_widgets()
         self.view = self._make_image_view(
             self, add_toolbars=True, allow_extraction=False, disable_controls=False, disable_new_layers=True
@@ -231,7 +233,6 @@ class ImageValisPlugin(ImageWsiPluginWidget):
             " selected.",
             func=self.on_set_reference,
         )
-        from image2image_reg.enums import ValisDetectorMethod, ValisMatcherMethod
 
         self.feature_choice = hp.make_combobox(
             self,
