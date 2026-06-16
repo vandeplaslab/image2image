@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-import json
 import typing as ty
-from dataclasses import dataclass
 from pathlib import Path
 
 import qtextra.helpers as hp
@@ -14,13 +12,11 @@ from qtextra.config import THEMES
 from qtextra.queue.popup import QUEUE, QueuePopup
 from qtextra.queue.task import Task
 from qtextra.utils.utilities import connect
-from qtpy.QtCore import QSize, Qt, Signal  # type: ignore[attr-defined]
-from qtpy.QtGui import QDropEvent, QKeyEvent, QPixmap
+from qtpy.QtCore import Qt
+from qtpy.QtGui import QDropEvent
 from qtpy.QtWidgets import (
     QDialog,
     QFileDialog,
-    QFrame,
-    QLabel,
     QListWidget,
     QMenuBar,
     QScrollArea,
@@ -33,466 +29,25 @@ import image2image.qt.helpers as ih
 from image2image import __version__
 from image2image.config import STATE, RunnerConfig, get_runner_config
 from image2image.qt._dialog_base import Window
+from image2image.qt._runner._card import QtRunnerProjectCard
+from image2image.qt._runner._constants import (
+    PROJECT_FILE_FILTER,
+    REVIEW_STATE_FILTER,
+    REVIEW_STATES,
+    RUN_STATE_FILTER,
+    ReviewState,
+    RunnerProject,
+)
+from image2image.qt._runner.utilities import (
+    discover_overlap_images,
+    has_registration_images,
+    load_registration_project,
+    project_matches_filters,
+    write_review_state,
+)
 
 if ty.TYPE_CHECKING:
-    from image2image_reg.workflows.elastix import ElastixReg
-    from image2image_reg.workflows.valis import ValisReg
-
-
-ProjectKind = ty.Literal["elastix", "valis"]
-ReviewState = ty.Literal["unknown", "good", "bad"]
-RUN_STATE_FILTER = ty.Literal["All", "Finished", "Running", "Queued", "Failed"]
-REVIEW_STATE_FILTER = ty.Literal["All", "Unknown", "Good", "Bad"]
-REVIEW_FILENAME = ".image2image-runner-review.json"
-PROJECT_FILE_FILTER = (
-    "Registration projects (*.json *.toml *.i2wsireg.json *.i2wsireg.toml *.wsireg *.i2reg *.config.json "
-    "*.valis.json *.valis.toml *.valis valis.config.json);; "
-    "Elastix projects (*.i2wsireg.json *.i2wsireg.toml *.wsireg *.i2reg *.config.json);; "
-    "Valis projects (*.valis.json *.valis.toml *.valis valis.config.json *.config.json);;"
-)
-RUN_STATE_FILTERS: dict[RUN_STATE_FILTER, set[str]] = {
-    "All": set(),
-    "Finished": {"Finished"},
-    "Running": {"Running", "In progress"},
-    "Queued": {"Queued", "Already queued"},
-    "Failed": {"Failed", "Invalid"},
-}
-REVIEW_STATES: set[str] = {"unknown", "good", "bad"}
-
-
-@dataclass(frozen=True)
-class RunnerProject:
-    """Loaded registration project."""
-
-    kind: ProjectKind
-    project_dir: Path
-    project: ElastixReg | ValisReg
-
-
-def has_registration_images(project_dir: Path) -> bool:
-    """Return whether a project has completed images on disk."""
-    image_dir = Path(project_dir) / "Images"
-    if not image_dir.exists():
-        return False
-    return any(path.is_file() for path in image_dir.iterdir())
-
-
-def discover_overlap_images(project_dir: Path) -> list[Path]:
-    """Return sorted overlap preview PNG files for a project."""
-    overlap_dir = Path(project_dir) / "Overlap"
-    if not overlap_dir.exists():
-        return []
-    return sorted((path for path in overlap_dir.glob("*.png") if path.is_file()), key=lambda path: path.name.lower())
-
-
-def read_review_state(project_dir: Path) -> ReviewState:
-    """Read the persisted runner review state for a project."""
-    path = Path(project_dir) / REVIEW_FILENAME
-    if not path.exists():
-        return "unknown"
-    try:
-        data = json.loads(path.read_text())
-    except (OSError, json.JSONDecodeError) as exc:
-        logger.warning(f"Could not read runner review state from {path}: {exc}")
-        return "unknown"
-    state = data.get("review_state")
-    if state in REVIEW_STATES:
-        return ty.cast(ReviewState, state)
-    logger.warning(f"Invalid runner review state in {path}: {state!r}")
-    return "unknown"
-
-
-def write_review_state(project_dir: Path, state: ReviewState) -> None:
-    """Persist the runner review state for a project."""
-    path = Path(project_dir) / REVIEW_FILENAME
-    payload = {"review_state": state}
-    path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n")
-
-
-def project_matches_filters(
-    name: str,
-    status: str,
-    review_state: ReviewState,
-    name_filter: str,
-    run_state_filter: RUN_STATE_FILTER,
-    review_state_filter: REVIEW_STATE_FILTER,
-) -> bool:
-    """Return whether a project card should be visible."""
-    name_filter = name_filter.strip().lower()
-    if name_filter and name_filter not in name.lower():
-        return False
-    status_filter = RUN_STATE_FILTERS[run_state_filter]
-    if status_filter and status not in status_filter:
-        return False
-    return not (review_state_filter != "All" and review_state != review_state_filter.lower())
-
-
-class OverlapPreviewDialog(QDialog):
-    """Dialog for reviewing overlap preview PNG images."""
-
-    evt_review = Signal(object, object)
-
-    def __init__(
-        self,
-        project: RunnerProject,
-        image_paths: list[Path],
-        review_state: ReviewState,
-        parent: QWidget | None = None,
-    ):
-        super().__init__(parent)
-        self.project = project
-        self.image_paths = image_paths
-        self.review_state = review_state
-        self.setWindowTitle(f"Overlap previews: {project.project.name}")
-        self.setMinimumSize(800, 500)
-
-        self.image_list = QListWidget(self)
-        for path in image_paths:
-            self.image_list.addItem(path.name)
-        self.image_list.currentRowChanged.connect(self.on_select_image)
-
-        self.image_label = QLabel(self)
-        self.image_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.image_label.setMinimumSize(500, 400)
-        self.image_label.setText("No preview selected.")
-
-        self.review_label = hp.make_label(self, self._review_text(), object_name="tip_label")
-        self.good_btn = hp.make_btn(
-            self,
-            "Good",
-            tooltip="Mark this project result as good.",
-            func=lambda: self.set_review_state("good"),
-        )
-        self.bad_btn = hp.make_btn(
-            self,
-            "Bad",
-            tooltip="Mark this project result as bad.",
-            func=lambda: self.set_review_state("bad"),
-        )
-
-        layout = QVBoxLayout(self)
-        layout.addLayout(
-            hp.make_h_layout(
-                self.image_list,
-                self.image_label,
-                spacing=4,
-                stretch_id=(1,),
-            )
-        )
-        layout.addLayout(
-            hp.make_h_layout(
-                hp.make_label(self, "Review"),
-                self.review_label,
-                self.good_btn,
-                self.bad_btn,
-                spacing=2,
-                stretch_id=(1,),
-            )
-        )
-        self._sync_review_buttons()
-        if self.image_paths:
-            self.image_list.setCurrentRow(0)
-
-    def keyPressEvent(self, event: QKeyEvent) -> None:
-        """Handle arrow key navigation."""
-        if event.key() in {
-            Qt.Key.Key_Left,
-            Qt.Key.Key_Up,
-        }:
-            self._move_selection(-1)
-            return
-        if event.key() in {
-            Qt.Key.Key_Right,
-            Qt.Key.Key_Down,
-        }:
-            self._move_selection(1)
-            return
-        super().keyPressEvent(event)
-
-    def resizeEvent(self, event: ty.Any) -> None:
-        """Refresh the selected image when the dialog is resized."""
-        super().resizeEvent(event)
-        self.on_select_image(self.image_list.currentRow())
-
-    def on_select_image(self, row: int) -> None:
-        """Display the selected overlap image."""
-        if row < 0 or row >= len(self.image_paths):
-            self.image_label.setText("No preview selected.")
-            return
-        pixmap = QPixmap(str(self.image_paths[row]))
-        if pixmap.isNull():
-            self.image_label.setText("Could not load preview image.")
-            return
-        size = self.image_label.size()
-        if not size.isValid():
-            size = QSize(500, 400)
-        self.image_label.setPixmap(
-            pixmap.scaled(
-                size,
-                Qt.AspectRatioMode.KeepAspectRatio,
-                Qt.TransformationMode.SmoothTransformation,
-            )
-        )
-
-    def set_review_state(self, state: ReviewState) -> None:
-        """Update and emit the project review state."""
-        self.review_state = state
-        self.review_label.setText(self._review_text())
-        self._sync_review_buttons()
-        self.evt_review.emit(self.project.project_dir, state)
-
-    def _move_selection(self, delta: int) -> None:
-        """Move preview selection by one item."""
-        if not self.image_paths:
-            return
-        row = self.image_list.currentRow()
-        if row < 0:
-            row = 0
-        row = max(0, min(len(self.image_paths) - 1, row + delta))
-        self.image_list.setCurrentRow(row)
-
-    def _review_text(self) -> str:
-        """Return review text for the current state."""
-        return self.review_state.capitalize()
-
-    def _sync_review_buttons(self) -> None:
-        """Refresh review button enabled states."""
-        self.good_btn.setEnabled(self.review_state != "good")
-        self.bad_btn.setEnabled(self.review_state != "bad")
-
-
-class QtRunnerProjectCard(QFrame):
-    """Card describing a loaded registration project."""
-
-    evt_queue = Signal(object)
-    evt_images = Signal(object)
-    evt_network = Signal(object)
-    evt_viewer = Signal(object)
-    evt_overlap = Signal(object)
-    evt_review = Signal(object, object)
-    evt_edit = Signal(object)
-
-    def __init__(self, project: RunnerProject, parent: QWidget | None = None):
-        super().__init__(parent)
-        self.project = project
-        self.status = "Ready"
-        self.review_state = read_review_state(project.project_dir)
-        self.setFrameShape(QFrame.Shape.StyledPanel)
-        self.setFrameShadow(QFrame.Shadow.Raised)
-        self.setProperty("card", True)
-
-        self.name_label = hp.make_label(
-            self,
-            f"<b>{project.project.name}</b>",
-            enable_url=True,
-            object_name="large_text",
-        )
-        self.summary_label = hp.make_label(self, self._summarize_project(), enable_url=True, wrap=True)
-        self.status_label = hp.make_label(self, "Ready", object_name="tip_label")
-        self.review_label = hp.make_label(self, self._review_text(), object_name="tip_label")
-        self.progress_label = hp.make_label(self, "Waiting to be queued.", wrap=True)
-
-        self.queue_btn = hp.make_btn(
-            self,
-            "Queue",
-            tooltip="Validate and add this project to the queue.",
-            func=lambda: self.evt_queue.emit(self.project.project_dir),
-        )
-        self.images_btn = hp.make_btn(
-            self,
-            "Images...",
-            tooltip="Show the project image list.",
-            func=lambda: self.evt_images.emit(self.project.project_dir),
-        )
-        self.network_btn = hp.make_btn(
-            self,
-            "Network...",
-            tooltip="Show the Elastix registration network."
-            if project.kind == "elastix"
-            else "Registration network preview is currently available for Elastix projects.",
-            func=lambda: self.evt_network.emit(self.project.project_dir),
-            disabled=project.kind != "elastix",
-        )
-        self.overlap_btn = hp.make_btn(
-            self,
-            "Overlap...",
-            tooltip="Show existing overlap preview images.",
-            func=lambda: self.evt_overlap.emit(self.project.project_dir),
-        )
-        self.viewer_btn = hp.make_btn(
-            self,
-            "Open in viewer",
-            tooltip="Open completed registration images in the viewer.",
-            func=lambda: self.evt_viewer.emit(self.project.project_dir),
-            disabled=not has_registration_images(self.project.project_dir),
-        )
-        self.good_btn = hp.make_btn(
-            self,
-            "Good",
-            tooltip="Mark this project result as good.",
-            func=lambda: self.evt_review.emit(self.project.project_dir, "good"),
-        )
-        self.bad_btn = hp.make_btn(
-            self,
-            "Bad",
-            tooltip="Mark this project result as bad.",
-            func=lambda: self.evt_review.emit(self.project.project_dir, "bad"),
-        )
-        edit_app_name = "Elastix" if project.kind == "elastix" else "Valis"
-        self.edit_btn = hp.make_btn(
-            self,
-            f"Open in {edit_app_name}",
-            tooltip=f"Open this bad project in the {edit_app_name} app for edits.",
-            func=lambda: self.evt_edit.emit(self.project.project_dir),
-            disabled=self.review_state != "bad",
-        )
-
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(8, 8, 8, 8)
-        layout.setSpacing(4)
-        layout.addWidget(self.name_label)
-        layout.addWidget(self.summary_label)
-        layout.addLayout(
-            hp.make_h_layout(
-                hp.make_label(self, "Status"),
-                self.status_label,
-                spacing=2,
-                stretch_id=(1,),
-            )
-        )
-        layout.addLayout(
-            hp.make_h_layout(
-                hp.make_label(self, "Review"),
-                self.review_label,
-                spacing=2,
-                stretch_id=(1,),
-            )
-        )
-        layout.addWidget(self.progress_label)
-        layout.addLayout(
-            hp.make_h_layout(
-                self.queue_btn,
-                self.images_btn,
-                self.network_btn,
-                self.overlap_btn,
-                self.viewer_btn,
-                self.good_btn,
-                self.bad_btn,
-                self.edit_btn,
-                spacing=2,
-                stretch_after=True,
-            )
-        )
-        self.refresh_actions()
-
-    @property
-    def registration_model(self) -> ElastixReg | ValisReg:
-        """Return the registration model for auxiliary viewers."""
-        return self.project.project
-
-    @property
-    def modalities(self) -> list[ty.Any]:
-        """Return project modalities."""
-        return list(self.project.project.modalities.values())
-
-    def set_status(self, status: str, progress: str = "") -> None:
-        """Update card status and progress text."""
-        self.status = status
-        self.status_label.setText(status)
-        if progress:
-            self.progress_label.setText(progress)
-        self.refresh_actions()
-
-    def set_review_state(self, state: ReviewState) -> None:
-        """Update the visible project review state."""
-        self.review_state = state
-        self.review_label.setText(self._review_text())
-        self.refresh_actions()
-
-    def refresh_actions(self) -> None:
-        """Refresh action button availability."""
-        self.viewer_btn.setEnabled(has_registration_images(self.project.project_dir))
-        self.good_btn.setEnabled(self.review_state != "good")
-        self.bad_btn.setEnabled(self.review_state != "bad")
-        self.edit_btn.setEnabled(self.review_state == "bad")
-
-    def image_lines(self) -> list[str]:
-        """Return a simple image list for the project."""
-        lines = []
-        for index, modality in enumerate(self.modalities, start=1):
-            lines.append(f"{index}. {modality.name}: {modality.path}")
-        return lines
-
-    def _summarize_project(self) -> str:
-        """Return a short project summary."""
-        project = self.project.project
-        n_modalities = len(project.modalities)
-        output_dir = hp.hyper(project.output_dir, value=str(project.output_dir))
-        project_dir = hp.hyper(project.project_dir, value=str(project.project_dir))
-        return (
-            f"<b>Type</b>: {self.project.kind.capitalize()} &nbsp; "
-            f"<b>Modalities</b>: {n_modalities}<br>"
-            f"<b>Project</b>: {project_dir}<br>"
-            f"<b>Output</b>: {output_dir}"
-        )
-
-    def _review_text(self) -> str:
-        """Return review label text."""
-        return self.review_state.capitalize()
-
-
-def _path_to_project_dir(path: Path) -> Path:
-    """Return a project directory for a dropped project path."""
-    return path.parent if path.is_file() else path
-
-
-def _preferred_project_kinds(path: Path) -> tuple[ProjectKind, ...]:
-    """Return the preferred load order for a registration project path."""
-    name = path.name.lower()
-    suffix = path.suffix.lower()
-    if suffix == ".valis" or name == "valis.config.json" or ".valis." in name:
-        return "valis", "elastix"
-    if suffix in {".wsireg", ".i2reg"} or ".i2wsireg." in name or ".i2reg." in name:
-        return "elastix", "valis"
-    if name.endswith(".config.json"):
-        return "elastix", "valis"
-    return "elastix", "valis"
-
-
-def load_registration_project(path: Path) -> RunnerProject:
-    """Load an Elastix or Valis registration project from a path."""
-    errors = []
-    for kind in _preferred_project_kinds(path):
-        try:
-            if kind == "elastix":
-                return _load_elastix_project(path)
-            return _load_valis_project(path)
-        except (FileNotFoundError, ImportError, ValueError) as exc:
-            errors.append(f"{kind}: {exc}")
-    message = "; ".join(errors) if errors else "unsupported project"
-    raise ValueError(f"Could not load registration project from {path}: {message}")
-
-
-def _load_elastix_project(path: Path) -> RunnerProject:
-    """Load an Elastix registration project."""
-    from image2image_reg.workflows.elastix import ElastixReg
-
-    project_dir = _path_to_project_dir(path)
-    try:
-        project = ElastixReg.from_path(project_dir, quick=True)
-    except ValueError:
-        ElastixReg.update_paths(project_dir, project_dir.parent)
-        project = ElastixReg.from_path(project_dir, quick=True)
-    return RunnerProject("elastix", Path(project.project_dir), project)
-
-
-def _load_valis_project(path: Path) -> RunnerProject:
-    """Load a Valis registration project."""
-    from image2image_reg.workflows.valis import ValisReg
-
-    project_dir = _path_to_project_dir(path)
-    project = ValisReg.from_path(project_dir)
-    return RunnerProject("valis", Path(project.project_dir), project)
+    pass
 
 
 class ImageRunnerWindow(Window):
@@ -645,6 +200,8 @@ class ImageRunnerWindow(Window):
 
     def on_show_overlap_previews(self, path: Path) -> None:
         """Show existing overlap preview images for a loaded project."""
+        from image2image.qt._runner._overlap import OverlapPreviewDialog
+
         project = self.projects.get(path)
         if project is None:
             logger.warning(f"Could not find loaded registration project for {path}")

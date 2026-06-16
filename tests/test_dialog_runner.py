@@ -9,14 +9,11 @@ from qtpy.QtCore import Qt
 from qtpy.QtGui import QImage
 
 from image2image.qt.dialog_runner import (
-    OverlapPreviewDialog,
     RunnerProject,
-    discover_overlap_images,
-    has_registration_images,
-    project_matches_filters,
-    read_review_state,
-    write_review_state,
 )
+from image2image.qt._runner.utilities import discover_overlap_images, has_registration_images, project_matches_filters, \
+    read_review_state, write_review_state
+from image2image.qt._runner._overlap import OverlapPreviewDialog
 
 
 def test_has_registration_images(tmp_path) -> None:
