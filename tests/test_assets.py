@@ -11,7 +11,7 @@ from qtpy.QtWidgets import QApplication, QVBoxLayout, QWidget
 import image2image.assets  # noqa: F401
 
 
-@pytest.mark.xfail("flaky")
+@pytest.mark.xfail(reason="flaky")
 def test_napari_mode_push_buttons_receive_qt_icons(qtbot) -> None:
     """Test that napari push-button mode icons are assigned by the app stylesheet."""
     parent = QWidget()
