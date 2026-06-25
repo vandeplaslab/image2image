@@ -774,7 +774,8 @@ def show_valis_tutorial(widget: ImageValisWindow | ImageValisPlugin) -> bool:
             TutorialStep(
                 title="Queue",
                 message="You can see registrations tasks in the queue. Click here to open the queue view.",
-                widget=widget.queue_btn,
+                widget=widget.queue_btn if hasattr(widget, "queue_btn") else None,
+                skip=not hasattr(widget, "queue_btn"),
                 position=Position.BOTTOM_RIGHT,
             ),
             *_generic_statusbar(widget),
