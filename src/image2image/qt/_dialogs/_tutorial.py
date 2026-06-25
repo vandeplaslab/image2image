@@ -298,98 +298,106 @@ def show_register_tutorial(widget: ImageRegistrationPlugin | ImageRegistrationWi
     from qtextra.widgets.qt_tutorial import Position, QtTutorial, TutorialStep
 
     tut = QtTutorial(widget)
-    tut.set_steps(
-        [
-            TutorialStep(
-                title="Welcome to image2register!",
-                message="We would like to show you around before you get started!<br>This app let's you generate"
-                " image registration information between e.g. microscopy and IMS data. This is done by computing affine"
-                " transformation based on fiducial markers in the <b>fixed</b> and <b>moving</b> images.",
-                widget=widget.view_fixed.widget,
-                position=Position.CENTER,
-            ),
-            TutorialStep(
-                title="Fixed image canvas",
-                message="This is where the <b>fixed</b> (or target) images will be displayed.",
-                widget=widget.view_fixed.widget,
-                position=Position.TOP,
-            ),
-            TutorialStep(
-                title="Moving image canvas",
-                message="This is where the <b>moving</b> images will be displayed.",
-                widget=widget.view_moving.widget,
-                position=Position.BOTTOM,
-            ),
-            TutorialStep(
-                title="Open previous project",
-                message="If you've previously saved a project, you can open it here.",
-                widget=widget.import_project_btn,
-                position=Position.BOTTOM_RIGHT,
-            ),
-            TutorialStep(
-                title="Control what should be shown",
-                message="You can control what images should be loaded and  which image channels should be displayed.",
-                widget=widget._fixed_widget,
-                position=Position.RIGHT_TOP,
-            ),
-            TutorialStep(
-                title="Add or remove image",
-                message=ADD_IMAGES,
-                widget=widget._fixed_widget.add_btn,
-                position=Position.RIGHT_TOP,
-            ),
-            TutorialStep(
-                title="Control what should be shown",
-                message=MORE_OPTIONS,
-                widget=widget._fixed_widget.more_btn,
-                position=Position.RIGHT_TOP,
-            ),
-            TutorialStep(
-                title="View type",
-                message="You can control how the <b>moving</b> modality should be displayed. The <b>random</b> view is"
-                " a good starting point as it ensures that each pixel in an image is visible. The <b>overlay</b>"
-                " view will show the ion image.",
-                widget=widget._moving_widget.view_type_choice,
-                position=Position.RIGHT_TOP,
-            ),
-            TutorialStep(
-                title="Overlay",
-                message="You can display <b>one</b> <b>moving</b> image on top of the <b>fixed</b> image. If you've"
-                " loaded multiple, you can select which one should be displayed.",
-                widget=widget._moving_widget.displayed_in_fixed_choice,
-                position=Position.RIGHT_TOP,
-            ),
-            TutorialStep(
-                title="Show fiducials table",
-                message="You can show/hide the fiducials table by clicking here. This can be useful when you want to "
-                " revisit previous points (<b>double-click</b> on the row to zoom-in) to edit or remove it.",
-                widget=widget.fiducials_btn,
-                position=Position.RIGHT_TOP,
-            ),
-            TutorialStep(
-                title="Save project",
-                message="You can save the current state of the registration (loaded images, fiducial markers,"
-                " transformations) and reload it in the future without all that faffing about! The transformation"
-                " data can also be used by e.g. <b>AutoIMS</b> or <b>image2viewer</b> app.",
-                widget=widget.export_project_btn,
-                position=Position.RIGHT_TOP,
-            ),
+    steps: list[TutorialStep] = [
+        TutorialStep(
+            title="Welcome to image2register!",
+            message="We would like to show you around before you get started!<br>This app let's you generate"
+            " image registration information between e.g. microscopy and IMS data. This is done by computing affine"
+            " transformation based on fiducial markers in the <b>fixed</b> and <b>moving</b> images.",
+            widget=widget.view_fixed.widget,
+            position=Position.CENTER,
+        ),
+        TutorialStep(
+            title="Fixed image canvas",
+            message="This is where the <b>fixed</b> (or target) images will be displayed.",
+            widget=widget.view_fixed.widget,
+            position=Position.TOP,
+        ),
+        TutorialStep(
+            title="Moving image canvas",
+            message="This is where the <b>moving</b> images will be displayed.",
+            widget=widget.view_moving.widget,
+            position=Position.BOTTOM,
+        ),
+        TutorialStep(
+            title="Open previous project",
+            message="If you've previously saved a project, you can open it here.",
+            widget=widget.import_project_btn,
+            position=Position.BOTTOM_RIGHT,
+        ),
+        TutorialStep(
+            title="Control what should be shown",
+            message="You can control what images should be loaded and  which image channels should be displayed.",
+            widget=widget._fixed_widget,
+            position=Position.RIGHT_TOP,
+        ),
+        TutorialStep(
+            title="Add or remove image",
+            message=ADD_IMAGES,
+            widget=widget._fixed_widget.add_btn,
+            position=Position.RIGHT_TOP,
+        ),
+        TutorialStep(
+            title="Control what should be shown",
+            message=MORE_OPTIONS,
+            widget=widget._fixed_widget.more_btn,
+            position=Position.RIGHT_TOP,
+        ),
+        TutorialStep(
+            title="View type",
+            message="You can control how the <b>moving</b> modality should be displayed. The <b>random</b> view is"
+            " a good starting point as it ensures that each pixel in an image is visible. The <b>overlay</b>"
+            " view will show the ion image.",
+            widget=widget._moving_widget.view_type_choice,
+            position=Position.RIGHT_TOP,
+        ),
+        TutorialStep(
+            title="Overlay",
+            message="You can display <b>one</b> <b>moving</b> image on top of the <b>fixed</b> image. If you've"
+            " loaded multiple, you can select which one should be displayed.",
+            widget=widget._moving_widget.displayed_in_fixed_choice,
+            position=Position.RIGHT_TOP,
+        ),
+        TutorialStep(
+            title="Show fiducials table",
+            message="You can show/hide the fiducials table by clicking here. This can be useful when you want to "
+            " revisit previous points (<b>double-click</b> on the row to zoom-in) to edit or remove it.",
+            widget=widget.fiducials_btn,
+            position=Position.RIGHT_TOP,
+        ),
+        TutorialStep(
+            title="Save project",
+            message="You can save the current state of the registration (loaded images, fiducial markers,"
+            " transformations) and reload it in the future without all that faffing about! The transformation"
+            " data can also be used by e.g. <b>AutoIMS</b> or <b>image2viewer</b> app.",
+            widget=widget.export_project_btn,
+            position=Position.RIGHT_TOP,
+        ),
+    ]
+
+    tutorial_btn = getattr(widget, "tutorial_btn", None)
+    if tutorial_btn is not None:
+        steps.append(
             TutorialStep(
                 title="Tutorial",
                 message=TUTORIAL,
-                widget=widget.tutorial_btn if hasattr(widget, "tutorial_btn") else None,
-                skip=not hasattr(widget, "tutorial_btn"),
+                widget=tutorial_btn,
                 position=Position.BOTTOM_RIGHT,
             ),
+        )
+
+    feedback_btn = getattr(widget, "feedback_btn", None)
+    if feedback_btn is not None:
+        steps.append(
             TutorialStep(
                 title="Feedback",
                 message=FEEDBACK,
-                widget=widget.feedback_btn if hasattr(widget, "feedback_btn") else None,
-                skip=not hasattr(widget, "feedback_btn"),
+                widget=feedback_btn,
                 position=Position.BOTTOM_RIGHT,
             ),
-        ]
-    )
+        )
+
+    tut.set_steps(steps)
     tut.setFocus()
     tut.show()
     return True
