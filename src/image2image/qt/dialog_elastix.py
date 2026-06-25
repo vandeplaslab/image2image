@@ -187,7 +187,7 @@ class ImageElastixPlugin(ImageWsiPluginWidget):
         connect(self._image_widget.dset_dlg.evt_resolution, self.on_update_resolution_from_table, state=state)
 
         connect(self.view.viewer.events.status, self._status_changed, state=state)
-        # connect(self.view.widget.canvas.events.key_press, self.keyPressEvent, state=state)
+        # connect(self.view.widget.canvas.events.key_press, self._on_canvas_key_press, state=state)
 
         connect(self.modality_list.evt_show, self.on_show_modality, state=state)
         connect(self.modality_list.evt_rename, self.on_rename_modality, state=state)
@@ -582,7 +582,7 @@ class ImageElastixPlugin(ImageWsiPluginWidget):
         self.view.toolbar.tools_clip_btn.hide()
         self.view.toolbar.tools_save_btn.hide()
         self.view.toolbar.tools_scalebar_btn.hide()
-        self.view.widget.canvas.events.key_press.connect(self.keyPressEvent)
+        self.view.widget.canvas.events.key_press.connect(self._on_canvas_key_press)
         self.view.viewer.scale_bar.unit = "um"
 
         self._image_widget = LoadWidget(

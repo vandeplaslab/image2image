@@ -1161,37 +1161,25 @@ class ImageWsiPluginWidget(Qw.QWidget, BasePluginMixin, SingleViewerPluginMixin)
 
     def keyPressEvent(self, evt: QKeyEvent) -> None:
         """Key press event."""
-        if hasattr(evt, "native"):
-            evt = evt.native
-        try:
-            key = evt.key()
-            ignore = self._handle_key_press_limited(key)
-            if ignore:
-                evt.ignore()
-            if not evt.isAccepted():
-                return None
+        if not self._handle_qt_key_press_event(evt):
             return super().keyPressEvent(evt)
-        except RuntimeError:
-            return None
+        return None
 
-    @qdebounced(timeout=100, leading=True)
     def on_handle_key_press(self, key: int) -> bool:
         """Handle key-press event."""
         return self._handle_key_press(key)
 
-    @qdebounced(timeout=50, leading=True)
-    def _handle_key_press_limited(self, key: int) -> bool:
-        return self._handle_key_press(key)
-
     def _handle_key_press(self, key: int) -> bool:
-        ignore = False
         if key == Qt.Key.Key_G:
             self.on_toggle_grid()
-        elif key == Qt.Key.Key_H:
+            return True
+        if key == Qt.Key.Key_H:
             self.hide_others_check.setChecked(not self.hide_others_check.isChecked())
-        elif key == Qt.Key.Key_P:
+            return True
+        if key == Qt.Key.Key_P:
             self.use_preview_check.setChecked(not self.use_preview_check.isChecked())
-        return ignore
+            return True
+        return False
 
     def can_window_be_closed(self) -> bool:
         """Check whether the window can be closed."""

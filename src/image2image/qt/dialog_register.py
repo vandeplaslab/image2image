@@ -124,11 +124,12 @@ class ImageRegistrationPlugin(QWidget, BasePluginMixin):
     evt_fixed_dropped = Signal("QEvent")
     evt_moving_dropped = Signal("QEvent")
 
-    def __init__(self, parent: QWidget | None = None, **kwargs: ty.Any):
+    def __init__(self, parent: QWidget | None = None, **kwargs: ty.Any) -> None:
         super().__init__(parent)
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         self.CONFIG: RegisterConfig = get_register_config()
         self.temporary_layers: dict[str, Layer] = {}
+        self._last_canvas_shortcut: tuple[int, float] | None = None
         self._setup_ui()
         self.transform_model = Transformation(
             fixed_model=self.fixed_model,
@@ -1633,7 +1634,7 @@ class ImageRegistrationPlugin(QWidget, BasePluginMixin):
         self.view_fixed.viewer.text_overlay.font_size = 10
         self.view_fixed.viewer.text_overlay.visible = True
         self.view_fixed.viewer.scale_bar.unit = "um"
-        self.view_fixed.widget.canvas.events.key_press.connect(self.keyPressEvent)
+        self.view_fixed.widget.canvas.events.key_press.connect(self._on_canvas_key_press)
 
         toolbar = QtMiniToolbar(self, Qt.Orientation.Vertical, add_spacer=True, icon_size="normal")
         toolbar.add_qta_tool(
@@ -1705,7 +1706,7 @@ class ImageRegistrationPlugin(QWidget, BasePluginMixin):
         self.view_moving.viewer.text_overlay.font_size = 10
         self.view_moving.viewer.text_overlay.visible = True
         self.view_moving.viewer.scale_bar.unit = "um"
-        self.view_moving.widget.canvas.events.key_press.connect(self.keyPressEvent)
+        self.view_moving.widget.canvas.events.key_press.connect(self._on_canvas_key_press)
 
         toolbar = QtMiniToolbar(self, Qt.Orientation.Vertical, add_spacer=True, icon_size="normal")
         toolbar.add_qta_tool(
@@ -1868,74 +1869,63 @@ class ImageRegistrationPlugin(QWidget, BasePluginMixin):
 
     def keyPressEvent(self, evt: QKeyEvent) -> None:
         """Key press event."""
-        if hasattr(evt, "native"):
-            evt = evt.native
-        try:
-            key = evt.key()
-            ignore = self._handle_key_press_limited(key)
-            if ignore:
-                evt.ignore()
-            if not evt.isAccepted():
-                return None
+        if not self._handle_qt_key_press_event(evt):
             return super().keyPressEvent(evt)
-        except RuntimeError:
-            return None
+        return None
 
-    @qdebounced(timeout=100, leading=True)
     def on_handle_key_press(self, key: int) -> bool:
         """Handle key-press event."""
         return self._handle_key_press(key)
 
-    @qdebounced(timeout=50, leading=True)
-    def _handle_key_press_limited(self, key: int) -> bool:
-        return self._handle_key_press(key)
-
     def _handle_key_press(self, key: int) -> bool:
-        ignore = False
         if key == Qt.Key.Key_Escape:
-            ignore = True
-        elif key == Qt.Key.Key_1:
+            return True
+        if key == Qt.Key.Key_1:
             self.on_toggle_mode("both", mode=Mode.PAN_ZOOM)
-            ignore = True
-        elif key == Qt.Key.Key_2:
+            return True
+        if key == Qt.Key.Key_2:
             self.on_toggle_mode("both", mode=Mode.ADD)
-            ignore = True
-        elif key == Qt.Key.Key_3:
+            return True
+        if key == Qt.Key.Key_3:
             self.on_toggle_mode("both", mode=Mode.SELECT)
-        elif key == Qt.Key.Key_Z:
+            return True
+        if key == Qt.Key.Key_Z:
             self.on_apply_focus()
-            ignore = True
-        elif key == Qt.Key.Key_L:
+            return True
+        if key == Qt.Key.Key_L:
             self.on_set_focus()
-            ignore = True
-        elif key == Qt.Key.Key_T:
+            return True
+        if key == Qt.Key.Key_T:
             self.on_toggle_transformed_image()
-            ignore = True
-        elif key == Qt.Key.Key_V:
+            return True
+        if key == Qt.Key.Key_V:
             self.on_toggle_transformed_visibility()
-        elif key == Qt.Key.Key_R:
+            return True
+        if key == Qt.Key.Key_R:
             self.on_toggle_transformed_view_type()
-            ignore = True
-        elif key == Qt.Key.Key_A:
+            return True
+        if key == Qt.Key.Key_A:
             self.on_zoom_on_point(-1)
-            ignore = True
-        elif key == Qt.Key.Key_D:
+            return True
+        if key == Qt.Key.Key_D:
             self.on_zoom_on_point(1)
-            ignore = True
-        elif key == Qt.Key.Key_S:
+            return True
+        if key == Qt.Key.Key_S:
             self.on_toggle_synchronization()
-        elif key == Qt.Key.Key_N:
+            return True
+        if key == Qt.Key.Key_N:
             self.on_increment_dataset(1)
-        elif key == Qt.Key.Key_P:
+            return True
+        if key == Qt.Key.Key_P:
             self.on_increment_dataset(-1)
-            ignore = True
-        elif key == Qt.Key.Key_E:  # increase opacity
+            return True
+        if key == Qt.Key.Key_E:  # increase opacity
             self.on_adjust_transformed_opacity(25)
-            ignore = True
-        elif key == Qt.Key.Key_Q:  # decrease opacity
+            return True
+        if key == Qt.Key.Key_Q:  # decrease opacity
             self.on_adjust_transformed_opacity(-25)
-            ignore = True
-        return ignore
+            return True
+        return False
 
     def on_increment_dataset(self, increment: int) -> None:
         """Increase the dataset index."""
@@ -2032,7 +2022,7 @@ class ImageRegistrationWindow(Window):
 
     APP_NAME = "register"
 
-    def __init__(self, parent: QWidget | None, run_check_version: bool = True, **kwargs: ty.Any):
+    def __init__(self, parent: QWidget | None, run_check_version: bool = True, **kwargs: ty.Any) -> None:
         self.CONFIG: RegisterConfig = get_register_config()
         super().__init__(
             parent,

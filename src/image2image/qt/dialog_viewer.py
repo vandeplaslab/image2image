@@ -12,7 +12,6 @@ from koyo.typing import PathLike
 from loguru import logger
 from qtextra.utils.utilities import connect
 from qtpy.QtWidgets import QDialog, QWidget
-from superqt.utils import qdebounced
 
 from image2image import __version__
 from image2image.config import get_viewer_config
@@ -343,7 +342,7 @@ class ImageViewerWindow(SingleViewerMixin):
         self.view = self._make_image_view(
             self, add_toolbars=False, allow_extraction=False, disable_controls=True, disable_new_layers=True
         )
-        self.view.widget.canvas.events.key_press.connect(self.keyPressEvent)
+        self.view.widget.canvas.events.key_press.connect(self._on_canvas_key_press)
         self.view.viewer.scale_bar.unit = "um"
 
         side_widget = QWidget()
@@ -427,31 +426,16 @@ class ImageViewerWindow(SingleViewerMixin):
 
     def keyPressEvent(self, evt: QKeyEvent) -> None:  # type: ignore[override]
         """Key press event."""
-        if hasattr(evt, "native"):
-            evt = evt.native
-        try:
-            key = evt.key()
-            ignore = self._handle_key_press_limited(key)
-            if ignore:
-                evt.ignore()
-            if not evt.isAccepted():
-                return None
+        if not self._handle_qt_key_press_event(evt):
             return super().keyPressEvent(evt)
-        except RuntimeError:
-            return None
+        return None
 
-    @qdebounced(timeout=100, leading=True)
     def on_handle_key_press(self, key: int) -> bool:
         """Handle key-press event."""
         return self._handle_key_press(key)
 
-    @qdebounced(timeout=50, leading=True)
-    def _handle_key_press_limited(self, key: int) -> bool:
-        return self._handle_key_press(key)
-
     def _handle_key_press(self, key: int) -> bool:
-        ignore = False
-        return ignore
+        return False
 
 
 if __name__ == "__main__":  # pragma: no cover

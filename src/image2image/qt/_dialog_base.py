@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import typing as ty
 from functools import partial
+from time import monotonic
 
 import qtextra.helpers as hp
 from image2image_io.config import CONFIG as READER_CONFIG
@@ -16,6 +17,7 @@ from qtextra.mixins import IndicatorMixin
 from qtextra.widgets.qt_button_icon import QtThemeButton
 from qtextraplot._napari.mixins import ImageViewMixin
 from qtpy.QtCore import QProcess, Qt, Signal  # type: ignore[attr-defined]
+from qtpy.QtGui import QKeyEvent
 from qtpy.QtWidgets import QMainWindow, QMenu, QProgressBar, QStatusBar, QWidget
 
 from image2image.config import STATE, SingleAppConfig, get_app_config
@@ -33,6 +35,8 @@ if ty.TYPE_CHECKING:
     from image2image_io.readers import BaseReader
     from qtextraplot._napari.image.wrapper import NapariImageView
 
+KEY_EVENT_DEDUPLICATE_TIMEOUT = 0.05
+
 
 class BasePluginMixin(ImageViewMixin):
     """Base mixin for all plugins containing viewer helper logic."""
@@ -45,6 +49,61 @@ class BasePluginMixin(ImageViewMixin):
     data_model: DataModel
     logger_dlg: QtLoggerDialog
     temporary_layers: dict[str, Layer]
+    _last_canvas_shortcut: tuple[int, float] | None = None
+
+    def _get_native_key_event(self, evt: object) -> QKeyEvent | None:
+        """Return the Qt key event from either Qt or napari event objects."""
+        native_event = evt.native if hasattr(evt, "native") else evt
+        if hasattr(native_event, "key"):
+            return ty.cast(QKeyEvent, native_event)
+        return None
+
+    def _is_duplicate_canvas_shortcut(self, key: int) -> bool:
+        """Return True if a Qt key event immediately follows a handled canvas shortcut."""
+        if self._last_canvas_shortcut is None:
+            return False
+        last_key, last_time = self._last_canvas_shortcut
+        if key != last_key:
+            self._last_canvas_shortcut = None
+            return False
+        is_duplicate = monotonic() - last_time <= KEY_EVENT_DEDUPLICATE_TIMEOUT
+        if not is_duplicate:
+            self._last_canvas_shortcut = None
+        return is_duplicate
+
+    def _on_canvas_key_press(self, evt: object) -> None:
+        """Handle napari canvas key events without forwarding them through QWidget handling."""
+        key_event = self._get_native_key_event(evt)
+        if key_event is None:
+            return
+        try:
+            key = key_event.key()
+            if self._handle_key_press(key):
+                key_event.accept()
+                self._last_canvas_shortcut = (key, monotonic())
+        except RuntimeError:
+            return
+
+    def _handle_qt_key_press_event(self, evt: object) -> bool:
+        """Handle a Qt key event and return True when it should not propagate further."""
+        key_event = self._get_native_key_event(evt)
+        if key_event is None:
+            return False
+        try:
+            key = key_event.key()
+            if self._is_duplicate_canvas_shortcut(key):
+                key_event.accept()
+                return True
+            if self._handle_key_press(key):
+                key_event.accept()
+                return True
+        except RuntimeError:
+            return True
+        return False
+
+    def _handle_key_press(self, key: int) -> bool:
+        """Handle a key press and return True if the shortcut was consumed."""
+        return False
 
     def _toggle_channel(
         self, model: DataModel, view_wrapper: NapariImageView, name: str, state: bool, view_kind: str
