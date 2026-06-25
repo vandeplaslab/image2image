@@ -36,40 +36,6 @@ QtPushButton#extract_btn {
     border: 2px solid {{ highlight }};
 }
 
-QtImagePushButton[disabled=true] {
-    background-color: {{ warning }};
-}
-
-/*QtImagePushButton[wide_border=true] {*/
-/*    background-color: {{ background }};*/
-/*}*/
-/*QtImagePushButton[wide_border=true]:checked {*/
-/*    background-color: {{ primary }};*/
-/*}*/
-/*QtImagePushButton[wide_border=true]:hover {*/
-/*    background-color: {{ lighten(primary, 20) }};*/
-/*}*/
-/*QtImagePushButton[wide_border=true]:checked:hover {*/
-/*    background-color: {{ lighten(primary, 30) }};*/
-/*}*/
-
-
-
 QComboBox#statusbar_combobox {
     border: 2px solid {{ secondary }};
 }
-
-
-/*QMenu {*/
-/*    border: 2px solid {{ highlight }};*/
-/*    padding: 5px;*/
-/*}*/
-/*QMenuBar {*/
-/*    margin: 0px;*/
-/*    background-color: {{ foreground }};*/
-/*    color: {{ text }};*/
-/*}*/
-/*QMenuBar::item {*/
-/*    height: 20px;*/
-/*    margin: 5px;*/
-/*}*/
