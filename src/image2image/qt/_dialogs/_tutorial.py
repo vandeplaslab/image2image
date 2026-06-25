@@ -9,11 +9,11 @@ if ty.TYPE_CHECKING:
 
     from image2image.qt.dialog_convert import ImageConvertWindow
     from image2image.qt.dialog_crop import ImageCropWindow
-    from image2image.qt.dialog_elastix import ImageElastixWindow
+    from image2image.qt.dialog_elastix import ImageElastixPlugin, ImageElastixWindow
     from image2image.qt.dialog_fusion import ImageFusionWindow
     from image2image.qt.dialog_merge import ImageMergeWindow
-    from image2image.qt.dialog_register import ImageRegistrationWindow
-    from image2image.qt.dialog_valis import ImageValisWindow
+    from image2image.qt.dialog_register import ImageRegistrationPlugin, ImageRegistrationWindow
+    from image2image.qt.dialog_valis import ImageValisPlugin, ImageValisWindow
     from image2image.qt.dialog_viewer import ImageViewerWindow
 
 
@@ -244,7 +244,14 @@ def show_fusion_tutorial(widget: ImageFusionWindow) -> bool:
 
 
 def _generic_statusbar(
-    widget: ImageViewerWindow | ImageCropWindow | ImageElastixWindow | ImageValisWindow,
+    widget: ImageViewerWindow
+    | ImageCropWindow
+    | ImageElastixPlugin
+    | ImageElastixWindow
+    | ImageRegistrationPlugin
+    | ImageRegistrationWindow
+    | ImageValisPlugin
+    | ImageValisWindow,
 ) -> list[TutorialStep]:
     from qtextra.widgets.qt_tutorial import Position, TutorialStep
 
@@ -258,31 +265,35 @@ def _generic_statusbar(
         TutorialStep(
             title="Screenshot to clipboard",
             message=CLIPBOARD,
-            widget=widget.clipboard_btn,
+            widget=widget.clipboard_btn if hasattr(widget, "clipboard_btn") else None,
+            skip=not hasattr(widget, "clipboard_btn"),
             position=Position.BOTTOM_RIGHT,
         ),
         TutorialStep(
             title="Show scalebar",
             message=SCALE_BAR,
-            widget=widget.scalebar_btn,
+            widget=widget.scalebar_btn if hasattr(widget, "scalebar_btn") else None,
+            skip=not hasattr(widget, "scalebar_btn"),
             position=Position.BOTTOM_RIGHT,
         ),
         TutorialStep(
             title="Feedback",
             message=FEEDBACK,
-            widget=widget.feedback_btn,
+            widget=widget.feedback_btn if hasattr(widget, "feedback_btn") else None,
+            skip=not hasattr(widget, "feedback_btn"),
             position=Position.BOTTOM_RIGHT,
         ),
         TutorialStep(
             title="Tutorial",
             message=TUTORIAL,
-            widget=widget.tutorial_btn,
+            widget=widget.tutorial_btn if hasattr(widget, "tutorial_btn") else None,
+            skip=not hasattr(widget, "tutorial_btn"),
             position=Position.BOTTOM_RIGHT,
         ),
     ]
 
 
-def show_register_tutorial(widget: ImageRegistrationWindow) -> bool:
+def show_register_tutorial(widget: ImageRegistrationPlugin | ImageRegistrationWindow) -> bool:
     """Show tutorial."""
     from qtextra.widgets.qt_tutorial import Position, QtTutorial, TutorialStep
 
@@ -366,13 +377,15 @@ def show_register_tutorial(widget: ImageRegistrationWindow) -> bool:
             TutorialStep(
                 title="Tutorial",
                 message=TUTORIAL,
-                widget=widget.tutorial_btn,
+                widget=widget.tutorial_btn if hasattr(widget, "tutorial_btn") else None,
+                skip=not hasattr(widget, "tutorial_btn"),
                 position=Position.BOTTOM_RIGHT,
             ),
             TutorialStep(
                 title="Feedback",
                 message=FEEDBACK,
-                widget=widget.feedback_btn,
+                widget=widget.feedback_btn if hasattr(widget, "feedback_btn") else None,
+                skip=not hasattr(widget, "tutorial_btn"),
                 position=Position.BOTTOM_RIGHT,
             ),
         ]
@@ -538,7 +551,7 @@ def show_crop_tutorial(widget: ImageCropWindow) -> bool:
     return True
 
 
-def show_elastix_tutorial(widget: ImageElastixWindow) -> bool:
+def show_elastix_tutorial(widget: ImageElastixPlugin | ImageElastixWindow) -> bool:
     """Show tutorial."""
     from qtextra.widgets.qt_tutorial import Position, QtTutorial, TutorialStep
 
@@ -644,7 +657,8 @@ def show_elastix_tutorial(widget: ImageElastixWindow) -> bool:
             TutorialStep(
                 title="Queue",
                 message="You can see registrations tasks in the queue. Click here to open the queue view.",
-                widget=widget.queue_btn,
+                widget=widget.queue_btn if hasattr(widget, "queue_btn") else None,
+                skip=not hasattr(widget, "queue_btn"),
                 position=Position.BOTTOM_RIGHT,
             ),
             *_generic_statusbar(widget),
@@ -655,7 +669,7 @@ def show_elastix_tutorial(widget: ImageElastixWindow) -> bool:
     return True
 
 
-def show_valis_tutorial(widget: ImageValisWindow) -> bool:
+def show_valis_tutorial(widget: ImageValisWindow | ImageValisPlugin) -> bool:
     """Show tutorial."""
     from qtextra.helpers import hyper
     from qtextra.widgets.qt_tutorial import Position, QtTutorial, TutorialStep
