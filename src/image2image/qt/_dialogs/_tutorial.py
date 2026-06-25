@@ -385,7 +385,7 @@ def show_register_tutorial(widget: ImageRegistrationPlugin | ImageRegistrationWi
                 title="Feedback",
                 message=FEEDBACK,
                 widget=widget.feedback_btn if hasattr(widget, "feedback_btn") else None,
-                skip=not hasattr(widget, "tutorial_btn"),
+                skip=not hasattr(widget, "feedback_btn"),
                 position=Position.BOTTOM_RIGHT,
             ),
         ]
