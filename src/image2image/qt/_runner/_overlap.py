@@ -43,17 +43,12 @@ class OverlapPreviewDialog(QDialog):
         self.image_label.setText("No preview selected.")
 
         self.review_label = hp.make_label(self, self._review_text(), object_name="tip_label")
-        self.good_btn = hp.make_btn(
+        self.review_toggle = hp.make_toggle(
             self,
             "Good",
-            tooltip="Mark this project result as good.",
-            func=lambda: self.set_review_state("good"),
-        )
-        self.bad_btn = hp.make_btn(
-            self,
             "Bad",
-            tooltip="Mark this project result as bad.",
-            func=lambda: self.set_review_state("bad"),
+            func=self.on_review_state,
+            tooltip="Mark this project as good or bad.",
         )
 
         layout = QVBoxLayout(self)
@@ -69,8 +64,7 @@ class OverlapPreviewDialog(QDialog):
             hp.make_h_layout(
                 hp.make_label(self, "Review"),
                 self.review_label,
-                self.good_btn,
-                self.bad_btn,
+                self.review_toggle,
                 spacing=2,
                 stretch_id=(1,),
             )
@@ -120,9 +114,9 @@ class OverlapPreviewDialog(QDialog):
             )
         )
 
-    def set_review_state(self, state: ReviewState) -> None:
-        """Update and emit the project review state."""
-        self.review_state = state
+    def on_review_state(self, _: str) -> None:
+        """Display the selected overlap state."""
+        self.review_state = state = self.review_toggle.value.lower()
         self.review_label.setText(self._review_text())
         self._sync_review_buttons()
         self.evt_review.emit(self.project.project_dir, state)
@@ -143,5 +137,4 @@ class OverlapPreviewDialog(QDialog):
 
     def _sync_review_buttons(self) -> None:
         """Refresh review button enabled states."""
-        self.good_btn.setEnabled(self.review_state != "good")
-        self.bad_btn.setEnabled(self.review_state != "bad")
+        self.review_toggle.value = self.review_state.capitalize()

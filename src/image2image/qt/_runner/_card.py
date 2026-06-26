@@ -9,7 +9,6 @@ from qtextra import helpers as hp
 from qtpy.QtCore import Signal
 from qtpy.QtWidgets import QFrame, QVBoxLayout, QWidget
 
-from image2image.qt._runner._buttons import make_toggle_group
 from image2image.qt._runner._constants import ReviewState, RunnerProject
 from image2image.qt._runner.utilities import has_registration_images, read_review_state
 
@@ -45,55 +44,74 @@ class QtRunnerProjectCard(QFrame):
         self.review_label = hp.make_label(self, self._review_text(), object_name="tip_label")
         self.progress_label = hp.make_label(self, "Waiting to be queued.", wrap=True)
 
-        self.queue_btn = hp.make_btn(
+        self.queue_btn = hp.make_qta_btn(
             self,
-            "Queue",
+            "queue",
             tooltip="Validate and add this project to the queue.",
             func=lambda: self.evt_queue.emit(self.project.project_dir),
+            size_preset="normal",
         )
-        self.images_btn = hp.make_btn(
+        self.images_btn = hp.make_qta_btn(
             self,
-            "Images...",
+            "folder",
             tooltip="Show the project image list.",
             func=lambda: self.evt_images.emit(self.project.project_dir),
+            size_preset="normal",
         )
-        self.network_btn = hp.make_btn(
+        self.network_btn = hp.make_qta_btn(
             self,
-            "Network...",
+            "network",
             tooltip="Show the Elastix registration network."
             if project.kind == "elastix"
             else "Registration network preview is currently available for Elastix projects.",
             func=lambda: self.evt_network.emit(self.project.project_dir),
             disabled=project.kind != "elastix",
+            size_preset="normal",
         )
-        self.overlap_btn = hp.make_btn(
+        self.overlap_btn = hp.make_qta_btn(
             self,
-            "Overlap...",
+            "overlap",
             tooltip="Show existing overlap preview images.",
             func=lambda: self.evt_overlap.emit(self.project.project_dir),
+            size_preset="normal",
         )
-        self.viewer_btn = hp.make_btn(
+        self.viewer_btn = hp.make_qta_btn(
             self,
-            "Open in viewer",
+            "viewer",
             tooltip="Open completed registration images in the viewer.",
             func=lambda: self.evt_viewer.emit(self.project.project_dir),
             disabled=not has_registration_images(self.project.project_dir),
+            size_preset="normal",
         )
 
-        self.review_btn = make_toggle_group(self, func=self.on_review)
-        edit_app_name = "Elastix" if project.kind == "elastix" else "Valis"
-        self.edit_btn = hp.make_btn(
+        self.review_toggle = hp.make_toggle(
             self,
-            f"Open in {edit_app_name}",
+            "Good",
+            "Bad",
+            func=self.on_review_state,
+            tooltip="Mark this project as good or bad.",
+        )
+        edit_app_name = "Elastix" if project.kind == "elastix" else "Valis"
+        self.edit_btn = hp.make_qta_btn(
+            self,
+            "edit",
             tooltip=f"Open this bad project in the {edit_app_name} app for edits.",
             func=lambda: self.evt_edit.emit(self.project.project_dir),
             disabled=self.review_state != "bad",
+            size_preset="normal",
         )
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(8, 8, 8, 8)
         layout.setSpacing(4)
-        layout.addWidget(self.name_label)
+        layout.addLayout(
+            hp.make_h_layout(
+                self.name_label,
+                self.review_toggle,
+                spacing=2,
+                stretch_id=(0,),
+            )
+        )
         layout.addWidget(self.summary_label)
         layout.addLayout(
             hp.make_h_layout(
@@ -119,7 +137,6 @@ class QtRunnerProjectCard(QFrame):
                 self.network_btn,
                 self.overlap_btn,
                 self.viewer_btn,
-                self.review_btn,
                 self.edit_btn,
                 spacing=2,
                 stretch_after=True,
@@ -127,9 +144,9 @@ class QtRunnerProjectCard(QFrame):
         )
         self.refresh_actions()
 
-    def on_review(self, state: str) -> None:
+    def on_review_state(self, state: str) -> None:
         """Review."""
-        self.evt_review.emit(self.project.project_dir, "good" if state == "thumbs_up" else "bad")
+        self.evt_review.emit(self.project.project_dir, self.review_toggle.value.lower())
 
     @property
     def registration_model(self) -> ElastixReg | ValisReg:
@@ -159,7 +176,7 @@ class QtRunnerProjectCard(QFrame):
         """Refresh action button availability."""
         hp.disable_widgets(self.viewer_btn, disabled=not has_registration_images(self.project.project_dir))
         hp.disable_widgets(self.edit_btn, disabled=self.review_state != "bad")
-        self.review_btn.value = "thumbs_up" if self.review_state == "good" else "thumbs_down"
+        self.review_toggle.value = self.review_state
 
     def image_lines(self) -> list[str]:
         """Return a simple image list for the project."""
