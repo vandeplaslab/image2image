@@ -1,12 +1,12 @@
 site_name: image2image
-site_url: https://github.com/vandeplaslab/image2image-docs
+site_url: https://github.com/vandeplaslab/image2image
 site_author: Lukasz Migas
 site_description: >-
   Suite of tools for image registration and visualisation.
   
 # Repository
-repo_name: vandeplaslab/image2image-docs
-repo_url: https://github.com/vandeplaslab/image2image-docs
+repo_name: vandeplaslab/image2image
+repo_url: https://github.com/vandeplaslab/image2image
 
 # Copyright
 copyright: Copyright &copy; 2023 - present Van de Plas lab
