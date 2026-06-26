@@ -1,0 +1,86 @@
+site_name: image2image
+site_url: https://github.com/vandeplaslab/image2image-docs
+site_author: Lukasz Migas
+site_description: >-
+  Suite of tools for image registration and visualisation.
+  
+# Repository
+repo_name: vandeplaslab/image2image-docs
+repo_url: https://github.com/vandeplaslab/image2image-docs
+
+# Copyright
+copyright: Copyright &copy; 2023 - present Van de Plas lab
+extra_css:
+  - assets/css/extra.css
+
+theme:
+  name: material
+  logo: assets/icon.svg
+  favicon: assets/icon.svg
+  palette:
+    - scheme: default
+      primary: grey
+      accent: green
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+    - scheme: slate
+      primary: amber
+      accent: yellow
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
+  features:
+    - navigation.instant
+    - navigation.top
+    - navigation.tabs
+    - navigation.expand
+    - search.highlight
+    - search.suggest
+    - toc.integrate
+    - toc.follow
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - changelog
+  - attr_list
+  - md_in_html
+  - pymdownx.keys
+  - tables
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  - def_list
+  - pymdownx.tasklist:
+      custom_checkbox: true
+
+plugins:
+  - search
+  - autorefs
+  - minify:
+      minify_html: true
+  - glightbox
+  - offline
+
+nav:
+  - Home: index.md
+  - Viewer apps: 
+    - Viewer app: apps/viewer.md
+    # - Sync app (not available yet): apps/na.md
+    # - Volume app (not available yet): apps/na.md
+  - Registration apps: 
+    - Register app: apps/register.md
+    - Elastix app: apps/elastix.md
+    - Valis app: apps/valis.md
+  - Utility apps: 
+    - Crop app: apps/crop.md
+    - Convert app: apps/convert.md
+    - Merge app: apps/merge.md
+    - Fusion app: apps/fusion.md
+  - Dialogs:
+    - Channel selection: dialogs/channel-selection.md
+  - Requests/Bug reports: request.md
+  - Planned features: planned.md
+  - Changelog: changelog.md
