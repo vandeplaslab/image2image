@@ -383,7 +383,7 @@ class QtModalityItem(QFrame):
         shapes, points = [], []
         for file in filelist:
             file = Path(file)
-            if file.suffix in [".geojson"]:
+            if file.suffix == ".geojson":
                 shapes.append(file)
             elif file.suffix in [".csv", ".txt", ".tsv", ".parquet"]:
                 points.append(file)

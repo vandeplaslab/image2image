@@ -30,7 +30,7 @@ class OverlapPreviewDialog(QDialog):
         self.image_paths = image_paths
         self.review_state = review_state
         self.setWindowTitle(f"Overlap previews: {project.project.name}")
-        self.setMinimumSize(800, 500)
+        self.setMinimumSize(1200, 800)
 
         self.image_list = QListWidget(self)
         for path in image_paths:
@@ -42,7 +42,6 @@ class OverlapPreviewDialog(QDialog):
         self.image_label.setMinimumSize(500, 400)
         self.image_label.setText("No preview selected.")
 
-        self.review_label = hp.make_label(self, self._review_text(), object_name="tip_label")
         self.review_toggle = hp.make_toggle(
             self,
             "Good",
@@ -60,15 +59,7 @@ class OverlapPreviewDialog(QDialog):
                 stretch_id=(1,),
             )
         )
-        layout.addLayout(
-            hp.make_h_layout(
-                hp.make_label(self, "Review"),
-                self.review_label,
-                self.review_toggle,
-                spacing=2,
-                stretch_id=(1,),
-            )
-        )
+        layout.addWidget(self.review_toggle)
         self._sync_review_buttons()
         if self.image_paths:
             self.image_list.setCurrentRow(0)
@@ -117,7 +108,6 @@ class OverlapPreviewDialog(QDialog):
     def on_review_state(self, _: str) -> None:
         """Display the selected overlap state."""
         self.review_state = state = self.review_toggle.value.lower()
-        self.review_label.setText(self._review_text())
         self._sync_review_buttons()
         self.evt_review.emit(self.project.project_dir, state)
 

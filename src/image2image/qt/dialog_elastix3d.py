@@ -985,40 +985,40 @@ class ImageElastix3dWindow(Window):
         if key == Qt.Key.Key_Escape:
             return True
         # movement size
-        elif key == Qt.Key.Key_Up:
+        if key == Qt.Key.Key_Up:
             hp.increment_combobox(self.translate_step_size, -1)
             return True
-        elif key == Qt.Key.Key_Down:
+        if key == Qt.Key.Key_Down:
             hp.increment_combobox(self.translate_step_size, 1)
             return True
-        elif key == Qt.Key.Key_Left:
+        if key == Qt.Key.Key_Left:
             hp.increment_combobox(self.rotate_step_size, -1)
             return True
-        elif key == Qt.Key.Key_Right:
+        if key == Qt.Key.Key_Right:
             hp.increment_combobox(self.rotate_step_size, 1)
             return True
         # rotate
-        elif key == Qt.Key.Key_Q:
+        if key == Qt.Key.Key_Q:
             self.on_rotate("left")
             return True
-        elif key == Qt.Key.Key_E:
+        if key == Qt.Key.Key_E:
             self.on_rotate("right")
             return True
         # translate
-        elif key == Qt.Key.Key_A:
+        if key == Qt.Key.Key_A:
             self.on_translate("left")
             return True
-        elif key == Qt.Key.Key_D:
+        if key == Qt.Key.Key_D:
             self.on_translate("right")
             return True
-        elif key == Qt.Key.Key_W:
+        if key == Qt.Key.Key_W:
             self.on_translate("up")
             return True
-        elif key == Qt.Key.Key_S:
+        if key == Qt.Key.Key_S:
             self.on_translate("down")
             return True
         # flip left-right
-        elif key == Qt.Key.Key_F:
+        if key == Qt.Key.Key_F:
             self.on_flip_lr()
             return True
         # # group/ungroup
@@ -1027,32 +1027,32 @@ class ImageElastix3dWindow(Window):
         # elif key == Qt.Key.Key_U:
         #     self.on_group(False)
         # reference
-        elif key == Qt.Key.Key_R:
+        if key == Qt.Key.Key_R:
             self.on_reference()
             return True
         # keep/remove
-        elif key == Qt.Key.Key_Z:
+        if key == Qt.Key.Key_Z:
             self.on_keep(True)
             return True
-        elif key == Qt.Key.Key_X:
+        if key == Qt.Key.Key_X:
             self.on_keep(False)
             return True
         # lock/unlock
-        elif key == Qt.Key.Key_L:
+        if key == Qt.Key.Key_L:
             self.on_lock(True)
             return True
-        elif key == Qt.Key.Key_U:
+        if key == Qt.Key.Key_U:
             self.on_lock(False)
             return True
         # selection
-        elif key == Qt.Key.Key_N:
+        if key == Qt.Key.Key_N:
             self.on_group_increment(1)
             return True
-        elif key == Qt.Key.Key_P:
+        if key == Qt.Key.Key_P:
             self.on_group_increment(-1)
             return True
         # viewer
-        elif key == Qt.Key.Key_G:
+        if key == Qt.Key.Key_G:
             self.grid_btn.click()
             return True
         return False

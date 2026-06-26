@@ -40,8 +40,7 @@ class QtRunnerProjectCard(QFrame):
             object_name="large_text",
         )
         self.summary_label = hp.make_label(self, self._summarize_project(), enable_url=True, wrap=True)
-        self.status_label = hp.make_label(self, "Ready", object_name="tip_label")
-        self.review_label = hp.make_label(self, self._review_text(), object_name="tip_label")
+        self.status_label = hp.make_label(self, "Ready")
         self.progress_label = hp.make_label(self, "Waiting to be queued.", wrap=True)
 
         self.queue_btn = hp.make_qta_btn(
@@ -121,14 +120,6 @@ class QtRunnerProjectCard(QFrame):
                 stretch_id=(1,),
             )
         )
-        layout.addLayout(
-            hp.make_h_layout(
-                hp.make_label(self, "Review"),
-                self.review_label,
-                spacing=2,
-                stretch_id=(1,),
-            )
-        )
         layout.addWidget(self.progress_label)
         layout.addLayout(
             hp.make_h_layout(
@@ -169,14 +160,13 @@ class QtRunnerProjectCard(QFrame):
     def set_review_state(self, state: ReviewState) -> None:
         """Update the visible project review state."""
         self.review_state = state
-        self.review_label.setText(self._review_text())
         self.refresh_actions()
 
     def refresh_actions(self) -> None:
         """Refresh action button availability."""
         hp.disable_widgets(self.viewer_btn, disabled=not has_registration_images(self.project.project_dir))
         hp.disable_widgets(self.edit_btn, disabled=self.review_state != "bad")
-        self.review_toggle.value = self.review_state
+        self.review_toggle.value = self._review_text()
 
     def image_lines(self) -> list[str]:
         """Return a simple image list for the project."""

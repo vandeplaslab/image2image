@@ -300,7 +300,7 @@ class ImageWsiPluginWidget(Qw.QWidget, BasePluginMixin, SingleViewerPluginMixin)
             path = Path(path)
             if path.is_file():
                 path = path.parent
-            if path.name in ["Images"]:
+            if path.name == "Images":
                 path = path.parent
             if path.suffix in [".wsireg", ".valis"]:
                 path = path.parent
