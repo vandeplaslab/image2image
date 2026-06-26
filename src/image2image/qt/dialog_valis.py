@@ -21,14 +21,13 @@ from qtpy.QtWidgets import QWidget
 from image2image import __version__
 from image2image.config import STATE, ValisConfig, get_valis_config
 from image2image.enums import ALLOWED_VALIS_FORMATS
-from image2image.qt._dialog_wsi import ImageWsiWindow
+from image2image.qt._dialog_wsi import ImageWsiPluginWidget, ImageWsiWindow
 from image2image.qt._dialogs._select import LoadWidget
 from image2image.qt._wsi._list import QtModalityList
 from image2image.utils.utilities import get_i2reg_path, pad_str
 from image2image.utils.valis import guess_preprocessing
 
 if ty.TYPE_CHECKING:
-    from image2image_reg.enums import ValisDetectorMethod, ValisMatcherMethod
     from image2image_reg.models import Modality, Preprocessing
     from image2image_reg.workflows.valis import ValisReg
 
@@ -44,8 +43,11 @@ def make_registration_task(
     rename: bool = True,
     clip: str = "remove",
     with_i2reg: bool = True,
+    cli_command_func: ty.Callable | None = get_i2reg_path,
 ) -> Task:
     """Make registration task."""
+    if cli_command_func is None:
+        cli_command_func = get_i2reg_path
     task_id = hash_parameters(
         project_dir=project.project_dir,
         write_transformed=write_transformed,
@@ -57,7 +59,7 @@ def make_registration_task(
 
     commands = []
     register_command = [
-        get_i2reg_path() if with_i2reg else "i2reg",
+        cli_command_func() if with_i2reg else "i2reg",
         "--no_color",
         "--debug",
         "valis",
@@ -69,7 +71,7 @@ def make_registration_task(
     commands.append(register_command)
     if any([write_attached, write_transformed, write_not_registered, write_merged]):
         write_command = [
-            get_i2reg_path(),
+            cli_command_func(),
             "--no_color",
             "--debug",
             "valis",
@@ -97,8 +99,8 @@ def make_registration_task(
     )
 
 
-class ImageValisWindow(ImageWsiWindow):
-    """Image viewer dialog."""
+class ImageValisPlugin(ImageWsiPluginWidget):
+    """Image viewer plugin widget."""
 
     APP_NAME = "valis"
 
@@ -110,12 +112,10 @@ class ImageValisWindow(ImageWsiWindow):
     OTHER_PROJECT: str = "Elastix"
     IS_VALIS = True
 
-    def __init__(
-        self, parent: QWidget | None, run_check_version: bool = True, project_dir: PathLike | None = None, **_kwargs
-    ):
+    def __init__(self, parent: QWidget | None, project_dir: PathLike | None = None, **_kwargs):
         self.CONFIG: ValisConfig = get_valis_config()
         _q.N_PARALLEL = self.CONFIG.n_parallel
-        super().__init__(parent, run_check_version=run_check_version, project_dir=project_dir)
+        super().__init__(parent, project_dir=project_dir)
         self.WINDOW_CONSOLE_ARGS = (("view", "viewer"), "data_model", ("data_model", "wrapper"), "registration_model")
         if self.CONFIG.first_time:
             hp.call_later(self, self.on_show_tutorial, 10_000)
@@ -173,7 +173,7 @@ class ImageValisWindow(ImageWsiWindow):
         connect(self._image_widget.dset_dlg.evt_resolution, self.on_update_resolution_from_table, state=state)
 
         connect(self.view.viewer.events.status, self._status_changed, state=state)
-        # connect(self.view.widget.canvas.events.key_press, self.keyPressEvent, state=state)
+        # connect(self.view.widget.canvas.events.key_press, self._on_canvas_key_press, state=state)
 
         connect(self.modality_list.evt_delete, self.on_remove_modality, state=state)
         connect(self.modality_list.evt_rename, self.on_rename_modality, state=state)
@@ -192,6 +192,9 @@ class ImageValisWindow(ImageWsiWindow):
 
     def _setup_ui(self):
         """Create panel."""
+        from image2image_reg.enums import ValisDetectorMethod, ValisMatcherMethod
+
+        self._setup_statusbar_widgets()
         self.view = self._make_image_view(
             self, add_toolbars=True, allow_extraction=False, disable_controls=False, disable_new_layers=True
         )
@@ -200,7 +203,7 @@ class ImageValisWindow(ImageWsiWindow):
         self.view.toolbar.tools_clip_btn.hide()
         self.view.toolbar.tools_save_btn.hide()
         self.view.toolbar.tools_scalebar_btn.hide()
-        self.view.widget.canvas.events.key_press.connect(self.keyPressEvent)
+        self.view.widget.canvas.events.key_press.connect(self._on_canvas_key_press)
         self.view.viewer.scale_bar.unit = "um"
 
         self._image_widget = LoadWidget(
@@ -230,7 +233,6 @@ class ImageValisWindow(ImageWsiWindow):
             " selected.",
             func=self.on_set_reference,
         )
-        from image2image_reg.enums import ValisDetectorMethod, ValisMatcherMethod
 
         self.feature_choice = hp.make_combobox(
             self,
@@ -327,16 +329,10 @@ class ImageValisWindow(ImageWsiWindow):
             hp.make_h_layout(self.save_btn, self.viewer_btn, self.close_btn, self.run_btn, stretch_id=(3,), spacing=2)
         )
 
-        widget = QWidget()  # noqa
-        self.setCentralWidget(widget)
-        layout = hp.make_h_layout(parent=widget, spacing=0, margin=0)
+        layout = hp.make_h_layout(parent=self, spacing=0, margin=0)
         layout.addWidget(self.view.widget, stretch=True)
         layout.addWidget(hp.make_v_line())
         layout.addWidget(side_widget)
-
-        self._make_menu()
-        self._make_icon()
-        self._make_statusbar()
 
     def on_set_reference(self) -> None:
         """Set reference on the model."""
@@ -443,14 +439,13 @@ class ImageValisWindow(ImageWsiWindow):
             dlg.show()
         return is_valid
 
-    def _make_statusbar(self) -> None:
-        super()._make_statusbar()
-
+    def _setup_statusbar_widgets(self) -> None:
+        """Initialize statusbar widgets."""
         self.spinner, _ = hp.make_loading_gif(self, which="infinity", size=(20, 20), retain_size=False, hide=True)
-        self.statusbar.insertPermanentWidget(0, self.spinner)
 
-        self.queue_btn = hp.make_qta_btn(self, "queue", tooltip="Open queue popup.", size_preset="small")
-        self.statusbar.insertPermanentWidget(1, self.queue_btn)
+    def _make_statusbar(self, statusbar) -> None:
+        """Insert permanent widgets into status bar."""
+        statusbar.insertPermanentWidget(0, self.spinner)
 
     def on_populate_list(self) -> None:
         """Populate list."""
@@ -672,6 +667,57 @@ class ImageValisWindow(ImageWsiWindow):
             logger.trace(
                 f"Processed image {modality.name} for preview in {timer()} at {pyramid} pyramid level ({image.shape})"
             )
+
+    def on_show_tutorial(self) -> None:
+        """Quick tutorial."""
+        from image2image.qt._dialogs._tutorial import show_valis_tutorial
+
+        if show_valis_tutorial(self):
+            self.CONFIG.update(first_time=False)
+
+
+class ImageValisWindow(ImageWsiWindow):
+    """Image viewer dialog window container."""
+
+    APP_NAME = "valis"
+
+    WINDOW_TITLE = f"image2valis: Valis Registration app (v{__version__})"
+    PROJECT_SUFFIX = ".valis"
+    RUN_DISABLED: bool = not STATE.allow_valis_run
+    OTHER_PROJECT: str = "Elastix"
+    IS_VALIS = True
+
+    def __init__(
+        self,
+        parent: QWidget | None,
+        run_check_version: bool = True,
+        project_dir: PathLike | None = None,
+        **_kwargs: ty.Any,
+    ):
+        self.CONFIG = get_valis_config()
+        _q.N_PARALLEL = self.CONFIG.n_parallel
+        super().__init__(parent, run_check_version=run_check_version, project_dir=project_dir)
+        self.WINDOW_CONSOLE_ARGS = (("view", "viewer"), "data_model", ("data_model", "wrapper"), "registration_model")
+
+    def _setup_ui(self) -> None:
+        """Create panel and set central widget."""
+        self.plugin = ImageValisPlugin(self)
+        self.setCentralWidget(self.plugin)
+
+        # connect drops
+        self.evt_dropped.connect(self.plugin.evt_dropped)
+
+        self._make_menu()
+        self._make_icon()
+        self._make_statusbar()
+
+    def _make_statusbar(self) -> None:
+        """Make statusbar."""
+        super()._make_statusbar()
+        self.queue_btn = hp.make_qta_btn(self, "queue", tooltip="Open queue popup.", size_preset="small")
+        self.queue_btn.clicked.connect(self.plugin.queue_popup.show)
+        self.plugin._make_statusbar(self.statusbar)
+        self.statusbar.insertPermanentWidget(1, self.queue_btn)
 
     def on_show_tutorial(self) -> None:
         """Quick tutorial."""

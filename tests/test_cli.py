@@ -11,6 +11,7 @@ has_i2io = is_installed("image2image_io")
 
 import sys
 
+
 def test_cli_entrypoint():
     """Test CLI entrypoint."""
     exit_status = os.system(f"{sys.executable} -m image2image --help")

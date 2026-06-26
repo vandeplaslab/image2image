@@ -165,3 +165,8 @@ _version.py
 package/macos-pyinstaller/image2image alias
 package/macos-pyinstaller/image2image-Dropbox
 uv.lock
+
+# Claude
+.claude
+CLAUDE.md
+reasonix.md

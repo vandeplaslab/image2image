@@ -1,10 +1,28 @@
 """Register app."""
 
+from pytest import MonkeyPatch
+from qtpy.QtCore import QEvent, Qt
+from qtpy.QtGui import QKeyEvent
+
 from image2image.qt._register._fiducials import FiducialsDialog
 from image2image.qt._register._guess import GuessDialog
 from image2image.qt._register._preprocess import PreprocessMovingDialog
 from image2image.qt._register._select import ImportSelectDialog
-from image2image.qt.dialog_register import ImageRegistrationWindow
+from image2image.qt.dialog_register import ImageRegistrationPlugin, ImageRegistrationWindow
+
+
+class CanvasKeyEvent:
+    """Minimal napari-style event wrapper with a native Qt key event."""
+
+    def __init__(self, native: QKeyEvent) -> None:
+        self.native = native
+
+
+def make_register_plugin_for_key_tests() -> ImageRegistrationPlugin:
+    """Return a minimal plugin instance for shortcut handling tests."""
+    plugin = ImageRegistrationPlugin.__new__(ImageRegistrationPlugin)
+    plugin._last_canvas_shortcut = None
+    return plugin
 
 
 def test_fiducials(qtbot) -> None:
@@ -87,3 +105,28 @@ def test_select(qtbot) -> None:
     config = widget.get_config()
     assert len(config) == 4, "Config should be empty."
     assert all(value is False for value in config.values()), "All config values should be False."
+
+
+def test_register_shortcut_is_not_double_fired(monkeypatch: MonkeyPatch) -> None:
+    """Test that canvas and Qt delivery of one key only run one shortcut."""
+    plugin = make_register_plugin_for_key_tests()
+    modes: list[tuple[str, object]] = []
+
+    def on_toggle_mode(which: str, mode: object) -> None:
+        modes.append((which, mode))
+
+    monkeypatch.setattr(plugin, "on_toggle_mode", on_toggle_mode)
+    event = QKeyEvent(QEvent.Type.KeyPress, Qt.Key.Key_1, Qt.KeyboardModifier.NoModifier)
+
+    plugin._on_canvas_key_press(CanvasKeyEvent(event))
+    plugin.keyPressEvent(event)
+
+    assert len(modes) == 1, "Shortcut should only be handled once."
+    assert event.isAccepted(), "Handled shortcut event should be accepted."
+
+
+def test_register_unhandled_key_is_not_marked_handled() -> None:
+    """Test that unknown keys are reported as unhandled."""
+    plugin = make_register_plugin_for_key_tests()
+
+    assert plugin._handle_key_press(Qt.Key.Key_B) is False, "Unknown shortcut should be unhandled."

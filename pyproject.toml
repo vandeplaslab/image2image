@@ -51,15 +51,15 @@ dependencies = [
     "pandas>=2.2,<4",
     "setuptools; python_version >= '3.13'",
     "xarray",
-    "numpy",
-    "numba<0.60; python_version < '3.13'",
-    "numba; python_version >= '3.13'",
+    "numpy>=2",
+    "numba",
     "pydantic>=2",
     "glasbey",
-    "qtextra[sentry,console]>=0.1.8",
+    "qtextra[sentry,console]>=0.2.0",
     "qtextraplot[2d,mpl]>=0.1.2",
-    "image2image-io>=0.3.0",
-    "image2image-reg>=0.3.0",
+    "napari==0.6.6",
+    "image2image-io>=0.3.2",
+    "image2image-reg>=0.3.1",
 ]
 
 
@@ -304,6 +304,7 @@ ignore = [
     "MANIFEST.in",
     "CITATION.cff",
     "Makefile",
-    "WARP.md",
+    "justfile",
     "uvbox.toml",
+    "requirements-docs.txt",
 ]

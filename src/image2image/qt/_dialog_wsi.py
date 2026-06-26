@@ -15,16 +15,18 @@ from loguru import logger
 from qtextra.config import THEMES
 from qtextra.queue.popup import QUEUE, QueuePopup
 from qtextra.queue.task import Task
-from qtpy.QtCore import QRegularExpression, Qt
+from qtpy.QtCore import QRegularExpression, Qt, Signal
 from qtpy.QtGui import QKeyEvent, QRegularExpressionValidator
 from superqt import ensure_main_thread
 from superqt.utils import qdebounced
 
 import image2image.constants as C
+import image2image.qt.helpers as ih
 from image2image.config import ValisConfig
 from image2image.enums import LEVEL_TO_PYRAMID, PYRAMID_TO_LEVEL
 from image2image.models.data import DataModel
-from image2image.qt._dialog_mixins import SingleViewerMixin
+from image2image.qt._dialog_base import BasePluginMixin
+from image2image.qt._dialog_mixins import SingleViewerMixin, SingleViewerPluginMixin
 from image2image.utils.valis import hash_preprocessing
 
 if ty.TYPE_CHECKING:
@@ -38,8 +40,8 @@ if ty.TYPE_CHECKING:
     from image2image.qt._wsi._mask import CropDialog, MaskDialog
 
 
-class ImageWsiWindow(SingleViewerMixin):
-    """Image viewer dialog."""
+class ImageWsiPluginWidget(Qw.QWidget, BasePluginMixin, SingleViewerPluginMixin):
+    """Whole-slide registration plugin widget."""
 
     _registration_model: ElastixReg | ValisReg | None = None
 
@@ -68,17 +70,20 @@ class ImageWsiWindow(SingleViewerMixin):
     _mask_dlg: MaskDialog | None = None
     _crop_dlg: CropDialog | None = None
 
+    evt_dropped = Signal("QEvent")
+
     def __init__(
         self,
         parent: Qw.QWidget | None,
-        run_check_version: bool = True,
         project_dir: PathLike | None = None,
         **_kwargs: ty.Any,
     ):
-        super().__init__(parent, self.WINDOW_TITLE, run_check_version=run_check_version)
+        super().__init__(parent)
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         self._setup_config()
+        self.temporary_layers = {}
+        self._setup_ui()
         self.queue_popup = QueuePopup(self)
-        self.queue_btn.clicked.connect(self.queue_popup.show)  # noqa
         if project_dir:
             self._on_load_from_project(project_dir)
         self.setup_i2reg_path()
@@ -136,7 +141,9 @@ class ImageWsiWindow(SingleViewerMixin):
             dlg.show()
         return is_valid
 
-    def _queue_registration_model(self, add_delayed: bool, save: bool = True, cli: bool = False) -> bool | Task:
+    def _queue_registration_model(
+        self, add_delayed: bool, save: bool = True, cli: bool = False, cli_command_func: ty.Callable | None = None
+    ) -> bool | Task:
         """Queue registration model."""
         if not self.registration_model:
             return False
@@ -144,6 +151,7 @@ class ImageWsiWindow(SingleViewerMixin):
             return False
         if save and not self.save_model():
             return False
+        ih.warn_if_uint8(self)
         task = self.make_registration_task(
             project=self.registration_model,
             write_transformed=self.write_registered_check.isChecked(),
@@ -154,6 +162,7 @@ class ImageWsiWindow(SingleViewerMixin):
             rename=self.rename_check.isChecked(),
             clip=self.clip_combo.currentText(),
             with_i2reg=not self.RUN_DISABLED,
+            cli_command_func=cli_command_func,
         )
         if task:
             if cli:
@@ -291,7 +300,7 @@ class ImageWsiWindow(SingleViewerMixin):
             path = Path(path)
             if path.is_file():
                 path = path.parent
-            if path.name in ["Images"]:
+            if path.name == "Images":
                 path = path.parent
             if path.suffix in [".wsireg", ".valis"]:
                 path = path.parent
@@ -1129,6 +1138,18 @@ class ImageWsiWindow(SingleViewerMixin):
             os.environ["IMAGE2IMAGE_I2REG_PATH"] = str(env_path)
             self.CONFIG.update(env_i2reg=str(env_path))
 
+    def _status_changed(self, event) -> None:
+        """Forward status change to parent window if it supports it."""
+        parent = self.parent()
+        if parent and hasattr(parent, "_status_changed"):
+            parent._status_changed(event)
+
+    def show_status_message(self, message: str) -> None:
+        """Show status message on parent window status bar."""
+        parent = self.parent()
+        if parent and hasattr(parent, "statusbar") and parent.statusbar:
+            parent.statusbar.showMessage(message)
+
     def setup_i2reg_path(self) -> None:
         """Set i2reg path."""
         if not os.environ.get("IMAGE2IMAGE_I2REG_PATH", None) and self.CONFIG.env_i2reg:
@@ -1138,37 +1159,98 @@ class ImageWsiWindow(SingleViewerMixin):
                 os.environ["IMAGE2IMAGE_I2REG_PATH"] = str(env_path)
                 logger.trace(f"Set i2reg path to {env_path}.")
 
-    @qdebounced(timeout=50, leading=True)
     def keyPressEvent(self, evt: QKeyEvent) -> None:
         """Key press event."""
-        if hasattr(evt, "native"):
-            evt = evt.native
-        try:
-            key = evt.key()
-            ignore = self._handle_key_press(key)
-            if ignore:
-                evt.ignore()
-            if not evt.isAccepted():
-                return None
+        if not self._handle_qt_key_press_event(evt):
             return super().keyPressEvent(evt)
-        except RuntimeError:
-            return None
+        return None
 
-    @qdebounced(timeout=100, leading=True)
     def on_handle_key_press(self, key: int) -> bool:
         """Handle key-press event."""
         return self._handle_key_press(key)
 
     def _handle_key_press(self, key: int) -> bool:
-        ignore = False
         if key == Qt.Key.Key_G:
             self.on_toggle_grid()
-        elif key == Qt.Key.Key_H:
+            return True
+        if key == Qt.Key.Key_H:
             self.hide_others_check.setChecked(not self.hide_others_check.isChecked())
-        elif key == Qt.Key.Key_P:
+            return True
+        if key == Qt.Key.Key_P:
             self.use_preview_check.setChecked(not self.use_preview_check.isChecked())
-        return ignore
+            return True
+        return False
 
     def can_window_be_closed(self) -> bool:
         """Check whether the window can be closed."""
         return not QUEUE.is_running()
+
+
+class ImageWsiWindow(SingleViewerMixin):
+    """Whole-slide registration window wrapper."""
+
+    WINDOW_TITLE: str
+    PROJECT_SUFFIX: str
+    RUN_DISABLED: bool
+    OTHER_PROJECT: str
+    IS_VALIS: bool
+    CONFIG: ValisConfig | ElastixConfig
+
+    plugin: ImageWsiPluginWidget
+
+    def __init__(
+        self,
+        parent: Qw.QWidget | None,
+        run_check_version: bool = True,
+        project_dir: PathLike | None = None,
+        **kwargs: ty.Any,
+    ):
+        super().__init__(
+            parent,
+            getattr(self, "WINDOW_TITLE", "Whole-slide registration"),
+            run_check_version=run_check_version,
+        )
+        self._setup_config()
+        self.queue_popup = self.plugin.queue_popup
+        self.queue_btn.clicked.connect(self.queue_popup.show)  # noqa
+
+    @staticmethod
+    def _setup_config() -> None:
+        READER_CONFIG.only_last_pyramid = True
+        READER_CONFIG.init_pyramid = False
+        READER_CONFIG.split_czi = True
+
+    @property
+    def view(self):
+        if hasattr(self, "plugin"):
+            return self.plugin.view
+        return getattr(self, "_view_fallback", None)
+
+    @view.setter
+    def view(self, val):
+        if hasattr(self, "plugin"):
+            self.plugin.view = val
+        else:
+            self._view_fallback = val
+
+    @property
+    def CONFIG(self):
+        if hasattr(self, "plugin"):
+            return self.plugin.CONFIG
+        return getattr(self, "_config_fallback", None)
+
+    @CONFIG.setter
+    def CONFIG(self, val):
+        if hasattr(self, "plugin"):
+            self.plugin.CONFIG = val
+        else:
+            self._config_fallback = val
+
+    def setup_events(self, state: bool = True) -> None:
+        if hasattr(self, "plugin"):
+            self.plugin.setup_events(state)
+
+    def __getattr__(self, name: str) -> ty.Any:
+        if name != "plugin" and hasattr(self, "plugin"):
+            return getattr(self.plugin, name)
+        raise AttributeError(f"'{self.__class__.__name__}' object has no attribute '{name}'")

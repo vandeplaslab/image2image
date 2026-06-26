@@ -20,7 +20,7 @@ from qtpy.QtWidgets import QSizePolicy, QWidget
 from image2image import __version__
 from image2image.config import get_elastix_config
 from image2image.enums import ALLOWED_ELASTIX_FORMATS, ALLOWED_PROJECT_ELASTIX_FORMATS, PYRAMID_TO_LEVEL
-from image2image.qt._dialog_wsi import ImageWsiWindow
+from image2image.qt._dialog_wsi import ImageWsiPluginWidget, ImageWsiWindow
 from image2image.qt._dialogs._select import LoadWidget
 from image2image.qt._wsi._list import QtModalityList
 from image2image.qt._wsi._paths import RegistrationMap
@@ -42,8 +42,12 @@ def make_registration_task(
     as_uint8: bool = False,
     rename: bool = True,
     clip: str = "remove",
+    cli_command_func: ty.Callable | None = get_i2reg_path,
 ) -> Task:
     """Make registration task."""
+    if cli_command_func is None:
+        cli_command_func = get_i2reg_path
+
     task_id = hash_parameters(
         project_dir=project.project_dir,
         write_transformed=write_transformed,
@@ -57,7 +61,7 @@ def make_registration_task(
 
     # pre-processing command
     preprocess_command = [
-        get_i2reg_path(),
+        cli_command_func(),
         "--no_color",
         "--debug",
         "elastix",
@@ -69,7 +73,7 @@ def make_registration_task(
 
     # registration command
     register_command = [
-        get_i2reg_path(),
+        cli_command_func(),
         "--no_color",
         "--debug",
         "elastix",
@@ -83,7 +87,7 @@ def make_registration_task(
     # write command
     if any([write_attached, write_transformed, write_not_registered, write_merged]):
         write_command = [
-            get_i2reg_path(),
+            cli_command_func(),
             "--no_color",
             "--debug",
             "elastix",
@@ -112,8 +116,8 @@ def make_registration_task(
     )
 
 
-class ImageElastixWindow(ImageWsiWindow):
-    """Image viewer dialog."""
+class ImageElastixPlugin(ImageWsiPluginWidget):
+    """Image viewer plugin widget."""
 
     APP_NAME = "elastix"
 
@@ -128,13 +132,12 @@ class ImageElastixWindow(ImageWsiWindow):
     def __init__(
         self,
         parent: QWidget | None,
-        run_check_version: bool = True,
         project_dir: PathLike | None = None,
         **_kwargs: ty.Any,
     ):
         self.CONFIG = get_elastix_config()
         _q.N_PARALLEL = self.CONFIG.n_parallel
-        super().__init__(parent, run_check_version=run_check_version, project_dir=project_dir)
+        super().__init__(parent, project_dir=project_dir)
         self.WINDOW_CONSOLE_ARGS = (("view", "viewer"), "data_model", ("data_model", "wrapper"), "registration_model")
 
     @property
@@ -158,6 +161,7 @@ class ImageElastixWindow(ImageWsiWindow):
         remove_merged: bool = False,
         as_uint8: bool = False,
         rename: bool = False,
+        cli_command_func: ty.Callable | None = None,
         **_kwargs: ty.Any,
     ) -> Task:
         """Make registration task."""
@@ -170,6 +174,7 @@ class ImageElastixWindow(ImageWsiWindow):
             remove_merged=remove_merged,
             as_uint8=as_uint8,
             rename=rename,
+            cli_command_func=cli_command_func,
         )
 
     def setup_events(self, state: bool = True) -> None:
@@ -182,7 +187,7 @@ class ImageElastixWindow(ImageWsiWindow):
         connect(self._image_widget.dset_dlg.evt_resolution, self.on_update_resolution_from_table, state=state)
 
         connect(self.view.viewer.events.status, self._status_changed, state=state)
-        # connect(self.view.widget.canvas.events.key_press, self.keyPressEvent, state=state)
+        # connect(self.view.widget.canvas.events.key_press, self._on_canvas_key_press, state=state)
 
         connect(self.modality_list.evt_show, self.on_show_modality, state=state)
         connect(self.modality_list.evt_rename, self.on_rename_modality, state=state)
@@ -194,7 +199,7 @@ class ImageElastixWindow(ImageWsiWindow):
         connect(self.modality_list.evt_set_preprocessing, self.on_update_preprocessing_of_modality, state=state)
         connect(self.modality_list.evt_preview_transform_preprocessing, self.on_preview_transform, state=state)
         connect(self.modality_list.evt_preprocessing_close, self.on_preview_close, state=state)
-        connect(self.registration_map.evt_message, self.statusbar.showMessage)
+        connect(self.registration_map.evt_message, self.show_status_message)
         connect(self.registration_map.evt_valid, self.on_validate_registrations)
 
         connect(QUEUE.evt_errored, self.on_registration_finished, state=state)
@@ -568,6 +573,7 @@ class ImageElastixWindow(ImageWsiWindow):
 
     def _setup_ui(self) -> None:
         """Create panel."""
+        self._setup_statusbar_widgets()
         self.view = self._make_image_view(
             self, add_toolbars=True, allow_extraction=False, disable_controls=False, disable_new_layers=True
         )
@@ -576,7 +582,7 @@ class ImageElastixWindow(ImageWsiWindow):
         self.view.toolbar.tools_clip_btn.hide()
         self.view.toolbar.tools_save_btn.hide()
         self.view.toolbar.tools_scalebar_btn.hide()
-        self.view.widget.canvas.events.key_press.connect(self.keyPressEvent)
+        self.view.widget.canvas.events.key_press.connect(self._on_canvas_key_press)
         self.view.viewer.scale_bar.unit = "um"
 
         self._image_widget = LoadWidget(
@@ -662,24 +668,18 @@ class ImageElastixWindow(ImageWsiWindow):
             hp.make_h_layout(self.save_btn, self.viewer_btn, self.close_btn, self.run_btn, stretch_id=(3,), spacing=2)
         )
 
-        widget = QWidget()  # noqa
-        self.setCentralWidget(widget)
-        layout = hp.make_h_layout(parent=widget, spacing=0, margin=0)
+        layout = hp.make_h_layout(parent=self, spacing=0, margin=0)
         layout.addWidget(self.view.widget, stretch=True)
         layout.addWidget(hp.make_v_line())
         layout.addWidget(side_widget)
-
-        self._make_menu()
-        self._make_icon()
-        self._make_statusbar()
 
     def on_validate_registrations(self, is_valid: bool, errors: list[str]) -> None:
         """Update registration paths."""
         self.registration_settings.warning_label.setToolTip("<br>".join(errors))
         self.registration_settings.set_warning_visible(not is_valid)
 
-    def _make_statusbar(self) -> None:
-        super()._make_statusbar()
+    def _setup_statusbar_widgets(self) -> None:
+        """Initialize statusbar widgets."""
         self.pyramid_level = hp.make_combobox(
             self,
             list(PYRAMID_TO_LEVEL.keys()),
@@ -689,13 +689,64 @@ class ImageElastixWindow(ImageWsiWindow):
         )
         self.pyramid_level.currentIndexChanged.connect(self.on_update_pyramid_level)
         self.pyramid_level.setSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum)
-        self.statusbar.insertPermanentWidget(0, self.pyramid_level)
-        self.statusbar.insertPermanentWidget(1, hp.make_v_line())
 
         self.spinner, _ = hp.make_loading_gif(self, which="infinity", size=(20, 20), retain_size=False, hide=True)
-        self.statusbar.insertPermanentWidget(2, self.spinner)
 
+    def _make_statusbar(self, statusbar) -> None:
+        """Insert permanent widgets into status bar."""
+        statusbar.insertPermanentWidget(0, self.pyramid_level)
+        statusbar.insertPermanentWidget(1, hp.make_v_line())
+        statusbar.insertPermanentWidget(2, self.spinner)
+
+    def on_show_tutorial(self) -> None:
+        """Quick tutorial."""
+        from image2image.qt._dialogs._tutorial import show_elastix_tutorial
+
+        if show_elastix_tutorial(self):
+            self.CONFIG.update(first_time=False)
+
+
+class ImageElastixWindow(ImageWsiWindow):
+    """Image viewer dialog window container."""
+
+    APP_NAME = "elastix"
+
+    WINDOW_TITLE = f"image2elastix: WSI Registration app (v{__version__})"
+    PROJECT_SUFFIX = ".wsireg"
+    RUN_DISABLED: bool = False
+    OTHER_PROJECT: str = "Valis"
+    IS_VALIS = False
+
+    def __init__(
+        self,
+        parent: QWidget | None,
+        run_check_version: bool = True,
+        project_dir: PathLike | None = None,
+        **_kwargs: ty.Any,
+    ):
+        self.CONFIG = get_elastix_config()
+        _q.N_PARALLEL = self.CONFIG.n_parallel
+        super().__init__(parent, run_check_version=run_check_version, project_dir=project_dir)
+        self.WINDOW_CONSOLE_ARGS = (("view", "viewer"), "data_model", ("data_model", "wrapper"), "registration_model")
+
+    def _setup_ui(self) -> None:
+        """Create panel and set central widget."""
+        self.plugin = ImageElastixPlugin(self)
+        self.setCentralWidget(self.plugin)
+
+        # connect drops
+        self.evt_dropped.connect(self.plugin.evt_dropped)
+
+        self._make_menu()
+        self._make_icon()
+        self._make_statusbar()
+
+    def _make_statusbar(self) -> None:
+        """Make statusbar."""
+        super()._make_statusbar()
         self.queue_btn = hp.make_qta_btn(self, "queue", tooltip="Open queue popup.", size_preset="small")
+        self.queue_btn.clicked.connect(self.plugin.queue_popup.show)
+        self.plugin._make_statusbar(self.statusbar)
         self.statusbar.insertPermanentWidget(3, self.queue_btn)
 
     def on_show_tutorial(self) -> None:

@@ -169,33 +169,37 @@ if is_installed("image2image_io"):
     from image2image_io.cli import (  # type: ignore[assignment]
         combine,
         convert,
+        crop,
         czi2tiff,
         cziinfo,
         czimerge,
+        mask,
         merge,
         thumbnail,
         transform,
     )
 
-    cli.add_command(convert, help_group="OME-TIFF")  # type: ignore[attr-defined]
-    cli.add_command(combine, help_group="OME-TIFF")  # type: ignore[attr-defined]
+    cli.add_command(convert, help_group="OME")
+    cli.add_command(combine, help_group="OME")
+    cli.add_command(crop, help_group="OME")
+    cli.add_command(mask, help_group="OME")
     cli.add_command(cziinfo, help_group="CZI")
     cli.add_command(czi2tiff, help_group="CZI")
     cli.add_command(czimerge, help_group="CZI")
-    cli.add_command(transform, help_group="Utility")  # type: ignore[attr-defined]
-    cli.add_command(thumbnail, help_group="Utility")  # type: ignore[attr-defined]
+    cli.add_command(transform, help_group="Utility")
+    cli.add_command(thumbnail, help_group="Utility")
 
 
 if is_installed("image2image_reg"):
-    from image2image_reg.cli import elastix, merge, valis  # type: ignore[assignment]
+    from image2image_reg.cli import elastix, merge, valis
 
     # registration
-    cli.add_command(elastix, help_group="Registration")  # type: ignore[attr-defined]
+    cli.add_command(elastix, help_group="Registration")
     if valis:
-        cli.add_command(valis, help_group="Registration")  # type: ignore[attr-defined]
+        cli.add_command(valis, help_group="Registration")
 
 if merge:
-    cli.add_command(merge, help_group="Utility")  # type: ignore[attr-defined]
+    cli.add_command(merge, help_group="Utility")
 
 
 @click.group(

@@ -22,9 +22,10 @@ from qtpy.QtCore import Qt
 from qtpy.QtGui import QKeyEvent
 from qtpy.QtWidgets import QHBoxLayout, QVBoxLayout, QWidget
 from superqt import ensure_main_thread
-from superqt.utils import GeneratorWorker, create_worker, qdebounced
+from superqt.utils import GeneratorWorker, create_worker
 
 import image2image.constants as C
+import image2image.qt.helpers as ih
 from image2image import __version__
 from image2image.config import get_crop_config
 from image2image.enums import ALLOWED_PROJECT_CROP_FORMATS
@@ -258,6 +259,8 @@ class ImageCropWindow(SingleViewerMixin):
 
         logger.trace("Exporting mask regions to OME-TIFF files...")
         if regions:
+            ih.warn_if_uint8(self)
+
             for _ in export_mask_regions(
                 self.data_model,
                 output_dir=output_dir_,
@@ -408,6 +411,8 @@ class ImageCropWindow(SingleViewerMixin):
             output_dir_ = Path(output_dir_)
 
         if regions:
+            ih.warn_if_uint8(self)
+
             self.worker_crop = create_worker(
                 export_crop_regions,
                 data_model=self.data_model,
@@ -546,7 +551,7 @@ class ImageCropWindow(SingleViewerMixin):
         self.view = self._make_image_view(
             self, add_toolbars=False, allow_extraction=False, disable_controls=True, disable_new_layers=True
         )
-        self.view.widget.canvas.events.key_press.connect(self.keyPressEvent)
+        self.view.widget.canvas.events.key_press.connect(self._on_canvas_key_press)
         self.view.viewer.scale_bar.unit = "um"
 
         self._image_widget = LoadWidget(
@@ -762,30 +767,18 @@ class ImageCropWindow(SingleViewerMixin):
         show_crop_tutorial(self)
         self.CONFIG.update(first_time=False)
 
-    @qdebounced(timeout=50, leading=True)
     def keyPressEvent(self, evt: QKeyEvent) -> None:
         """Key press event."""
-        if hasattr(evt, "native"):
-            evt = evt.native
-        try:
-            key = evt.key()
-            ignore = self._handle_key_press(key)
-            if ignore:
-                evt.ignore()
-            if not evt.isAccepted():
-                return None
+        if not self._handle_qt_key_press_event(evt):
             return super().keyPressEvent(evt)
-        except RuntimeError:
-            return None
+        return None
 
-    @qdebounced(timeout=100, leading=True)
     def on_handle_key_press(self, key: int) -> bool:
         """Handle key-press event."""
         return self._handle_key_press(key)
 
     def _handle_key_press(self, key: int) -> bool:
-        ignore = False
-        return ignore
+        return False
 
 
 def get_project_data(data_model: DataModel, regions: list[tuple[int, int, int, int] | np.ndarray]) -> dict:

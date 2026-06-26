@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import typing as ty
-from dataclasses import dataclass
 from pathlib import Path
 
 import qtextra.helpers as hp
@@ -13,12 +12,11 @@ from qtextra.config import THEMES
 from qtextra.queue.popup import QUEUE, QueuePopup
 from qtextra.queue.task import Task
 from qtextra.utils.utilities import connect
-from qtpy.QtCore import Qt, Signal  # type: ignore[attr-defined]
+from qtpy.QtCore import Qt
 from qtpy.QtGui import QDropEvent
 from qtpy.QtWidgets import (
     QDialog,
     QFileDialog,
-    QFrame,
     QListWidget,
     QMenuBar,
     QScrollArea,
@@ -27,210 +25,29 @@ from qtpy.QtWidgets import (
 )
 
 import image2image.constants as C
+import image2image.qt.helpers as ih
 from image2image import __version__
 from image2image.config import STATE, RunnerConfig, get_runner_config
 from image2image.qt._dialog_base import Window
-
-if ty.TYPE_CHECKING:
-    from image2image_reg.workflows.elastix import ElastixReg
-    from image2image_reg.workflows.valis import ValisReg
-
-
-ProjectKind = ty.Literal["elastix", "valis"]
-PROJECT_FILE_FILTER = (
-    "Registration projects (*.json *.toml *.i2wsireg.json *.i2wsireg.toml *.wsireg *.i2reg *.config.json "
-    "*.valis.json *.valis.toml *.valis valis.config.json);; "
-    "Elastix projects (*.i2wsireg.json *.i2wsireg.toml *.wsireg *.i2reg *.config.json);; "
-    "Valis projects (*.valis.json *.valis.toml *.valis valis.config.json *.config.json);;"
+from image2image.qt._runner._card import QtRunnerProjectCard
+from image2image.qt._runner._constants import (
+    PROJECT_FILE_FILTER,
+    REVIEW_STATE_FILTER,
+    REVIEW_STATES,
+    RUN_STATE_FILTER,
+    ReviewState,
+    RunnerProject,
+)
+from image2image.qt._runner.utilities import (
+    discover_overlap_images,
+    has_registration_images,
+    load_registration_project,
+    project_matches_filters,
+    write_review_state,
 )
 
-
-@dataclass(frozen=True)
-class RunnerProject:
-    """Loaded registration project."""
-
-    kind: ProjectKind
-    project_dir: Path
-    project: ElastixReg | ValisReg
-
-
-def is_empty(path: Path) -> bool:
-    """Check whether the directory is empty."""
-    if not path.exists():
-        return True
-    return not any(path.iterdir())
-
-
-class QtRunnerProjectCard(QFrame):
-    """Card describing a loaded registration project."""
-
-    evt_queue = Signal(object)
-    evt_images = Signal(object)
-    evt_network = Signal(object)
-    evt_viewer = Signal(object)
-
-    def __init__(self, project: RunnerProject, parent: QWidget | None = None):
-        super().__init__(parent)
-        self.project = project
-        self.status = "Ready"
-        self.setFrameShape(QFrame.Shape.StyledPanel)
-        self.setFrameShadow(QFrame.Shadow.Raised)
-
-        self.name_label = hp.make_label(
-            self,
-            f"<b>{project.project.name}</b>",
-            enable_url=True,
-            object_name="large_text",
-        )
-        self.summary_label = hp.make_label(self, self._summarize_project(), enable_url=True, wrap=True)
-        self.status_label = hp.make_label(self, "Ready", object_name="tip_label")
-        self.progress_label = hp.make_label(self, "Waiting to be queued.", wrap=True)
-
-        self.queue_btn = hp.make_btn(
-            self,
-            "Queue",
-            tooltip="Validate and add this project to the queue.",
-            func=lambda: self.evt_queue.emit(self.project.project_dir),
-        )
-        self.images_btn = hp.make_btn(
-            self,
-            "Images...",
-            tooltip="Show the project image list.",
-            func=lambda: self.evt_images.emit(self.project.project_dir),
-        )
-        self.network_btn = hp.make_btn(
-            self,
-            "Network...",
-            tooltip="Show the Elastix registration network."
-            if project.kind == "elastix"
-            else "Registration network preview is currently available for Elastix projects.",
-            func=lambda: self.evt_network.emit(self.project.project_dir),
-            disabled=project.kind != "elastix",
-        )
-        self.viewer_btn = hp.make_btn(
-            self,
-            "Open in viewer",
-            tooltip="Open completed registration images in the viewer.",
-            func=lambda: self.evt_viewer.emit(self.project.project_dir),
-            disabled=is_empty(self.project.project_dir / "Images"),
-        )
-
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(8, 8, 8, 8)
-        layout.setSpacing(4)
-        layout.addWidget(self.name_label)
-        layout.addWidget(self.summary_label)
-        layout.addLayout(
-            hp.make_h_layout(
-                hp.make_label(self, "Status"),
-                self.status_label,
-                spacing=2,
-                stretch_id=(1,),
-            )
-        )
-        layout.addWidget(self.progress_label)
-        layout.addLayout(
-            hp.make_h_layout(
-                self.queue_btn,
-                self.images_btn,
-                self.network_btn,
-                self.viewer_btn,
-                spacing=2,
-                stretch_after=True,
-            )
-        )
-
-    @property
-    def registration_model(self) -> ElastixReg | ValisReg:
-        """Return the registration model for auxiliary viewers."""
-        return self.project.project
-
-    @property
-    def modalities(self) -> list[ty.Any]:
-        """Return project modalities."""
-        return list(self.project.project.modalities.values())
-
-    def set_status(self, status: str, progress: str = "") -> None:
-        """Update card status and progress text."""
-        self.status = status
-        self.status_label.setText(status)
-        # hp.disable_widgets(self.viewer_btn, disabled=status != "Finished")
-        if progress:
-            self.progress_label.setText(progress)
-
-    def image_lines(self) -> list[str]:
-        """Return a simple image list for the project."""
-        lines = []
-        for index, modality in enumerate(self.modalities, start=1):
-            lines.append(f"{index}. {modality.name}: {modality.path}")
-        return lines
-
-    def _summarize_project(self) -> str:
-        """Return a short project summary."""
-        project = self.project.project
-        n_modalities = len(project.modalities)
-        output_dir = hp.hyper(project.output_dir, value=str(project.output_dir))
-        project_dir = hp.hyper(project.project_dir, value=str(project.project_dir))
-        return (
-            f"<b>Type</b>: {self.project.kind.capitalize()} &nbsp; "
-            f"<b>Modalities</b>: {n_modalities}<br>"
-            f"<b>Project</b>: {project_dir}<br>"
-            f"<b>Output</b>: {output_dir}"
-        )
-
-
-def _path_to_project_dir(path: Path) -> Path:
-    """Return a project directory for a dropped project path."""
-    return path.parent if path.is_file() else path
-
-
-def _preferred_project_kinds(path: Path) -> tuple[ProjectKind, ...]:
-    """Return the preferred load order for a registration project path."""
-    name = path.name.lower()
-    suffix = path.suffix.lower()
-    if suffix == ".valis" or name in {"valis.config.json"} or ".valis." in name:
-        return "valis", "elastix"
-    if suffix in {".wsireg", ".i2reg"} or ".i2wsireg." in name or ".i2reg." in name:
-        return "elastix", "valis"
-    if name.endswith(".config.json"):
-        return "elastix", "valis"
-    return "elastix", "valis"
-
-
-def load_registration_project(path: Path) -> RunnerProject:
-    """Load an Elastix or Valis registration project from a path."""
-    errors = []
-    for kind in _preferred_project_kinds(path):
-        try:
-            if kind == "elastix":
-                return _load_elastix_project(path)
-            return _load_valis_project(path)
-        except (FileNotFoundError, ImportError, ValueError) as exc:
-            errors.append(f"{kind}: {exc}")
-    message = "; ".join(errors) if errors else "unsupported project"
-    raise ValueError(f"Could not load registration project from {path}: {message}")
-
-
-def _load_elastix_project(path: Path) -> RunnerProject:
-    """Load an Elastix registration project."""
-    from image2image_reg.workflows.elastix import ElastixReg
-
-    project_dir = _path_to_project_dir(path)
-    try:
-        project = ElastixReg.from_path(project_dir, quick=True)
-    except ValueError:
-        ElastixReg.update_paths(project_dir, project_dir.parent)
-        project = ElastixReg.from_path(project_dir, quick=True)
-    return RunnerProject("elastix", Path(project.project_dir), project)
-
-
-def _load_valis_project(path: Path) -> RunnerProject:
-    """Load a Valis registration project."""
-    from image2image_reg.workflows.valis import ValisReg
-
-    project_dir = _path_to_project_dir(path)
-    project = ValisReg.from_path(project_dir)
-    return RunnerProject("valis", Path(project.project_dir), project)
+if ty.TYPE_CHECKING:
+    pass
 
 
 class ImageRunnerWindow(Window):
@@ -328,6 +145,14 @@ class ImageRunnerWindow(Window):
         """Add all loaded projects to the queue as pending tasks."""
         self._queue_projects(list(self.projects))
 
+    def on_queue_bad_projects(self) -> None:
+        """Add all loaded bad projects to the queue as pending tasks."""
+        paths = [path for path, card in self.cards.items() if card.review_state == "bad"]
+        if not paths:
+            hp.toast(self, "No bad projects", "There are no loaded projects marked as bad.", icon="warning")
+            return
+        self._queue_projects(paths)
+
     def on_start_queue(self) -> None:
         """Start pending queue tasks."""
         if not QUEUE.pending_queue:
@@ -373,6 +198,30 @@ class ImageRunnerWindow(Window):
         self._dialogs.append(dlg)
         dlg.show()
 
+    def on_show_overlap_previews(self, path: Path) -> None:
+        """Show existing overlap preview images for a loaded project."""
+        from image2image.qt._runner._overlap import OverlapPreviewDialog
+
+        project = self.projects.get(path)
+        if project is None:
+            logger.warning(f"Could not find loaded registration project for {path}")
+            return
+        image_paths = discover_overlap_images(path)
+        if not image_paths:
+            hp.toast(
+                self,
+                "No overlap previews",
+                f"Could not find overlap PNG files in {hp.hyper(path / 'Overlap', 'Overlap')}.",
+                icon="warning",
+                position="top_left",
+            )
+            return
+        card = self.cards[path]
+        dlg = OverlapPreviewDialog(project, image_paths, card.review_state, self)
+        dlg.evt_review.connect(lambda project_path, state: self.on_set_project_review(Path(project_path), state))
+        self._dialogs.append(dlg)
+        dlg.show()
+
     def on_open_project_in_viewer(self, path: Path) -> None:
         """Open completed registration images for a loaded project."""
         project = self.projects.get(path)
@@ -380,6 +229,30 @@ class ImageRunnerWindow(Window):
             logger.warning(f"Could not find loaded registration project for {path}")
             return
         self._open_registration_in_viewer(project.project.project_dir)
+
+    def on_open_project_for_edits(self, path: Path) -> None:
+        """Open a bad project in its registration app."""
+        project = self.projects.get(path)
+        if project is None:
+            logger.warning(f"Could not find loaded registration project for {path}")
+            return
+        args = ("--project_dir", str(project.project_dir))
+        if project.kind == "elastix":
+            self.on_open_elastix(*args)
+        else:
+            self.on_open_valis(*args)
+
+    def on_set_project_review(self, path: Path, state: ReviewState) -> None:
+        """Persist and display a project review state."""
+        if state not in REVIEW_STATES:
+            logger.warning(f"Ignoring invalid review state {state!r} for {path}")
+            return
+        write_review_state(path, state)
+        card = self.cards.get(path)
+        if card:
+            card.set_review_state(state)
+        self._apply_project_filters()
+        self._refresh_progress_report()
 
     def on_open_task_in_viewer(self, task: Task) -> None:
         """Open completed registration images for a queue task."""
@@ -393,7 +266,7 @@ class ImageRunnerWindow(Window):
     def _open_registration_in_viewer(self, project_dir: Path) -> None:
         """Open registration output images in the viewer."""
         path = Path(project_dir) / "Images"
-        if path.exists():
+        if has_registration_images(Path(project_dir)):
             self.on_open_viewer("--file_dir", str(path))
             hp.toast(
                 self,
@@ -424,6 +297,7 @@ class ImageRunnerWindow(Window):
             )
             return
         queued = 0
+        ih.warn_if_uint8(self)
         for path in paths:
             project = self.projects.get(path)
             if project is None:
@@ -467,7 +341,7 @@ class ImageRunnerWindow(Window):
         dlg.show()
         return False
 
-    def _make_registration_task(self, project: RunnerProject) -> Task:
+    def _make_registration_task(self, project: RunnerProject, cli_command_func: ty.Callable | None = None) -> Task:
         """Create a qtextra task for a loaded registration project."""
         if project.kind == "elastix":
             from image2image.qt.dialog_elastix import make_registration_task
@@ -482,6 +356,7 @@ class ImageRunnerWindow(Window):
                 as_uint8=self.CONFIG.as_uint8,
                 rename=self.CONFIG.rename,
                 clip=self.CONFIG.clip,
+                cli_command_func=cli_command_func,
             )
         from image2image.qt.dialog_valis import make_registration_task
 
@@ -496,6 +371,7 @@ class ImageRunnerWindow(Window):
             rename=self.CONFIG.rename,
             clip=self.CONFIG.clip,
             with_i2reg=STATE.allow_valis_run,
+            cli_command_func=cli_command_func,
         )
 
     def on_clear_projects(self) -> None:
@@ -509,6 +385,10 @@ class ImageRunnerWindow(Window):
             if widget:
                 widget.deleteLater()
         self._refresh_progress_report()
+
+    def on_update_project_filters(self, *_args: ty.Any) -> None:
+        """Apply project card filters."""
+        self._apply_project_filters()
 
     def on_task_queued(self, task: Task) -> None:
         """Update project state when a task is queued."""
@@ -611,14 +491,19 @@ class ImageRunnerWindow(Window):
         card.evt_images.connect(lambda path: self.on_show_project_images(Path(path)))
         card.evt_network.connect(lambda path: self.on_show_project_network(Path(path)))
         card.evt_viewer.connect(lambda path: self.on_open_project_in_viewer(Path(path)))
+        card.evt_overlap.connect(lambda path: self.on_show_overlap_previews(Path(path)))
+        card.evt_review.connect(lambda path, state: self.on_set_project_review(Path(path), state))
+        card.evt_edit.connect(lambda path: self.on_open_project_for_edits(Path(path)))
         self.cards[project.project_dir] = card
         self.cards_layout.insertWidget(max(0, self.cards_layout.count() - 1), card)
+        self._apply_project_filters()
 
     def _update_project_status(self, path: Path, status: str, progress: str = "") -> None:
         """Update a project card status."""
         card = self.cards.get(path)
         if card:
             card.set_status(status, progress)
+        self._apply_project_filters()
 
     def _project_path_from_task(self, task: Task) -> Path | None:
         """Return the loaded project path associated with a queue task."""
@@ -650,6 +535,25 @@ class ImageRunnerWindow(Window):
             f"{loaded} loaded | {valid} valid | {queued} queued | {running} running | "
             f"{finished} finished | {failed} failed/invalid | {cancelled} cancelled"
         )
+        self.queue_bad_btn.setEnabled(any(card.review_state == "bad" for card in self.cards.values()))
+
+    def _apply_project_filters(self) -> None:
+        """Apply project card filters to the loaded cards."""
+        if not hasattr(self, "filter_by_name"):
+            return
+        name_filter = self.filter_by_name.text()
+        run_filter = ty.cast(RUN_STATE_FILTER, self.filter_by_status.currentText())
+        review_filter = ty.cast(REVIEW_STATE_FILTER, self.filter_by_review.currentText())
+        for card in self.cards.values():
+            visible = project_matches_filters(
+                card.project.project.name,
+                card.status,
+                card.review_state,
+                name_filter,
+                run_filter,
+                review_filter,
+            )
+            card.setVisible(visible)
 
     def _make_export_options(self, parent: QWidget):
         """Create export option controls."""
@@ -774,7 +678,34 @@ class ImageRunnerWindow(Window):
             tooltip="Add all loaded projects to the queue as pending tasks.",
             func=self.on_queue_all_projects,
         )
+        self.queue_bad_btn = hp.make_btn(
+            self,
+            "Queue bad",
+            tooltip="Add all loaded projects marked as bad to the queue.",
+            func=self.on_queue_bad_projects,
+            disabled=True,
+        )
         self.clear_btn = hp.make_btn(self, "Clear", tooltip="Clear loaded projects.", func=self.on_clear_projects)
+        self.filter_by_name = hp.make_line_edit(
+            self,
+            placeholder="Filter by name...",
+            tooltip="Filter loaded projects by project name.",
+            func_changed=self.on_update_project_filters,
+        )
+        self.filter_by_status = hp.make_combobox(
+            self,
+            ["All", "Finished", "Running", "Queued", "Failed"],
+            value="All",
+            tooltip="Filter loaded projects by run state.",
+            func=self.on_update_project_filters,
+        )
+        self.filter_by_review = hp.make_combobox(
+            self,
+            ["All", "Unknown", "Good", "Bad"],
+            value="All",
+            tooltip="Filter loaded projects by review state.",
+            func=self.on_update_project_filters,
+        )
         self.n_parallel = hp.make_int_spin_box(
             self,
             value=self.CONFIG.n_parallel,
@@ -820,10 +751,23 @@ class ImageRunnerWindow(Window):
                 self.add_files_btn,
                 self.add_directory_btn,
                 self.queue_all_btn,
+                self.queue_bad_btn,
                 self.start_queue_btn,
                 self.clear_btn,
                 spacing=2,
                 stretch_after=True,
+            )
+        )
+        layout.addLayout(
+            hp.make_h_layout(
+                hp.make_label(self, "Filter"),
+                self.filter_by_name,
+                hp.make_label(self, "State"),
+                self.filter_by_status,
+                hp.make_label(self, "Review"),
+                self.filter_by_review,
+                spacing=2,
+                stretch_id=(1,),
             )
         )
         layout.addWidget(self.scroll_area, stretch=1)

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import typing as ty
 from functools import partial
+from time import monotonic
 
 import qtextra.helpers as hp
 from image2image_io.config import CONFIG as READER_CONFIG
@@ -16,12 +17,12 @@ from qtextra.mixins import IndicatorMixin
 from qtextra.widgets.qt_button_icon import QtThemeButton
 from qtextraplot._napari.mixins import ImageViewMixin
 from qtpy.QtCore import QProcess, Qt, Signal  # type: ignore[attr-defined]
+from qtpy.QtGui import QKeyEvent
 from qtpy.QtWidgets import QMainWindow, QMenu, QProgressBar, QStatusBar, QWidget
-from superqt.utils import create_worker, ensure_main_thread
 
 from image2image.config import STATE, SingleAppConfig, get_app_config
 from image2image.models.data import DataModel
-from image2image.qt._dialogs._update import check_version
+from image2image.qt._mixins import NewVersionMixin, ThemeMixin
 from image2image.utils._appdirs import USER_LOG_DIR
 from image2image.utils.utilities import (
     get_colormap,
@@ -34,9 +35,11 @@ if ty.TYPE_CHECKING:
     from image2image_io.readers import BaseReader
     from qtextraplot._napari.image.wrapper import NapariImageView
 
+KEY_EVENT_DEDUPLICATE_TIMEOUT = 0.05
 
-class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
-    """Base class window for all apps."""
+
+class BasePluginMixin(ImageViewMixin):
+    """Base mixin for all plugins containing viewer helper logic."""
 
     APP_NAME: str = ""
     CONFIG: SingleAppConfig
@@ -44,89 +47,63 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
     _console = None
     view: NapariImageView | None = None
     data_model: DataModel
+    logger_dlg: QtLoggerDialog
+    temporary_layers: dict[str, Layer]
+    _last_canvas_shortcut: tuple[int, float] | None = None
 
-    allow_drop: bool = True
-    evt_dropped = Signal("QEvent")
-    evt_initialized = Signal("QEvent")
+    def _get_native_key_event(self, evt: object) -> QKeyEvent | None:
+        """Return the Qt key event from either Qt or napari event objects."""
+        native_event = evt.native if hasattr(evt, "native") else evt
+        if hasattr(native_event, "key"):
+            return ty.cast(QKeyEvent, native_event)
+        return None
 
-    def __init__(self, parent: QWidget | None, title: str, delay_events: bool = False, run_check_version: bool = True):
-        super().__init__(parent)
-        self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
-        self.setUnifiedTitleAndToolBarOnMac(True)
-        self.setWindowTitle(title)
-        self.setMouseTracking(True)
-        self.setAcceptDrops(True)
-        self.setMinimumSize(1200, 800)
+    def _is_duplicate_canvas_shortcut(self, key: int) -> bool:
+        """Return True if a Qt key event immediately follows a handled canvas shortcut."""
+        if self._last_canvas_shortcut is None:
+            return False
+        last_key, last_time = self._last_canvas_shortcut
+        if key != last_key:
+            self._last_canvas_shortcut = None
+            return False
+        is_duplicate = monotonic() - last_time <= KEY_EVENT_DEDUPLICATE_TIMEOUT
+        if not is_duplicate:
+            self._last_canvas_shortcut = None
+        return is_duplicate
 
-        self._setup_ui()
-        # check for updates every now and in then every 4 hours
-        if run_check_version:
-            hp.call_later(self, self.on_check_new_version, 5 * 1000)
-            self.version_timer = hp.make_periodic_timer(self, self.on_check_new_version, 4 * 3600 * 1000)
-
-        if not delay_events:
-            self.setup_events()
-        else:
-            hp.call_later(self, self.setup_events, 3000)
-
-        # synchronize themes
-        THEMES.evt_theme_changed.connect(self.on_changed_theme)
-
-        # add logger
-        self.logger_dlg = QtLoggerDialog(self, USER_LOG_DIR)
-        self.temporary_layers: dict[str, Layer] = {}
-        self._setup_config()
-
-    @staticmethod
-    def _setup_config() -> None:
-        raise NotImplementedError("Must implement method")
-
-    def on_toggle_theme(self) -> None:
-        """Toggle theme."""
-        THEMES.theme = "dark" if self.theme_btn.dark else "light"
-        get_app_config().theme = THEMES.theme
-
-    def on_changed_theme(self) -> None:
-        """Update theme of the app."""
-        get_app_config().theme = THEMES.theme
-        THEMES.set_theme_stylesheet(self)
-        # update console
-        if self._console:
-            self._console._console._update_theme()
-
-    def on_check_new_version(self) -> None:
-        """Check for the new version."""
-        create_worker(
-            check_version,
-            _connect={
-                "returned": self._on_set_new_version,
-                "errored": lambda: hp.toast(
-                    self, "Failed", "Failed checking for new version", icon="error", position="top_left"
-                ),
-            },
-        )
-
-    @ensure_main_thread()
-    def _on_set_new_version(self, res: tuple[bool, str]) -> None:
-        """Set the result of version check."""
-        is_new_available, reason = res
-        if not is_new_available:
-            logger.debug("Using the latest version of the app.")
-            hp.toast(
-                self, "No new version", "You are using the latest version of the app.", icon="info", position="top_left"
-            )
+    def _on_canvas_key_press(self, evt: object) -> None:
+        """Handle napari canvas key events without forwarding them through QWidget handling."""
+        key_event = self._get_native_key_event(evt)
+        if key_event is None:
             return
-        hp.long_toast(self, "New version available!", reason, 15_000, icon="info", position="top_left")
-        logger.debug("Checked for latest version.")
-        self.update_status_btn.show()
+        try:
+            key = key_event.key()
+            if self._handle_key_press(key):
+                key_event.accept()
+                self._last_canvas_shortcut = (key, monotonic())
+        except RuntimeError:
+            return
 
-    def _setup_ui(self) -> None:
-        """Create panel."""
-        raise NotImplementedError("Must implement method")
+    def _handle_qt_key_press_event(self, evt: object) -> bool:
+        """Handle a Qt key event and return True when it should not propagate further."""
+        key_event = self._get_native_key_event(evt)
+        if key_event is None:
+            return False
+        try:
+            key = key_event.key()
+            if self._is_duplicate_canvas_shortcut(key):
+                key_event.accept()
+                return True
+            if self._handle_key_press(key):
+                key_event.accept()
+                return True
+        except RuntimeError:
+            return True
+        return False
 
-    def setup_events(self, state: bool = True) -> None:
-        """Additional setup."""
-        raise NotImplementedError("Must implement method")
+    def _handle_key_press(self, key: int) -> bool:
+        """Handle a key press and return True if the shortcut was consumed."""
+        return False
 
     def _toggle_channel(
         self, model: DataModel, view_wrapper: NapariImageView, name: str, state: bool, view_kind: str
@@ -361,7 +338,7 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
             for name in channel_names:
                 if view_wrapper.remove_layer(name, silent=True):
                     logger.trace(f"Removed '{name}' from {view_kind}.")
-        except Exception:  # noqa: BLE001
+        except Exception as exc:  # noqa: BLE001
             log_exception_or_error(exc)
 
     @staticmethod
@@ -424,14 +401,6 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
             "np": np,
         }
 
-    def _make_icon(self) -> None:
-        """Make icon."""
-        from image2image.assets import ICON_ICO
-
-        icon = hp.get_icon_from_img(ICON_ICO)
-        if icon:
-            self.setWindowIcon(icon)
-
     def _make_tools_menu(self, scalebar: bool = False, shortcut: bool = False) -> QMenu:
         """Make tools menu."""
         menu_tools = hp.make_menu(self, "Tools")
@@ -464,7 +433,9 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
         hp.make_menu_item(
             self, "Open Config directory", menu=menu_config, func=lambda: open_directory_universal(USER_CONFIG_DIR)
         )
-        hp.make_menu_item(self, "Open Log directory", menu=menu_config, func=lambda: open_directory_universal(USER_LOG_DIR))
+        hp.make_menu_item(
+            self, "Open Log directory", menu=menu_config, func=lambda: open_directory_universal(USER_LOG_DIR)
+        )
         return menu_config
 
     def _make_apps_menu(self) -> QMenu:
@@ -558,6 +529,69 @@ class Window(QMainWindow, IndicatorMixin, ImageViewMixin):
             func=self.on_check_new_version,
         )
         return menu_help
+
+
+class Window(QMainWindow, IndicatorMixin, NewVersionMixin, ThemeMixin, BasePluginMixin):
+    """Base class window for all apps."""
+
+    APP_NAME: str = ""
+    CONFIG: SingleAppConfig
+
+    _console = None
+    view: NapariImageView | None = None
+    data_model: DataModel
+
+    allow_drop: bool = True
+    evt_dropped = Signal("QEvent")
+    evt_initialized = Signal("QEvent")
+
+    def __init__(self, parent: QWidget | None, title: str, delay_events: bool = False, run_check_version: bool = True):
+        super().__init__(parent)
+        self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
+        self.setUnifiedTitleAndToolBarOnMac(True)
+        self.setWindowTitle(title)
+        self.setMouseTracking(True)
+        self.setAcceptDrops(True)
+        self.setMinimumSize(1200, 800)
+
+        self._setup_ui()
+        # check for updates every now and in then every 4 hours
+        if run_check_version:
+            hp.call_later(self, self.on_check_new_version, 5 * 1000)
+            self.version_timer = hp.make_periodic_timer(self, self.on_check_new_version, 4 * 3600 * 1000)
+
+        if not delay_events:
+            self.setup_events()
+        else:
+            hp.call_later(self, self.setup_events, 3000)
+
+        # synchronize themes
+        THEMES.evt_theme_changed.connect(self.on_changed_theme)
+
+        # add logger
+        self.logger_dlg = QtLoggerDialog(self, USER_LOG_DIR)
+        self.temporary_layers: dict[str, Layer] = {}
+        self._setup_config()
+
+    @staticmethod
+    def _setup_config() -> None:
+        raise NotImplementedError("Must implement method")
+
+    def _setup_ui(self) -> None:
+        """Create panel."""
+        raise NotImplementedError("Must implement method")
+
+    def setup_events(self, state: bool = True) -> None:
+        """Additional setup."""
+        raise NotImplementedError("Must implement method")
+
+    def _make_icon(self) -> None:
+        """Make icon."""
+        from image2image.assets import ICON_ICO
+
+        icon = hp.get_icon_from_img(ICON_ICO)
+        if icon:
+            self.setWindowIcon(icon)
 
     def _make_theme_statusbar(self) -> None:
         self.theme_btn = QtThemeButton(self)

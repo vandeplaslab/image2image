@@ -7,12 +7,14 @@ import sys
 import typing as ty
 
 from image2image import __version__
-from image2image.assets import ICON_PNG
+from image2image.assets import ICON_PNG, load_assets
 
 if ty.TYPE_CHECKING:
     from qtpy.QtWidgets import QApplication
 
 APP_ID = f"image2image.app.{__version__}"
+
+load_assets()
 
 
 def set_app_id(app_id: str | None = None) -> None:
@@ -28,7 +30,7 @@ _defaults = {
     "app_version": __version__,
     "icon": ICON_PNG,
     "org_name": "image2image",
-    "org_domain": "",
+    "org_domain": "https://github.com/vandeplaslab/image2image",
     "app_id": APP_ID,
 }
 
@@ -159,6 +161,7 @@ def get_app(
 
             # Setup search paths for currently installed themes.
             for name in THEMES.themes:
+                QDir.addSearchPath(f"theme_{name}", str(THEMES.get_theme_path(name)))
                 QDir.addSearchPath(f"theme_{name}", str(_theme_path(name)))
             THEMES.update_palette()
 

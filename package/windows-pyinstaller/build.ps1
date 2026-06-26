@@ -53,14 +53,8 @@ if ($debug) {
     echo "Debug mode enabled"
     $env:PYINSTALLER_DEBUG="all"
 } else {
-    $env:PYINSTALLER_DEBUG="imports"
+    $env:PYINSTALLER_DEBUG="0"
 }
-
-# disable extra apps
-$env:IMAGE2IMAGE_BUILD_I2REG="false"
-$env:IMAGE2IMAGE_BUILD_REGISTER="false"
-$env:IMAGE2IMAGE_BUILD_VIEWER="false"
-$env:IMAGE2IMAGE_BUILD_ELASTIX="false"
 
 $python_ver = &{python -V} 2>&1
 echo "Python version "$python_ver
@@ -73,21 +67,49 @@ if ($update) {
     $update_pip = $true
 }
 
-# update all dependencies and app
-[System.Collections.ArrayList]$pip_install = @()
-if ($update_pip) {
-    $pip_install.Add("napari==0.6.6")
-    $pip_install.Add("pydantic>=2")
-    $pip_install.Add("pyqt6>=6.9.1")
-    $pip_install.Add("pyinstaller")
-    $pip_install.Add("numba<0.60")
-}
-
 # only update app
 if ($update_app) {
     $update_just_app = $true
     $update_just_reader = $true
     $update_just_register = $true
+}
+
+# only update dependencies
+$qtextra = $false
+if ($update_deps) {
+    $qtextra = $true
+}
+
+# update all dependencies and app
+[System.Collections.ArrayList]$before_install = @()
+[System.Collections.ArrayList]$pip_install = @()
+[System.Collections.ArrayList]$after_install = @()
+if ($update_pip) {
+    $pip_install.Add("napari==0.6.6")
+    $pip_install.Add("pydantic>=2")
+    $pip_install.Add("pyqt6>=6.9.1")
+
+    $after_install.Add("pandas>2,<3")
+    $after_install.Add("zarr>1,<3")
+    $after_install.Add("numpy>2")
+    $after_install.Add("numba>0.60")
+}
+
+# always install latest version of pyinstaller
+$pip_install.Add("pyinstaller")
+
+# install before packages
+foreach ($package in $before_install) {
+    echo "Re-installing $package..."
+    uv pip install -U $package
+    echo "Reinstalled $package"
+}
+
+# install pip packages
+foreach ($package in $pip_install) {
+    echo "Re-installing $package..."
+    uv pip install -U $package
+    echo "Reinstalled $package"
 }
 
 [System.Collections.ArrayList]$local_install = @()
@@ -102,12 +124,17 @@ if ($update_just_register) {
 if ($update_just_reader) {
     $local_install.Add("image2image-io")
 }
+$local_install.Add("koyo")
 
-# only update dependencies
-$qtextra = $false
-if ($update_deps) {
-    $qtextra = $true
-    $local_install.Add("koyo")
+# install local packages
+foreach ($package in $local_install) {
+    echo "Re-installing $package..."
+    $new_dir = Join-Path -Path $github_dir -ChildPath $package -Resolve
+    cd $new_dir
+    uv pip uninstall .
+    uv pip install -U .
+    cd $start_dir
+    echo "Reinstalled $package"
 }
 
 # install qtextra
@@ -129,29 +156,12 @@ if ($qtextra) {
     echo "Reinstalled qtextraplot"
 }
 
-# install local packages
-foreach ($package in $local_install) {
-    echo "Re-installing $package..."
-    $new_dir = Join-Path -Path $github_dir -ChildPath $package -Resolve
-    cd $new_dir
-    uv pip uninstall .
-    uv pip install -U .
-    cd $start_dir
-    echo "Reinstalled $package"
-}
-
-# install pip packages
-foreach ($package in $pip_install) {
+# install after packages
+foreach ($package in $after_install) {
     echo "Re-installing $package..."
     uv pip install -U $package
     echo "Reinstalled $package"
 }
-
-# temporarily update PyQt6 to be the latest version
-# see https://www.riverbankcomputing.com/pypi/
-# uv pip install --index-url "https://www.riverbankcomputing.com/pypi/simple/" --no-deps --pre --upgrade PyQt6
-# uv pip install --index-url "https://www.riverbankcomputing.com/pypi/simple/" --no-deps --pre --upgrade PyQt6-qt6
-# uv pip install --index-url "https://www.riverbankcomputing.com/pypi/simple/" --no-deps --pre --upgrade PyQt6-sip
 
 # uninstall pdbpp
 uv pip uninstall pdbpp
@@ -165,16 +175,19 @@ $filename = "image2image.spec"
 
 # Build bundle
 Write-Output "Filename: $filename"
-# if ($debug) {
 pyinstaller.exe --noconfirm --clean $filename
 
-# Copy runner script
-# Copy-Item -Path "run_image2image.bat" -Destination "dist/"
 
 if ($zip) {
     echo "Zipping files..."
     python zip.py
     echo "Zipped files"
+}
+
+if ($installer) {
+    echo "Building installer..."
+    & (Join-Path -Path $start_dir -ChildPath "installer.ps1")
+    echo "Built installer"
 }
 
 if ($run) {

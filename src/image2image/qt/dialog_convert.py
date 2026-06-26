@@ -18,6 +18,7 @@ from superqt import ensure_main_thread
 from superqt.utils import GeneratorWorker, create_worker
 
 import image2image.constants as C
+import image2image.qt.helpers as ih
 from image2image import __version__
 from image2image.config import STATE, get_convert_config
 from image2image.enums import ALLOWED_IMAGE_FORMATS_MICROSCOPY_ONLY
@@ -199,6 +200,8 @@ class ImageConvertWindow(NoViewerMixin):
                 scenes[reader.path].add(reader.scene_index)
 
         if paths:
+            ih.warn_if_uint8(self)
+
             if STATE.is_mac_arm_pyinstaller:
                 logger.warning("Conversion process is running in the UI thread, meaning that the app will freeze!")
                 for args in images_to_ome_tiff(

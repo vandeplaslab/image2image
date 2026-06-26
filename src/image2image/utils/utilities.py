@@ -690,8 +690,7 @@ def get_cli_path(name: str) -> str:
     import os
     import sys
 
-    from koyo.system import IS_LINUX, IS_MAC, IS_WIN
-    from koyo.system import running_as_pyinstaller_app
+    from koyo.system import IS_LINUX, IS_MAC, IS_WIN, running_as_pyinstaller_app
 
     env_var = f"IMAGE2IMAGE_{name.upper()}_PATH"
     if os.environ.get(env_var, None):

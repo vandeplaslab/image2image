@@ -74,7 +74,6 @@ def run(
     with MeasureTimer() as timer:
         from image2image_io.config import CONFIG as READER_CONFIG
         from koyo.faulthandler import install_segfault_handler, maybe_submit_segfault
-
         from qtextra.config import THEMES
         from qtextra.utils.context import _maybe_allow_interrupt
 

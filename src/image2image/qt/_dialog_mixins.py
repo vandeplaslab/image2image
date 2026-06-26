@@ -27,8 +27,8 @@ if ty.TYPE_CHECKING:
     from image2image.qt._dialogs._select import LoadWidget
 
 
-class SingleViewerMixin(Window):
-    """Mixin class for a single viewer."""
+class SingleViewerPluginMixin:
+    """Mixin class for single viewer plugins, independent of QMainWindow."""
 
     # Mixin arguments
     WINDOW_CONSOLE_ARGS: tuple[str, ...] = ()
@@ -71,107 +71,6 @@ class SingleViewerMixin(Window):
     def data_model(self) -> DataModel:
         """Return transform model."""
         return self._image_widget.model
-
-    def _make_menu(self) -> None:
-        """Make menu items."""
-        # File menu
-        menu_file = hp.make_menu(self, "File")
-        hp.make_menu_item(
-            self,
-            "Add image (.tiff, .czi, + others)...",
-            "Ctrl+I",
-            menu=menu_file,
-            func=self._image_widget.on_select_dataset,
-        )
-        menu_file.addSeparator()
-        hp.make_menu_item(
-            self,
-            "Clear data",
-            menu=menu_file,
-            func=self._image_widget.on_close_dataset,
-        )
-        menu_file.addSeparator()
-        hp.make_menu_item(self, "Quit", menu=menu_file, func=self.close)
-
-        # set actions
-        self.menubar = QMenuBar(self)
-        self.menubar.addAction(menu_file.menuAction())
-        self.menubar.addAction(self._make_tools_menu(scalebar=True).menuAction())
-        self.menubar.addAction(self._make_apps_menu().menuAction())
-        self.menubar.addAction(self._make_config_menu().menuAction())
-        self.menubar.addAction(self._make_help_menu().menuAction())
-        self.setMenuBar(self.menubar)
-
-    def _make_statusbar(self) -> None:
-        """Make statusbar."""
-        super()._make_statusbar()
-        self._make_scalebar_statusbar()
-        self._make_export_statusbar()
-
-    def can_window_be_closed(self) -> bool:
-        """Check if the window can be closed.
-
-        This function should be overwritten by subclasses to provide custom logic for determining if the window
-        can be closed.
-        """
-        return True
-
-    def close(self, force=False):
-        """Override to handle closing app or just the window."""
-        if (
-            not force
-            or not self.CONFIG.confirm_close
-            # and self.can_window_be_closed()
-            or QtConfirmCloseDialog(
-                self,
-                "confirm_close",
-                self.on_save_to_project,
-                self.CONFIG,
-            ).exec_()  # type: ignore[attr-defined]
-            == QDialog.DialogCode.Accepted
-        ):
-            return super().close()
-        return None
-
-    def closeEvent(self, evt):
-        """Close."""
-        if (
-            evt.spontaneous()
-            and self.CONFIG.confirm_close
-            # and not self.can_window_be_closed()
-            and QtConfirmCloseDialog(
-                self,
-                "confirm_close",
-                self.on_save_to_project,
-                self.CONFIG,
-            ).exec_()  # type: ignore[attr-defined]
-            != QDialog.DialogCode.Accepted
-        ):
-            evt.ignore()
-            return
-        if self._console:
-            self._console.close()
-        self.CONFIG.save()
-        READER_CONFIG.save()
-        evt.accept()
-
-    def _get_console_variables(self) -> dict:
-        """Get variables for the console."""
-
-        def _get_nester_arg(args: tuple[str, ...]) -> ty.Any:
-            """Get nested argument."""
-            obj = self
-            for a in args:
-                obj = getattr(obj, a)
-            return obj
-
-        variables = super()._get_console_variables()
-        for arg in self.WINDOW_CONSOLE_ARGS:
-            if isinstance(arg, tuple):
-                variables[arg[-1]] = _get_nester_arg(arg)
-            else:
-                variables[arg] = getattr(self, arg)
-        return variables
 
     def on_toggle_grid(self) -> None:
         """Toggle grid on/off in the viewer."""
@@ -257,6 +156,115 @@ class SingleViewerMixin(Window):
             layer = self.temporary_layers.pop(key, None)
             layer.name = layer_name
             logger.trace(f"Added image {channel_index} for '{key}' to viewer.")
+
+
+class SingleViewerMixin(Window, SingleViewerPluginMixin):
+    """Mixin class for a single viewer window."""
+
+    def _make_menu(self) -> None:
+        """Make menu items."""
+        # File menu
+        menu_file = hp.make_menu(self, "File")
+        hp.make_menu_item(
+            self,
+            "Add image (.tiff, .czi, + others)...",
+            "Ctrl+I",
+            menu=menu_file,
+            func=self._image_widget.on_select_dataset,
+        )
+        menu_file.addSeparator()
+        hp.make_menu_item(
+            self,
+            "Clear data",
+            menu=menu_file,
+            func=self._image_widget.on_close_dataset,
+        )
+        menu_file.addSeparator()
+        hp.make_menu_item(self, "Quit", menu=menu_file, func=self.close)
+
+        # set actions
+        self.menubar = QMenuBar(self)
+        self.menubar.addAction(menu_file.menuAction())
+        self.menubar.addAction(self._make_tools_menu(scalebar=True).menuAction())
+        self.menubar.addAction(self._make_apps_menu().menuAction())
+        self.menubar.addAction(self._make_config_menu().menuAction())
+        self.menubar.addAction(self._make_help_menu().menuAction())
+        self.setMenuBar(self.menubar)
+
+    def _make_statusbar(self) -> None:
+        """Make statusbar."""
+        super()._make_statusbar()
+        self._make_scalebar_statusbar()
+        self._make_export_statusbar()
+
+    def can_window_be_closed(self) -> bool:
+        """Check if the window can be closed.
+
+        This function should be overwritten by subclasses to provide custom logic for determining if the window
+        can be closed.
+        """
+        return True
+
+    def close(self, force=False):
+        """Override to handle closing app or just the window."""
+        from qtextra.dialogs.qt_close_window import QtConfirmCloseDialog
+
+        if (
+            not force
+            or not self.CONFIG.confirm_close
+            # and self.can_window_be_closed()
+            or QtConfirmCloseDialog(
+                self,
+                "confirm_close",
+                self.on_save_to_project,
+                self.CONFIG,
+            ).exec_()  # type: ignore[attr-defined]
+            == QDialog.DialogCode.Accepted
+        ):
+            return super().close()
+        return None
+
+    def closeEvent(self, evt):
+        """Close."""
+        from qtextra.dialogs.qt_close_window import QtConfirmCloseDialog
+
+        if (
+            evt.spontaneous()
+            and self.CONFIG.confirm_close
+            # and not self.can_window_be_closed()
+            and QtConfirmCloseDialog(
+                self,
+                "confirm_close",
+                self.on_save_to_project,
+                self.CONFIG,
+            ).exec_()  # type: ignore[attr-defined]
+            != QDialog.DialogCode.Accepted
+        ):
+            evt.ignore()
+            return
+        if self._console:
+            self._console.close()
+        self.CONFIG.save()
+        READER_CONFIG.save()
+        evt.accept()
+
+    def _get_console_variables(self) -> dict:
+        """Get variables for the console."""
+
+        def _get_nester_arg(args: tuple[str, ...]) -> ty.Any:
+            """Get nested argument."""
+            obj = self
+            for a in args:
+                obj = getattr(obj, a)
+            return obj
+
+        variables = super()._get_console_variables()
+        for arg in self.WINDOW_CONSOLE_ARGS:
+            if isinstance(arg, tuple):
+                variables[arg[-1]] = _get_nester_arg(arg)
+            else:
+                variables[arg] = getattr(self, arg)
+        return variables
 
 
 class NoViewerMixin(Window):

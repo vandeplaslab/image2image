@@ -91,9 +91,10 @@ python_ver=$(python -V) 2>&1
 echo "Python version "$python_ver
 echo "Python path: " $(which python)
 
-declare -a always_install=()
-declare -a pip_install=()
 declare -a local_install=()
+declare -a pip_install=()
+declare -a before_install=()
+declare -a after_install=()
 
 always_install+=("pip")
 always_install+=("uv")
@@ -127,11 +128,21 @@ echo "update_just_reader(-r): $update_just_reader"
 echo "update_just_app(-j): $update_just_app"
 echo "update_just_register(-w): $update_just_register"
 echo "update_pip(-i): $update_pip"
-echo "update_qtextra: $update_qtextra"
+echo "update_qtextra: $update_qt"
 echo "no_docs(-n): $no_docs"
 echo "package(-z): $package"
 echo "help(-h): $help"
 
+if $update_just_app
+then
+    local_install+=("image2image")
+fi
+
+
+if $update_just_register
+then
+    local_install+=("image2image-reg")
+fi
 
 # actually install the packages
 if $update_just_reader
@@ -139,15 +150,6 @@ then
     local_install+=("image2image-io")
 fi
 
-if $update_just_register
-then
-    local_install+=("image2image-reg")
-fi
-
-if $update_just_app
-then
-    local_install+=("image2image")
-fi
 
 # always install latest version of koyo
 local_install+=("koyo")
@@ -156,11 +158,36 @@ if $update_pip
 then
     pip_install+=("napari==0.6.6")
     pip_install+=("pydantic>=2")
-    pip_install+=("pandas>=2")
-    pip_install+=("numpy<2")
     pip_install+=("PyQt6>=6.9.1")
-    pip_install+=("pyinstaller")
+    
+    after_install+=("pandas>2,<3")
+    after_install+=("zarr>2,<3")
+    after_install+=("numpy>2")
+    after_install+=("numba>0.60")
 fi
+
+# always install latest version of pyinstaller to ensure we have the latest fixes for Apple Silicon
+pip_install+=("pyinstaller")
+
+# before installs
+if (( ${#before_install[@]} > 0 )); then
+  for spec in "${before_install[@]}"; do
+    name="$(pkg_name_only "$spec")"
+    echo "Installing pip package: $spec (uninstall name: $name)"
+    uv pip uninstall "$name" || true
+    uv pip install -U "$spec"
+    echo "Installed pip package: $spec"
+  done
+fi
+
+# pip installs
+for spec in "${pip_install[@]}"; do
+  name="$(pkg_name_only "$spec")"
+  echo "Installing pip package: $spec (uninstall name: $name)"
+  uv pip uninstall "$name" || true
+  uv pip install -U "$spec"
+  echo "Installed pip package: $spec"
+done
 
 # iterate over the list
 for pkg in "${always_install[@]}"
@@ -172,7 +199,7 @@ do
 done
 
 # install qtextra
-if $update_qtextra
+if $update_qt
 then
     echo "Installing qtextra..."
     cd $(realpath $github_dir/qtextra) || exit 1
@@ -189,25 +216,16 @@ then
     cd $start_dir
 fi
 
-# iterate over the list
-for pkg in "${local_install[@]}"
-do
-    echo "Installing package: " $pkg
-    cd $(realpath $github_dir/$pkg) || exit 1
-    uv pip uninstall $pkg
-    uv pip install -U "$pkg @ ." --refresh
-    echo "Installed package: " $pkg
-    cd $start_dir
-done
-
-# iterate over the list
-for pkg in "${pip_install[@]}"
-do
-    echo "Installing package: " $pkg
-    uv pip uninstall $pkg
-    uv pip install -U $pkg
-    echo "Installed package: " $pkg
-done
+# after pip installs
+if (( ${#after_install[@]} > 0 )); then
+  for spec in "${after_install[@]}"; do
+    name="$(pkg_name_only "$spec")"
+    echo "Installing pip package: $spec (uninstall name: $name)"
+    uv pip uninstall "$name" || true
+    uv pip install -U "$spec"
+    echo "Installed pip package: $spec"
+  done
+fi
 
 # Get path
 filename="image2image.spec"

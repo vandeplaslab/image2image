@@ -66,6 +66,7 @@ class QtModalityItem(QFrame):
         self.key = modality.name
         self.modality = modality
         super().__init__(parent)
+        self.setProperty("card", True)
         self.setMouseTracking(True)
         self._parent = parent
         self.valis = valis
@@ -382,7 +383,7 @@ class QtModalityItem(QFrame):
         shapes, points = [], []
         for file in filelist:
             file = Path(file)
-            if file.suffix in [".geojson"]:
+            if file.suffix == ".geojson":
                 shapes.append(file)
             elif file.suffix in [".csv", ".txt", ".tsv", ".parquet"]:
                 points.append(file)
@@ -633,6 +634,7 @@ class QtModalityList(QScrollArea):
 
     def __init__(self, parent: ImageElastixWindow | ImageValisWindow, valis: bool = False):
         super().__init__(parent)
+        self.setProperty("cardList", True)
         self.view = parent.view
         self._parent = parent
         self.valis = valis

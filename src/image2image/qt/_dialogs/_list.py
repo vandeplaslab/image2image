@@ -75,6 +75,7 @@ class QtDatasetItem(QFrame):
         self._parent: QtDatasetList = parent
         self.key = key
         self.setMouseTracking(True)
+        self.setProperty("card", True)
         self.allow_transform = allow_transform
         self.allow_iterate = allow_iterate
         self.allow_channels = allow_channels
@@ -105,7 +106,11 @@ class QtDatasetItem(QFrame):
         self.modality_icon = QtModalityLabel(self)
         self.modality_icon.set_qta_size_preset("average")
         self.open_dir_btn = hp.make_qta_btn(
-            self, "folder", tooltip="Open directory containing the image.", size_preset="normal", func=self.on_open_directory
+            self,
+            "folder",
+            tooltip="Open directory containing the image.",
+            size_preset="normal",
+            func=self.on_open_directory,
         )
         self.remove_btn = hp.make_qta_btn(
             self,
@@ -116,7 +121,11 @@ class QtDatasetItem(QFrame):
             func_menu=self.on_force_remove,
         )
         self.extract_btn = hp.make_qta_btn(
-            self, "extract", tooltip="Extract images for dataset (e.g. from IMS).", size_preset="normal", func=self.on_extract
+            self,
+            "extract",
+            tooltip="Extract images for dataset (e.g. from IMS).",
+            size_preset="normal",
+            func=self.on_extract,
         )
         self.transform_btn = hp.make_qta_btn(
             self, "transform", tooltip="Apply transform...", size_preset="normal", func=self.on_transform_menu
@@ -456,6 +465,7 @@ class QtDatasetList(QScrollArea):
         self.config = parent.CONFIG
 
         super().__init__(parent)
+        self.setProperty("cardList", True)
 
         # setup UI
         scroll_widget = QWidget()

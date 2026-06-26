@@ -1,7 +1,7 @@
 """Test image2image utilities."""
 
 import numpy as np
-import pytest
+
 from image2image.utils.utilities import (
     ensure_list,
     extract_extension,
@@ -24,7 +24,7 @@ def test_ensure_list():
 def test_pad_str(monkeypatch):
     """Test pad_str."""
     from koyo import system
-    
+
     # Mock IS_MAC to True
     monkeypatch.setattr(system, "IS_MAC", True)
     assert pad_str("hello") == "hello"
@@ -67,11 +67,11 @@ def test_get_groups():
     # img_s1 -> group 1
     # img_s2 -> group 2
     # other.txt -> no group
-    
+
     # Check logic of get_groups:
     # it uses extract_number(filename, keyword)
     # extract_number("img_s1.tif", "img_s") -> "1"
-    
+
     assert "1" in groups
     assert "img_s1.tif" in groups["1"]
     assert "img_s1_b.tif" in groups["1"]

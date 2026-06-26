@@ -45,7 +45,7 @@ ALLOWED_PROJECT_VALIS_FORMATS = (
 
 ALLOWED_IMAGE_FORMATS = (
     "Any imaging (*.d *.tsf *.tdf *.imzML  *.ibd *.data *.metadata.h5 peaks_*.h5 *.npy *.npz *.czi *.ome.tiff *.tiff"
-    "*.scn *.tif *.qptiff *.qptiff.raw *.qptiff.intermediate *.svs *.ndpi *.jpg *.jpeg *.png);; "
+    "*.scn *.tif *.qptiff *.qptiff.raw *.qptiff.intermediate *.svs *.ndpi *.ome.zarr *.jpg *.jpeg *.png);; "
     "Bruker (*.d *.tsf *.tdf);; "
     "imzML (*.imzML *.ibd);; "
     "ionglow (*.data *.metadata.h5 peaks_*.h5);;"
@@ -53,13 +53,14 @@ ALLOWED_IMAGE_FORMATS = (
     "Numpy (*.npy *.npz);;"
     "CZI (*.czi);; "
     "TIFF (*.ome.tiff *.tiff *.scn *.tif *.svs *.ndpi *.qptiff *.qptiff.raw *.qptiff.intermediate);; "
+    "OME-Zarr (*.ome.zarr);;"
     "JPEG (*.jpg *.jpeg);; "
     "PNG (*.png);;"
 )
 ALLOWED_IMAGE_FORMATS_WITH_GEOJSON = (
     "Any imaging (*.d *.tsf *.tdf *.imzML  *.ibd *.data *.metadata.h5 peaks_*.h5 *.npy *.npz *.czi *.ome.tiff *.tiff"
-    "*.scn*.tif *.qptiff *.qptiff.raw *.qptiff.intermediate *.svs *.ndpi *.jpg *.jpeg *.png *.geojson *.json *.csv"
-    "*.tsv *.txt *.parquet);; "
+    "*.scn*.tif *.qptiff *.qptiff.raw *.qptiff.intermediate *.svs *.ndpi *.jpg *.jpeg *.png *.ome.zarr *.geojson *.json"
+    " *.csv *.tsv *.txt *.parquet);; "
     "Bruker (*.d *.tsf *.tdf);; "
     "imzML (*.imzML *.ibd);; "
     "ionglow (*.data *.metadata.h5 peaks_*.h5);;"
@@ -67,6 +68,7 @@ ALLOWED_IMAGE_FORMATS_WITH_GEOJSON = (
     "Numpy (*.npy *.npz);;"
     "CZI (*.czi);; "
     "TIFF (*.ome.tiff *.tiff *.scn *.tif *.svs *.ndpi *.qptiff *.qptiff.raw *.qptiff.intermediate);; "
+    "OME-Zarr (*.ome.zarr);;"
     "JPEG (*.jpg *.jpeg);; "
     "PNG (*.png);;"
     "GeoJSON (*.geojson *.json);;"

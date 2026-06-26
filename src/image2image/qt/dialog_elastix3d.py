@@ -123,7 +123,7 @@ class ImageElastix3dWindow(Window):
         connect(self._image_widget.dset_dlg.evt_loaded, self.on_load_image, state=state)
         connect(self._image_widget.dset_dlg.evt_import_project, self._on_load_from_project, state=state)
         connect(self._image_widget.dset_dlg.evt_closed, self.on_remove_image, state=state)
-        connect(self.view.widget.canvas.events.key_press, self.keyPressEvent, state=state)
+        connect(self.view.widget.canvas.events.key_press, self._on_canvas_key_press, state=state)
         connect(self.view.viewer.events.status, self._status_changed, state=state)
         connect(self.table.evt_keypress, self.keyPressEvent, state=state)
         connect(self.table.evt_value_checked, self.on_table_updated, state=state)
@@ -750,16 +750,28 @@ class ImageElastix3dWindow(Window):
             "rotate_left", tooltip="Rotate image left (E)", func=lambda: self.on_rotate("left"), size_preset="average"
         )
         self.toolbar.add_qta_tool(
-            "rotate_right", tooltip="Rotate image right (Q)", func=lambda: self.on_rotate("right"), size_preset="average"
+            "rotate_right",
+            tooltip="Rotate image right (Q)",
+            func=lambda: self.on_rotate("right"),
+            size_preset="average",
         )
         self.toolbar.add_qta_tool(
-            "translate_up", tooltip="Translate image up (W)", func=lambda: self.on_translate("up"), size_preset="average"
+            "translate_up",
+            tooltip="Translate image up (W)",
+            func=lambda: self.on_translate("up"),
+            size_preset="average",
         )
         self.toolbar.add_qta_tool(
-            "translate_down", tooltip="Translate image down (S)", func=lambda: self.on_translate("down"), size_preset="average"
+            "translate_down",
+            tooltip="Translate image down (S)",
+            func=lambda: self.on_translate("down"),
+            size_preset="average",
         )
         self.toolbar.add_qta_tool(
-            "translate_left", tooltip="Translate image left (A)", func=lambda: self.on_translate("left"), size_preset="average"
+            "translate_left",
+            tooltip="Translate image left (A)",
+            func=lambda: self.on_translate("left"),
+            size_preset="average",
         )
         self.toolbar.add_qta_tool(
             "translate_right",
@@ -767,8 +779,18 @@ class ImageElastix3dWindow(Window):
             func=lambda: self.on_translate("right"),
             size_preset="average",
         )
-        self.toolbar.add_qta_tool("flip_lr", tooltip="Flip image left-right (F)", func=self.on_flip_lr, size_preset="average")
-        self.toolbar.add_qta_tool("group", tooltip="Group images", func=lambda x: self.on_group(True), size_preset="average")
+        self.toolbar.add_qta_tool(
+            "flip_lr",
+            tooltip="Flip image left-right (F)",
+            func=self.on_flip_lr,
+            size_preset="average",
+        )
+        self.toolbar.add_qta_tool(
+            "group",
+            tooltip="Group images",
+            func=lambda x: self.on_group(True),
+            size_preset="average",
+        )
         self.toolbar.add_qta_tool(
             "ungroup", tooltip="Ungroup images", func=lambda x: self.on_group(False), size_preset="average"
         )
@@ -954,65 +976,86 @@ class ImageElastix3dWindow(Window):
 
     def keyPressEvent(self, evt: ty.Any) -> None:
         """Key press event."""
-        if hasattr(evt, "native"):
-            evt = evt.native
-        key = evt.key()
+        if not self._handle_qt_key_press_event(evt):
+            return super().keyPressEvent(evt)
+        return None
+
+    def _handle_key_press(self, key: int) -> bool:
+        """Handle key-press event."""
         if key == Qt.Key.Key_Escape:
-            evt.ignore()
+            return True
         # movement size
-        elif key == Qt.Key.Key_Up:
+        if key == Qt.Key.Key_Up:
             hp.increment_combobox(self.translate_step_size, -1)
-        elif key == Qt.Key.Key_Down:
+            return True
+        if key == Qt.Key.Key_Down:
             hp.increment_combobox(self.translate_step_size, 1)
-        elif key == Qt.Key.Key_Left:
+            return True
+        if key == Qt.Key.Key_Left:
             hp.increment_combobox(self.rotate_step_size, -1)
-        elif key == Qt.Key.Key_Right:
+            return True
+        if key == Qt.Key.Key_Right:
             hp.increment_combobox(self.rotate_step_size, 1)
+            return True
         # rotate
-        elif key == Qt.Key.Key_Q:
+        if key == Qt.Key.Key_Q:
             self.on_rotate("left")
-        elif key == Qt.Key.Key_E:
+            return True
+        if key == Qt.Key.Key_E:
             self.on_rotate("right")
+            return True
         # translate
-        elif key == Qt.Key.Key_A:
+        if key == Qt.Key.Key_A:
             self.on_translate("left")
-        elif key == Qt.Key.Key_D:
+            return True
+        if key == Qt.Key.Key_D:
             self.on_translate("right")
-        elif key == Qt.Key.Key_W:
+            return True
+        if key == Qt.Key.Key_W:
             self.on_translate("up")
-        elif key == Qt.Key.Key_S:
+            return True
+        if key == Qt.Key.Key_S:
             self.on_translate("down")
+            return True
         # flip left-right
-        elif key == Qt.Key.Key_F:
+        if key == Qt.Key.Key_F:
             self.on_flip_lr()
+            return True
         # # group/ungroup
         # elif key == Qt.Key.Key_G:
         #     self.on_group(True)
         # elif key == Qt.Key.Key_U:
         #     self.on_group(False)
         # reference
-        elif key == Qt.Key.Key_R:
+        if key == Qt.Key.Key_R:
             self.on_reference()
+            return True
         # keep/remove
-        elif key == Qt.Key.Key_Z:
+        if key == Qt.Key.Key_Z:
             self.on_keep(True)
-        elif key == Qt.Key.Key_X:
+            return True
+        if key == Qt.Key.Key_X:
             self.on_keep(False)
+            return True
         # lock/unlock
-        elif key == Qt.Key.Key_L:
+        if key == Qt.Key.Key_L:
             self.on_lock(True)
-        elif key == Qt.Key.Key_U:
+            return True
+        if key == Qt.Key.Key_U:
             self.on_lock(False)
+            return True
         # selection
-        elif key == Qt.Key.Key_N:
+        if key == Qt.Key.Key_N:
             self.on_group_increment(1)
-        elif key == Qt.Key.Key_P:
+            return True
+        if key == Qt.Key.Key_P:
             self.on_group_increment(-1)
+            return True
         # viewer
-        elif key == Qt.Key.Key_G:
+        if key == Qt.Key.Key_G:
             self.grid_btn.click()
-        else:
-            super().keyPressEvent(evt)
+            return True
+        return False
 
     @property
     def data_model(self) -> DataModel:
