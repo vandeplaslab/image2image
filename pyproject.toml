@@ -306,4 +306,5 @@ ignore = [
     "Makefile",
     "justfile",
     "uvbox.toml",
+    "requirements-docs.txt",
 ]
