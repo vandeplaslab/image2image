@@ -1,8 +1,10 @@
 site_name: image2image
+site_description: Suite of tools for image registration and visualisation.
+docs_dir: docs
+site_dir: site
 site_url: https://github.com/vandeplaslab/image2image
 site_author: Lukasz Migas
-site_description: >-
-  Suite of tools for image registration and visualisation.
+strict: true
   
 # Repository
 repo_name: vandeplaslab/image2image
@@ -10,13 +12,23 @@ repo_url: https://github.com/vandeplaslab/image2image
 
 # Copyright
 copyright: Copyright &copy; 2023 - present Van de Plas lab
-extra_css:
-  - assets/css/extra.css
+
 
 theme:
   name: material
   logo: assets/icon.svg
   favicon: assets/icon.svg
+  language: en
+  features:
+    - navigation.instant
+    - navigation.indexes
+    - navigation.sections
+    - navigation.top
+    - navigation.tabs
+    - search.highlight
+    - search.suggest
+    - toc.integrate
+    - toc.follow
   palette:
     - scheme: default
       primary: grey
@@ -30,15 +42,8 @@ theme:
       toggle:
         icon: material/weather-sunny
         name: Switch to light mode
-  features:
-    - navigation.instant
-    - navigation.top
-    - navigation.tabs
-    - navigation.expand
-    - search.highlight
-    - search.suggest
-    - toc.integrate
-    - toc.follow
+extra_css:
+  - assets/css/extra.css
 
 markdown_extensions:
   - admonition
@@ -58,11 +63,14 @@ markdown_extensions:
 
 plugins:
   - search
+  - offline
   - autorefs
+  - glightbox
   - minify:
       minify_html: true
-  - glightbox
-  - offline
+
+not_in_nav: |
+    _template/*.md
 
 nav:
   - Home: index.md
@@ -83,4 +91,4 @@ nav:
     - Channel selection: dialogs/channel-selection.md
   - Requests/Bug reports: request.md
   - Planned features: planned.md
-  - Changelog: changelog.md
+  - Release Notes: changelogs/index.md
