@@ -50,6 +50,8 @@ ArchitecturesAllowed=x64compatible
 WizardStyle=modern
 Compression=lzma2
 SolidCompression=yes
+LZMAUseSeparateProcess=yes
+LZMANumBlockThreads=6
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
