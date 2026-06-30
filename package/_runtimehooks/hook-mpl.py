@@ -2,7 +2,6 @@
 
 import os
 import sys
-import atexit
 import tempfile
 
 if getattr(sys, "frozen", False):
