@@ -70,7 +70,9 @@ plugins:
       minify_html: true
 
 not_in_nav: |
-    _template/*.md
+  _template/*.md
+  changelogs/v*.md
+  apps/na.md
 
 nav:
   - Home: index.md

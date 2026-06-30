@@ -177,6 +177,26 @@ $filename = "image2image.spec"
 Write-Output "Filename: $filename"
 pyinstaller.exe --noconfirm --clean $filename
 
+if ($sign) {
+    echo "Signing application executable..."
+    [string[]]$sign_args = @()
+    if ($sign_tool) {
+        $sign_args += "-SignTool"
+        $sign_args += $sign_tool
+    }
+    if ($sign_certificate_path) {
+        $sign_args += "-CertificatePath"
+        $sign_args += $sign_certificate_path
+    }
+    if ($sign_certificate_thumbprint) {
+        $sign_args += "-CertificateThumbprint"
+        $sign_args += $sign_certificate_thumbprint
+    }
+    $sign_args += "-Path"
+    $sign_args += (Join-Path -Path $start_dir -ChildPath "dist\image2image\image2image.exe")
+    & (Join-Path -Path $start_dir -ChildPath "sign.ps1") @sign_args
+    echo "Signed application executable"
+}
 
 if ($zip) {
     echo "Zipping files..."
@@ -188,6 +208,33 @@ if ($installer) {
     echo "Building installer..."
     & (Join-Path -Path $start_dir -ChildPath "installer.ps1")
     echo "Built installer"
+}
+
+if ($sign -and $installer) {
+    echo "Signing installer..."
+    [string[]]$sign_args = @()
+    if ($sign_tool) {
+        $sign_args += "-SignTool"
+        $sign_args += $sign_tool
+    }
+    if ($sign_certificate_path) {
+        $sign_args += "-CertificatePath"
+        $sign_args += $sign_certificate_path
+    }
+    if ($sign_certificate_thumbprint) {
+        $sign_args += "-CertificateThumbprint"
+        $sign_args += $sign_certificate_thumbprint
+    }
+    $installer_path = Get-ChildItem -Path (Join-Path -Path $start_dir -ChildPath "dist") -Filter "image2image-*-win_amd64-setup.exe" -File |
+        Sort-Object -Property LastWriteTimeUtc -Descending |
+        Select-Object -First 1
+    if ($null -eq $installer_path) {
+        throw "Could not find installer executable to sign."
+    }
+    $sign_args += "-Path"
+    $sign_args += $installer_path.FullName
+    & (Join-Path -Path $start_dir -ChildPath "sign.ps1") @sign_args
+    echo "Signed installer"
 }
 
 if ($run) {

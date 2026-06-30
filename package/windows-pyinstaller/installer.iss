@@ -11,7 +11,7 @@
 #endif
 
 #ifndef AppPublisher
-#define AppPublisher "illumion"
+#define AppPublisher "vandeplaslab"
 #endif
 
 #ifndef SourceDir
