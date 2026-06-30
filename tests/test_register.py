@@ -1,5 +1,8 @@
 """Register app."""
 
+from types import SimpleNamespace
+
+from napari.layers.base import ActionType
 from pytest import MonkeyPatch
 from qtpy.QtCore import QEvent, Qt
 from qtpy.QtGui import QKeyEvent
@@ -8,7 +11,11 @@ from image2image.qt._register._fiducials import FiducialsDialog
 from image2image.qt._register._guess import GuessDialog
 from image2image.qt._register._preprocess import PreprocessMovingDialog
 from image2image.qt._register._select import ImportSelectDialog
-from image2image.qt.dialog_register import ImageRegistrationPlugin, ImageRegistrationWindow
+from image2image.qt.dialog_register import (
+    ImageRegistrationPlugin,
+    ImageRegistrationWindow,
+    _is_changing_points_data_event,
+)
 
 
 class CanvasKeyEvent:
@@ -16,6 +23,17 @@ class CanvasKeyEvent:
 
     def __init__(self, native: QKeyEvent) -> None:
         self.native = native
+
+
+class DummyFiducialsDialog:
+    """Minimal fiducials dialog for on_run tests."""
+
+    def __init__(self) -> None:
+        self.load_count = 0
+
+    def on_load(self) -> None:
+        """Track fiducials table refreshes."""
+        self.load_count += 1
 
 
 def make_register_plugin_for_key_tests() -> ImageRegistrationPlugin:
@@ -105,6 +123,39 @@ def test_select(qtbot) -> None:
     config = widget.get_config()
     assert len(config) == 4, "Config should be empty."
     assert all(value is False for value in config.values()), "All config values should be False."
+
+
+def test_register_points_data_changing_event_is_deferred(monkeypatch: MonkeyPatch) -> None:
+    """Test that in-progress point edits are deferred before recomputing."""
+    plugin = ImageRegistrationPlugin.__new__(ImageRegistrationPlugin)
+    fiducials_dlg = DummyFiducialsDialog()
+    run_count = 0
+
+    def on_run() -> None:
+        nonlocal run_count
+        run_count += 1
+
+    plugin._fiducials_dlg = fiducials_dlg
+    monkeypatch.setattr(plugin, "_on_run", on_run)
+
+    changing_event = SimpleNamespace(action=ActionType.CHANGING)
+    changed_event = SimpleNamespace(action=ActionType.CHANGED)
+    on_run_without_decorators = ImageRegistrationPlugin.on_run.__wrapped__.__wrapped__
+
+    assert _is_changing_points_data_event(changing_event) is True, "Changing point edits should be deferred."
+    assert _is_changing_points_data_event(changed_event) is False, "Completed point edits should be accepted."
+    assert _is_changing_points_data_event(None) is False, "Manual recompute calls should be accepted."
+    on_run_without_decorators(plugin, changing_event)
+    assert run_count == 0, "Changing point edits should not recompute the transform."
+    assert fiducials_dlg.load_count == 0, "Changing point edits should not refresh the fiducials table."
+
+    on_run_without_decorators(plugin, changed_event)
+    assert run_count == 1, "Completed point edits should recompute the transform."
+    assert fiducials_dlg.load_count == 1, "Completed point edits should refresh the fiducials table."
+
+    on_run_without_decorators(plugin)
+    assert run_count == 2, "Manual recompute calls should still recompute the transform."
+    assert fiducials_dlg.load_count == 2, "Manual recompute calls should refresh the fiducials table."
 
 
 def test_register_shortcut_is_not_double_fired(monkeypatch: MonkeyPatch) -> None:

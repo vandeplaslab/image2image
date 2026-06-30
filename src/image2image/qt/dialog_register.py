@@ -15,6 +15,7 @@ from image2image_io.enums import ViewType
 from koyo.timer import MeasureTimer
 from loguru import logger
 from napari.layers import Image, Layer, Points
+from napari.layers.base import ActionType
 from napari.layers.points.points import Mode
 from napari.layers.utils._link_layers import link_layers
 from napari.utils.events import Event
@@ -62,6 +63,11 @@ MOVING_TMP_ZOOM = "Temporary moving (zoom)"
 def has_any_points(*layers: Points) -> bool:
     """Return True if any of the layers has any points."""
     return any(layer.data.shape[0] > 0 for layer in layers if layer is not None)
+
+
+def _is_changing_points_data_event(event: ty.Any) -> bool:
+    """Return True when a points data event is still being edited."""
+    return getattr(event, "action", None) == ActionType.CHANGING
 
 
 def get_error_state(n_fixed: int, transform_model: Transformation) -> tuple[str, str]:
@@ -669,6 +675,8 @@ class ImageRegistrationPlugin(QWidget, BasePluginMixin):
     @ensure_main_thread
     def on_run(self, _evt: ty.Any = None) -> None:
         """Compute transformation."""
+        if _is_changing_points_data_event(_evt):
+            return
         self._on_run()
         self.fiducials_dlg.on_load()
 
