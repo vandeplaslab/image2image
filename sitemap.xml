@@ -1,59 +1,87 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
     <url>
-         <loc>https://github.com/vandeplaslab/image2image-docs/index.html</loc>
-         <lastmod>2026-06-26</lastmod>
+         <loc>https://github.com/vandeplaslab/image2image/index.html</loc>
+         <lastmod>2026-06-30</lastmod>
     </url>
     <url>
-         <loc>https://github.com/vandeplaslab/image2image-docs/changelog.html</loc>
-         <lastmod>2026-06-26</lastmod>
+         <loc>https://github.com/vandeplaslab/image2image/planned.html</loc>
+         <lastmod>2026-06-30</lastmod>
     </url>
     <url>
-         <loc>https://github.com/vandeplaslab/image2image-docs/planned.html</loc>
-         <lastmod>2026-06-26</lastmod>
+         <loc>https://github.com/vandeplaslab/image2image/request.html</loc>
+         <lastmod>2026-06-30</lastmod>
     </url>
     <url>
-         <loc>https://github.com/vandeplaslab/image2image-docs/request.html</loc>
-         <lastmod>2026-06-26</lastmod>
+         <loc>https://github.com/vandeplaslab/image2image/_template/changelog-template.html</loc>
+         <lastmod>2026-06-30</lastmod>
     </url>
     <url>
-         <loc>https://github.com/vandeplaslab/image2image-docs/apps/convert.html</loc>
-         <lastmod>2026-06-26</lastmod>
+         <loc>https://github.com/vandeplaslab/image2image/apps/convert.html</loc>
+         <lastmod>2026-06-30</lastmod>
     </url>
     <url>
-         <loc>https://github.com/vandeplaslab/image2image-docs/apps/crop.html</loc>
-         <lastmod>2026-06-26</lastmod>
+         <loc>https://github.com/vandeplaslab/image2image/apps/crop.html</loc>
+         <lastmod>2026-06-30</lastmod>
     </url>
     <url>
-         <loc>https://github.com/vandeplaslab/image2image-docs/apps/elastix.html</loc>
-         <lastmod>2026-06-26</lastmod>
+         <loc>https://github.com/vandeplaslab/image2image/apps/elastix.html</loc>
+         <lastmod>2026-06-30</lastmod>
     </url>
     <url>
-         <loc>https://github.com/vandeplaslab/image2image-docs/apps/fusion.html</loc>
-         <lastmod>2026-06-26</lastmod>
+         <loc>https://github.com/vandeplaslab/image2image/apps/fusion.html</loc>
+         <lastmod>2026-06-30</lastmod>
     </url>
     <url>
-         <loc>https://github.com/vandeplaslab/image2image-docs/apps/merge.html</loc>
-         <lastmod>2026-06-26</lastmod>
+         <loc>https://github.com/vandeplaslab/image2image/apps/merge.html</loc>
+         <lastmod>2026-06-30</lastmod>
     </url>
     <url>
-         <loc>https://github.com/vandeplaslab/image2image-docs/apps/na.html</loc>
-         <lastmod>2026-06-26</lastmod>
+         <loc>https://github.com/vandeplaslab/image2image/apps/na.html</loc>
+         <lastmod>2026-06-30</lastmod>
     </url>
     <url>
-         <loc>https://github.com/vandeplaslab/image2image-docs/apps/register.html</loc>
-         <lastmod>2026-06-26</lastmod>
+         <loc>https://github.com/vandeplaslab/image2image/apps/register.html</loc>
+         <lastmod>2026-06-30</lastmod>
     </url>
     <url>
-         <loc>https://github.com/vandeplaslab/image2image-docs/apps/valis.html</loc>
-         <lastmod>2026-06-26</lastmod>
+         <loc>https://github.com/vandeplaslab/image2image/apps/valis.html</loc>
+         <lastmod>2026-06-30</lastmod>
     </url>
     <url>
-         <loc>https://github.com/vandeplaslab/image2image-docs/apps/viewer.html</loc>
-         <lastmod>2026-06-26</lastmod>
+         <loc>https://github.com/vandeplaslab/image2image/apps/viewer.html</loc>
+         <lastmod>2026-06-30</lastmod>
     </url>
     <url>
-         <loc>https://github.com/vandeplaslab/image2image-docs/dialogs/channel-selection.html</loc>
-         <lastmod>2026-06-26</lastmod>
+         <loc>https://github.com/vandeplaslab/image2image/changelogs/index.html</loc>
+         <lastmod>2026-06-30</lastmod>
+    </url>
+    <url>
+         <loc>https://github.com/vandeplaslab/image2image/changelogs/v0.1.10.html</loc>
+         <lastmod>2026-06-30</lastmod>
+    </url>
+    <url>
+         <loc>https://github.com/vandeplaslab/image2image/changelogs/v0.1.11.html</loc>
+         <lastmod>2026-06-30</lastmod>
+    </url>
+    <url>
+         <loc>https://github.com/vandeplaslab/image2image/changelogs/v0.1.14.html</loc>
+         <lastmod>2026-06-30</lastmod>
+    </url>
+    <url>
+         <loc>https://github.com/vandeplaslab/image2image/changelogs/v0.1.15.html</loc>
+         <lastmod>2026-06-30</lastmod>
+    </url>
+    <url>
+         <loc>https://github.com/vandeplaslab/image2image/changelogs/v0.2.3.html</loc>
+         <lastmod>2026-06-30</lastmod>
+    </url>
+    <url>
+         <loc>https://github.com/vandeplaslab/image2image/changelogs/v0.3.0.html</loc>
+         <lastmod>2026-06-30</lastmod>
+    </url>
+    <url>
+         <loc>https://github.com/vandeplaslab/image2image/dialogs/channel-selection.html</loc>
+         <lastmod>2026-06-30</lastmod>
     </url>
 </urlset>
