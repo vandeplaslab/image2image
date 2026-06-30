@@ -377,6 +377,7 @@ class ImageRegistrationPlugin(QWidget, BasePluginMixin):
             self._plot_fixed_layers(channel_list)
             if need_reset:
                 self.view_fixed.viewer.reset_view()
+            self._select_point_layer("fixed")
         logger.info(f"Loaded fixed data in {timer()}")
 
     def _plot_fixed_layers(self, channel_list: list[str] | None = None) -> None:
@@ -439,6 +440,7 @@ class ImageRegistrationPlugin(QWidget, BasePluginMixin):
             self.on_apply(update_data=True)
             if need_reset:
                 self.view_moving.viewer.reset_view()
+            self._select_point_layer("moving")
         logger.info(f"Loaded moving data in {timer()}")
 
     def _plot_moving_layers(self, channel_list: list[str] | None = None) -> None:
@@ -525,17 +527,19 @@ class ImageRegistrationPlugin(QWidget, BasePluginMixin):
         try:
             current = self._moving_widget.dataset_choice.currentText()
             reader = self.moving_model.get_reader_for_key(current)
-            return reader
         except AttributeError:
             return None
+        else:
+            return reader
 
     def get_current_fixed_reader(self) -> ty.Any:
         """Get current reader."""
         try:
             reader = next(self.fixed_model.wrapper.reader_iter())  # type: ignore[union-attr]
-            return reader
         except AttributeError:
             return None
+        else:
+            return reader
 
     def on_toggle_fixed_transformed_channel(self, value: str) -> None:
         """Toggle visibility of transformed moving image."""
@@ -579,7 +583,7 @@ class ImageRegistrationPlugin(QWidget, BasePluginMixin):
             widget.setChecked(True)
             logger.trace(f"Set mode to '{mode}' for '{which}'.")
 
-    def _get_layer(self, which: str | ty.Literal["fixed", "moving", "both"]) -> list[Points]:
+    def _get_layer(self, which: str | ty.Literal["fixed", "moving", "both"]) -> list[Points]:  # noqa: PYI051
         """Get layer."""
         if which == "fixed":
             return [self.fixed_points_layer]
@@ -1863,7 +1867,7 @@ class ImageRegistrationPlugin(QWidget, BasePluginMixin):
         statusbar.insertPermanentWidget(14, self.moving_opacity)
         statusbar.insertPermanentWidget(15, hp.make_v_line())
 
-    def on_toggle_mode(self, which: str | ty.Literal["fixed", "moving", "both"], mode: str | Mode) -> None:
+    def on_toggle_mode(self, which: str | ty.Literal["fixed", "moving", "both"], mode: str | Mode) -> None:  # noqa: PYI051
         """Toggle mode."""
         which = ["fixed", "moving"] if which == "both" else [which]
         for w in which:
@@ -2120,65 +2124,82 @@ class ImageRegistrationWindow(Window):
     # delegate properties/methods for backwards compatibility
     @property
     def view_fixed(self):
+        """Fixed view."""
         return self.plugin.view_fixed
 
     @property
     def view_moving(self):
+        """Moving view."""
         return self.plugin.view_moving
 
     @property
     def fixed_points_layer(self):
+        """Fixed points layer."""
         return self.plugin.fixed_points_layer
 
     @property
     def moving_points_layer(self):
+        """Moving points layer."""
         return self.plugin.moving_points_layer
 
     @property
     def temporary_fixed_points_layer(self):
+        """Temporary fixed points layer."""
         return self.plugin.temporary_fixed_points_layer
 
     @property
     def temporary_moving_points_layer(self):
+        """Temporary moving points layer."""
         return self.plugin.temporary_moving_points_layer
 
     @property
     def transform_model(self):
+        """Transform model."""
         return self.plugin.transform_model
 
     @property
     def transform(self):
+        """Transform."""
         return self.plugin.transform
 
     @property
     def initial_btn(self):
+        """Initial button."""
         return self.plugin.initial_btn
 
     @property
     def guess_btn(self):
+        """Guess button."""
         return self.plugin.guess_btn
 
     @property
     def moving_image_layer(self):
+        """Moving image layer."""
         return self.plugin.moving_image_layer
 
     @property
     def evt_predicted(self):
+        """Trigger evt_predicted."""
         return self.plugin.evt_predicted
 
     def get_current_moving_reader(self):
+        """Get current moving reader."""
         return self.plugin.get_current_moving_reader()
 
     def get_current_fixed_reader(self):
+        """Get current fixed reader."""
         return self.plugin.get_current_fixed_reader()
 
     def _update_layer_points(self, *args, **kwargs):
+        """Update layer points."""
         return self.plugin._update_layer_points(*args, **kwargs)
 
     def on_update_text(self, *args, **kwargs):
+        """Update text."""
         return self.plugin.on_update_text(*args, **kwargs)
 
     def __getattr__(self, name: str) -> ty.Any:
+        """Get attribute."""
         if name != "plugin" and hasattr(self, "plugin"):
             return getattr(self.plugin, name)
         raise AttributeError(f"'{self.__class__.__name__}' object has no attribute '{name}'")
