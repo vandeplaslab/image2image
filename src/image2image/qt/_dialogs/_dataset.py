@@ -613,7 +613,9 @@ class DatasetDialog(QtDialog):
         else:
             if wrapper:
                 channel_list_ = list(wrapper.channel_names_for_names(keys))
-                if channel_list_:
+                if len(channel_list_) == 1:
+                    channel_list = channel_list_
+                elif channel_list_:
                     dlg = SelectChannelsToLoadDialog(self, model)
                     dlg.show_in_center_of_screen()
                     dlg.raise_()
@@ -674,7 +676,9 @@ class DatasetDialog(QtDialog):
             if wrapper and just_added:
                 model.just_added_keys = just_added
                 channel_list_ = list(wrapper.channel_names_for_names(just_added))
-                if channel_list_:
+                if len(channel_list_) == 1:
+                    channel_list = channel_list_
+                elif channel_list_:
                     dlg = SelectChannelsToLoadDialog(self, model)  # type: ignore[assignment]
                     dlg.show_in_center_of_screen()
                     dlg.raise_()
