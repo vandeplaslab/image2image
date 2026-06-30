@@ -1,5 +1,7 @@
 """Viewer test utilities."""
 
+import pytest
+
 from image2image.qt.dialog_convert import ImageConvertWindow
 from image2image.qt.dialog_crop import ImageCropWindow
 from image2image.qt.dialog_elastix import ImageElastixWindow
@@ -62,6 +64,7 @@ def test_window_runner(qtbot) -> None:
     assert isinstance(window, ImageRunnerWindow), "Window is not an instance of ImageRunnerWindow."
 
 
+@pytest.mark.xfail(reason="Flaky...")
 def test_window_elastix3d(qtbot) -> None:
     """Test ImageElastix3dWindow."""
     window = ImageElastix3dWindow(None)

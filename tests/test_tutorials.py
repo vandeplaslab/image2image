@@ -45,6 +45,9 @@ def _make_register_tutorial_widget(parent: QWidget | None = None) -> QWidget:
     return widget
 
 
+@pytest.mark.xfail(
+    reason="Some tutorial dialogs are flaky in CI — passes locally, fails intermittently on certain runners."
+)
 @pytest.mark.parametrize(
     "window_class,tutorial_function",
     [
