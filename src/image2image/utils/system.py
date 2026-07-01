@@ -84,6 +84,7 @@ def get_system_info(as_html=False) -> None:
     loaded = {}
     modules = (
         # Qt libraries
+        ("qtpy", "QtPy"),
         ("superqt", "SuperQt"),
         ("qtawesome", "QtAwesome"),
         # Plotting
@@ -166,7 +167,7 @@ def get_system_info(as_html=False) -> None:
     text += "<br><b>Logs path:</b><br>"
     text += f"  - {hyper(USER_LOG_DIR) if as_html else USER_LOG_DIR}"
 
-    text += "<br><b>Launch command:</b><br>"
+    text += "<br><br><b>Launch command:</b><br>"
     text += f"  - {get_launch_command()}<br>"
 
     if not as_html:
