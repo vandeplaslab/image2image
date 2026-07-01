@@ -10,7 +10,7 @@ import napari
 import qtpy
 from koyo.timer import MeasureTimer
 from koyo.pyinstaller import load_hooks, get_runtime_hooks
-from PyInstaller.building.build_main import COLLECT, EXE, PYZ, TOC, Analysis
+from PyInstaller.building.build_main import BUNDLE, COLLECT, EXE, PYZ, TOC, Analysis
 
 import image2image
 from image2image.assets import ICON_ICO
@@ -115,7 +115,7 @@ with MeasureTimer() as timer:
             "NSRequiresAquaSystemAppearance": "Yes",
             "NSHighResolutionCapable": "True",
             "LSHandlerRank": "Default",
-            "NSHumanReadableCopyright": "Copyright © 2023-2025 Van de Plas lab. All Rights Reserved",
+            "NSHumanReadableCopyright": "Copyright © 2023-2026 Van de Plas lab. All Rights Reserved",
             "LSMinimumSystemVersion": "10.13",
             "CFBundleShortVersionString": "0.0.1",
         },

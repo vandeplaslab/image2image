@@ -163,25 +163,24 @@ then
     local_install+=("image2image-io")
 fi
 
-
-# always install latest version of koyo
-local_install+=("koyo")
-
 if $update_pip
 then
     pip_install+=("napari==0.6.6")
     pip_install+=("pydantic>=2")
     pip_install+=("PyQt6>=6.9.1")
 
+    after_install+=("zarr>2,<3")
     after_install+=("tifffile<2025.5.10")
     after_install+=("pandas>2,<3")
-    after_install+=("zarr>2,<3")
     after_install+=("numpy>2")
     after_install+=("numba>0.60")
 fi
 
 # always install latest version of pyinstaller to ensure we have the latest fixes for Apple Silicon
 pip_install+=("pyinstaller")
+
+# always install latest version of koyo
+local_install+=("koyo")
 
 # before installs
 if (( ${#before_install[@]} > 0 )); then

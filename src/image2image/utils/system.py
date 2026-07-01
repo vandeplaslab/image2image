@@ -94,8 +94,8 @@ def get_system_info(as_html=False) -> None:
         ("czifile", "czifile"),
         ("imagecodecs", "imagecodecs"),
         # Numerical
-        ("napari", "napari"),
         ("numpy", "NumPy"),
+        ("numba", "Numba"),
         ("pandas", "Pandas"),
         ("polars", "Polars"),
         ("scipy", "SciPy"),
@@ -127,7 +127,6 @@ def get_system_info(as_html=False) -> None:
 
         text += f"<b>Qt</b>: {QtCore.__version__}<br>"
         text += f"<b>{API_NAME}</b>: {API_VERSION}<br>"
-
     except Exception as e:  # noqa: BLE001
         text += f"<b>Qt</b>: Import failed ({e})<br>"
 
