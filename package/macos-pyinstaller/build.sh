@@ -55,6 +55,20 @@ then
   exit 0
 fi
 
+# --- helpers ---
+
+abspath() {
+  # portable absolute path resolver (no dependency on realpath)
+  /usr/bin/python3 -c 'import os,sys; print(os.path.abspath(os.path.realpath(sys.argv[1])))' "$1"
+}
+
+pkg_name_only() {
+  # strip version/extras markers for uninstall; e.g. "napari==0.6.6" -> "napari"
+  # also handles "<", ">", "=", "!", "~"
+  local s="$1"
+  echo "${s%%[<>=!~]*}"
+}
+
 # activate environment
 if [[ $(uname -m) != "arm64" ]]
 then
@@ -80,7 +94,7 @@ app_dir=$(realpath $start_dir/../../)
 echo "GitHub directory: " $app_dir
 github_dir=$(realpath $start_dir/../../../)
 echo "GitHub directory: " $github_dir
-source_path=$(realpath $start_dir/../../venv_package_uv/bin/activate)
+source_path=$(realpath $start_dir/venv_package/bin/activate)
 echo "Source path: " $source_path
 
 # activate appropriate environment
@@ -108,15 +122,15 @@ fi
 
 if $update_app
 then
-  update_just_reader=true
   update_just_app=true
+  update_just_reader=true
   update_just_register=true
 fi
 
-update_qtextra=false
+update_qt=false
 if $update_deps
 then
-  update_qtextra=true
+  update_qt=true
 fi
 
 # inform user what's happening
@@ -138,7 +152,6 @@ then
     local_install+=("image2image")
 fi
 
-
 if $update_just_register
 then
     local_install+=("image2image-reg")
@@ -159,7 +172,8 @@ then
     pip_install+=("napari==0.6.6")
     pip_install+=("pydantic>=2")
     pip_install+=("PyQt6>=6.9.1")
-    
+
+    after_install+=("tifffile<2025.5.10")
     after_install+=("pandas>2,<3")
     after_install+=("zarr>2,<3")
     after_install+=("numpy>2")
@@ -188,6 +202,17 @@ for spec in "${pip_install[@]}"; do
   uv pip install -U "$spec"
   echo "Installed pip package: $spec"
 done
+
+# local editable installs
+if (( ${#local_install[@]} > 0 )); then
+  for pkg in "${local_install[@]}"; do
+    echo "Installing local package: $pkg"
+    cd "$(abspath "$github_dir/$pkg")" || exit 1
+    uv pip install -U "$pkg @ ." --force-reinstall
+    echo "Installed local package: $pkg"
+    cd "$start_dir"
+  done
+fi
 
 # iterate over the list
 for pkg in "${always_install[@]}"

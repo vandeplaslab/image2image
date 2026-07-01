@@ -1,7 +1,10 @@
 """System utilities."""
 
+import contextlib
 import sys
 from functools import lru_cache
+
+from koyo.system import get_version
 
 
 def get_launch_command() -> str:
@@ -13,6 +16,16 @@ def get_launch_command() -> str:
         The command used to launch the program.
     """
     return " ".join(sys.argv)
+
+
+def get_version_(module: str) -> str:
+    """Get the version string for a module."""
+    version = get_version(module)
+    if version == "N/A":
+        with contextlib.suppress(Exception):
+            module_ = __import__(module)
+            version = module_.__version__
+    return version
 
 
 @lru_cache(maxsize=2)
@@ -44,11 +57,10 @@ def get_system_info(as_html=False) -> None:
         ("image2image_io", "image2image-io"),
         ("image2image_reg", "image2image-reg"),
     )
-    loaded = {}
     for module, name in modules:
         try:
-            loaded[module] = __import__(module)
-            text += f"<b>{name}</b>: {loaded[module].__version__}<br>"
+            version = get_version_(module)
+            text += f"<b>{name}</b>: {version}<br>"
         except Exception as e:  # noqa: BLE001
             text += f"<b>{name}</b>: Import failed ({e})<br>"
 
@@ -60,37 +72,49 @@ def get_system_info(as_html=False) -> None:
         ("imzy", "imzy"),
         ("koyo", "koyo"),
     )
-    loaded = {}
     for module, name in modules:
         try:
-            loaded[module] = __import__(module)
-            text += f"<b>{name}</b>: {loaded[module].__version__}<br>"
+            version = get_version_(module)
+            text += f"<b>{name}</b>: {version}<br>"
         except Exception as e:  # noqa: BLE001
             text += f"<b>{name}</b>: Import failed ({e})<br>"
 
     text += "<br><b>Dependencies</b>"
     text += "<br>--------------------<br>"
+    loaded = {}
     modules = (
+        # Qt libraries
+        ("superqt", "SuperQt"),
+        ("qtawesome", "QtAwesome"),
+        # Plotting
+        ("napari", "Napari"),
+        ("vispy", "VisPy"),
+        # Utility
+        ("tifffile", "tifffile"),
+        ("czifile", "czifile"),
+        ("imagecodecs", "imagecodecs"),
+        # Numerical
+        ("napari", "napari"),
         ("numpy", "NumPy"),
         ("pandas", "Pandas"),
+        ("polars", "Polars"),
         ("scipy", "SciPy"),
         ("dask", "Dask"),
+        ("zarr", "Zarr"),
         ("valis", "valis-wsi"),
         ("itk", "ITK"),
         ("SimpleITK", "SimpleITK"),
-        ("qtpy", "QtPy"),
-        ("qtawesome", "QtAwesome"),
-        ("superqt", "superqt"),
-        ("napari", "Napari"),
-        ("vispy", "VisPy"),
     )
     for module, name in modules:
         try:
-            loaded[module] = __import__(module)
-            text += f"<b>{name}</b>: {loaded[module].__version__}<br>"
+            version = get_version_(module)
+            text += f"<b>{name}</b>: {version}<br>"
+            if name == "vispy":
+                loaded[module] = __import__(module)
         except Exception as e:  # noqa: BLE001
             text += f"<b>{name}</b>: Import failed ({e})<br>"
 
+    text += "<br><b>Qt:</b><br>"
     try:
         from qtpy import API_NAME, PYQT_VERSION, PYSIDE_VERSION, QtCore
 
@@ -122,7 +146,7 @@ def get_system_info(as_html=False) -> None:
     else:
         text += "  - failed to load vispy"
 
-    text += "<br><b>Screens:</b><br>"
+    text += "<br><br><b>Screens:</b><br>"
     try:
         from qtpy.QtGui import QGuiApplication
 

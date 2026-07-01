@@ -23,7 +23,7 @@ then
 fi
 
 start_dir=$PWD
-source_path=$(realpath $start_dir/../../venv_package_uv/bin/activate)
+source_path=$(realpath $start_dir/venv_package/bin/activate)
 echo "Source path: " $source_path
 
 # sign app with hash of my securityDeveloper ID Application

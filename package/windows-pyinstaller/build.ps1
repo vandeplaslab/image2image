@@ -89,6 +89,7 @@ if ($update_pip) {
     $pip_install.Add("pydantic>=2")
     $pip_install.Add("pyqt6>=6.9.1")
 
+    $after_install.Add("tifffile<2025.5.10")
     $after_install.Add("pandas>2,<3")
     $after_install.Add("zarr>1,<3")
     $after_install.Add("numpy>2")
