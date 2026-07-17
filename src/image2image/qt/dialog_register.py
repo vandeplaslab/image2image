@@ -866,7 +866,7 @@ class ImageRegistrationPlugin(QWidget, BasePluginMixin):
         )
         self._on_load_from_project(path_)
 
-    def _on_load_from_project(self, path_: str) -> None:
+    def _on_load_from_project(self, path_: str | Path) -> None:
         if path_:
             from image2image.models.transformation import load_transform_from_file
             from image2image.models.utilities import _remove_missing_from_dict
@@ -2034,7 +2034,14 @@ class ImageRegistrationWindow(Window):
 
     APP_NAME = "register"
 
-    def __init__(self, parent: QWidget | None, run_check_version: bool = True, **kwargs: ty.Any) -> None:
+    def __init__(
+        self,
+        parent: QWidget | None,
+        run_check_version: bool = True,
+        project_dir: str | Path | None = None,
+        **_kwargs: ty.Any,
+    ) -> None:
+        """Initialize the registration window and optionally load a project."""
         self.CONFIG: RegisterConfig = get_register_config()
         super().__init__(
             parent,
@@ -2043,6 +2050,8 @@ class ImageRegistrationWindow(Window):
             run_check_version=run_check_version,
         )
         self._setup_config()
+        if project_dir:
+            self.plugin._on_load_from_project(project_dir)
 
     @staticmethod
     def _setup_config() -> None:

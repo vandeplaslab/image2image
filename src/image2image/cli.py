@@ -78,9 +78,9 @@ def _cli_setup(
 @click.option(
     "-p",
     "--project_dir",
-    help="Path to the Elastix/Valis project directory. It usually ends in .i2reg extension"
-    " (for 'elastix' or 'valis' tool).",
-    type=click.Path(exists=True, resolve_path=True, file_okay=False, dir_okay=True),
+    help="Path to an Elastix/Valis project directory or config file, or a Fiducials project file"
+    " (for 'elastix', 'valis', or 'register' tool).",
+    type=click.Path(exists=True, resolve_path=True, file_okay=True, dir_okay=True),
     show_default=True,
 )
 @click.option(
@@ -267,9 +267,8 @@ def cli_viewer(
 @click.option(
     "-p",
     "--project_dir",
-    help="Path to the Elastix/Valis project directory. It usually ends in .i2reg extension"
-    " (for 'elastix' or 'valis' tool).",
-    type=click.Path(exists=True, resolve_path=True, file_okay=False, dir_okay=True),
+    help="Path to an Elastix project directory or config file.",
+    type=click.Path(exists=True, resolve_path=True, file_okay=True, dir_okay=True),
     show_default=True,
 )
 @click.option(

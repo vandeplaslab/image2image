@@ -1,5 +1,7 @@
 """Viewer test utilities."""
 
+from pathlib import Path
+
 import pytest
 
 from image2image.qt.dialog_convert import ImageConvertWindow
@@ -8,7 +10,7 @@ from image2image.qt.dialog_elastix import ImageElastixWindow
 from image2image.qt.dialog_elastix3d import ImageElastix3dWindow
 from image2image.qt.dialog_fusion import ImageFusionWindow
 from image2image.qt.dialog_merge import ImageMergeWindow
-from image2image.qt.dialog_register import ImageRegistrationWindow
+from image2image.qt.dialog_register import ImageRegistrationPlugin, ImageRegistrationWindow
 from image2image.qt.dialog_runner import ImageRunnerWindow
 from image2image.qt.dialog_valis import ImageValisWindow
 from image2image.qt.dialog_viewer import ImageViewerWindow
@@ -41,6 +43,21 @@ def test_window_register(qtbot) -> None:
     window = ImageRegistrationWindow(None)
     qtbot.addWidget(window)
     assert isinstance(window, ImageRegistrationWindow), "Window is not an instance of ImageRegistrationWindow."
+
+
+def test_window_register_loads_project(
+    qtbot, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Test ImageRegistrationWindow loads a supplied project file."""
+    project_path = tmp_path / "project.i2r.json"
+    project_path.write_text("{}")
+    loaded: list[str | Path] = []
+    monkeypatch.setattr(ImageRegistrationPlugin, "_on_load_from_project", lambda _self, path: loaded.append(path))
+
+    window = ImageRegistrationWindow(None, run_check_version=False, project_dir=project_path)
+    qtbot.addWidget(window)
+
+    assert loaded == [project_path]
 
 
 def test_window_elastix(qtbot) -> None:
