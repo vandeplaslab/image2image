@@ -13,7 +13,7 @@ import qtextra.helpers as hp
 from image2image_io.config import CONFIG as READER_CONFIG
 from koyo.utilities import pluralize
 from loguru import logger
-from napari.layers import Shapes
+from napari.layers import Image, Shapes
 from napari.layers.shapes._shapes_constants import Box
 from qtextra.config import THEMES
 from qtextra.utils.utilities import connect
@@ -32,7 +32,14 @@ from image2image.enums import ALLOWED_PROJECT_CROP_FORMATS
 from image2image.qt._dialog_mixins import SingleViewerMixin
 from image2image.qt._dialogs._select import LoadWidget
 from image2image.utils.crop import export_crop_regions, export_mask_regions, preview_crop_regions, preview_mask_regions
-from image2image.utils.utilities import ensure_extension, init_shapes_layer, log_exception_or_error, write_project
+from image2image.utils.utilities import (
+    MICROMETER_UNITS,
+    copy_layer_spatial_calibration,
+    ensure_extension,
+    init_shapes_layer,
+    log_exception_or_error,
+    write_project,
+)
 
 if ty.TYPE_CHECKING:
     from qtextraplot._napari.image.wrapper import NapariImageView
@@ -313,7 +320,12 @@ class ImageCropWindow(SingleViewerMixin):
         self.preview_mask_btn.setValue(current)
         if array.size == 0:
             return
-        self.view.viewer.add_image(array, name=f"{name}-{channel_name}", scale=(resolution, resolution))
+        self.view.viewer.add_image(
+            array,
+            name=f"{name}-{channel_name}",
+            scale=(resolution, resolution),
+            units=MICROMETER_UNITS,
+        )
         self._move_layer(self.view, self.crop_layer)
 
     @ensure_main_thread()
@@ -367,7 +379,12 @@ class ImageCropWindow(SingleViewerMixin):
         self.preview_crop_btn.setValue(current)
         if array.size == 0:
             return
-        self.view.viewer.add_image(array, name=f"{name}-{channel_name}", scale=(resolution, resolution))
+        self.view.viewer.add_image(
+            array,
+            name=f"{name}-{channel_name}",
+            scale=(resolution, resolution),
+            units=MICROMETER_UNITS,
+        )
         self._move_layer(self.view, self.crop_layer)
 
     @ensure_main_thread()
@@ -540,7 +557,11 @@ class ImageCropWindow(SingleViewerMixin):
             visual = self.view.widget.canvas.layer_to_visual[layer]
             init_shapes_layer(layer, visual)
             connect(self.crop_layer.events.set_data, self.on_update_crop_from_canvas, state=True)
-        return self.view.layers["Mask"]
+        layer = self.view.layers["Mask"]
+        image_layers = self.view.get_layers_of_type(Image)
+        if image_layers:
+            copy_layer_spatial_calibration(layer, image_layers[0])
+        return layer
 
     def _setup_ui(self):
         """Create panel."""
@@ -552,8 +573,6 @@ class ImageCropWindow(SingleViewerMixin):
             self, add_toolbars=False, allow_extraction=False, disable_controls=True, disable_new_layers=True
         )
         self.view.widget.canvas.events.key_press.connect(self._on_canvas_key_press)
-        self.view.viewer.scale_bar.unit = "um"
-
         self._image_widget = LoadWidget(
             self,
             self.view,

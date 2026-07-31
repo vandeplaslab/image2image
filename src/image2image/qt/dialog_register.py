@@ -38,6 +38,7 @@ from image2image.models.transformation import Transformation
 from image2image.qt._dialog_base import BasePluginMixin, Window
 from image2image.qt._dialogs._select import FixedWidget, MovingWidget
 from image2image.utils.utilities import (
+    PIXEL_UNITS,
     _get_text_data,
     _get_text_format,
     ensure_extension,
@@ -197,6 +198,8 @@ class ImageRegistrationPlugin(QWidget, BasePluginMixin):
                 face_color="green",
                 border_color="white",
                 symbol="ring",
+                scale=(1, 1),
+                units=PIXEL_UNITS,
             )
             visual = self.view_fixed.widget.canvas.layer_to_visual[layer]
 
@@ -216,6 +219,8 @@ class ImageRegistrationPlugin(QWidget, BasePluginMixin):
                 face_color="green",
                 border_color="white",
                 symbol="ring",
+                scale=(1, 1),
+                units=PIXEL_UNITS,
             )
             visual = self.view_fixed.widget.canvas.layer_to_visual[layer]
             init_points_layer(layer, visual, snap=True)
@@ -232,6 +237,8 @@ class ImageRegistrationPlugin(QWidget, BasePluginMixin):
                 face_color="green",
                 border_color="white",
                 symbol="ring",
+                scale=(1, 1),
+                units=PIXEL_UNITS,
             )
             visual = self.view_moving.widget.canvas.layer_to_visual[layer]
             init_points_layer(layer, visual, True)
@@ -250,6 +257,8 @@ class ImageRegistrationPlugin(QWidget, BasePluginMixin):
                 face_color="green",
                 border_color="white",
                 symbol="ring",
+                scale=(1, 1),
+                units=PIXEL_UNITS,
             )
             visual = self.view_moving.widget.canvas.layer_to_visual[layer]
             init_points_layer(layer, visual, True)
@@ -310,7 +319,7 @@ class ImageRegistrationPlugin(QWidget, BasePluginMixin):
 
     def on_plot_temporary(self, key: str, channel_index: int) -> None:
         """Plot temporary layer."""
-        self._plot_temporary_layer(self.moving_model, self.view_moving, key, channel_index, True)
+        self._plot_temporary_layer(self.moving_model, self.view_moving, key, channel_index, False)
 
     def on_remove_temporary(self, _: ty.Any = None) -> None:
         """Remove temporary layer."""
@@ -483,6 +492,8 @@ class ImageRegistrationPlugin(QWidget, BasePluginMixin):
                         visible=is_visible or name in channel_list,
                         affine=initial_affine,
                         contrast_limits=contrast_limits,
+                        scale=(1, 1),
+                        units=PIXEL_UNITS,
                     )
                 )
             if contrast_limits_range:
@@ -1060,6 +1071,8 @@ class ImageRegistrationPlugin(QWidget, BasePluginMixin):
                 colormap=colormap,
                 opacity=self.CONFIG.opacity_moving / 100,
                 contrast_limits=contrast_limits,
+                scale=(1, 1),
+                units=PIXEL_UNITS,
             )
         try:
             self.transformed_moving_image_layer.visible = READER_CONFIG.show_transformed  # type: ignore[union-attr]
@@ -1083,6 +1096,8 @@ class ImageRegistrationPlugin(QWidget, BasePluginMixin):
                 affine=np.eye(3),
                 colormap=moving_image_layer.colormap,
                 opacity=self.CONFIG.opacity_moving / 100,
+                scale=(1, 1),
+                units=PIXEL_UNITS,
             )
 
     @qdebounced(timeout=200, leading=True)
@@ -1645,7 +1660,6 @@ class ImageRegistrationPlugin(QWidget, BasePluginMixin):
         self.view_fixed.viewer.text_overlay.position = "top_left"
         self.view_fixed.viewer.text_overlay.font_size = 10
         self.view_fixed.viewer.text_overlay.visible = True
-        self.view_fixed.viewer.scale_bar.unit = "um"
         self.view_fixed.widget.canvas.events.key_press.connect(self._on_canvas_key_press)
 
         toolbar = QtMiniToolbar(self, Qt.Orientation.Vertical, add_spacer=True, icon_size="normal")
@@ -1717,7 +1731,6 @@ class ImageRegistrationPlugin(QWidget, BasePluginMixin):
         self.view_moving.viewer.text_overlay.position = "top_left"
         self.view_moving.viewer.text_overlay.font_size = 10
         self.view_moving.viewer.text_overlay.visible = True
-        self.view_moving.viewer.scale_bar.unit = "um"
         self.view_moving.widget.canvas.events.key_press.connect(self._on_canvas_key_press)
 
         toolbar = QtMiniToolbar(self, Qt.Orientation.Vertical, add_spacer=True, icon_size="normal")

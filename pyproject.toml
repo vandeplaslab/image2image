@@ -56,8 +56,8 @@ dependencies = [
     "pydantic>=2",
     "glasbey",
     "qtextra[sentry,console]>=0.2.0",
-    "qtextraplot[2d,mpl]>=0.1.2",
-    "napari==0.6.6",
+    "qtextraplot[2d,mpl]>=0.1.4",
+    "napari==0.8.0",
     "image2image-io>=0.3.2",
     "image2image-reg>=0.3.1",
 ]
@@ -122,7 +122,7 @@ i2register = "image2image.cli:main_register"
 # https://github.com/charliermarsh/ruff
 [tool.ruff]
 line-length = 120
-target-version = "py39"
+target-version = "py311"
 src = ["src", "tests"]
 fix = true
 unsafe-fixes = true
@@ -185,7 +185,7 @@ extend-ignore = [
     "A003", # flake8-builtins - we have class attributes violating these rule
     "COM812", # flake8-commas - we don't like adding comma on single line of arguments
     "COM819", # conflicts with ruff-format
-    "SIM117", # flake8-simplify - we some of merged with statements are not looking great with black, reanble after drop python 3.9
+    "SIM117", # flake8-simplify - some merged with statements are not looking great with black
     "RET504", # not fixed yet https://github.com/charliermarsh/ruff/issues/2950
     "TRY003", # require implement multiple exception class
     "RUF005", # problem with numpy compatybility, see https://github.com/charliermarsh/ruff/issues/2142#issuecomment-1451038741

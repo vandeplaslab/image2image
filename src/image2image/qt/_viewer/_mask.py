@@ -19,7 +19,7 @@ from qtpy.QtWidgets import QFormLayout
 from superqt.utils import GeneratorWorker, create_worker, ensure_main_thread
 
 from image2image.config import get_viewer_config
-from image2image.utils.utilities import log_exception_or_error, open_docs
+from image2image.utils.utilities import MICROMETER_UNITS, log_exception_or_error, open_docs
 
 if ty.TYPE_CHECKING:
     from image2image_io.readers._base_reader import BaseReader
@@ -398,6 +398,7 @@ class MasksDialog(QtFramelessTool):
             colormap=colormap,
             affine=transform,
             scale=image_reader.scale,
+            units=MICROMETER_UNITS,
             contrast_limits=(0, 1),
             keep_auto_contrast=False,
         )

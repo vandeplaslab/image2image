@@ -24,7 +24,7 @@ from image2image.enums import ALLOWED_VALIS_FORMATS
 from image2image.qt._dialog_wsi import ImageWsiPluginWidget, ImageWsiWindow
 from image2image.qt._dialogs._select import LoadWidget
 from image2image.qt._wsi._list import QtModalityList
-from image2image.utils.utilities import get_i2reg_path, pad_str
+from image2image.utils.utilities import MICROMETER_UNITS, get_i2reg_path, pad_str
 from image2image.utils.valis import guess_preprocessing
 
 if ty.TYPE_CHECKING:
@@ -204,8 +204,6 @@ class ImageValisPlugin(ImageWsiPluginWidget):
         self.view.toolbar.tools_save_btn.hide()
         self.view.toolbar.tools_scalebar_btn.hide()
         self.view.widget.canvas.events.key_press.connect(self._on_canvas_key_press)
-        self.view.viewer.scale_bar.unit = "um"
-
         self._image_widget = LoadWidget(
             self,
             self.view,
@@ -627,6 +625,7 @@ class ImageValisPlugin(ImageWsiPluginWidget):
                         image,
                         name=modality.name,
                         scale=scale,
+                        units=MICROMETER_UNITS,
                         blending="additive",
                         colormap=colormap,
                         metadata={"key": reader.key, "preview_hash": preprocessing_hash},
@@ -660,6 +659,7 @@ class ImageValisPlugin(ImageWsiPluginWidget):
                     image,
                     name=modality.name,
                     scale=scale,
+                    units=MICROMETER_UNITS,
                     blending="additive",
                     colormap=colormap,
                     metadata={"key": reader.key, "preview_hash": preprocessing_hash},

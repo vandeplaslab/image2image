@@ -85,7 +85,7 @@ if ($update_deps) {
 [System.Collections.ArrayList]$pip_install = @()
 [System.Collections.ArrayList]$after_install = @()
 if ($update_pip) {
-    $pip_install.Add("napari==0.6.6")
+    $pip_install.Add("napari==0.8.0")
     $pip_install.Add("pydantic>=2")
     $pip_install.Add("pyqt6>=6.9.1")
 

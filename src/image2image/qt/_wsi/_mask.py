@@ -21,7 +21,12 @@ from qtpy.QtCore import QEvent, Qt, Signal
 from qtpy.QtWidgets import QLayout
 from superqt.utils import qthrottled
 
-from image2image.utils.utilities import init_shapes_layer, open_docs
+from image2image.utils.utilities import (
+    copy_layer_spatial_calibration,
+    init_shapes_layer,
+    open_docs,
+    replace_shapes_layer_controls,
+)
 
 if ty.TYPE_CHECKING:
     from image2image_io.readers import BaseReader
@@ -147,6 +152,15 @@ class ShapesDialog(QtFramelessTool):
             init_shapes_layer(layer, visual)
             connect(self.mask_layer.events.set_data, self.on_update_crop_from_canvas, state=True)
         layer = self.view.layers[self.MASK_NAME]
+        image_layers = self.view.get_layers_of_type(Image)
+        if image_layers:
+            copy_layer_spatial_calibration(layer, image_layers[0])
+        if hasattr(self, "layer_controls"):
+            controls = replace_shapes_layer_controls(self.layer_controls, layer)
+            if controls is not self.layer_controls:
+                controls.DISABLE_POLYGON = self.MASK_OR_CROP == "crop"
+                controls.installEventFilter(self)
+                self.layer_controls = controls
         self.view.select_one_layer(layer)
         return layer
 
@@ -253,7 +267,7 @@ class ShapesDialog(QtFramelessTool):
             if bbox is None:
                 return []
             data = []
-            for left, top, width, height in zip(bbox.x, bbox.y, bbox.width, bbox.height):
+            for left, top, width, height in zip(bbox.x, bbox.y, bbox.width, bbox.height, strict=False):
                 right = left + width
                 bottom = top + height
                 data.append(

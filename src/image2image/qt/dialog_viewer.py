@@ -18,7 +18,7 @@ from image2image.config import get_viewer_config
 from image2image.enums import ALLOWED_PROJECT_VIEWER_FORMATS
 from image2image.qt._dialog_mixins import SingleViewerMixin
 from image2image.qt._dialogs._select import LoadWidget
-from image2image.utils.utilities import ensure_extension, get_resolution_options
+from image2image.utils.utilities import MICROMETER_UNITS, ensure_extension, get_resolution_options
 
 if ty.TYPE_CHECKING:
     from image2image_io.readers import ShapesReader
@@ -298,6 +298,7 @@ class ImageViewerWindow(SingleViewerMixin):
                 opacity=0.5,
                 edge_width=2,
                 scale=scale,
+                units=MICROMETER_UNITS,
                 affine=affine,
             )
             connect(layer.events.set_data, self.on_update_mask_reader, state=True)
@@ -343,8 +344,6 @@ class ImageViewerWindow(SingleViewerMixin):
             self, add_toolbars=False, allow_extraction=False, disable_controls=True, disable_new_layers=True
         )
         self.view.widget.canvas.events.key_press.connect(self._on_canvas_key_press)
-        self.view.viewer.scale_bar.unit = "um"
-
         side_widget = QWidget()
         side_widget.setMinimumWidth(400)
         side_widget.setMaximumWidth(400)

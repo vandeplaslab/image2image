@@ -63,7 +63,7 @@ abspath() {
 }
 
 pkg_name_only() {
-  # strip version/extras markers for uninstall; e.g. "napari==0.6.6" -> "napari"
+  # strip version/extras markers for uninstall; e.g. "napari==0.8.0" -> "napari"
   # also handles "<", ">", "=", "!", "~"
   local s="$1"
   echo "${s%%[<>=!~]*}"
@@ -165,7 +165,7 @@ fi
 
 if $update_pip
 then
-    pip_install+=("napari==0.6.6")
+    pip_install+=("napari==0.8.0")
     pip_install+=("pydantic>=2")
     pip_install+=("PyQt6>=6.9.1")
 
