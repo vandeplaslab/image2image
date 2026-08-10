@@ -7,15 +7,32 @@ from pathlib import Path
 
 from image2image_reg.workflows import ElastixReg, ValisReg
 from qtextra import helpers as hp
-from qtpy.QtCore import QSize, Qt, Signal
-from qtpy.QtGui import QPixmap
-from qtpy.QtWidgets import QFrame, QLabel, QVBoxLayout, QWidget
+from qtextra.widgets.qt_label_image import ImageViewer
+from qtpy.QtCore import Qt, Signal
+from qtpy.QtGui import QWheelEvent
+from qtpy.QtWidgets import QFrame, QHBoxLayout, QVBoxLayout, QWidget
 
 from image2image.qt._runner._constants import ReviewState, RunnerProject
 from image2image.qt._runner.utilities import discover_overlap_images, has_registration_images, read_review_state
 
 RUNNING_STATUSES = {"Running", "In progress"}
 QUEUED_STATUSES = {"Queued", "Already queued"}
+
+
+class QtRunnerOverlapViewer(ImageViewer):
+    """ImageViewer that notifies the card when its zoom level changes."""
+
+    evt_zoom_changed = Signal()
+
+    def wheelEvent(self, event: QWheelEvent) -> None:
+        """Zoom using the native ImageViewer wheel behavior and notify the card."""
+        super().wheelEvent(event)
+        self.evt_zoom_changed.emit()
+
+    def mouseDoubleClickEvent(self, event: ty.Any) -> None:
+        """Reset zoom using the native ImageViewer behavior and notify the card."""
+        super().mouseDoubleClickEvent(event)
+        self.evt_zoom_changed.emit()
 
 
 class QtRunnerProjectCard(QFrame):
@@ -36,7 +53,6 @@ class QtRunnerProjectCard(QFrame):
         self.review_state = read_review_state(project.project_dir)
         self.overlap_paths: list[Path] = []
         self.overlap_index = 0
-        self._overlap_pixmap: QPixmap | None = None
         self.setFrameShape(QFrame.Shape.StyledPanel)
         self.setFrameShadow(QFrame.Shadow.Raised)
         self.setProperty("card", True)
@@ -126,10 +142,26 @@ class QtRunnerProjectCard(QFrame):
             size_preset="normal",
             standout=True,
         )
-        self.overlap_image_label = QLabel(self)
-        self.overlap_image_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.overlap_image_label.setMinimumHeight(220)
-        self.overlap_image_label.setMaximumHeight(220)
+        self.zoom_out_btn = hp.make_qta_btn(
+            self,
+            "remove",
+            tooltip="Zoom out of the overlap preview.",
+            func=lambda: self.zoom_overlap_preview(-1),
+            size_preset="normal",
+        )
+        self.zoom_label = hp.make_label(self, "100%", object_name="tip_label")
+        self.zoom_in_btn = hp.make_qta_btn(
+            self,
+            "add_one",
+            tooltip="Zoom into the overlap preview.",
+            func=lambda: self.zoom_overlap_preview(1),
+            size_preset="normal",
+        )
+        self.overlap_viewer = QtRunnerOverlapViewer(parent=self)
+        self.overlap_viewer.setMinimumSize(440, 300)
+        self.overlap_viewer.setMaximumHeight(340)
+        self.overlap_viewer.setToolTip("Use the mouse wheel to zoom, drag to pan, or double-click to reset zoom.")
+        self.overlap_viewer.evt_zoom_changed.connect(self._update_overlap_zoom_controls)
         self.overlap_unavailable_label = hp.make_label(
             self,
             "No overlap previews available.",
@@ -148,8 +180,11 @@ class QtRunnerProjectCard(QFrame):
                 stretch_id=(0,),
             )
         )
-        layout.addWidget(self.summary_label)
-        layout.addLayout(
+        details_layout = QVBoxLayout()
+        details_layout.setContentsMargins(0, 0, 0, 0)
+        details_layout.setSpacing(4)
+        details_layout.addWidget(self.summary_label)
+        details_layout.addLayout(
             hp.make_h_layout(
                 hp.make_label(self, "Status"),
                 self.status_label,
@@ -157,20 +192,8 @@ class QtRunnerProjectCard(QFrame):
                 stretch_id=(1,),
             )
         )
-        layout.addWidget(self.progress_label)
-        layout.addLayout(
-            hp.make_h_layout(
-                self.overlap_label,
-                self.overlap_index_label,
-                self.prev_overlap_btn,
-                self.next_overlap_btn,
-                spacing=2,
-                stretch_id=(1,),
-            )
-        )
-        layout.addWidget(self.overlap_image_label)
-        layout.addWidget(self.overlap_unavailable_label)
-        layout.addLayout(
+        details_layout.addWidget(self.progress_label)
+        details_layout.addLayout(
             hp.make_h_layout(
                 self.queue_btn,
                 self.images_btn,
@@ -182,6 +205,31 @@ class QtRunnerProjectCard(QFrame):
                 stretch_after=True,
             )
         )
+
+        preview_layout = QVBoxLayout()
+        preview_layout.setContentsMargins(0, 0, 0, 0)
+        preview_layout.setSpacing(4)
+        preview_layout.addLayout(
+            hp.make_h_layout(
+                self.overlap_label,
+                self.overlap_index_label,
+                self.prev_overlap_btn,
+                self.next_overlap_btn,
+                self.zoom_out_btn,
+                self.zoom_label,
+                self.zoom_in_btn,
+                spacing=2,
+                stretch_id=(1,),
+            )
+        )
+        preview_layout.addWidget(self.overlap_viewer)
+        preview_layout.addWidget(self.overlap_unavailable_label)
+
+        content_layout = QHBoxLayout()
+        content_layout.setSpacing(12)
+        content_layout.addLayout(details_layout, stretch=1)
+        content_layout.addLayout(preview_layout, stretch=2)
+        layout.addLayout(content_layout)
         self.refresh_overlap_previews()
         self.refresh_actions()
 
@@ -237,8 +285,19 @@ class QtRunnerProjectCard(QFrame):
         """Move to an adjacent overlap preview without wrapping."""
         if not self.overlap_paths:
             return
-        self.overlap_index = max(0, min(len(self.overlap_paths) - 1, self.overlap_index + delta))
+        index = max(0, min(len(self.overlap_paths) - 1, self.overlap_index + delta))
+        if index == self.overlap_index:
+            return
+        self.overlap_index = index
         self._show_overlap_preview()
+
+    def zoom_overlap_preview(self, direction: int) -> None:
+        """Adjust the ImageViewer zoom using the center of the visible preview."""
+        if not self.overlap_paths:
+            return
+        center = self.overlap_viewer.mapToScene(self.overlap_viewer.viewport().rect().center())
+        self.overlap_viewer.zoom(direction, center)
+        self._update_overlap_zoom_controls()
 
     @property
     def current_overlap_path(self) -> Path | None:
@@ -248,9 +307,10 @@ class QtRunnerProjectCard(QFrame):
         return None
 
     def resizeEvent(self, event: ty.Any) -> None:
-        """Rescale the visible overlap preview after the card changes size."""
+        """Keep an unzoomed preview fitted after the card changes size."""
         super().resizeEvent(event)
-        self._update_overlap_pixmap()
+        if self.overlap_viewer.zoom_level == 0 and not self.overlap_viewer.pixmap_item.pixmap().isNull():
+            self.overlap_viewer.reset_zoom()
 
     def image_lines(self) -> list[str]:
         """Return a simple image list for the project."""
@@ -263,7 +323,7 @@ class QtRunnerProjectCard(QFrame):
         """Display the selected overlap preview or its unavailable state."""
         path = self.current_overlap_path
         has_preview = path is not None
-        self.overlap_image_label.setVisible(has_preview)
+        self.overlap_viewer.setVisible(has_preview)
         self.overlap_unavailable_label.setVisible(not has_preview)
         hp.disable_widgets(self.prev_overlap_btn, disabled=not has_preview or self.overlap_index == 0)
         hp.disable_widgets(
@@ -271,44 +331,42 @@ class QtRunnerProjectCard(QFrame):
             disabled=not has_preview or self.overlap_index == len(self.overlap_paths) - 1,
         )
         if path is None:
-            self._overlap_pixmap = None
             self.overlap_index_label.setText("No previews")
+            self._update_overlap_zoom_controls()
             return
 
         self.overlap_index_label.setText(f"{self.overlap_index + 1}/{len(self.overlap_paths)}: {path.name}")
-        self._overlap_pixmap = QPixmap(str(path))
-        if self._overlap_pixmap.isNull():
-            self.overlap_image_label.setText("Could not load overlap preview.")
-            return
-        self._update_overlap_pixmap()
+        self.overlap_viewer.set_image(str(path))
+        self._update_overlap_zoom_controls()
 
-    def _update_overlap_pixmap(self) -> None:
-        """Scale the loaded overlap preview to the available card space."""
-        if self._overlap_pixmap is None or self._overlap_pixmap.isNull():
-            return
-        size = self.overlap_image_label.size()
-        if not size.isValid():
-            size = QSize(500, 220)
-        self.overlap_image_label.setPixmap(
-            self._overlap_pixmap.scaled(
-                size,
-                Qt.AspectRatioMode.KeepAspectRatio,
-                Qt.TransformationMode.SmoothTransformation,
-            )
-        )
+    def _update_overlap_zoom_controls(self) -> None:
+        """Refresh overlap zoom control labels and availability."""
+        has_preview = self.current_overlap_path is not None
+        zoom = self.overlap_viewer.base_zoom_factor**self.overlap_viewer.zoom_level
+        self.zoom_label.setText(f"{round(zoom * 100)}%")
+        hp.disable_widgets(self.zoom_out_btn, disabled=not has_preview or self.overlap_viewer.zoom_level == 0)
+        hp.disable_widgets(self.zoom_in_btn, disabled=not has_preview)
 
     def _summarize_project(self) -> str:
         """Return a short project summary."""
         project = self.project.project
         n_modalities = len(project.modalities)
-        output_dir = hp.hyper(project.output_dir, value=str(project.output_dir))
-        project_dir = hp.hyper(project.project_dir, value=str(project.project_dir))
+        output_dir = hp.hyper(project.output_dir, value=self._summarize_path(project.output_dir))
+        project_dir = hp.hyper(project.project_dir, value=self._summarize_path(project.project_dir))
         return (
             f"<b>Type</b>: {self.project.kind.capitalize()} &nbsp; "
             f"<b>Modalities</b>: {n_modalities}<br>"
             f"<b>Project</b>: {project_dir}<br>"
             f"<b>Output</b>: {output_dir}"
         )
+
+    @staticmethod
+    def _summarize_path(path: Path) -> str:
+        """Return a compact, clickable path label with its final components visible."""
+        parts = Path(path).parts
+        if len(parts) <= 3:
+            return str(path)
+        return f".../{Path(*parts[-3:])}"
 
     def _review_text(self) -> str:
         """Return review label text."""

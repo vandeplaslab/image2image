@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 import typing as ty
+from pathlib import Path
 from types import SimpleNamespace
 
-from qtpy.QtCore import Qt
-from qtpy.QtGui import QImage
+from qtpy.QtCore import QPoint, QPointF, Qt
+from qtpy.QtGui import QImage, QWheelEvent
 
 from image2image.qt import dialog_runner
 from image2image.qt._runner._card import QtRunnerProjectCard
@@ -126,7 +127,44 @@ def test_project_card_refreshes_new_overlap_previews(qtbot, tmp_path) -> None:
     card.set_status("Finished")
 
     assert card.current_overlap_path == preview_path
-    assert card.overlap_image_label.isHidden() is False
+    assert card.overlap_viewer.isHidden() is False
+
+
+def test_project_card_overlap_preview_zooms(qtbot, tmp_path) -> None:
+    """Zoom an inline overlap preview while retaining an accessible reset level."""
+    overlap_dir = tmp_path / "Overlap"
+    overlap_dir.mkdir()
+    image = QImage(120, 90, QImage.Format.Format_RGB32)
+    image.fill(0)
+    assert image.save(str(overlap_dir / "preview.png"))
+    card = QtRunnerProjectCard(_make_runner_project(tmp_path))
+    qtbot.addWidget(card)
+
+    assert card.zoom_label.text() == "100%"
+    assert card.zoom_out_btn.isEnabled() is False
+    qtbot.mouseClick(card.zoom_in_btn, Qt.MouseButton.LeftButton)
+    assert card.zoom_label.text() == "110%"
+    assert card.overlap_viewer.zoom_level == 1
+    assert card.zoom_out_btn.isEnabled() is True
+
+    wheel_event = QWheelEvent(
+        QPointF(100, 100),
+        QPointF(100, 100),
+        QPoint(),
+        QPoint(0, 120),
+        Qt.MouseButton.NoButton,
+        Qt.KeyboardModifier.NoModifier,
+        Qt.ScrollPhase.ScrollUpdate,
+        False,
+    )
+    card.overlap_viewer.wheelEvent(wheel_event)
+    assert card.zoom_label.text() == "121%"
+    assert card.overlap_viewer.zoom_level == 2
+
+
+def test_project_card_path_summary_keeps_final_components() -> None:
+    """Keep compact project paths readable in a card summary."""
+    assert QtRunnerProjectCard._summarize_path(Path("/one/two/three/four")) == ".../two/three/four"
 
 
 def test_remove_project_unloads_card_without_deleting_files(qtbot, tmp_path) -> None:
