@@ -551,6 +551,9 @@ class ImageRunnerWindow(Window):
             f"{loaded} loaded | {valid} valid | {queued} queued | {running} running | "
             f"{finished} finished | {failed} failed/invalid | {cancelled} cancelled"
         )
+        self.status_counts_label.setText(
+            f"Queued: {queued}, Running: {running}, Finished: {finished}, Failed: {failed}"
+        )
         self.queue_bad_btn.setEnabled(any(card.review_state == "bad" for card in self.cards.values()))
 
     def _apply_project_filters(self) -> None:
@@ -832,7 +835,12 @@ class ImageRunnerWindow(Window):
         self.queue_btn = hp.make_qta_btn(
             self, "queue", tooltip="Open queue popup.", func=self.queue_popup.show, size_preset="small"
         )
+        self.status_counts_label = hp.make_label(
+            self,
+            "Queued: 0, Running: 0, Finished: 0, Failed: 0",
+        )
         self.statusbar.insertPermanentWidget(0, self.queue_btn)
+        self.statusbar.insertPermanentWidget(1, self.status_counts_label)
 
     def _get_console_variables(self) -> dict[str, ty.Any]:
         variables = super()._get_console_variables()

@@ -179,6 +179,7 @@ class ImageValisPlugin(ImageWsiPluginWidget):
         connect(self.modality_list.evt_rename, self.on_rename_modality, state=state)
         connect(self.modality_list.evt_hide_others, self.on_hide_modalities, state=state)
         connect(self.modality_list.evt_preview_preprocessing, self.on_preview, state=state)
+        connect(self.modality_list.evt_preview_transform_preprocessing, self.on_preview, state=state)
         connect(self.modality_list.evt_show, self.on_show_or_hide_modality, state=state)
         connect(self.modality_list.evt_resolution, self.on_update_resolution_from_list, state=state)
         connect(self.modality_list.evt_set_preprocessing, self.on_update_preprocessing_of_modality, state=state)

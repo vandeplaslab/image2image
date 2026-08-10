@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import typing as ty
 from contextlib import suppress
+from functools import partial
 from pathlib import Path
 
 import numpy as np
@@ -550,6 +551,7 @@ class QtModalityItem(QFrame):
                 parent=self,
                 locked=self.lock_btn.locked,
                 valis=self.valis,
+                magic_targets=partial(self._parent.get_magic_targets, self.modality),
             )
             self._preprocessing_dlg.evt_update.connect(self._on_update_preprocessing)
             self._preprocessing_dlg.evt_preview_preprocessing.connect(self.evt_preview_preprocessing.emit)
@@ -695,6 +697,10 @@ class QtModalityList(QScrollArea):
         for widget in self.widget_iter():
             if widget:
                 widget.on_update_preprocessing()
+
+    def get_magic_targets(self, source: Modality) -> list[Modality]:
+        """Return loaded modalities that can be selected as Magic translation targets."""
+        return [modality for modality in self.model_iter() if modality != source]
 
     def on_make_modality_item(self, modality: Modality) -> QtModalityItem:
         """Make dataset item."""

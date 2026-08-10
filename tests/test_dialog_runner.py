@@ -181,3 +181,23 @@ def test_running_project_cannot_be_removed(qtbot, tmp_path) -> None:
 
     assert tmp_path in window.projects
     assert tmp_path in window.cards
+
+
+def test_status_bar_shows_project_state_counts(qtbot, tmp_path) -> None:
+    """Show aggregate project states in the runner status bar."""
+    window = ImageRunnerWindow(None, run_check_version=False)
+    qtbot.addWidget(window)
+
+    assert window.status_counts_label.text() == "Queued: 0, Running: 0, Finished: 0, Failed: 0"
+
+    statuses = ["Queued", "Already queued", "Running", "In progress", "Finished", "Failed", "Invalid"]
+    for index, status in enumerate(statuses):
+        project_dir = tmp_path / f"project-{index}"
+        project = _make_runner_project(project_dir)
+        window.projects[project_dir] = project
+        window._add_project_card(project)
+        window.cards[project_dir].set_status(status)
+
+    window._refresh_progress_report()
+
+    assert window.status_counts_label.text() == "Queued: 2, Running: 2, Finished: 1, Failed: 2"
