@@ -255,15 +255,9 @@ def _generic_statusbar(
 ) -> list[TutorialStep]:
     from qtextra.widgets.qt_tutorial import Position, TutorialStep
 
-    steps = [
-        TutorialStep(
-            title="Save screenshot",
-            message=SCREENSHOT,
-            widget=widget.screenshot_btn,  # type: ignore[has-type]
-            position=Position.BOTTOM_RIGHT,
-        ),
-    ]
+    steps = []
     optional_steps = (
+        ("Save screenshot", SCREENSHOT, "screenshot_btn"),
         ("Screenshot to clipboard", CLIPBOARD, "clipboard_btn"),
         ("Show scalebar", SCALE_BAR, "scalebar_btn"),
         ("Feedback", FEEDBACK, "feedback_btn"),
