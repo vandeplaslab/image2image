@@ -255,42 +255,32 @@ def _generic_statusbar(
 ) -> list[TutorialStep]:
     from qtextra.widgets.qt_tutorial import Position, TutorialStep
 
-    return [
+    steps = [
         TutorialStep(
             title="Save screenshot",
             message=SCREENSHOT,
             widget=widget.screenshot_btn,  # type: ignore[has-type]
             position=Position.BOTTOM_RIGHT,
         ),
-        TutorialStep(
-            title="Screenshot to clipboard",
-            message=CLIPBOARD,
-            widget=widget.clipboard_btn if hasattr(widget, "clipboard_btn") else None,
-            skip=not hasattr(widget, "clipboard_btn"),
-            position=Position.BOTTOM_RIGHT,
-        ),
-        TutorialStep(
-            title="Show scalebar",
-            message=SCALE_BAR,
-            widget=widget.scalebar_btn if hasattr(widget, "scalebar_btn") else None,
-            skip=not hasattr(widget, "scalebar_btn"),
-            position=Position.BOTTOM_RIGHT,
-        ),
-        TutorialStep(
-            title="Feedback",
-            message=FEEDBACK,
-            widget=widget.feedback_btn if hasattr(widget, "feedback_btn") else None,
-            skip=not hasattr(widget, "feedback_btn"),
-            position=Position.BOTTOM_RIGHT,
-        ),
-        TutorialStep(
-            title="Tutorial",
-            message=TUTORIAL,
-            widget=widget.tutorial_btn if hasattr(widget, "tutorial_btn") else None,
-            skip=not hasattr(widget, "tutorial_btn"),
-            position=Position.BOTTOM_RIGHT,
-        ),
     ]
+    optional_steps = (
+        ("Screenshot to clipboard", CLIPBOARD, "clipboard_btn"),
+        ("Show scalebar", SCALE_BAR, "scalebar_btn"),
+        ("Feedback", FEEDBACK, "feedback_btn"),
+        ("Tutorial", TUTORIAL, "tutorial_btn"),
+    )
+    for title, message, attribute in optional_steps:
+        button = getattr(widget, attribute, None)
+        if button is not None:
+            steps.append(
+                TutorialStep(
+                    title=title,
+                    message=message,
+                    widget=button,
+                    position=Position.BOTTOM_RIGHT,
+                )
+            )
+    return steps
 
 
 def show_register_tutorial(widget: ImageRegistrationPlugin | ImageRegistrationWindow) -> bool:
@@ -563,6 +553,7 @@ def show_elastix_tutorial(widget: ImageElastixPlugin | ImageElastixWindow) -> bo
     """Show tutorial."""
     from qtextra.widgets.qt_tutorial import Position, QtTutorial, TutorialStep
 
+    queue_btn = getattr(widget, "queue_btn", None)
     tut = QtTutorial(widget)
     tut.set_steps(
         [
@@ -662,12 +653,17 @@ def show_elastix_tutorial(widget: ImageElastixPlugin | ImageElastixWindow) -> bo
                 widget=widget.run_btn,
                 position=Position.BOTTOM_RIGHT,
             ),
-            TutorialStep(
-                title="Queue",
-                message="You can see registrations tasks in the queue. Click here to open the queue view.",
-                widget=widget.queue_btn if hasattr(widget, "queue_btn") else None,
-                skip=not hasattr(widget, "queue_btn"),
-                position=Position.BOTTOM_RIGHT,
+            *(
+                [
+                    TutorialStep(
+                        title="Queue",
+                        message="You can see registrations tasks in the queue. Click here to open the queue view.",
+                        widget=queue_btn,
+                        position=Position.BOTTOM_RIGHT,
+                    )
+                ]
+                if queue_btn is not None
+                else []
             ),
             *_generic_statusbar(widget),
         ]
@@ -683,6 +679,7 @@ def show_valis_tutorial(widget: ImageValisWindow | ImageValisPlugin) -> bool:
     from qtextra.widgets.qt_tutorial import Position, QtTutorial, TutorialStep
 
     valis_ref = hyper("https://www.nature.com/articles/s41467-023-40218-9", value="Valis", prefix="")
+    queue_btn = getattr(widget, "queue_btn", None)
     tut = QtTutorial(widget)
     tut.set_steps(
         [
@@ -771,12 +768,17 @@ def show_valis_tutorial(widget: ImageValisWindow | ImageValisPlugin) -> bool:
                 widget=widget.run_btn,
                 position=Position.BOTTOM_RIGHT,
             ),
-            TutorialStep(
-                title="Queue",
-                message="You can see registrations tasks in the queue. Click here to open the queue view.",
-                widget=widget.queue_btn if hasattr(widget, "queue_btn") else None,
-                skip=not hasattr(widget, "queue_btn"),
-                position=Position.BOTTOM_RIGHT,
+            *(
+                [
+                    TutorialStep(
+                        title="Queue",
+                        message="You can see registrations tasks in the queue. Click here to open the queue view.",
+                        widget=queue_btn,
+                        position=Position.BOTTOM_RIGHT,
+                    )
+                ]
+                if queue_btn is not None
+                else []
             ),
             *_generic_statusbar(widget),
         ]
