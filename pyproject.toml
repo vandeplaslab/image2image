@@ -56,7 +56,7 @@ dependencies = [
     "pydantic>=2",
     "glasbey",
     "qtextra[sentry,console]>=0.2.2",
-    "qtextraplot[2d,mpl]>=0.2.0",
+    "qtextraplot[2d,mpl]>=0.2.1",
     "napari==0.8.0",
     "image2image-io>=0.4.1",
     "image2image-reg>=0.3.3",
