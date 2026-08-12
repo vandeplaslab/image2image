@@ -164,7 +164,10 @@ def test_project_card_overlap_preview_zooms(qtbot, tmp_path) -> None:
 
 def test_project_card_path_summary_keeps_final_components() -> None:
     """Keep compact project paths readable in a card summary."""
-    assert QtRunnerProjectCard._summarize_path(Path("/one/two/three/four")) == ".../two/three/four"
+    assert QtRunnerProjectCard._summarize_path(Path("/one/two/three/four")) in [
+        ".../two/three/four",
+        ".../two\\three\\four",
+    ]
 
 
 def test_remove_project_unloads_card_without_deleting_files(qtbot, tmp_path) -> None:

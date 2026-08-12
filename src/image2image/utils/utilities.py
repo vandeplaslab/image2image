@@ -10,6 +10,7 @@ from pathlib import Path
 
 import numpy as np
 from koyo.typing import PathLike
+from koyo.utilities import check_value_order
 from loguru import logger
 from napari.utils.events import Event
 
@@ -388,7 +389,7 @@ def get_contrast_limits(array: list[np.ndarray]) -> tuple[tuple[float, float] | 
 
     if data_range is None:
         data_range = calc_data_range(array_.astype(np.float32))
-    return data_range, max_range
+    return check_value_order(*data_range), check_value_order(*max_range) if max_range else max_range
 
 
 def get_simple_contrast_limits(
