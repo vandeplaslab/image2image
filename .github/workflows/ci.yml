@@ -32,7 +32,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [windows-latest, macos-latest, ubuntu-latest]
-        python-version: ["3.11", "3.12", "3.13", "3.14"]
+        python-version: ["3.11", "3.12", "3.13"]
         backend: [pyside6, pyqt6]
 
     steps:
@@ -42,7 +42,7 @@ jobs:
           python-version: ${{ matrix.python-version }}
           enable-cache: true
 
-      - run: uv sync --no-dev --group test --extra ${{ matrix.backend }}
+      - run: uv sync --no-sources --no-dev --group test --extra ${{ matrix.backend }}
       - uses: pyvista/setup-headless-display-action@v4
         with:
           qt: true
@@ -107,13 +107,13 @@ jobs:
       if: matrix.os != 'windows-latest'
       run: | 
         uv pip install pyinstaller
-        uv pip install ".[pyqt6]"
+        uv pip install --no-sources ".[pyqt6]"
 
     - name: Install dependecies (Windows - temporary)
       if: matrix.os == 'windows-latest'
       run: |
         uv pip install pyinstaller
-        uv pip install ".[pyqt6]"
+        uv pip install --no-sources ".[pyqt6]"
 
     - name: Build (Windows)
       if: matrix.os == 'windows-latest'

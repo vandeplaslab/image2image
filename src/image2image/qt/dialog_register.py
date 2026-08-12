@@ -506,13 +506,21 @@ class ImageRegistrationPlugin(QWidget, BasePluginMixin):
                     layer.visible = False
         self.moving_image_layer = moving_image_layer
 
-    def on_update_contrast_limits(self) -> None:
-        """Update contrast limits in all visible layers in the moving image."""
-        for layer in self.view_moving.layers:
-            if isinstance(layer, Image) and layer.visible:
-                contrast_limits = get_simple_contrast_limits(layer.data)
+    def on_update_contrast_limits(self, which: ty.Literal["fixed", "moving"]) -> None:
+        """Improve contrast for visible image layers in the selected modality.
+
+        Limits are estimated from the lowest-resolution pyramid level to keep the
+        action responsive for large images.
+        """
+        view = self.view_fixed if which == "fixed" else self.view_moving
+        for layer in view.layers:
+            if not isinstance(layer, Image) or not layer.visible:
+                continue
+            contrast_limits, contrast_limits_range = get_simple_contrast_limits(layer.data)
+            if contrast_limits is not None:
                 layer.contrast_limits = contrast_limits
-                layer.contrast_limits_range = contrast_limits
+            if contrast_limits_range is not None:
+                layer.contrast_limits_range = contrast_limits_range
 
     def on_change_view_type(self, _view_type: str) -> None:
         """Change view type."""
@@ -1673,6 +1681,11 @@ class ImageRegistrationPlugin(QWidget, BasePluginMixin):
             func=self.view_fixed.viewer.reset_view,
             tooltip="Reset view to show the entire canvas.",
         )
+        self.fixed_contrast_btn = toolbar.add_qta_tool(
+            "auto",
+            func=lambda *args: self.on_update_contrast_limits("fixed"),
+            tooltip="Automatically adjust contrast using the lowest-resolution pyramid level.",
+        )
         toolbar.add_qta_tool(
             "bring_to_top",
             func=lambda *args: self._select_point_layer("fixed"),
@@ -1743,6 +1756,11 @@ class ImageRegistrationPlugin(QWidget, BasePluginMixin):
             "zoom_out",
             func=self.view_moving.viewer.reset_view,
             tooltip="Reset view to show the entire canvas.",
+        )
+        self.moving_contrast_btn = toolbar.add_qta_tool(
+            "auto",
+            func=lambda *args: self.on_update_contrast_limits("moving"),
+            tooltip="Automatically adjust contrast using the lowest-resolution pyramid level.",
         )
         toolbar.add_qta_tool(
             "bring_to_top",

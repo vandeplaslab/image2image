@@ -12,9 +12,9 @@ from qtextra import helpers as hp
 from qtextra.utils.table_config import TableConfig
 from qtextra.widgets.qt_dialog import QtFramelessTool
 from qtextra.widgets.qt_table_view_check import MultiColumnSingleValueProxyModel, QtCheckableTableView
-from qtpy.QtCore import Signal
-from qtpy.QtWidgets import QFormLayout, QWidget
-from superqt.utils import qdebounced
+from qtpy.QtCore import Qt, Signal
+from qtpy.QtWidgets import QDialog, QFormLayout, QWidget
+from superqt.utils import FunctionWorker, create_worker, qdebounced
 
 from image2image.config import STATE
 
@@ -149,10 +149,15 @@ class PreprocessingDialog(QtFramelessTool):
         parent: QWidget | None = None,
         locked: bool = False,
         valis: bool = False,
+        magic_targets: ty.Callable[[], ty.Iterable[Modality]] | None = None,
     ):
         self.valis = valis
         self.color = color
         self.modality = modality
+        self._magic_targets = magic_targets
+        self._magic_worker: FunctionWorker[tuple[float, float]] | None = None
+        self._magic_cancelled = False
+        self._magic_widget_state: dict[QWidget, bool] | None = None
         super().__init__(parent)
         self.setMinimumWidth(self.MINIMUM_WIDTH)
         self.setMaximumWidth(self.MAXIMUM_WIDTH)
@@ -161,7 +166,7 @@ class PreprocessingDialog(QtFramelessTool):
         self.preprocessing = deepcopy(modality.preprocessing)
         self.original_hash = hash_parameters(**self.preprocessing.to_dict())
         self.set_from_model()
-        self.lock(locked or valis)
+        self.lock(locked)
         self.on_toggle_available()
         if parent and hasattr(parent, "previewing"):
             parent.previewing = True
@@ -170,16 +175,20 @@ class PreprocessingDialog(QtFramelessTool):
         """Lock/unlock widgets."""
         hp.disable_widgets(
             *self.flip_choices_toggle.buttons,
+            self.rotate_spin,
+            self.rotate_bck,
+            self.rotate_fwd,
+            self.downsample_spin,
+            disabled=lock or self.valis,
+        )
+        hp.disable_widgets(
             self.translate_x,
             self.translate_left,
             self.translate_right,
             self.translate_y,
             self.translate_up,
             self.translate_down,
-            self.rotate_spin,
-            self.rotate_bck,
-            self.rotate_fwd,
-            self.downsample_spin,
+            self.magic_btn,
             disabled=lock,
         )
 
@@ -331,6 +340,7 @@ class PreprocessingDialog(QtFramelessTool):
             "<br><b>Are you sure you wish to continue?</b>",
         ):
             return False
+        self._cancel_magic()
         self.evt_update.emit(self.modality.preprocessing)
         parent = self.parent()
         if parent and hasattr(parent, "previewing"):
@@ -349,6 +359,103 @@ class PreprocessingDialog(QtFramelessTool):
     def on_translate_y(self, value: int) -> None:
         """Increment translation(y) by specified value."""
         self.translate_y.setValue(self.translate_y.value() + value)
+
+    def on_magic(self) -> None:
+        """Select a target image and estimate the translation in a worker."""
+        if self._magic_worker is not None:
+            return
+        targets = (
+            {target.name: target for target in self._magic_targets() if target != self.modality}
+            if self._magic_targets
+            else {}
+        )
+        if not targets:
+            hp.warn_pretty(self, "Load another image before using Magic translation.", "No target image")
+            return
+
+        from qtextra.widgets.qt_select_one import QtScrollablePickOption
+
+        dialog = QtScrollablePickOption(
+            self,
+            "Select the target image. The open preprocessing dialog image will be translated to overlap it.",
+            options={name: name for name in targets},
+            orientation="vertical",
+        )
+        dialog.setWindowFlags(dialog.windowFlags() | Qt.WindowType.WindowStaysOnTopHint)
+        hp.show_in_center_of_screen(dialog)
+        if dialog.exec_() != QDialog.DialogCode.Accepted:
+            return
+        target = targets.get(dialog.option)
+        if target is None or target.preprocessing is None:
+            hp.warn_pretty(self, "The selected target does not have preprocessing settings.", "Invalid target")
+            return
+        self._start_magic(target)
+
+    def _start_magic(self, target: Modality) -> None:
+        """Start a background translation estimate against ``target``."""
+        from image2image_reg.elastix.magic import estimate_translation
+
+        self._magic_cancelled = False
+        self._set_magic_busy(True)
+        self._magic_worker = create_worker(
+            estimate_translation,
+            self.modality,
+            target,
+            deepcopy(self.preprocessing),
+            deepcopy(target.preprocessing),
+            _start_thread=True,
+            _connect={
+                "returned": self._on_magic_finished,
+                "errored": self._on_magic_error,
+                "finished": self._on_magic_worker_finished,
+            },
+        )
+
+    def _set_magic_busy(self, busy: bool) -> None:
+        """Disable editing controls while a Magic estimate is running."""
+        if busy:
+            self._magic_widget_state = {
+                widget: widget.isEnabled()
+                for widget in self.findChildren(QWidget)
+                if widget is not self.cancel_btn
+            }
+            for widget in self._magic_widget_state:
+                widget.setEnabled(False)
+            self.cancel_btn.setEnabled(True)
+            self.magic_btn.setText("Working...")
+            return
+        if self._magic_widget_state is not None:
+            for widget, enabled in self._magic_widget_state.items():
+                widget.setEnabled(enabled)
+        self._magic_widget_state = None
+        self.magic_btn.setText("")
+
+    def _cancel_magic(self) -> None:
+        """Discard a running Magic result when the dialog closes."""
+        self._magic_cancelled = True
+        if self._magic_worker is not None:
+            self._magic_worker.quit()
+
+    def _on_magic_finished(self, translation: tuple[float, float]) -> None:
+        """Apply a completed translation estimate to the current dialog state."""
+        if self._magic_cancelled:
+            return
+        translate_x, translate_y = translation
+        with self.setting_config():
+            self.translate_x.setValue(round(translate_x))
+            self.translate_y.setValue(round(translate_y))
+        self.on_update_transform_model()
+
+    def _on_magic_error(self, exception: Exception) -> None:
+        """Report a failed Magic estimate without changing the translation."""
+        if not self._magic_cancelled:
+            logger.exception("Magic translation failed: {}", exception)
+            hp.warn_pretty(self, str(exception), "Magic translation failed")
+
+    def _on_magic_worker_finished(self) -> None:
+        """Restore editing controls after a Magic worker exits."""
+        self._magic_worker = None
+        self._set_magic_busy(False)
 
     # noinspection PyAttributeOutsideInit
     def make_panel(self) -> QFormLayout:
@@ -548,8 +655,18 @@ class PreprocessingDialog(QtFramelessTool):
         self.downsample_spin = hp.make_int_spin_box(
             self, default=1, minimum=1, maximum=10, tooltip="Downsample", func=self.on_update_transform_model
         )
+        self.magic_btn = hp.make_qta_btn(
+            self,
+            "magic",
+            tooltip="Estimate translation to overlap this image with another loaded image.",
+            func=self.on_magic,
+            size_preset="normal",
+            standout=True,
+        )
 
         self.preview_check = hp.make_checkbox(self, "", func=self.on_preview_preprocessing, value=True)
+        self.apply_btn = hp.make_btn(self, "Apply", func=self.on_accept)
+        self.cancel_btn = hp.make_btn(self, "Cancel", func=self.on_close)
 
         _, title_layout = self._make_close_handle("Preprocessing")
         color_icon = hp.make_swatch(self, self.color, tooltip="Color of the modality (for reference only).")
@@ -602,6 +719,7 @@ class PreprocessingDialog(QtFramelessTool):
                 self.translate_x,
                 self.translate_left,
                 self.translate_right,
+                self.magic_btn,
                 stretch_id=(1,),
                 margin=0,
                 spacing=0,
@@ -630,8 +748,8 @@ class PreprocessingDialog(QtFramelessTool):
         layout.addRow("Downsample", self.downsample_spin)
         layout.addRow(
             hp.make_h_layout(
-                hp.make_btn(self, "Apply", func=self.on_accept),
-                hp.make_btn(self, "Cancel", func=self.on_close),
+                self.apply_btn,
+                self.cancel_btn,
                 spacing=2,
             )
         )

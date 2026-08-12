@@ -39,7 +39,6 @@ from image2image.qt._runner._constants import (
     RunnerProject,
 )
 from image2image.qt._runner.utilities import (
-    discover_overlap_images,
     has_registration_images,
     load_registration_project,
     project_matches_filters,
@@ -198,30 +197,6 @@ class ImageRunnerWindow(Window):
         self._dialogs.append(dlg)
         dlg.show()
 
-    def on_show_overlap_previews(self, path: Path) -> None:
-        """Show existing overlap preview images for a loaded project."""
-        from image2image.qt._runner._overlap import OverlapPreviewDialog
-
-        project = self.projects.get(path)
-        if project is None:
-            logger.warning(f"Could not find loaded registration project for {path}")
-            return
-        image_paths = discover_overlap_images(path)
-        if not image_paths:
-            hp.toast(
-                self,
-                "No overlap previews",
-                f"Could not find overlap PNG files in {hp.hyper(path / 'Overlap', 'Overlap')}.",
-                icon="warning",
-                position="top_left",
-            )
-            return
-        card = self.cards[path]
-        dlg = OverlapPreviewDialog(project, image_paths, card.review_state, self)
-        dlg.evt_review.connect(lambda project_path, state: self.on_set_project_review(Path(project_path), state))
-        self._dialogs.append(dlg)
-        dlg.show()
-
     def on_open_project_in_viewer(self, path: Path) -> None:
         """Open completed registration images for a loaded project."""
         project = self.projects.get(path)
@@ -375,15 +350,56 @@ class ImageRunnerWindow(Window):
         )
 
     def on_clear_projects(self) -> None:
-        """Clear loaded projects."""
-        self.projects.clear()
-        self.cards.clear()
-        self.task_to_project.clear()
-        while self.cards_layout.count() > 1:
-            item = self.cards_layout.takeAt(0)
-            widget = item.widget()
-            if widget:
-                widget.deleteLater()
+        """Unload all non-running projects from the runner."""
+        paths = list(self.cards)
+        for path in paths:
+            if self.cards[path].status not in {"Running", "In progress"}:
+                self.on_remove_project(path)
+        if self.cards:
+            hp.toast(
+                self,
+                "Projects still running",
+                "Running registrations were kept in the runner.",
+                icon="warning",
+                position="top_left",
+            )
+
+    def on_remove_project(self, path: Path) -> None:
+        """Unload one project card, retaining all registration files on disk."""
+        card = self.cards.get(path)
+        if card is None:
+            logger.warning(f"Could not remove unloaded registration project {path}")
+            return
+        if card.status in {"Running", "In progress"}:
+            hp.toast(
+                self,
+                "Project running",
+                "A running registration cannot be removed from the runner.",
+                icon="warning",
+                position="top_left",
+            )
+            return
+
+        task_ids = [task_id for task_id, project_path in self.task_to_project.items() if project_path == path]
+        if any(task_id in QUEUE.running_queue for task_id in task_ids):
+            hp.toast(
+                self,
+                "Project running",
+                "A running registration cannot be removed from the runner.",
+                icon="warning",
+                position="top_left",
+            )
+            return
+        for task_id in task_ids:
+            if task_id in QUEUE.pending_queue:
+                QUEUE.remove_task(task_id)
+            self.task_to_project.pop(task_id, None)
+
+        self.projects.pop(path, None)
+        self.cards.pop(path, None)
+        self.cards_layout.removeWidget(card)
+        card.deleteLater()
+        self._apply_project_filters()
         self._refresh_progress_report()
 
     def on_update_project_filters(self, *_args: ty.Any) -> None:
@@ -491,9 +507,9 @@ class ImageRunnerWindow(Window):
         card.evt_images.connect(lambda path: self.on_show_project_images(Path(path)))
         card.evt_network.connect(lambda path: self.on_show_project_network(Path(path)))
         card.evt_viewer.connect(lambda path: self.on_open_project_in_viewer(Path(path)))
-        card.evt_overlap.connect(lambda path: self.on_show_overlap_previews(Path(path)))
         card.evt_review.connect(lambda path, state: self.on_set_project_review(Path(path), state))
         card.evt_edit.connect(lambda path: self.on_open_project_for_edits(Path(path)))
+        card.evt_remove.connect(lambda path: self.on_remove_project(Path(path)))
         self.cards[project.project_dir] = card
         self.cards_layout.insertWidget(max(0, self.cards_layout.count() - 1), card)
         self._apply_project_filters()
@@ -534,6 +550,9 @@ class ImageRunnerWindow(Window):
             "<b>Progress</b>: "
             f"{loaded} loaded | {valid} valid | {queued} queued | {running} running | "
             f"{finished} finished | {failed} failed/invalid | {cancelled} cancelled"
+        )
+        self.status_counts_label.setText(
+            f"Queued: {queued}, Running: {running}, Finished: {finished}, Failed: {failed}"
         )
         self.queue_bad_btn.setEnabled(any(card.review_state == "bad" for card in self.cards.values()))
 
@@ -816,7 +835,12 @@ class ImageRunnerWindow(Window):
         self.queue_btn = hp.make_qta_btn(
             self, "queue", tooltip="Open queue popup.", func=self.queue_popup.show, size_preset="small"
         )
+        self.status_counts_label = hp.make_label(
+            self,
+            "Queued: 0, Running: 0, Finished: 0, Failed: 0",
+        )
         self.statusbar.insertPermanentWidget(0, self.queue_btn)
+        self.statusbar.insertPermanentWidget(1, self.status_counts_label)
 
     def _get_console_variables(self) -> dict[str, ty.Any]:
         variables = super()._get_console_variables()

@@ -10,6 +10,7 @@ from pathlib import Path
 
 import numpy as np
 from koyo.typing import PathLike
+from koyo.utilities import check_value_order
 from loguru import logger
 from napari.utils.events import Event
 
@@ -396,29 +397,37 @@ def get_contrast_limits(array: list[np.ndarray]) -> tuple[tuple[float, float] | 
 
     if data_range is None:
         data_range = calc_data_range(array_.astype(np.float32))
-    return data_range, max_range
+    return check_value_order(*data_range), check_value_order(*max_range) if max_range else max_range
 
 
 def get_simple_contrast_limits(
-    array: list[np.ndarray],
+    array: list[np.ndarray] | np.ndarray,
 ) -> tuple[tuple[float, float] | None, tuple[float, float] | None]:
-    """Estimate contrast limits."""
-    if len(array) == 0:
-        return None, None
-
-    array_ = array[0] if len(array) == 1 else array[-1]
+    """Estimate contrast limits from an image or its lowest-resolution pyramid level."""
+    if isinstance(array, np.ndarray):
+        if array.size == 0:
+            return None, None
+        array_ = array
+    else:
+        if len(array) == 0:
+            return None, None
+        array_ = array[0] if len(array) == 1 else array[-1]
 
     data_range, max_range = None, None
     if 1e5 > array_.size < 1e7:
-        array_ = array_[::50, ::50]
+        array_ = array_[tuple(slice(None, None, 50) for _ in range(array_.ndim))]
     elif array_.size > 1e7:
-        array_ = array_[::100, ::100]
+        array_ = array_[tuple(slice(None, None, 100) for _ in range(array_.ndim))]
     elif array_.dtype in [np.int16, np.int32, np.uint16]:
         max_range = np.iinfo(array_.dtype).min, np.iinfo(array_.dtype).max
 
     if data_range is None:
         data_range = (0, np.nanquantile(np.array(array_), 0.99))
-    return data_range, max_range
+    data_range = check_value_order(*data_range)
+    if data_range[0] == data_range[1]:
+        increment = 1.0 if np.issubdtype(array_.dtype, np.integer) else 0.001
+        data_range = (data_range[0], data_range[1] + increment)
+    return data_range, check_value_order(*max_range) if max_range else max_range
 
 
 def vispy_colormap(color: str | np.ndarray) -> VispyColormap:

@@ -55,13 +55,21 @@ dependencies = [
     "numba",
     "pydantic>=2",
     "glasbey",
-    "qtextra[sentry,console]>=0.2.0",
-    "qtextraplot[2d,mpl]>=0.1.4",
+    "qtextra[sentry,console]>=0.2.2",
+    "qtextraplot[2d,mpl]>=0.2.0",
     "napari==0.8.0",
-    "image2image-io>=0.3.2",
-    "image2image-reg>=0.3.1",
+    "image2image-io>=0.4.1",
+    "image2image-reg>=0.3.3",
 ]
-
+[tool.uv.sources]
+image2image-io = { path = "../image2image-io", editable = true }
+image2image-reg = { path = "../image2image-reg", editable = true }
+koyo = { path = "../koyo", editable = true }
+yoki5 = { path = "../yoki5", editable = true }
+ims-utils = { path = "../ims-utils", editable = true }
+qtreload = { path = "../qtreload", editable = true }
+qtextra = { path = "../qtextra", editable = true }
+qtextraplot = { path = "../qtextraplot", editable = true }
 
 # https://peps.python.org/pep-0621/#dependencies-optional-dependencies
 [project.optional-dependencies]
