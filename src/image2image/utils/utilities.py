@@ -392,19 +392,23 @@ def get_contrast_limits(array: list[np.ndarray]) -> tuple[tuple[float, float] | 
 
 
 def get_simple_contrast_limits(
-    array: list[np.ndarray],
+    array: list[np.ndarray] | np.ndarray,
 ) -> tuple[tuple[float, float] | None, tuple[float, float] | None]:
-    """Estimate contrast limits."""
-    if len(array) == 0:
-        return None, None
-
-    array_ = array[0] if len(array) == 1 else array[-1]
+    """Estimate contrast limits from an image or its lowest-resolution pyramid level."""
+    if isinstance(array, np.ndarray):
+        if array.size == 0:
+            return None, None
+        array_ = array
+    else:
+        if len(array) == 0:
+            return None, None
+        array_ = array[0] if len(array) == 1 else array[-1]
 
     data_range, max_range = None, None
     if 1e5 > array_.size < 1e7:
-        array_ = array_[::50, ::50]
+        array_ = array_[tuple(slice(None, None, 50) for _ in range(array_.ndim))]
     elif array_.size > 1e7:
-        array_ = array_[::100, ::100]
+        array_ = array_[tuple(slice(None, None, 100) for _ in range(array_.ndim))]
     elif array_.dtype in [np.int16, np.int32, np.uint16]:
         max_range = np.iinfo(array_.dtype).min, np.iinfo(array_.dtype).max
 

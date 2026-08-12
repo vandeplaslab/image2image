@@ -2,6 +2,8 @@
 
 from types import SimpleNamespace
 
+import numpy as np
+from napari.layers import Image
 from napari.layers.base import ActionType
 from pytest import MonkeyPatch
 from qtpy.QtCore import QEvent, Qt
@@ -16,6 +18,7 @@ from image2image.qt.dialog_register import (
     ImageRegistrationWindow,
     _is_changing_points_data_event,
 )
+from image2image.utils.utilities import get_simple_contrast_limits
 
 
 class CanvasKeyEvent:
@@ -41,6 +44,49 @@ def make_register_plugin_for_key_tests() -> ImageRegistrationPlugin:
     plugin = ImageRegistrationPlugin.__new__(ImageRegistrationPlugin)
     plugin._last_canvas_shortcut = None
     return plugin
+
+
+def test_register_updates_contrast_for_visible_modality_images() -> None:
+    """Test automatic contrast adjustment affects only visible images in its modality."""
+    pyramid = [np.arange(64, dtype=np.float32).reshape(8, 8), np.array([[0, 10], [20, 100]], dtype=np.float32)]
+    visible_image = Image(pyramid, multiscale=True, name="visible")
+    hidden_image = Image(pyramid, multiscale=True, name="hidden", visible=False)
+    moving_data = np.array([[0, 10], [20, 100]], dtype=np.float32)
+    moving_image = Image(moving_data, name="moving")
+    hidden_initial_limits = hidden_image.contrast_limits
+    moving_initial_limits = moving_image.contrast_limits
+    ignored_layer = SimpleNamespace(visible=True)
+    plugin = ImageRegistrationPlugin.__new__(ImageRegistrationPlugin)
+    plugin.view_fixed = SimpleNamespace(layers=[visible_image, hidden_image, ignored_layer])
+    plugin.view_moving = SimpleNamespace(layers=[moving_image])
+
+    expected_limits, expected_range = get_simple_contrast_limits(pyramid)
+    plugin.on_update_contrast_limits("fixed")
+
+    assert visible_image.contrast_limits == expected_limits
+    assert visible_image.contrast_limits_range == expected_range
+    assert hidden_image.contrast_limits == hidden_initial_limits
+    assert moving_image.contrast_limits == moving_initial_limits
+    assert not hasattr(ignored_layer, "contrast_limits")
+
+    plugin.on_update_contrast_limits("moving")
+
+    moving_limits, moving_range = get_simple_contrast_limits(moving_data)
+    assert moving_image.contrast_limits == moving_limits
+    assert moving_image.contrast_limits_range == moving_range
+
+
+def test_register_contrast_toolbar_buttons_target_their_modalities(qtbot, monkeypatch: MonkeyPatch) -> None:
+    """Test fixed and moving contrast buttons call their respective modality actions."""
+    window = ImageRegistrationWindow(None)
+    qtbot.addWidget(window)
+    calls: list[str] = []
+    monkeypatch.setattr(window.plugin, "on_update_contrast_limits", calls.append)
+
+    window.plugin.fixed_contrast_btn.click()
+    window.plugin.moving_contrast_btn.click()
+
+    assert calls == ["fixed", "moving"]
 
 
 def test_fiducials(qtbot) -> None:
