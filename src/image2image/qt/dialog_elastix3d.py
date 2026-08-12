@@ -52,7 +52,7 @@ from image2image.models.wsiprep import (
 )
 from image2image.qt._dialog_base import Window
 from image2image.qt._dialogs._select import LoadWidget
-from image2image.utils.utilities import ensure_extension, get_contrast_limits, write_project
+from image2image.utils.utilities import MICROMETER_UNITS, ensure_extension, get_contrast_limits, write_project
 
 if ty.TYPE_CHECKING:
     from image2image.models.data import DataModel
@@ -256,6 +256,7 @@ class ImageElastix3dWindow(Window):
             image,
             name=reader.key,
             scale=model.scale,
+            units=MICROMETER_UNITS,
             blending="additive",
             contrast_limits=contrast_limits,
             affine=model.affine(image.shape),  # type: ignore[arg-type]

@@ -20,11 +20,13 @@ if ty.TYPE_CHECKING:
     from napari._vispy.layers.points import VispyPointsLayer
     from napari._vispy.layers.shapes import VispyShapesLayer
     from napari.components import LayerList
-    from napari.layers import Points, Shapes
+    from napari.layers import Layer, Points, Shapes
     from qtextraplot._napari.image.wrapper import NapariImageView
     from vispy.color import Colormap as VispyColormap
 
 DRAG_DIST_THRESHOLD = 5
+MICROMETER_UNITS: tuple[str | None, str | None] = ("um", "um")
+PIXEL_UNITS: tuple[str | None, str | None] = (None, None)
 
 np.seterr(divide="ignore", invalid="ignore")
 
@@ -54,6 +56,12 @@ PREFERRED_COLORS = [
     "#42d4f4",
     "#800000",
 ]
+
+
+def copy_layer_spatial_calibration(layer: Layer, reference: Layer) -> None:
+    """Copy scale and units from a reference napari layer."""
+    layer.scale = reference.scale
+    layer.units = reference.units
 
 
 def check_image_size(
@@ -101,7 +109,7 @@ def format_reader_metadata(reader_metadata: dict) -> str:
         channel_names = scene_metadata["channel_names"]
         if has_scenes and channel_ids:
             metadata.append(f"scene {scene_index}")
-        for channel_index, channel_name in zip(channel_ids, channel_names):
+        for channel_index, channel_name in zip(channel_ids, channel_names, strict=False):
             metadata.append(f"- {channel_name}: {channel_index}")
     return "\n".join(metadata)
 
@@ -113,7 +121,7 @@ def format_reader_metadata_alt(scene_index: int, scene_metadata: dict) -> str:
     channel_names = scene_metadata["channel_names"]
     if scene_index is not None and channel_ids:
         metadata.append(f"scene {scene_index}")
-    for channel_index, channel_name in zip(channel_ids, channel_names):
+    for channel_index, channel_name in zip(channel_ids, channel_names, strict=False):
         metadata.append(f"- {channel_name}: {channel_index}")
     return "\n".join(metadata)
 
@@ -487,53 +495,21 @@ def init_shapes_layer(layer: Shapes, visual: VispyShapesLayer | None = None) -> 
     layer._highlight_color = (1.0, 0.0, 0.0, 0.7)
 
 
-def replace_shapes_layer(widget: QtShapesControls, layer: Shapes) -> None:
-    """Set new layer for this container."""
-    import weakref
+def replace_shapes_layer_controls(widget: QtShapesControls, layer: Shapes) -> QtShapesControls:
+    """Recreate napari Shapes controls for a replacement layer."""
+    if layer is widget.layer:
+        return widget
 
-    from napari.utils.events import disconnect_events
-    from qtextra.helpers import disable_widgets
+    parent = widget.parentWidget()
+    layout = parent.layout() if parent is not None else None
+    if layout is None:
+        raise RuntimeError("Shapes controls must be attached to a layout before replacing their layer.")
 
-    def _replace_layer_in_button(btn):
-        if hasattr(btn, "layer_ref"):
-            btn.layer_ref = weakref.ref(layer)
-        else:
-            btn.layer = layer
-
-    if layer == widget.layer:
-        return
-    disconnect_events(widget.layer.events, widget)
-
-    widget.layer = layer
-    # update values
-    widget._on_opacity_change()
-    # widget._on_mode_change()
-    widget._on_current_border_color_change()
-    widget._on_current_face_color_change()
-    widget._on_edge_width_change()
-    widget._on_text_visibility_change()
-    widget._on_editable_or_visible_change()
-    # for button in widget.button_group.buttons():
-    #     _replace_layer_in_button(button)
-    for button in widget._MODE_BUTTONS.values():
-        _replace_layer_in_button(button)
-    for button in widget._EDIT_BUTTONS:
-        _replace_layer_in_button(button)
-
-    # connect new events
-    widget.layer.events.mode.connect(widget._on_mode_change)
-    widget.layer.events.editable.connect(widget._on_editable_or_visible_change)
-    widget.layer.events.visible.connect(widget._on_editable_or_visible_change)
-    widget.layer.events.blending.connect(widget._on_blending_change)
-    widget.layer.events.opacity.connect(widget._on_opacity_change)
-    widget.layer.events.edge_width.connect(widget._on_edge_width_change)
-    widget.layer.events.current_border_color.connect(widget._on_current_border_color_change)
-    widget.layer.events.current_face_color.connect(widget._on_current_face_color_change)
-    widget.layer.text.events.visible.connect(widget._on_text_visibility_change)
-
-    disable_widgets(
-        widget.line_button, widget.path_button, widget.ellipse_button, widget.polyline_button, disabled=True
-    )
+    replacement = type(widget)(layer)
+    layout.replaceWidget(widget, replacement)
+    widget.close()
+    widget.deleteLater()
+    return replacement
 
 
 def _get_text_format() -> dict[str, ty.Any]:

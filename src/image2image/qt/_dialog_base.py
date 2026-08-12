@@ -25,6 +25,8 @@ from image2image.models.data import DataModel
 from image2image.qt._mixins import NewVersionMixin, ThemeMixin
 from image2image.utils._appdirs import USER_LOG_DIR
 from image2image.utils.utilities import (
+    MICROMETER_UNITS,
+    PIXEL_UNITS,
     get_colormap,
     get_contrast_limits,
     get_next_color,
@@ -183,22 +185,26 @@ class BasePluginMixin(ImageViewMixin):
                 current_affine = wrapper.get_affine(reader, reader.resolution) if scale else reader.transform
 
                 current_scale = reader.scale if scale else (1, 1)
+                current_units = MICROMETER_UNITS if scale else PIXEL_UNITS
                 try:
                     if reader.reader_type == "shapes" and hasattr(reader, "to_shapes_kwargs"):
                         display_type = reader.display_type or READER_CONFIG.shape_display
                         if display_type == "points" and hasattr(reader, "to_points_kwargs"):
                             face_color = get_next_color(0, view_wrapper.layers, "points")
                             kws = reader.to_points_kwargs(name=name, affine=current_affine, face_color=face_color)
+                            kws.update(scale=current_scale, units=current_units)
                             logger.trace(f"Adding '{name}' to {view_kind} with {len(kws['data']):,} points...")
                             points_layer.append(view_wrapper.viewer.add_points(**kws))
                         else:
                             edge_color = get_next_color(0, view_wrapper.layers, "shapes")
                             kws = reader.to_shapes_kwargs(name=name, affine=current_affine, edge_color=edge_color)
+                            kws.update(scale=current_scale, units=current_units)
                             logger.trace(f"Adding '{name}' to {view_kind} with {len(kws['data']):,} shapes...")
                             shape_layer.append(view_wrapper.viewer.add_shapes(**kws))
                     elif reader.reader_type == "points" and hasattr(reader, "to_points_kwargs"):
                         face_color = get_next_color(0, view_wrapper.layers, "points")
                         kws = reader.to_points_kwargs(name=name, affine=current_affine, face_color=face_color)
+                        kws.update(scale=current_scale, units=current_units)
                         logger.trace(f"Adding '{name}' to {view_kind} with {len(kws['data']):,} points...")
                         points_layer.append(view_wrapper.viewer.add_points(**kws))
                     else:
@@ -219,6 +225,7 @@ class BasePluginMixin(ImageViewMixin):
                                 visible=name in channel_list,
                                 affine=current_affine,
                                 scale=current_scale,
+                                units=current_units,
                                 contrast_limits=contrast_limits,
                             )
                         )
@@ -264,6 +271,7 @@ class BasePluginMixin(ImageViewMixin):
             # get current transform and scale
             current_affine = wrapper.get_affine(reader, reader.resolution) if scale else reader.transform
             current_scale = reader.scale if scale else (1, 1)
+            current_units = MICROMETER_UNITS if scale else PIXEL_UNITS
             full_channel_name = f"{reader.channel_names[channel_index]} | {key}"
 
             # get temporary layer
@@ -277,12 +285,14 @@ class BasePluginMixin(ImageViewMixin):
                 if READER_CONFIG.shape_display == "points" and hasattr(reader, "to_points_kwargs"):
                     face_color = get_next_color(0, view_wrapper.layers, "points")
                     layer_data = reader.to_points_kwargs(face_color=face_color, name=name, affine=current_affine)
+                    layer_data.update(scale=current_scale, units=current_units)
                     collected_in = timer(since_last=True)
                     layer = view_wrapper.viewer.add_points(**layer_data)
                     plotted_in = timer(since_last=True)
                 else:
                     edge_color = get_next_color(0, view_wrapper.layers, "shapes")
                     layer_data = reader.to_shapes_kwargs(name=name, affine=current_affine, edge_color=edge_color)
+                    layer_data.update(scale=current_scale, units=current_units)
                     collected_in = timer(since_last=True)
                     layer = view_wrapper.viewer.add_shapes(**layer_data)
                     plotted_in = timer(since_last=True)
@@ -290,6 +300,7 @@ class BasePluginMixin(ImageViewMixin):
                 view_wrapper.remove_layer(name)
                 channel_name = reader.channel_names[channel_index]
                 layer_data = reader.to_points_kwargs(face_color=channel_name, name=name, affine=current_affine)
+                layer_data.update(scale=current_scale, units=current_units)
                 collected_in = timer(since_last=True)
                 layer = view_wrapper.viewer.add_points(**layer_data)
                 plotted_in = timer(since_last=True)
@@ -318,6 +329,7 @@ class BasePluginMixin(ImageViewMixin):
                         colormap=colormap,
                         affine=current_affine,
                         scale=current_scale,
+                        units=current_units,
                         contrast_limits=contrast_limits,
                         metadata={"name": full_channel_name},
                     )
@@ -740,7 +752,6 @@ class Window(QMainWindow, IndicatorMixin, NewVersionMixin, ThemeMixin, BasePlugi
             raise ValueError("View is not initialized.")
 
         dlg = QtScaleBarControls(self.view.viewer, self.view.widget)
-        dlg.set_px_size(self.data_model.min_resolution)
         dlg.show_above_widget(self.scalebar_btn)
 
     def on_show_save_figure(self) -> None:

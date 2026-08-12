@@ -1,5 +1,5 @@
 # Create Windows environment for development
-uv venv venv_package -p 3.10
+uv venv venv_package -p 3.11
 
 # Activate the virtual environment
 .\venv_package\Scripts\Activate.ps1

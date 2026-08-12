@@ -17,6 +17,7 @@ from qtpy.QtWidgets import QDialog, QLabel, QMenuBar, QTableWidget
 from superqt import ensure_main_thread
 
 from image2image.qt._dialog_base import Window
+from image2image.utils.utilities import MICROMETER_UNITS
 
 if ty.TYPE_CHECKING:
     from qtextra.utils.table_config import TableConfig
@@ -129,6 +130,7 @@ class SingleViewerPluginMixin:
                     continue
                 layer = self.view.layers[name]
                 layer.scale = reader.scale
+                layer.units = MICROMETER_UNITS
                 layer.affine = wrapper.get_affine(reader, reader.resolution)
                 logger.trace(f"Updated affine for '{name}' with resolution={reader.resolution}.")
 

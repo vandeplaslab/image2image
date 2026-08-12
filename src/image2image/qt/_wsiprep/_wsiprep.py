@@ -21,7 +21,14 @@ from qtpy.QtWidgets import QLayout
 from tqdm import tqdm
 
 from image2image.config import get_elastix3d_config
-from image2image.utils.utilities import format_group_info, get_groups, groups_to_group_id, init_shapes_layer
+from image2image.utils.utilities import (
+    copy_layer_spatial_calibration,
+    format_group_info,
+    get_groups,
+    groups_to_group_id,
+    init_shapes_layer,
+    replace_shapes_layer_controls,
+)
 
 if ty.TYPE_CHECKING:
     from qtextra.utils.table_config import TableConfig
@@ -282,8 +289,11 @@ class MaskDialog(WsiPrepMixin):
             connect(self.crop_layer.events.set_data, self.on_update_crop_from_canvas, state=True)
 
         layer = self.view.layers["Mask"]
+        image_layers = self.view.get_layers_of_type(Image)
+        if image_layers:
+            copy_layer_spatial_calibration(layer, image_layers[0])
         if hasattr(self, "layer_controls"):
-            self.layer_controls.set_layer(layer)
+            self.layer_controls = replace_shapes_layer_controls(self.layer_controls, layer)
         return layer
 
     def _get_default_crop_area(self) -> tuple[int, int, int, int]:
