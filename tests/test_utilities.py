@@ -8,6 +8,7 @@ from image2image.utils.utilities import (
     extract_number,
     get_groups,
     get_random_hex_color,
+    get_simple_contrast_limits,
     pad_str,
     round_to_half,
 )
@@ -88,3 +89,17 @@ def test_get_random_hex_color():
     assert len(color) == 7
     # Check it is valid hex
     int(color[1:], 16)
+
+
+def test_get_simple_contrast_limits_widens_integer_constant_range() -> None:
+    """Test that a constant integer image gets a non-zero contrast range."""
+    contrast_limits, _ = get_simple_contrast_limits(np.zeros((2, 2), dtype=np.uint16))
+
+    assert contrast_limits == (0.0, 1.0)
+
+
+def test_get_simple_contrast_limits_widens_float_constant_range() -> None:
+    """Test that a constant float image gets a non-zero contrast range."""
+    contrast_limits, _ = get_simple_contrast_limits(np.zeros((2, 2), dtype=np.float32))
+
+    assert contrast_limits == (0.0, 0.001)

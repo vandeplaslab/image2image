@@ -415,7 +415,11 @@ def get_simple_contrast_limits(
 
     if data_range is None:
         data_range = (0, np.nanquantile(np.array(array_), 0.99))
-    return check_value_order(*data_range), check_value_order(*max_range) if max_range else max_range
+    data_range = check_value_order(*data_range)
+    if data_range[0] == data_range[1]:
+        increment = 1.0 if np.issubdtype(array_.dtype, np.integer) else 0.001
+        data_range = (data_range[0], data_range[1] + increment)
+    return data_range, check_value_order(*max_range) if max_range else max_range
 
 
 def vispy_colormap(color: str | np.ndarray) -> VispyColormap:
