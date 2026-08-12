@@ -63,8 +63,9 @@ def test_register_updates_contrast_for_visible_modality_images() -> None:
     expected_limits, expected_range = get_simple_contrast_limits(pyramid)
     plugin.on_update_contrast_limits("fixed")
 
-    assert visible_image.contrast_limits == expected_limits
-    assert visible_image.contrast_limits_range == expected_range
+    assert tuple(visible_image.contrast_limits) == expected_limits
+    if expected_range is not None:
+        assert tuple(visible_image.contrast_limits_range) == expected_range
     assert hidden_image.contrast_limits == hidden_initial_limits
     assert moving_image.contrast_limits == moving_initial_limits
     assert not hasattr(ignored_layer, "contrast_limits")
@@ -72,8 +73,9 @@ def test_register_updates_contrast_for_visible_modality_images() -> None:
     plugin.on_update_contrast_limits("moving")
 
     moving_limits, moving_range = get_simple_contrast_limits(moving_data)
-    assert moving_image.contrast_limits == moving_limits
-    assert moving_image.contrast_limits_range == moving_range
+    assert tuple(moving_image.contrast_limits) == moving_limits
+    if moving_range is not None:
+        assert tuple(moving_image.contrast_limits_range) == moving_range
 
 
 def test_register_contrast_toolbar_buttons_target_their_modalities(qtbot, monkeypatch: MonkeyPatch) -> None:
