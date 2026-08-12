@@ -58,8 +58,8 @@ dependencies = [
     "qtextra[sentry,console]>=0.2.0",
     "qtextraplot[2d,mpl]>=0.1.2",
     "napari==0.6.6",
-    "image2image-io>=0.3.2",
-    "image2image-reg>=0.3.1",
+    "image2image-io>=0.4.1",
+    "image2image-reg>=0.3.3",
 ]
 [tool.uv.sources]
 image2image-io = { path = "../image2image-io", editable = true }
