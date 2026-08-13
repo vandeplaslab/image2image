@@ -42,7 +42,7 @@ jobs:
           python-version: ${{ matrix.python-version }}
           enable-cache: true
 
-      - run: uv sync --no-sources --no-dev --group test --extra ${{ matrix.backend }}
+      - run: uv sync --locked --no-sources --no-dev --group test --extra ${{ matrix.backend }}
       - uses: pyvista/setup-headless-display-action@v4
         with:
           qt: true
@@ -60,7 +60,7 @@ jobs:
   # Build PyInstaller apps
   pyinstaller_build:
     name: Build (PyInstaller)
-    if: success() && github.event_name != 'schedule'  #&& startsWith(github.ref, 'refs/tags/')
+    if: success() && github.event_name != 'schedule' && startsWith(github.ref, 'refs/tags/')
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -312,10 +312,10 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - name: Set up Python
-        uses: actions/setup-python@v6
+      - uses: astral-sh/setup-uv@v7
         with:
-          python-version: "3.x"
+          python-version: "3.13"
+          enable-cache: true
 
       - name: Build the UV Box app
         run: uvx uvbox pypi -o uvbox
@@ -338,25 +338,22 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - name: Set up Python
-        uses: actions/setup-python@v6
+      - uses: astral-sh/setup-uv@v7
         with:
-          python-version: "3.x"
+          python-version: "3.13"
+          enable-cache: true
 
-      - name: install
+      - name: Build and check
         run: |
           git tag
-          python -m pip install --upgrade pip
-          pip install -U pip build twine
-          python -m build
-          twine check dist/*
+          uv build --no-sources
+          uvx twine check dist/*
           ls -lh dist
 
       - name: Build and publish
-        run: twine upload --repository testpypi dist/*
+        run: uv publish --publish-url https://test.pypi.org/legacy/ dist/*
         env:
-          TWINE_USERNAME: __token__
-          TWINE_PASSWORD: ${{ secrets.TEST_PYPI_TOKEN }}
+          UV_PUBLISH_TOKEN: ${{ secrets.TEST_PYPI_TOKEN }}
 
   deploy:
     name: Deploy
@@ -367,17 +364,16 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - name: Set up Python
-        uses: actions/setup-python@v6
+      - uses: astral-sh/setup-uv@v7
         with:
-          python-version: "3.x"
+          python-version: "3.13"
+          enable-cache: true
 
-      - name: install
+      - name: Build and check
         run: |
           git tag
-          pip install -U pip build twine
-          python -m build
-          twine check dist/*
+          uv build --no-sources
+          uvx twine check dist/*
           ls -lh dist
 
 #      - uses: actions/upload-artifact@v6
@@ -388,10 +384,9 @@ jobs:
 #            dist/*
 
       - name: Build and publish
-        run: twine upload dist/*
+        run: uv publish dist/*
         env:
-          TWINE_USERNAME: __token__
-          TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN }}
+          UV_PUBLISH_TOKEN: ${{ secrets.PYPI_TOKEN }}
 
 
   create_release:
