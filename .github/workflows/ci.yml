@@ -60,6 +60,7 @@ jobs:
   # Build PyInstaller apps
   pyinstaller_build:
     name: Build (PyInstaller)
+    needs: [deploy_test, deploy]
     if: success() && github.event_name != 'schedule' && startsWith(github.ref, 'refs/tags/')
     runs-on: ${{ matrix.os }}
     strategy:
