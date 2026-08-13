@@ -356,7 +356,7 @@ jobs:
           UV_PUBLISH_TOKEN: ${{ secrets.TEST_PYPI_TOKEN }}
 
   deploy:
-    name: Deploy
+    name: Deploy to PyPI
     needs: deploy_test
     if: success() && startsWith(github.ref, 'refs/tags/') && github.event_name != 'schedule'
     runs-on: ubuntu-latest
