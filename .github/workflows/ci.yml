@@ -42,7 +42,7 @@ jobs:
           python-version: ${{ matrix.python-version }}
           enable-cache: true
 
-      - run: uv sync --locked --no-sources --no-dev --group test --extra ${{ matrix.backend }}
+      - run: uv sync  --no-sources --no-dev --group test --extra ${{ matrix.backend }}
       - uses: pyvista/setup-headless-display-action@v4
         with:
           qt: true
