@@ -496,7 +496,7 @@ class ImageWsiPluginWidget(Qw.QWidget, BasePluginMixin, SingleViewerPluginMixin)
         dlg = QtTextReplace(self, names)
         if dlg.exec_() == Qw.QDialog.DialogCode.Accepted:
             new_names = dlg.new_texts
-            for old_name, new_name in zip(names, new_names):
+            for old_name, new_name in zip(names, new_names, strict=False):
                 if old_name == new_name:
                     continue
                 modality = self.registration_model.modalities[old_name]
@@ -837,6 +837,13 @@ class ImageWsiPluginWidget(Qw.QWidget, BasePluginMixin, SingleViewerPluginMixin)
             value=self.CONFIG.write_attached,
             func=self.on_update_config,
         )
+        self.write_native_check = hp.make_checkbox(
+            self,
+            "",
+            tooltip="Write images at native resolution.",
+            value=self.CONFIG.write_native,
+            func=self.on_update_config,
+        )
         self.write_merged_check = hp.make_checkbox(
             self,
             "",
@@ -883,6 +890,7 @@ class ImageWsiPluginWidget(Qw.QWidget, BasePluginMixin, SingleViewerPluginMixin)
         hidden_settings.addRow(hp.make_label(self, "Write/don't write"), self.write_check)
         hidden_settings.addRow(hp.make_label(self, "Write registered images"), self.write_registered_check)
         hidden_settings.addRow(hp.make_label(self, "Write unregistered images"), self.write_not_registered_check)
+        hidden_settings.addRow(hp.make_label(self, "Write in native resolution"), self.write_native_check)
         hidden_settings.addRow(hp.make_label(self, "Write attached modalities"), self.write_attached_check)
         hidden_settings.addRow(hp.make_label(self, "Write merged images"), self.write_merged_check)
         hidden_settings.addRow(hp.make_label(self, "Rename images"), self.rename_check)
@@ -908,6 +916,7 @@ class ImageWsiPluginWidget(Qw.QWidget, BasePluginMixin, SingleViewerPluginMixin)
         self.CONFIG.write_not_registered = self.write_not_registered_check.isChecked()
         self.CONFIG.write_registered = self.write_registered_check.isChecked()
         self.CONFIG.write_attached = self.write_attached_check.isChecked()
+        self.CONFIG.write_native = self.write_native_check.isChecked()
         self.CONFIG.write_merged = self.write_merged_check.isChecked()
         self.CONFIG.rename = self.rename_check.isChecked()
         self.CONFIG.as_uint8 = self.as_uint8.isChecked()

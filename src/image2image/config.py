@@ -13,7 +13,7 @@ from image2image.utils._appdirs import USER_CONFIG_DIR
 class State:
     """State of the application."""
 
-    _allow_valis_run: ty.Optional[bool] = None
+    _allow_valis_run: bool | None = None
 
     @property
     def is_mac_arm_pyinstaller(self) -> bool:
@@ -179,7 +179,7 @@ class SingleAppConfig(BaseConfig):
 
     @field_validator("tile_size", mode="before")
     @classmethod
-    def _validate_tile_size(cls, value: ty.Union[int, str]) -> int:  # type: ignore[misc]
+    def _validate_tile_size(cls, value: int | str) -> int:  # type: ignore[misc]
         """Validate path."""
         return int(value)
 
@@ -294,6 +294,14 @@ class ElastixConfig(SingleAppConfig):
         True,
         title="Write attached",
         description="Write attached.",
+        json_schema_extra={
+            "in_app": True,
+        },
+    )
+    write_native: bool = Field(
+        True,
+        title="Write native",
+        description="Write native.",
         json_schema_extra={
             "in_app": True,
         },
@@ -479,6 +487,14 @@ class ValisConfig(SingleAppConfig):
         True,
         title="Write attached",
         description="Write attached.",
+        json_schema_extra={
+            "in_app": True,
+        },
+    )
+    write_native: bool = Field(
+        True,
+        title="Write native",
+        description="Write native.",
         json_schema_extra={
             "in_app": True,
         },
@@ -821,14 +837,14 @@ class RegisterConfig(SingleAppConfig):
 
     @field_validator("viewer_orientation", mode="before")
     @classmethod
-    def _validate_orientation(cls, value: ty.Union[str, ViewerOrientation]) -> ViewerOrientation:  # type: ignore[misc]
+    def _validate_orientation(cls, value: str | ViewerOrientation) -> ViewerOrientation:  # type: ignore[misc]
         """Validate path."""
         return ViewerOrientation(value)
 
 
 STATE = State()
 
-APP_CONFIG: ty.Optional[Config] = None
+APP_CONFIG: Config | None = None
 
 
 def get_app_config() -> Config:
@@ -839,7 +855,7 @@ def get_app_config() -> Config:
     return APP_CONFIG
 
 
-VIEWER_CONFIG: ty.Optional[ViewerConfig] = None
+VIEWER_CONFIG: ViewerConfig | None = None
 
 
 def get_viewer_config() -> ViewerConfig:
@@ -850,7 +866,7 @@ def get_viewer_config() -> ViewerConfig:
     return VIEWER_CONFIG
 
 
-CROP_CONFIG: ty.Optional[CropConfig] = None
+CROP_CONFIG: CropConfig | None = None
 
 
 def get_crop_config() -> CropConfig:
@@ -861,7 +877,7 @@ def get_crop_config() -> CropConfig:
     return CROP_CONFIG
 
 
-MERGE_CONFIG: ty.Optional[MergeConfig] = None
+MERGE_CONFIG: MergeConfig | None = None
 
 
 def get_merge_config() -> MergeConfig:
@@ -872,7 +888,7 @@ def get_merge_config() -> MergeConfig:
     return MERGE_CONFIG
 
 
-FUSION_CONFIG: ty.Optional[FusionConfig] = None
+FUSION_CONFIG: FusionConfig | None = None
 
 
 def get_fusion_config() -> FusionConfig:
@@ -883,7 +899,7 @@ def get_fusion_config() -> FusionConfig:
     return FUSION_CONFIG
 
 
-CONVERT_CONFIG: ty.Optional[ConvertConfig] = None
+CONVERT_CONFIG: ConvertConfig | None = None
 
 
 def get_convert_config() -> ConvertConfig:
@@ -894,7 +910,7 @@ def get_convert_config() -> ConvertConfig:
     return CONVERT_CONFIG
 
 
-REGISTER_CONFIG: ty.Optional[RegisterConfig] = None
+REGISTER_CONFIG: RegisterConfig | None = None
 
 
 def get_register_config() -> RegisterConfig:
@@ -905,7 +921,7 @@ def get_register_config() -> RegisterConfig:
     return REGISTER_CONFIG
 
 
-VALIS_CONFIG: ty.Optional[ValisConfig] = None
+VALIS_CONFIG: ValisConfig | None = None
 
 
 def get_valis_config() -> ValisConfig:
@@ -916,7 +932,7 @@ def get_valis_config() -> ValisConfig:
     return VALIS_CONFIG
 
 
-RUNNER_CONFIG: ty.Optional[RunnerConfig] = None
+RUNNER_CONFIG: RunnerConfig | None = None
 
 
 def get_runner_config() -> RunnerConfig:
@@ -927,7 +943,7 @@ def get_runner_config() -> RunnerConfig:
     return RUNNER_CONFIG
 
 
-ELASTIX_CONFIG: ty.Optional[ElastixConfig] = None
+ELASTIX_CONFIG: ElastixConfig | None = None
 
 
 def get_elastix_config() -> ElastixConfig:
@@ -938,7 +954,7 @@ def get_elastix_config() -> ElastixConfig:
     return ELASTIX_CONFIG
 
 
-ELASTIX3D_CONFIG: ty.Optional[Elastix3dConfig] = None
+ELASTIX3D_CONFIG: Elastix3dConfig | None = None
 
 
 def get_elastix3d_config() -> Elastix3dConfig:
