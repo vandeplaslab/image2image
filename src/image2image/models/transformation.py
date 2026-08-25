@@ -50,6 +50,38 @@ class Transformation(BaseModel):
     # affine model
     moving_initial_affine: ty.Optional[np.ndarray] = None
 
+    @classmethod
+    def from_i2r(cls, path: PathLike, validate_paths: bool = True) -> "Transformation":
+        """Load a ready-to-use transformation from an image2image registration file."""
+        (
+            transformation_type,
+            fixed_paths,
+            _fixed_paths_missing,
+            fixed_points,
+            fixed_resolution,
+            _fixed_reader_kws,
+            moving_paths,
+            _moving_paths_missing,
+            moving_points,
+            moving_resolution,
+            _moving_reader_kws,
+        ) = load_transform_from_file(
+            path,
+            fixed_image=True,
+            moving_image=True,
+            validate_paths=validate_paths,
+        )
+
+        obj = cls(
+            transformation_type=transformation_type,
+            fixed_model=DataModel(paths=fixed_paths or [], resolution=fixed_resolution, is_fixed=True),
+            moving_model=DataModel(paths=moving_paths or [], resolution=moving_resolution),
+            fixed_points=fixed_points,
+            moving_points=moving_points,
+        )
+        obj.transform = obj.compute()
+        return obj
+
     @property
     def moving_to_fixed_ratio(self) -> float:
         """Ratio between the moving and fixed model."""
