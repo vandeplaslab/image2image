@@ -78,15 +78,21 @@ nav:
   - Home: index.md
   - Viewer apps: 
     - Viewer app: apps/viewer.md
+    - Annotate: apps/annotate.md
     # - Sync app (not available yet): apps/na.md
     # - Volume app (not available yet): apps/na.md
   - Registration apps: 
     - Register app: apps/register.md
+    - Validate app: apps/validate.md
     - Elastix app: apps/elastix.md
+    - Serial Sections app: apps/serial.md
     - Valis app: apps/valis.md
   - Utility apps: 
     - Crop app: apps/crop.md
     - Convert app: apps/convert.md
+    - Volume Builder: apps/volume.md
+    - Illumination Correction: apps/illumination.md
+    - Stain Separation: apps/stains.md
     - Merge app: apps/merge.md
     - Fusion app: apps/fusion.md
   - Dialogs:
