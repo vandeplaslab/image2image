@@ -56,6 +56,7 @@ from image2image.utils.utilities import MICROMETER_UNITS, ensure_extension, get_
 
 if ty.TYPE_CHECKING:
     from image2image.models.data import DataModel
+    from image2image.qt._serial import SerialPanel
     from image2image.qt._wsiprep._wsiprep import GroupByDialog, MaskDialog
 
 
@@ -102,7 +103,10 @@ class ImageElastix3dWindow(Window):
         .add("flip(l-r)", "flip_lr", "bool", 70, sizing="fixed", tooltip="Flip image left-right.", checkable=True)
     )
 
-    def __init__(self, parent: QWidget | None = None, run_check_version: bool = True, **kwargs: ty.Any):
+    def __init__(
+        self, parent: QWidget | None = None, run_check_version: bool = True, serial_mode: bool = False, **kwargs: ty.Any
+    ) -> None:
+        self.serial_panel: SerialPanel | None = None
         self.CONFIG: Elastix3dConfig = get_elastix3d_config()
         super().__init__(
             parent,
@@ -111,6 +115,19 @@ class ImageElastix3dWindow(Window):
         )
         self.registration = Registration()
         self._setup_config()
+        if serial_mode:
+            self.enable_serial()
+        if kwargs.get("project_dir"):
+            self._on_load_from_project(str(kwargs["project_dir"]))
+        elif kwargs.get("image_path"):
+            self._image_widget.on_set_path(kwargs["image_path"])
+
+    def enable_serial(self) -> None:
+        """Add serial reconstruction tabs while retaining the preparation window."""
+        if self.serial_panel is None:
+            from image2image.qt._serial import SerialPanel
+
+            self.serial_panel = SerialPanel(self)
 
     @staticmethod
     def _setup_config() -> None:
@@ -143,12 +160,14 @@ class ImageElastix3dWindow(Window):
         """Update registration model."""
         to_remove: list[str] = []
         for image_model in self.registration.model_iter():
-            if image_model.key not in self.data_model.keys:
+            if image_model.key not in self.data_model.keys and (self.serial_panel is None or image_model.path.exists()):
                 to_remove.append(image_model.key)
         for key in to_remove:
             self.registration.remove(key)
         self._generate_group_options()
         self.registration.regroup()
+        if self.serial_panel is not None:
+            self.serial_panel.refresh()
 
     def on_populate_table(self) -> None:
         """Remove items that are not present in the model."""
@@ -161,6 +180,9 @@ class ImageElastix3dWindow(Window):
                 else:
                     self.registration.images[reader.key].update_from_reader(reader)
                 data.append(self.registration.images[reader.key].to_table())
+            if self.serial_panel is not None:
+                loaded_keys = {reader.key for reader in wrapper.reader_iter()}
+                data.extend(model.to_table() for key, model in self.registration.images.items() if key not in loaded_keys)
             # update table
             model_index = self.table.selectionModel().currentIndex()
             self.table.reset_data()
@@ -168,6 +190,9 @@ class ImageElastix3dWindow(Window):
             if model_index.isValid() and model_index.row() < self.table.n_rows:
                 self.table.scrollTo(model_index)
             self._generate_group_options()
+
+            if self.serial_panel is not None:
+                self.serial_panel.refresh()
 
     def on_depopulate_table(self) -> None:
         """Remove items that are not present in the model."""
@@ -212,6 +237,8 @@ class ImageElastix3dWindow(Window):
                 logger.trace(f"Plotting: {checked}")
                 for index in tqdm(checked, desc="Plotting images..."):
                     key = self.table.get_value(self.TABLE_CONFIG.key, index)
+                    if key not in wrapper.data:
+                        continue
                     reader = wrapper.data[key]
                     model = self.registration.images[reader.key]
                     if not model.keep:
@@ -278,7 +305,9 @@ class ImageElastix3dWindow(Window):
             for index in range(self.table.n_rows):
                 key = self.table.get_value(self.TABLE_CONFIG.key, index)
                 model = self.registration.images[key]
-                is_reference = model.is_reference
+                is_reference = (
+                    key == self.serial_panel.settings.reference if self.serial_panel is not None else model.is_reference
+                )
                 # is_reference = key == self.registration.reference
                 cmap = "red" if is_reference else ("magenta" if index in checked else "cyan")
                 if key in self.view.layers:
@@ -300,7 +329,7 @@ class ImageElastix3dWindow(Window):
         self, model: RegistrationImage, silent: bool = False, check_ref: bool = True, check_lock: bool = True
     ) -> bool:
         """Check if the model can be updated."""
-        if check_ref and model.is_reference:
+        if check_ref and model.is_reference and self.serial_panel is None:
             if not silent:
                 hp.toast(
                     self,
@@ -345,11 +374,24 @@ class ImageElastix3dWindow(Window):
                 return
             model.flip_lr = value
             self._transform(model)
+        if self.serial_panel is not None:
+            self.serial_panel.refresh()
 
     def on_table_double_clicked(self, index):
         """Double-clicked."""
         row, column = index.row(), index.column()
         model = self.registration.images[self.table.get_value(self.TABLE_CONFIG.key, row)]
+        if self.serial_panel is not None and column == self.TABLE_CONFIG.image_order:
+            number = hp.get_integer(
+                self, "Physical section number", "Section number",
+                self.serial_panel.settings.section_numbers[model.key], 1, 1_000_000, 1
+            )
+            if number is not None:
+                try:
+                    self.serial_panel.set_section_number(model.key, number)
+                except ValueError as exc:
+                    hp.warn_pretty(self, str(exc))
+            return
         if not self.check_if_can_update(model):
             return
         if column in [self.TABLE_CONFIG.rotate, self.TABLE_CONFIG.translate_x, self.TABLE_CONFIG.translate_y]:
@@ -383,6 +425,8 @@ class ImageElastix3dWindow(Window):
         if key in self.view.layers:
             layer = self.view.layers[key]
             layer.affine = model.affine(layer.data.shape)
+        if self.serial_panel is not None:
+            self.serial_panel.refresh()
 
     def on_rotate(self, which: str) -> None:
         """Rotate image."""
@@ -479,7 +523,7 @@ class ImageElastix3dWindow(Window):
             for index in checked:
                 key = self.table.get_value(self.TABLE_CONFIG.key, index)
                 model = self.registration.images[key]
-                if model.is_reference:
+                if model.is_reference and self.serial_panel is None:
                     continue
                 model.lock = lock
                 self.table.set_value(self.TABLE_CONFIG.lock, index, model.lock)
@@ -492,11 +536,13 @@ class ImageElastix3dWindow(Window):
             for index in checked:
                 key = self.table.get_value(self.TABLE_CONFIG.key, index)
                 model = self.registration.images[key]
-                if model.is_reference:
+                if model.is_reference and self.serial_panel is None:
                     continue
                 model.keep = keep
                 self.table.set_value(self.TABLE_CONFIG.keep, index, model.keep)
         logger.trace(f"{'Kept' if keep else 'Removed'} '{len(checked)}' images in {timer()}")
+        if self.serial_panel is not None:
+            self.serial_panel.refresh()
 
     def _generate_group_options(self) -> None:
         """Update combo box with group options including None and All."""
@@ -603,6 +649,12 @@ class ImageElastix3dWindow(Window):
 
     def on_reference(self) -> None:
         """Set the currently selected row as a reference."""
+        if self.serial_panel is not None:
+            row = self.table.selectionModel().currentIndex().row()
+            if row >= 0:
+                self.serial_panel.settings.reference = self.table.get_value(self.TABLE_CONFIG.key, row)
+                self.serial_panel.refresh()
+            return
         project_mode = self.project_mode.currentText()
         single_ref = "per list" in project_mode
         if self.table.selectionModel().hasSelection():
@@ -983,6 +1035,8 @@ class ImageElastix3dWindow(Window):
 
     def _handle_key_press(self, key: int) -> bool:
         """Handle key-press event."""
+        if self.serial_panel is not None and self.serial_panel.tabs.currentIndex() != 0:
+            return False
         if key == Qt.Key.Key_Escape:
             return True
         # movement size
@@ -1284,6 +1338,9 @@ class ImageElastix3dWindow(Window):
             path = Path(path_)
             self.CONFIG.output_dir = str(path.parent)
             paths, missing_paths, config = load_from_file(path)
+            if "serial" in config:
+                self._load_serial_project(path)
+                return
 
             # locate paths that are missing
             if missing_paths:
@@ -1294,6 +1351,9 @@ class ImageElastix3dWindow(Window):
             # cleanup paths
             keys_to_keep = [get_key(path) for path in paths]
             config = remove_if_not_present(config, keys_to_keep)
+            if self.serial_panel is not None:
+                self._image_widget.on_close_dataset(force=True)
+                self.registration = Registration()
 
             # add images to registration
             for item in config["images"].values():
@@ -1305,6 +1365,50 @@ class ImageElastix3dWindow(Window):
             # add images
             logger.trace(f"Found {len(paths)} images in project file")
             self._image_widget.on_set_path(paths)
+            if self.serial_panel is not None:
+                self.serial_panel.refresh()
+
+    def _load_serial_project(self, path: Path) -> None:
+        """Restore physical section positions, retaining unavailable source records."""
+        from image2image.qt._dialogs import LocateFilesDialog
+        from image2image.utils.serial import load_serial_project
+
+        registration = load_serial_project(path)
+        missing = [model.path for model in registration.images.values() if not model.path.exists()]
+        if missing:
+            dialog = LocateFilesDialog(self, self.CONFIG, missing)
+            if dialog.exec_():
+                replacements = {pair["old_path"]: pair["new_path"] for pair in dialog.paths if pair["new_path"]}
+                for model in registration.images.values():
+                    model.path = Path(replacements.get(model.path, model.path))
+        keys = {key: get_key(model.path) for key, model in registration.images.items()}
+        if len(set(keys.values())) != len(keys):
+            hp.warn_pretty(self, "Each serial section must use a different image path.")
+            return
+        registration.serial.section_numbers = {
+            keys[key]: number for key, number in registration.serial.section_numbers.items()
+        }
+        registration.serial.reference = keys.get(registration.serial.reference)
+        registration.images = {keys[key]: model for key, model in registration.images.items()}
+        for key, model in registration.images.items():
+            model.key = key
+        for group in registration.groups.values():
+            group.keys = [keys.get(key, key) for key in group.keys]
+        self._image_widget.on_close_dataset(force=True)
+        self.registration = registration
+        self.enable_serial()
+        self.table.reset_data()
+        self.table.add_data([model.to_table() for model in registration.images.values()])
+        paths = [model.path for model in registration.images.values() if model.path.exists()]
+        if paths:
+            self._image_widget.on_set_path(paths)
+        self.serial_panel.refresh()
+        if registration.serial.volume_path:
+            try:
+                self.serial_panel.volume.open(registration.serial.volume_path)
+                self.serial_panel.tabs.setCurrentIndex(2)
+            except (OSError, ValueError, KeyError) as exc:
+                hp.warn_pretty(self, f"Could not reopen completed volume: {exc}")
 
     def close(self, force=False):
         """Override to handle closing app or just the window."""
@@ -1331,6 +1435,8 @@ class ImageElastix3dWindow(Window):
 
         if self._console:
             self._console.close()
+        if self.serial_panel is not None:
+            self.serial_panel.dispose()
         self.CONFIG.save()
         evt.accept()
 

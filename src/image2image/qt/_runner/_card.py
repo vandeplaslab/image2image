@@ -42,6 +42,7 @@ class QtRunnerProjectCard(QFrame):
     evt_images = Signal(object)
     evt_network = Signal(object)
     evt_viewer = Signal(object)
+    evt_validate = Signal(object)
     evt_review = Signal(object, object)
     evt_edit = Signal(object)
     evt_remove = Signal(object)
@@ -98,6 +99,12 @@ class QtRunnerProjectCard(QFrame):
             func=lambda: self.evt_viewer.emit(self.project.project_dir),
             disabled=not has_registration_images(self.project.project_dir),
             size_preset="normal",
+        )
+
+        self.validate_btn = hp.make_btn(
+            self,
+            "Validate...",
+            func=lambda: self.evt_validate.emit(self.project.project_dir),
         )
 
         self.review_toggle = hp.make_toggle(
@@ -199,6 +206,7 @@ class QtRunnerProjectCard(QFrame):
                 self.images_btn,
                 self.network_btn,
                 self.viewer_btn,
+                self.validate_btn,
                 self.edit_btn,
                 self.remove_btn,
                 spacing=2,
@@ -267,6 +275,12 @@ class QtRunnerProjectCard(QFrame):
         is_queued = self.status in QUEUED_STATUSES
         hp.disable_widgets(self.queue_btn, disabled=is_running or is_queued)
         hp.disable_widgets(self.viewer_btn, disabled=not has_registration_images(self.project.project_dir))
+        self.validate_btn.setEnabled(
+            self.project.kind == "elastix"
+            and not is_running
+            and not is_queued
+            and (self.project.project_dir / "registered-project.config.json").is_file()
+        )
         hp.disable_widgets(self.edit_btn, disabled=self.review_state != "bad")
         hp.disable_widgets(self.remove_btn, disabled=is_running)
         self.review_toggle.value = self._review_text()

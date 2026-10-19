@@ -1,0 +1,333 @@
+"""Lossless identity, coordinate conversion, transactions, and tiled annotation IO."""
+
+from __future__ import annotations
+
+import json
+import sqlite3
+from dataclasses import replace
+from pathlib import Path
+
+import numpy as np
+import pytest
+import tifffile
+from shapely.geometry import LineString, MultiPolygon, Polygon, box
+
+from image2image.models.annotation import AnnotationClass, AnnotationObject, CoordinateSpec, EditCommand, SlideGeometry
+from image2image.utils.annotation.geometry import brush_object, edit_geometry, merge_objects, split_object
+from image2image.utils.annotation.images import PatchReader, inspect_slide
+from image2image.utils.annotation.io import export_geojson, export_labels, import_geojson, import_labels
+from image2image.utils.annotation.render import AnnotationRenderer
+from image2image.utils.annotation.store import AnnotationStore
+
+
+@pytest.fixture
+def project(tmp_path: Path):
+    image = tmp_path / "image.ome.tiff"
+    tifffile.imwrite(
+        image, np.zeros((96, 128), dtype=np.uint8), metadata={"axes": "YX", "PhysicalSizeX": 0.4, "PhysicalSizeY": 0.7}
+    )
+    with AnnotationStore(tmp_path / "test.i2annotate", create=True) as store:
+        slide = inspect_slide(image)
+        store.save_slide(slide)
+        class_ = AnnotationClass(name="Tissue", color="#00ff00")
+        store.save_class(class_)
+        set_id = store.create_set(slide.id, "Manual")
+        yield store, slide, class_, set_id
+
+
+def add(store, set_id, geometry=None, object_id=23, class_id=None, **kwargs):
+    obj = AnnotationObject(
+        set_id, object_id, geometry if geometry is not None else box(0, 0, 20, 20), class_id, **kwargs
+    )
+    return store.apply(EditCommand("Add", [(None, obj)]))[0]
+
+
+def test_split_merge_identity_history_reopen(project):
+    store, slide, cls, set_id = project
+    key = add(store, set_id, object_id=2**60, class_id=cls.id, properties={"custom": "keep"})
+    keys = split_object(store, key, LineString([(7, -1), (7, 25)]), survivor=1)
+    assert len(keys) == 2
+    assert store.get(key).object_id == 2**60
+    assert store.get(key).geometry.area == 140
+    assert {obj.object_id for obj in store.iter_objects(set_id=set_id)} == {2**60, 2**60 + 1}
+    merge_objects(store, keys, key)
+    assert store.count(set_id) == 1
+    assert store.get(key).geometry.area == 400
+    assert store.get(key).properties == {"custom": "keep"}
+    assert store.get(key).provenance["lineage"][-1]["parents"] == [2**60 + 1, 2**60]
+    with AnnotationStore(store.path) as reopened:
+        reopened.undo()
+        assert reopened.count(set_id) == 2
+        reopened.undo()
+        assert reopened.get(key).geometry.equals(box(0, 0, 20, 20))
+        reopened.redo()
+        assert reopened.count(set_id) == 2
+    assert store.hit_test(slide.id, (2, 2)).key == key
+
+
+def test_atomic_invalid_geometry_locks_and_redo_branch(project):
+    store, _slide, cls, set_id = project
+    key = add(store, set_id, class_id=cls.id)
+    revision = store.revision
+    invalid = Polygon([(0, 0), (5, 5), (0, 5), (5, 0)])
+    with pytest.raises(ValueError):
+        store.apply(EditCommand("Bad batch", [(key, None), (None, AnnotationObject(set_id, "bad", invalid))]))
+    assert store.count(set_id) == 1 and store.revision == revision
+    cls.locked = True
+    store.save_class(cls)
+    with pytest.raises(ValueError, match="locked"):
+        edit_geometry(store, key, box(0, 0, 5, 5))
+    store.undo()
+    edit_geometry(store, key, box(0, 0, 5, 5))
+    assert store.redo() is None
+    obj = store.get(key)
+    store.apply(EditCommand("Lock", [(key, replace(obj, properties={"isLocked": True}))]), allow_unlock=True)
+    with pytest.raises(ValueError, match="locked"):
+        edit_geometry(store, key, box(0, 0, 8, 8))
+    store.apply(
+        EditCommand("Unlock", [(key, replace(store.get(key), properties={"isLocked": False}))]), allow_unlock=True
+    )
+    edit_geometry(store, key, box(0, 0, 8, 8))
+    assert store.get(key).geometry.area == 64
+
+
+def test_brush_holes_and_multipart(project):
+    store, _slide, _cls, set_id = project
+    key = add(store, set_id)
+    brush_object(store, key, box(5, 5, 10, 10), subtract=True)
+    assert len(store.get(key).geometry.interiors) == 1
+    brush_object(store, key, box(40, 40, 45, 45))
+    assert store.get(key).geometry.geom_type == "MultiPolygon"
+    assert store.get(key).object_id == 23
+
+
+def test_explicit_coordinates():
+    slide = SlideGeometry(shape=(100, 200), spacing=(0.4, 0.7), origin=(-22, 13))
+    points = np.array([[0.5, 0.5], [31, 92]])
+    np.testing.assert_allclose(slide.to_pixels(slide.to_physical(points)), points)
+    geometry = Polygon([(1.1, 2.2), (8.7, 2.2), (8.7, 19.9)])
+    for spec in (CoordinateSpec(units="um"), CoordinateSpec(offset=(120, 89), downsample=(2, 3))):
+        result = spec.transform(spec.transform(geometry, slide), slide, inverse=True)
+        assert result.equals_exact(geometry, 1e-12)
+    with pytest.raises(ValueError, match="calibrat"):
+        CoordinateSpec(units="um").transform(geometry, SlideGeometry(shape=(100, 100)))
+    with pytest.raises(ValueError, match="pixel"):
+        CoordinateSpec(units="um", offset=(1, 2)).transform(geometry, slide)
+
+
+@pytest.mark.parametrize("units", ["px", "um"])
+def test_geojson_preserves_holes_ids_properties(project, tmp_path, units):
+    store, slide, cls, set_id = project
+    polygon = Polygon(box(2, 2, 20, 20).exterior, [box(7, 7, 12, 12).exterior])
+    geometry = MultiPolygon([polygon, box(50, 50, 55, 55)])
+    add(
+        store,
+        set_id,
+        geometry,
+        object_id="000012",
+        class_id=cls.id,
+        properties={"name": "sample", "measurements": {"x": 4}},
+    )
+    path = tmp_path / "objects.geojson"
+    spec = CoordinateSpec(units=units)
+    export_geojson(store, set_id, path, spec)
+    imported = import_geojson(store, slide.id, path, spec)
+    obj = next(store.iter_objects(set_id=imported))
+    assert obj.object_id == "000012"
+    assert obj.geometry.equals_exact(geometry, 1e-12)
+    assert obj.properties["measurements"] == {"x": 4}
+    assert obj.class_id == cls.id
+    assert store.find_id(imported, 12) is None
+
+
+@pytest.mark.parametrize("container", ["single", "array", "collection"])
+def test_geojson_forms_and_atomic_failure(project, tmp_path, container):
+    store, slide, _cls, _set_id = project
+    feature = {
+        "type": "Feature",
+        "id": 2**63 + 1,
+        "geometry": {"type": "Polygon", "coordinates": [[[0, 0], [2, 0], [2, 2], [0, 0]]]},
+        "properties": {},
+    }
+    data = (
+        feature
+        if container == "single"
+        else [feature]
+        if container == "array"
+        else {"features": [feature], "type": "FeatureCollection"}
+    )
+    path = tmp_path / "input.geojson"
+    path.write_text(json.dumps(data))
+    set_id = import_geojson(store, slide.id, path, CoordinateSpec())
+    assert next(store.iter_objects(set_id=set_id)).object_id == 2**63 + 1
+    existing = store.sets(slide.id)
+    path.write_text(json.dumps([feature, feature]))
+    with pytest.raises(sqlite3.IntegrityError):
+        import_geojson(store, slide.id, path, CoordinateSpec())
+    assert store.sets(slide.id) == existing
+
+
+@pytest.mark.parametrize("extension", [".tiff", ".ome.zarr"])
+def test_integer_label_roundtrip_large_ids_seams_and_holes(project, tmp_path, extension):
+    store, slide, _cls, _set_id = project
+    labels = np.zeros((96, 128), dtype=np.uint64)
+    labels[3:89, 4:55] = 2**63 + 7
+    labels[9:21, 12:35] = 0
+    labels[0, 0] = 2**63 + 7
+    labels[17:81, 73:110] = 11
+    source = tmp_path / "source.tiff"
+    tifffile.imwrite(source, labels)
+    set_id = import_labels(store, slide.id, source, CoordinateSpec(), tile_size=16)
+    assert store.count(set_id) == 2
+    path = tmp_path / ("output" + extension)
+    export_labels(store, set_id, path, CoordinateSpec(), tile_size=16)
+    if extension == ".tiff":
+        np.testing.assert_array_equal(tifffile.imread(path), labels)
+    else:
+        import zarr
+
+        np.testing.assert_array_equal(zarr.open(str(path), mode="r")["0"][:], labels)
+    reimported = import_labels(store, slide.id, path, CoordinateSpec(), tile_size=16)
+    for obj in store.iter_objects(set_id=set_id):
+        assert obj.geometry.equals(store.find_id(reimported, obj.object_id).geometry)
+
+
+def test_mapped_raster_ids_and_overlap_rejection(project, tmp_path):
+    store, slide, cls, set_id = project
+    add(store, set_id, box(3, 3, 20, 20), "cell-01", cls.id)
+    with pytest.raises(ValueError, match="representable"):
+        export_labels(store, set_id, tmp_path / "invalid.ome.tiff", CoordinateSpec())
+    assert not (tmp_path / "invalid.ome.tiff").exists()
+    path = tmp_path / "mapped.ome.tiff"
+    export_labels(store, set_id, path, CoordinateSpec(), mapped_ids=True, tile_size=16)
+    imported = import_labels(store, slide.id, path, CoordinateSpec(), tile_size=16)
+    assert store.find_id(imported, "cell-01").class_id == cls.id
+    add(store, set_id, box(10, 10, 25, 25), "cell-02", cls.id)
+    with pytest.raises(ValueError, match="overlap"):
+        export_labels(store, set_id, tmp_path / "overlap.tiff", CoordinateSpec(), mapped_ids=True)
+    assert not (tmp_path / "overlap.tiff.objects.json").exists()
+
+
+def test_cancel_and_staging_recovery(project, tmp_path):
+    store, slide, _cls, set_id = project
+    add(store, set_id)
+    path = tmp_path / "cancel.geojson"
+    with pytest.raises(InterruptedError):
+        export_geojson(store, set_id, path, CoordinateSpec(), cancel=lambda: True)
+    assert not path.exists()
+    staged = store.create_set(slide.id, "Interrupted", staging=True)
+    store.append_staged(staged, [AnnotationObject(staged, "x", box(0, 0, 1, 1))])
+    assert staged not in {item["id"] for item in store.sets(slide.id)}
+    assert store.recover() == 1
+
+
+def test_proposal_partial_review_refine_undo_and_staleness(project):
+    store, slide, _cls, set_id = project
+    revision = store.revision
+    proposed = store.create_set(slide.id, "Predictions", staging=True, metadata={"request": {"revision": revision}})
+    store.append_staged(
+        proposed, [AnnotationObject(proposed, i, box(i * 10, 0, i * 10 + 5, 5), review="proposed") for i in range(3)]
+    )
+    store.publish_set(proposed, prediction=True, expected_revision=revision)
+    keys = [obj.key for obj in store.iter_objects(set_id=proposed, review="proposed")]
+    edit_geometry(store, keys[0], box(0, 0, 4, 4))
+    assert store.revision == revision
+    store.review(proposed, accept=True, keys=keys[:1])
+    store.undo()
+    store.review(proposed, accept=True, keys=keys[:1])
+    store.review(proposed, accept=True, keys=keys[1:2])
+    assert store.count(proposed) == 2
+    add(store, set_id, object_id="new")
+    with pytest.raises(ValueError, match="stale"):
+        store.review(proposed, accept=True, keys=keys[2:])
+    store.review(proposed, accept=False, keys=keys[2:])
+
+
+def test_image_calibration_patch_mapping_and_no_full_array(tmp_path):
+    image = np.arange(120 * 180, dtype=np.uint16).reshape(120, 180)
+    path = tmp_path / "sample.ome.tiff"
+    tifffile.imwrite(path, image, metadata={"axes": "YX", "PhysicalSizeX": 0.3, "PhysicalSizeY": 0.8})
+    assert inspect_slide(path).geometry.spacing == (0.3, 0.8)
+    with PatchReader(path) as reader:
+        patch = reader.read((14, 18, 44, 38), channels=(0,))
+        np.testing.assert_array_equal(patch.data[..., 0], image[18:38, 14:44])
+        assert patch.offset == (14, 18) and patch.downsample == (1, 1)
+        small = reader.read((0, 0, 180, 120), downsample=10)
+        assert small.data.shape == (12, 18, 1)
+        with pytest.raises(ValueError, match="memory"):
+            reader.read((0, 0, 180, 120), max_pixels=30)
+    path = tmp_path / "unknown.tiff"
+    tifffile.imwrite(path, image)
+    assert inspect_slide(path).geometry.spacing is None
+
+
+def test_renderer_cache_and_visibility(project):
+    store, slide, cls, set_id = project
+    add(store, set_id, class_id=cls.id)
+    renderer = AnnotationRenderer(store.path, max_bytes=256 * 256 * 4)
+    frame = renderer.render(slide.id, (0, 0, 100, 90), set_id=set_id)
+    assert frame.rgba[5, 5, 3] > 0
+    assert renderer.cache_bytes <= renderer.max_bytes
+    cls.visible = False
+    store.save_class(cls)
+    frame = renderer.render(slide.id, (0, 0, 100, 90), set_id=set_id)
+    assert not frame.rgba.any()
+
+
+def test_numeric_ids_are_not_reused_after_deletion_or_undo(project):
+    store, _slide, _cls, set_id = project
+    key = add(store, set_id, object_id=2**64 - 3)
+    store.apply(EditCommand("Delete", [(key, None)]))
+    fresh = store.next_id(set_id, integer=True)
+    assert fresh == 2**64 - 2
+    key = add(store, set_id, object_id=fresh)
+    store.undo()
+    assert store.next_id(set_id, integer=True) == 2**64 - 1
+
+
+def test_failed_import_does_not_publish_classes(project, tmp_path):
+    store, slide, _cls, _set = project
+    path = tmp_path / "bad.geojson"
+    feature = {
+        "type": "Feature",
+        "id": "one",
+        "properties": {"classification": {"name": "Temporary", "color": [1, 2, 3]}},
+        "geometry": {"type": "Polygon", "coordinates": [[[0, 0], [5, 0], [5, 5], [0, 0]]]},
+    }
+    path.write_text(json.dumps([feature, feature]))
+    with pytest.raises(sqlite3.IntegrityError):
+        import_geojson(store, slide.id, path, CoordinateSpec())
+    assert [item.name for item in store.classes()] == ["Tissue"]
+    assert store.db.execute("SELECT count(*) FROM classes").fetchone()[0] == 1
+
+
+def test_export_snapshot_during_concurrent_edit(project, tmp_path):
+    store, _slide, _cls, set_id = project
+    add(store, set_id, object_id="original")
+
+    def edited(_count, _message):
+        with AnnotationStore(store.path) as other:
+            add(other, set_id, object_id="new")
+
+    path = export_geojson(store, set_id, tmp_path / "snapshot.geojson", CoordinateSpec(), progress=edited)
+    assert [feature["id"] for feature in json.loads(path.read_text())["features"]] == ["original"]
+    assert store.count(set_id) == 2
+
+
+def test_multichannel_patches_and_lazy_display_pyramid(tmp_path):
+    import dask.array as da
+    import zarr
+
+    path = tmp_path / "channels.zarr"
+    root = zarr.open_group(str(path), mode="w", zarr_format=2)
+    data = root.create_array("0", shape=(4, 4096, 5000), chunks=(1, 128, 128), dtype="u1", fill_value=0)
+    for c in range(4):
+        data[c, :128, :128] = c + 1
+    root.attrs["multiscales"] = [{"axes": ["c", "y", "x"], "datasets": [{"path": "0"}]}]
+    with PatchReader(path) as reader:
+        patch = reader.read((16, 20, 25, 28), channels=(3, 1))
+        assert patch.data.shape == (8, 9, 2)
+        np.testing.assert_array_equal(patch.data[0, 0], [4, 2])
+        assert all(isinstance(level, da.Array) for level in reader.display_levels)
+        assert max(reader.display_levels[-1].shape[1:]) <= 1024
+        assert reader.levels[0].shape == (4, 4096, 5000)

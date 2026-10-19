@@ -15,6 +15,7 @@ from koyo.system import IS_MAC, IS_PYINSTALLER, is_installed
 from image2image import __version__
 
 AVAILABLE_TOOLS = [
+    "annotate",
     "launcher",
     "register",
     "viewer",
@@ -22,9 +23,14 @@ AVAILABLE_TOOLS = [
     "elastix",
     "valis",
     "runner",
+    "validate",
     "elastix3d",
+    "serial",
     "fusion",
     "convert",
+    "volume",
+    "illumination",
+    "stains",
     "merge",
     "napari",
 ]
@@ -79,14 +85,14 @@ def _cli_setup(
     "-p",
     "--project_dir",
     help="Path to an Elastix/Valis project directory or config file, or a Fiducials project file"
-    " (for 'elastix', 'valis', or 'register' tool).",
+    " (for 'elastix', 'valis', 'register', 'validate', 'serial', or 'annotate' tool).",
     type=click.Path(exists=True, resolve_path=True, file_okay=True, dir_okay=True),
     show_default=True,
 )
 @click.option(
     "-f",
     "--file",
-    help="Path to microscopy images (for 'viewer' tool).",
+    help="Path to microscopy images (for 'viewer', 'illumination', or 'stains' tool).",
     type=click.UNPROCESSED,
     show_default=True,
     multiple=True,
@@ -95,7 +101,7 @@ def _cli_setup(
 @click.option(
     "-F",
     "--file_dir",
-    help="Path to directory with microscopy images (for 'viewer' tool).",
+    help="Path to directory with microscopy images (for 'viewer', 'illumination', or 'stains' tool).",
     type=click.Path(exists=True, resolve_path=True, file_okay=False, dir_okay=True),
     show_default=True,
 )
@@ -138,13 +144,19 @@ def cli(
     \b
     Available tools:
     launcher - opens a dialog where you can launch any of the tools.
+    annotate - edits tissue classes, polygons and label objects with reviewed AI predictions
     viewer - opens a dialog where you can view images, shapes and points data
     register - opens a dialog where you can co-register images using affine transformation
     crop - opens a dialog where you can crop (and mask) images
     elastix - opens a dialog where you can co-register whole slide images using i2reg-elastix
     valis - opens a dialog where you can co-register whole-slide images using i2reg-valis
     runner - opens a dialog where you can queue Elastix/Valis registration projects
+    validate - compares registrations using independent landmarks, masks and deformation maps
+    serial - prepares, registers and reconstructs serial sections as OME-Zarr volumes
     convert - opens a dialog where you can convert images to OME-TIFF
+    volume - assembles aligned slides and selected channels into an OME-Zarr volume
+    illumination - previews and exports dark, flat-field, and background correction
+    stains - separates brightfield stains and normalizes batches against a reference slide
     merge - opens a dialog where you can merge multiple image channels and images together
     fusion - opens a dialog where you can prepare data for image fusion
     """
@@ -163,6 +175,10 @@ def cli(
         )
     return
 
+
+from image2image.serial_cli import serial
+
+cli.add_command(serial, help_group="Registration")
 
 merge = None
 if is_installed("image2image_io"):

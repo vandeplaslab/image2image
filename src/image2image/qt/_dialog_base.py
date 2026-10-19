@@ -461,6 +461,8 @@ class BasePluginMixin(ImageViewMixin):
         hp.make_menu_item(self, "Open Elastix App", menu=menu_apps, func=self.on_open_elastix, icon="elastix")
         hp.make_menu_item(self, "Open Valis App", menu=menu_apps, func=self.on_open_valis, icon="valis")
         hp.make_menu_item(self, "Open Elastix/Valis Runner", menu=menu_apps, func=self.on_open_runner, icon="queue")
+        hp.make_menu_item(self, "Open Validate App", menu=menu_apps, func=self.on_open_validate, icon="register")
+        hp.make_menu_item(self, "Open Annotation Editor", menu=menu_apps, func=self.on_open_annotate, icon="crop")
         menu_apps.addSection("Utilities")
         hp.make_menu_item(self, "Open Crop App", menu=menu_apps, func=self.on_open_crop, icon="crop")
         hp.make_menu_item(
@@ -471,6 +473,11 @@ class BasePluginMixin(ImageViewMixin):
             # disabled=STATE.allow_convert,
             icon="convert",
         )
+        hp.make_menu_item(self, "Open Volume Builder", menu=menu_apps, func=self.on_open_volume, icon="layers")
+        hp.make_menu_item(
+            self, "Open Illumination Correction", menu=menu_apps, func=self.on_open_illumination, icon="fa5s.adjust"
+        )
+        hp.make_menu_item(self, "Open Stain Separation", menu=menu_apps, func=self.on_open_stains, icon="fa5s.adjust")
         hp.make_menu_item(self, "Open Merge App", menu=menu_apps, func=self.on_open_merge, icon="merge")
         hp.make_menu_item(self, "Open Fusion App", menu=menu_apps, func=self.on_open_fusion, icon="fusion")
         menu_apps.addSeparator()
@@ -842,6 +849,21 @@ class Window(QMainWindow, IndicatorMixin, NewVersionMixin, ThemeMixin, BasePlugi
         create_new_window("convert", *args)
 
     @staticmethod
+    def on_open_volume(*args: str) -> None:
+        """Open the OME-Zarr Volume Builder application."""
+        create_new_window("volume", *args)
+
+    @staticmethod
+    def on_open_illumination(*args: str) -> None:
+        """Open the illumination and background correction application."""
+        create_new_window("illumination", *args)
+
+    @staticmethod
+    def on_open_stains(*args: str) -> None:
+        """Open stain separation and reference normalization."""
+        create_new_window("stains", *args)
+
+    @staticmethod
     def on_open_fusion(*args: str) -> None:
         """Open fusion application."""
         create_new_window("fusion", *args)
@@ -884,6 +906,21 @@ class Window(QMainWindow, IndicatorMixin, NewVersionMixin, ThemeMixin, BasePlugi
         # return
 
         create_new_window("valis", *args)
+
+    @staticmethod
+    def on_open_serial(*args: str) -> None:
+        """Open the serial-section preparation and reconstruction workflow."""
+        create_new_window("serial", *args)
+
+    @staticmethod
+    def on_open_validate(*args: str) -> None:
+        """Open independent registration validation and deformation analysis."""
+        create_new_window("validate", *args)
+
+    @staticmethod
+    def on_open_annotate(*args: str) -> None:
+        """Open the Annotation and Label Editor."""
+        create_new_window("annotate", *args)
 
     @staticmethod
     def on_open_runner(*args: str) -> None:

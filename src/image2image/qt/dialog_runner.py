@@ -217,6 +217,12 @@ class ImageRunnerWindow(Window):
         else:
             self.on_open_valis(*args)
 
+    def on_validate_project(self, path: Path) -> None:
+        """Open completed Elastix transforms in the independent validation app."""
+        project = self.projects.get(path)
+        if project is not None and project.kind == "elastix":
+            self.on_open_validate("--project_dir", str(project.project_dir))
+
     def on_set_project_review(self, path: Path, state: ReviewState) -> None:
         """Persist and display a project review state."""
         if state not in REVIEW_STATES:
@@ -507,6 +513,7 @@ class ImageRunnerWindow(Window):
         card.evt_images.connect(lambda path: self.on_show_project_images(Path(path)))
         card.evt_network.connect(lambda path: self.on_show_project_network(Path(path)))
         card.evt_viewer.connect(lambda path: self.on_open_project_in_viewer(Path(path)))
+        card.evt_validate.connect(lambda path: self.on_validate_project(Path(path)))
         card.evt_review.connect(lambda path, state: self.on_set_project_review(Path(path), state))
         card.evt_edit.connect(lambda path: self.on_open_project_for_edits(Path(path)))
         card.evt_remove.connect(lambda path: self.on_remove_project(Path(path)))

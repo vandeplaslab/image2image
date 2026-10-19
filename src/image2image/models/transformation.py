@@ -165,7 +165,7 @@ class Transformation(BaseModel):
         return coords
 
     def error(self) -> float:
-        """Return error of the transformation."""
+        """Return fitted-landmark root-sum-square error, not independent validation accuracy."""
         if self.transform is None:
             raise ValueError("No transformation found.")
         moving_points = self.moving_points
@@ -261,7 +261,7 @@ class Transformation(BaseModel):
                 info += f"{sep}rotation: {radians:.3f} ({degrees:.3f}°)"
             if error:
                 with suppress(ValueError):
-                    info += f"{sep}error: {self.error():.2f}"
+                    info += f"{sep}fitting error (root-sum-square): {self.error():.2f}"
         if n:
             if self.fixed_points is not None:
                 info += f"{sep}no. fixed: {len(self.fixed_points)}"

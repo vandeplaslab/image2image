@@ -1405,7 +1405,8 @@ class ImageRegistrationPlugin(QWidget, BasePluginMixin):
             "<need more points>",
             bold=True,
             object_name="reg_error",
-            tooltip="Error is estimated by computing the square root of the sum of squared errors. Value is <b>red</b>"
+            tooltip="Fitting residual: square root of the sum of squared landmark errors. "
+            "This is not independent validation accuracy. Value is <b>red</b>"
             " if the error is larger than half of the moving image resolution (off by half a pixel).",
         )
         self.transform_info = hp.make_label(side_widget, "", wrap=True)
@@ -1515,7 +1516,7 @@ class ImageRegistrationPlugin(QWidget, BasePluginMixin):
         side_layout.addRow(hp.make_h_layout(self.close_btn, self.export_project_btn, stretch_id=(1,), spacing=2))
         side_layout.addRow(hidden_settings)
         side_layout.addRow(hp.make_h_line_with_text("About transformation"))
-        side_layout.addRow(hp.make_label(self, "Estimated error"), self.transform_error)
+        side_layout.addRow(hp.make_label(self, "Fitting error - root-sum-square"), self.transform_error)
         side_layout.addRow(self.transform_info)
         side_layout.addRow(hp.make_spacer_widget())
 
@@ -2139,6 +2140,7 @@ class ImageRegistrationWindow(Window):
             menu=menu_tools,
             func=self.plugin.on_show_shortcuts,
         )
+        hp.make_menu_item(self, "Validate registration...", menu=menu_tools, func=self.on_validate_registration)
 
         self.menubar = QMenuBar(self)
         self.menubar.addAction(menu_file.menuAction())
@@ -2147,6 +2149,35 @@ class ImageRegistrationWindow(Window):
         self.menubar.addAction(self._make_config_menu().menuAction())
         self.menubar.addAction(self._make_help_menu().menuAction())
         self.setMenuBar(self.menubar)
+
+    def on_validate_registration(self) -> None:
+        """Save a frozen registration snapshot and open it in the independent validation app."""
+        from qtpy.QtWidgets import QFileDialog
+
+        transform = self.plugin.transform_model
+        if not transform.is_valid():
+            hp.warn_pretty(self, "Compute a registration before opening validation.")
+            return
+        moving_key = self.plugin._get_moving_key()
+        if not moving_key:
+            return
+        data = transform.to_dict(moving_key=moving_key)
+        if len(data["fixed_paths"]) != 1 or len(data["moving_paths"]) != 1:
+            hp.warn_pretty(self, "Validation requires one fixed image and one moving image.")
+            return
+        path, _ = QFileDialog.getSaveFileName(
+            self,
+            "Save registration snapshot for validation",
+            "registration-validation.i2r.json",
+            "Register (*.i2r.json)",
+        )
+        if path:
+            from koyo.json import write_json
+
+            if not path.endswith(".i2r.json"):
+                path += ".i2r.json"
+            write_json(path, data)
+            self.on_open_validate("--project_dir", path)
 
     def _make_statusbar(self) -> None:
         """Make status bar."""

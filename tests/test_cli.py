@@ -45,6 +45,7 @@ def test_cli_io():
     [
         ("elastix", ".config.json"),
         ("register", ".i2r.json"),
+        ("serial", ".i2wsiprep.json"),
     ],
 )
 def test_cli_accepts_project_file(

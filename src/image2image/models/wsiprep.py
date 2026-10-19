@@ -12,6 +12,7 @@ from pydantic import Field, field_validator
 
 from image2image.config import get_elastix3d_config
 from image2image.models.base import BaseModel
+from image2image.models.serial import SerialSettings
 from image2image.models.utilities import _get_paths, _read_config_from_file
 from image2image.utils.transform import combined_transform
 
@@ -597,6 +598,7 @@ class Registration(BaseModel):
 
     images: dict[str, RegistrationImage] = Field(default_factory=dict, title="Images")
     groups: dict[int, RegistrationGroup] = Field(default_factory=dict, title="Groups")
+    serial: SerialSettings | None = None
 
     def regroup(self) -> None:
         """Create groups based on the group_id attribute.
@@ -625,6 +627,7 @@ class Registration(BaseModel):
             "tool": "wsiprep",
             "images": {key: image.to_dict() for key, image in self.images.items()},
             "groups": {key: group.to_dict() for key, group in self.groups.items()},
+            **({"serial": self.serial.model_dump(mode="json", exclude_none=True)} if self.serial is not None else {}),
         }
 
     def is_valid(self) -> bool:

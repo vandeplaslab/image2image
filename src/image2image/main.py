@@ -18,7 +18,24 @@ COLOR_LOG_FMT = (
 )
 
 AvailableTools = ty.Literal[
-    "launcher", "register", "viewer", "crop", "fusion", "convert", "merge", "wsiprep", "elastix", "valis", "runner"
+    "annotate",
+    "launcher",
+    "register",
+    "viewer",
+    "crop",
+    "fusion",
+    "convert",
+    "volume",
+    "illumination",
+    "stains",
+    "merge",
+    "wsiprep",
+    "elastix",
+    "valis",
+    "runner",
+    "validate",
+    "elastix3d",
+    "serial",
 ]
 
 
@@ -209,6 +226,18 @@ def run(
                 **kwargs,
             )
             dlg.setMinimumSize(600, 400)
+        elif tool == "volume":
+            from image2image.qt.dialog_volume import ImageVolumeWindow
+
+            dlg = ImageVolumeWindow(None, run_check_version=run_check_version, **kwargs)
+        elif tool == "illumination":
+            from image2image.qt.dialog_illumination import ImageIlluminationWindow
+
+            dlg = ImageIlluminationWindow(None, run_check_version=run_check_version, **kwargs)
+        elif tool == "stains":
+            from image2image.qt.dialog_stains import ImageStainsWindow
+
+            dlg = ImageStainsWindow(None, run_check_version=run_check_version, **kwargs)
         elif tool == "merge":
             from image2image.qt.dialog_merge import ImageMergeWindow
 
@@ -218,12 +247,13 @@ def run(
                 **kwargs,
             )
             dlg.setMinimumSize(600, 400)
-        elif tool == "elastix3d":
+        elif tool in ("elastix3d", "serial"):
             from image2image.qt.dialog_elastix3d import ImageElastix3dWindow
 
             dlg = ImageElastix3dWindow(  # type: ignore[assignment]
                 None,
                 run_check_version=run_check_version,
+                serial_mode=tool == "serial",
                 **kwargs,
             )
             dlg.setMinimumSize(1200, 800)
@@ -245,6 +275,14 @@ def run(
                 **kwargs,
             )
             dlg.setMinimumSize(1200, 800)
+        elif tool == "annotate":
+            from image2image.qt.dialog_annotate import ImageAnnotationWindow
+
+            dlg = ImageAnnotationWindow(None, run_check_version=run_check_version, **kwargs)
+        elif tool == "validate":
+            from image2image.qt.dialog_validate import ImageValidationWindow
+
+            dlg = ImageValidationWindow(None, run_check_version=run_check_version, **kwargs)
         elif tool == "runner":
             from image2image.qt.dialog_runner import ImageRunnerWindow
 
