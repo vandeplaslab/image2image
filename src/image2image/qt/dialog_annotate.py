@@ -1198,6 +1198,7 @@ class ImageAnnotationWindow(Window):
         self.draw_layer.data = []
         self._stroke_revision += 1
         self.brush_preview.data = []
+        self.prompt_layer.selected_data = set()
         self.prompt_layer.data = np.empty((0, 2))
         self.prompt_box_layer.data = []
         self._prompt_labels: list[int] = []
@@ -1218,6 +1219,8 @@ class ImageAnnotationWindow(Window):
             self._show_selected()
             return
         if self._mode in ("Prompt +", "Prompt -"):
+            # Color only the next prompt, without editing a previously selected point.
+            self.prompt_layer.selected_data = set()
             self.prompt_layer.current_face_color = "lime" if self._mode == "Prompt +" else "tomato"
             self.prompt_layer.add(np.asarray(xy[::-1]))
             self._prompt_labels.append(1 if self._mode == "Prompt +" else 0)

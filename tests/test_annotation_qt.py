@@ -555,6 +555,28 @@ def test_predict_segments_help_and_multiple_prompt_boxes(
     assert not window._request(prompts=True).points
 
 
+def test_prompt_points_can_be_restarted_after_clearing(editor: ImageAnnotationWindow, qtbot: QtBot) -> None:
+    window = editor
+    window.show()
+    qtbot.waitUntil(lambda: not window._threads, timeout=30000)
+    window.tool.setCurrentText("Prompt +")
+    canvas = window.view.widget.canvas.native
+    center = QPoint(canvas.width() // 2, canvas.height() // 2)
+    for index in range(6):
+        qtbot.mouseClick(canvas, Qt.MouseButton.LeftButton, pos=center + QPoint(index * 10, 0))
+    assert window.prompt_layer.selected_data == {5}
+    window.clear_drawing()
+    qtbot.mouseClick(canvas, Qt.MouseButton.LeftButton, pos=center)
+    assert len(window.prompt_layer.data) == 1
+    assert window._prompt_labels == [1]
+    window.tool.setCurrentText("Prompt -")
+    qtbot.mouseClick(canvas, Qt.MouseButton.LeftButton, pos=center + QPoint(20, 0))
+    assert window._prompt_labels == [1, 0]
+    np.testing.assert_allclose(window.prompt_layer.face_color, [[0, 1, 0, 1], [1, 99 / 255, 71 / 255, 1]])
+    window.clear_drawing()
+    assert not window.prompt_layer.selected_data
+
+
 def test_download_cancel_cleans_own_files_clears_queue_and_restarts_worker(
     editor: ImageAnnotationWindow, qtbot: QtBot, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
