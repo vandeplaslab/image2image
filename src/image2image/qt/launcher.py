@@ -67,8 +67,10 @@ class Launcher(QtDialog):
                     self,
                     "Annotate<br>App",
                     "Create tissue classes, edit label objects, and review local AI predictions.",
-                    "crop",
+                    "annotate",
                     partial(self.on_open_app, Window.on_open_annotate),
+                    icon_kws={"color": THEMES.get_hex_color("warning")},
+                    warning=constants.EXPERIMENTAL_WARNING,
                 ),
                 _make_tile(
                     self,

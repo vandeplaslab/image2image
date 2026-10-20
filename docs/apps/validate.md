@@ -23,7 +23,8 @@ their settings. Valis, 3D images, external transform formats, and studies with d
    paths to other references, duplicates, and failed imports are listed explicitly.
 2. Add other registrations of the same pair. Native image paths, calibration, and reader settings must agree.
    Registrations of another moving image are grouped into a separate pair when they share the fixed reference.
-   Use the selector in the **Moving** section to switch pairs, or its **Add moving image...** button to start another pair manually.
+   Use **Load moving image...** to select one or several files. Additional files create new pairs;
+   selecting a loaded image restores its existing pair and annotations. Use the **Moving** selector to switch pairs.
    The registration list shows candidates across the whole study. Selecting a candidate switches to its image pair
    and restores that pair's annotations, analysis, and viewer settings.
 3. Choose the image channels to display. Fixed and moving viewers are stacked vertically with resizable panels.
@@ -31,7 +32,7 @@ their settings. Valis, 3D images, external transform formats, and studies with d
    Their image toolbars open layer controls for contrast, gamma, opacity, and colormap. Display adjustments do not
    change measurements. Saved registration calibration takes precedence; otherwise confirm the X/Y spacing and origin
    before loading. Calibration source and confirmation are retained in the saved study and reports.
-   The edit icon next to each **Choose image...** button updates spacing and origin. Existing annotations stay attached
+   The edit icon next to each **Load image...** button updates spacing and origin. Existing annotations stay attached
    to the same native pixels. Fixed calibration changes apply to every pair; imported transforms are expressed in the
    updated coordinate system. The delete icon removes an image from the app without deleting source files. Removing
    the fixed reference clears dependent registration candidates and landmarks across all pairs.

@@ -60,6 +60,7 @@ update_icon_mapping(
         "sync": "fa5s.sync-alt",
         "crop": "fa5s.crop-alt",
         "fusion": "mdi6.content-save-check-outline",
+        "annotate": "msc.git-pull-request-label",
         "merge": "msc.merge",
         "valis": "fa5b.vimeo-square",
         "stain": "mdi.brightness-4",

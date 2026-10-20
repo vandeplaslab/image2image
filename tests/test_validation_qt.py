@@ -13,7 +13,8 @@ import tifffile
 from click.testing import CliRunner
 from pytestqt.qtbot import QtBot
 from qtpy.QtCore import Qt
-from qtpy.QtWidgets import QComboBox, QDialog, QInputDialog
+from qtpy.QtGui import QTextDocument
+from qtpy.QtWidgets import QApplication, QComboBox, QDialog, QInputDialog, QPushButton, QTabWidget
 
 from image2image.cli import cli
 from image2image.models.validation import (
@@ -341,7 +342,7 @@ def test_reader_reopens_when_scene_changes_and_cancelled_add_keeps_study(
     window.session.moving.reader_kws = {"scene_index": 0}
     window._load_views()
     assert window._readers[1] is not reader and reader.fh is None
-    monkeypatch.setattr("image2image.qt.dialog_validate.QFileDialog.getOpenFileName", lambda *_args: ("", ""))
+    monkeypatch.setattr("image2image.qt.dialog_validate.QFileDialog.getOpenFileNames", lambda *_args: ([], ""))
     pair_id = window._pair_id
     window.add_moving_image()
     assert len(window.study.pairs) == 1 and window._pair_id == pair_id
@@ -389,6 +390,9 @@ def test_direct_image_analysis_and_section_controls(
     Path(source.candidates[0].path).unlink()
     paths = iter((source.fixed.path, source.moving.path))
     monkeypatch.setattr("image2image.qt.dialog_validate.QFileDialog.getOpenFileName", lambda *_args: (next(paths), ""))
+    monkeypatch.setattr(
+        "image2image.qt.dialog_validate.QFileDialog.getOpenFileNames", lambda *_args: ([next(paths)], "")
+    )
     monkeypatch.setattr(QDialog, "exec", lambda _dialog: QDialog.DialogCode.Accepted)
     window.choose_image(0)
     window.choose_image(1)
@@ -492,7 +496,7 @@ def test_analysis_layout_help_and_escaped_messages(validation_window: ImageValid
     window._set_status("Cannot load <sample&1>.tiff\nTry another image.", "Input error")
     assert window.status.text().startswith("<b>Input error</b>")
     assert "&lt;sample&amp;1&gt;" in window.status.text() and "<sample" not in window.status.text()
-    assert window.status.font().pointSize() == window.font().pointSize() + 2
+    assert window.status.font().pointSize() == window.font().pointSize()
     assert window.result_detail.font().pointSize() == window.status.font().pointSize()
 
 
@@ -761,3 +765,148 @@ def test_validation_zero_errors_have_real_values_and_visible_color_scale(
     assert "Mean: 0 um" in window.validation_summary.text()
     assert "All measured errors are zero" in window.result_detail.text()
     assert list(layer.text.values) == ["independent: 0 um"]
+
+
+def test_single_moving_load_button_accepts_multiple_and_additional_images(
+    validation_window: ImageValidationWindow, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    study = make_validation_study(tmp_path)
+    window = validation_window
+    window.session.fixed = study.pairs[0].session.fixed.model_copy(deep=True)
+    window._refresh_inputs()
+    window._load_views()
+    fixed_reader = window._readers[0]
+    paths = [pair.session.moving.path for pair in study.pairs]
+    monkeypatch.setattr("image2image.qt.dialog_validate.QFileDialog.getOpenFileNames", lambda *_args: (paths, ""))
+    monkeypatch.setattr(window, "_confirm_calibration", lambda _image: True)
+    buttons = window.image_sections[1].findChildren(QPushButton)
+    assert not any(button.text() == "Add moving image..." for button in buttons)
+    load = next(button for button in buttons if button.text() == "Load moving image...")
+    load.click()
+    assert len(window.study.pairs) == window.pair_selector.count() == 2
+    assert window.session.moving.path == paths[0]
+    assert all(pair.session.fixed.geometry == window.session.fixed.geometry for pair in window.study.pairs)
+    assert window._readers[0] is fixed_reader
+    previous = list(window.study.pairs)
+    third = tmp_path / "moving-third.ome.tiff"
+    third.write_bytes(Path(paths[0]).read_bytes())
+    paths[:] = [str(third)]
+    load.click()
+    assert len(window.study.pairs) == 3 and window.session.moving.path == str(third)
+    assert all(window.study.pairs[i] is pair for i, pair in enumerate(previous))
+
+
+def test_moving_load_preserves_annotated_pairs_and_selects_loaded_images(
+    validation_window: ImageValidationWindow, qtbot: QtBot, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    study = make_validation_study(tmp_path)
+    window = validation_window
+    window.open_path(save_validation_study(tmp_path / "load-pairs", study))
+    window.start_analysis_all()
+    qtbot.waitUntil(lambda: not window._workers, timeout=30000)
+    sessions = [pair.session for pair in window.study.pairs]
+    snapshots = [session.model_dump() for session in sessions]
+    results = dict(window._results)
+    third = tmp_path / "moving-third.ome.tiff"
+    third.write_bytes(Path(sessions[0].moving.path).read_bytes())
+    paths = [str(third)]
+    monkeypatch.setattr("image2image.qt.dialog_validate.QFileDialog.getOpenFileNames", lambda *_args: (paths, ""))
+    monkeypatch.setattr(window, "_confirm_calibration", lambda _image: True)
+    monkeypatch.setattr(QDialog, "exec", lambda _dialog: QDialog.DialogCode.Rejected)
+    window.choose_image(1)
+    assert len(window.study.pairs) == 3 and not window.session.landmarks
+    assert all(window.study.pairs[i].session is session for i, session in enumerate(sessions))
+    assert [session.model_dump() for session in sessions] == snapshots
+    assert all(window._results[pair_id] is result for pair_id, result in results.items())
+    generation = window._generation
+    paths[:] = [sessions[0].moving.path, sessions[0].moving.path]
+    window.choose_image(1)
+    assert len(window.study.pairs) == 3 and window.session is sessions[0]
+    assert window._generation == generation and window.analysis is results[window._pair_id]
+
+
+def test_cancelled_moving_batch_leaves_existing_pairs_and_readers_unchanged(
+    validation_window: ImageValidationWindow, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    study = make_validation_study(tmp_path)
+    window = validation_window
+    before, generation = window.study.model_dump(), window._generation
+    readers = list(window._readers)
+    paths = [pair.session.moving.path for pair in study.pairs]
+    monkeypatch.setattr("image2image.qt.dialog_validate.QFileDialog.getOpenFileNames", lambda *_args: (paths, ""))
+    monkeypatch.setattr(window, "_confirm_calibration", lambda image: image.path == paths[0])
+    window.choose_image(1)
+    assert window.study.model_dump() == before and window._generation == generation and not window._dirty
+    assert window._readers == readers
+
+
+def test_analysis_measurement_tables_fill_their_panels(validation_window: ImageValidationWindow, qtbot: QtBot) -> None:
+    window = validation_window
+    window.show()
+    window.resize(1600, 1000)
+    window.tabs.setCurrentIndex(3)
+    details = window.tabs.widget(3).findChild(QTabWidget)
+    for index, table in enumerate(
+        (window.error_table, window.fitting_table, window.overlap_table, window.deformation_table)
+    ):
+        details.setCurrentIndex(index)
+        qtbot.waitUntil(lambda table=table: table.isVisible() and table.height() > 100)
+        panel = table.parentWidget()
+        assert table.height() >= panel.contentsRect().height() - 2
+        assert table.width() >= panel.contentsRect().width() - 45
+    window.resize(1600, 1200)
+    qtbot.waitUntil(lambda: window.deformation_table.height() >= window.deformation_table.parentWidget().height() - 2)
+
+
+def test_validation_fonts_are_consistent_and_follow_theme_changes(
+    validation_window: ImageValidationWindow, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from qtextra.config import THEMES
+
+    window = validation_window
+    THEMES.set_theme_stylesheet(window)
+    window.ensurePolished()
+    widgets = [
+        window.status,
+        window.result_detail,
+        window.validation_summary,
+        window.grid_label,
+        window.image_labels[0],
+        window.channels[0],
+        window.units,
+        window.run_all_btn,
+        window.summary_table,
+        window.summary_table.horizontalHeader(),
+        window.landmark_table,
+        window.candidate_list,
+    ]
+    size = max(11, THEMES.get_font_size())
+    assert all(widget.font().pointSize() == size for widget in widgets)
+    assert window.tabs.tabBar().elideMode() == Qt.TextElideMode.ElideNone
+    assert all(view.viewer.scale_bar.font_size == size for view in window.views)
+    assert not window.status.styleSheet() and not window.result_detail.styleSheet()
+    generation = window._generation
+    monkeypatch.setattr(THEMES, "get_font_size", lambda: size + 2)
+    THEMES.evt_theme_changed.emit()
+    window.ensurePolished()
+    assert all(widget.font().pointSize() == size + 2 for widget in widgets)
+    assert window._generation == generation
+
+
+def test_validation_help_uses_readable_rich_text_sections(qapp: QApplication) -> None:
+    import image2image.constants as constants
+
+    messages = [
+        constants.LANDMARK_HELP,
+        constants.FITTING_HELP,
+        constants.OVERLAP_HELP,
+        constants.DOWNSAMPLE_HELP,
+        constants.DEFORMATION_HELP,
+        *constants.DIAGNOSTIC_HELP.values(),
+    ]
+    for message in messages:
+        document = QTextDocument(qapp)
+        document.setHtml(message)
+        assert document.blockCount() >= 3
+        assert "<b>" in message and "<p>" in message
+        assert "<br>" not in document.toPlainText() and "  " not in document.toPlainText()

@@ -13,6 +13,7 @@ from uuid import uuid4
 
 import numpy as np
 import qtextra.helpers as hp
+from qtextra.config import THEMES
 from qtextra.utils.table_config import TableConfig
 from qtextraplot._napari.image.wrapper import NapariImageView
 from qtpy.QtCore import Qt, QTimer, Signal
@@ -135,6 +136,31 @@ class ImageValidationWindow(Window):
         """Connect worker progress to the Qt thread."""
         if state:
             self.progress_changed.connect(self._show_progress)
+            THEMES.evt_theme_changed.connect(self._apply_fonts)
+
+    def _apply_fonts(self) -> None:
+        """Use one readable theme-based body size for controls, messages, and viewer annotations."""
+        size = max(11, THEMES.get_font_size())
+        font = self.font()
+        font.setPointSize(size)
+        self.setFont(font)
+        self.centralWidget().setStyleSheet(
+            "QLabel, QAbstractButton, QComboBox, QLineEdit, QAbstractSpinBox, QAbstractItemView, "
+            "QHeaderView, QHeaderView::section, QTabBar, QTabBar::tab, QGroupBox {"
+            f"font-size: {size}pt;"
+            "}"
+        )
+        self.menuBar().setStyleSheet(f"font-size: {size}pt;")
+        self.statusBar().setStyleSheet(f"font-size: {size}pt;")
+        for tabs in self.findChildren(QTabWidget):
+            tabs.tabBar().setElideMode(Qt.TextElideMode.ElideNone)
+        for view in (*self.views, self.result_view):
+            view.viewer.scale_bar.font_size = size
+            view.viewer.text_overlay.font_size = size
+        if "Validation error (um)" in self.result_view.viewer.layers:
+            layer = self.result_view.viewer.layers["Validation error (um)"]
+            layer.text.size = size
+            layer.face_colorbar.font_size = size
 
     def _try(self, function: Any) -> Any:
         try:
@@ -176,12 +202,6 @@ class ImageValidationWindow(Window):
             selectable=True,
             text_format=Qt.TextFormat.RichText,
         )
-        font = label.font()
-        point_size = (self.font().pointSize() if self.font().pointSize() > 0 else 10) + 2
-        font.setPointSize(point_size)
-        label.setFont(font)
-        # The theme's QLabel font rule otherwise overrides an explicit QFont.
-        label.setStyleSheet(f"font-size: {point_size}pt;")
         self._set_message(label, text)
         return label
 
@@ -206,7 +226,7 @@ class ImageValidationWindow(Window):
         self.tabs.setMinimumWidth(520)
         self.view_stack = QStackedWidget(widget)
         raw = QWidget(widget)
-        raw_layout = hp.make_v_layout(parent=raw)
+        raw_layout = hp.make_v_layout(parent=raw, spacing=1, margin=1)
         self.link_views = hp.make_checkbox(
             raw,
             "Link physical view centers and zoom",
@@ -298,6 +318,7 @@ class ImageValidationWindow(Window):
             menubar.addAction(menu.menuAction())
         self.setMenuBar(menubar)
         self.tabs.currentChanged.connect(self._tab_changed)
+        self._apply_fonts()
         self._refresh_inputs()
 
     def _make_inputs(self) -> QWidget:
@@ -335,7 +356,9 @@ class ImageValidationWindow(Window):
                 remove_btn,
             ]
             if index == 1:
-                widgets.insert(1, hp.make_btn(group, "Add moving image...", func=self.add_moving_image))
+                widgets[0].setToolTip(
+                    "Load one or more moving images. New images create separate pairs; loaded images are selected."
+                )
             box.addLayout(
                 hp.make_h_layout(
                     *widgets,
@@ -411,7 +434,9 @@ class ImageValidationWindow(Window):
             )
         )
         layout.addWidget(self.edit_landmarks)
-        self.landmark_table = self._table(widget, ["Use", "ID", "Fixed X", "Fixed Y", "Moving X", "Moving Y", "Note"])
+        self.landmark_table = self._table(
+            widget, ["Use", "ID", "X (fixed)", "Y (fixed)", "X (moving)", "Y (moving)", "Note"]
+        )
         self.landmark_table.itemChanged.connect(self._landmark_edited)
         self.landmark_table.itemSelectionChanged.connect(self.focus_landmark)
         layout.addWidget(self.landmark_table)
@@ -421,6 +446,13 @@ class ImageValidationWindow(Window):
     def _make_masks(self) -> QWidget:
         widget = QWidget(self)
         layout = hp.make_v_layout(parent=widget)
+        layout.addWidget(
+            hp.make_label(
+                widget,
+                constants.MASKS_HELP,
+                wrap=True,
+            )
+        )
         self.mask_labels = []
         for index, name in enumerate(("Fixed", "Moving")):
             label = hp.make_label(widget, "No mask", wrap=True)
@@ -428,15 +460,7 @@ class ImageValidationWindow(Window):
             layout.addLayout(
                 hp.make_h_layout(hp.make_btn(widget, f"{name} mask...", func=partial(self.choose_mask, index)), label)
             )
-        layout.addWidget(
-            hp.make_label(
-                widget,
-                "Optional: compare matching tissue regions in two segmentation masks using Dice and IoU. "
-                "Load one mask for each image, then pair the labels representing the same region. "
-                "Background 0 is excluded. Masks are sampled on the fixed grid; this does not create segmentations.",
-                wrap=True,
-            )
-        )
+
         self.mask_table = self._table(widget, ["Region", "Fixed label", "Moving label"])
         self.mask_table.itemChanged.connect(self._mask_edited)
         layout.addWidget(self.mask_table)
@@ -523,17 +547,7 @@ class ImageValidationWindow(Window):
         )
         self.deformation_table = self._table(widget, ["Statistic", "Value"], False)
         details.addTab(
-            self._measurement_panel(
-                widget,
-                self.deformation_table,
-                constants.DIAGNOSTIC_HELP["area_change"]
-                + " "
-                + constants.DIAGNOSTIC_HELP["signed_jacobian"]
-                + " "
-                + constants.DIAGNOSTIC_HELP["nonpositive_jacobian"]
-                + " Already aligned images use the identity map; "
-                "this cannot recover historical deformation from an unavailable registration.",
-            ),
+            self._measurement_panel(widget, self.deformation_table, constants.DEFORMATION_HELP),
             "Deformation",
         )
         layout.addWidget(details, 1)
@@ -545,13 +559,15 @@ class ImageValidationWindow(Window):
     @staticmethod
     def _measurement_panel(parent: QWidget, table: QTableWidget, help_text: str) -> QWidget:
         panel = QWidget(parent)
+        table.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         hp.make_h_layout(
             table,
             hp.make_help_label(panel, help_text),
             parent=panel,
             stretch_id=(0,),
             spacing=1,
-            widget_alignment=Qt.AlignmentFlag.AlignTop,
+            margin=0,
+            widget_alignment={1: Qt.AlignmentFlag.AlignTop},
         )
         return panel
 
@@ -683,28 +699,74 @@ class ImageValidationWindow(Window):
             self.result_candidate.setCurrentIndex(selected)
 
     def add_moving_image(self) -> None:
-        """Start an independent pair while retaining the study's fixed reference."""
+        """Load moving images using the same action as the Moving section's Load button."""
+        self.choose_moving_images()
+
+    def choose_moving_images(self) -> None:
+        """Load one or more moving images, retaining existing pairs and their annotations."""
         if self._workers:
             return
-        if self.session.moving is None and not self.session.candidates:
-            self.choose_image(1)
+        paths, _ = QFileDialog.getOpenFileNames(self, "Load moving images")
+        if not paths:
             return
-        previous_index, was_dirty = self._pair_index, self._dirty
-        pair = ValidationPair(
-            session=ValidationSession(fixed=self.session.fixed.model_copy(deep=True) if self.session.fixed else None)
-        )
-        self.study.pairs = [*self.study.pairs, pair]
-        self._dirty = True
-        self.pair_selector.addItem(pair.name)
-        self.pair_selector.setCurrentIndex(len(self.study.pairs) - 1)
-        self.choose_image(1)
-        if pair.session.moving is None:
-            self.study.pairs = self.study.pairs[:-1]
-            self._select_pair(previous_index, offer_copy=False)
-            self._dirty = was_dirty
+        pairs = list(self.study.pairs)
+        selected: list[str] = []
+        added: list[str] = []
+        previous = self.study.pairs[self._pair_index]
+        for path in paths:
+            image = self._try(partial(inspect_validation_image, path))
+            if image is None:
+                continue
+            existing = next(
+                (
+                    pair
+                    for pair in pairs
+                    if pair.session.moving is not None
+                    and Path(pair.session.moving.path).resolve() == Path(image.path).resolve()
+                    and pair.session.moving.reader_kws == image.reader_kws
+                ),
+                None,
+            )
+            if existing is not None:
+                if existing.session.moving.fingerprint and existing.session.moving.fingerprint != image.fingerprint:
+                    self._set_status(f"Image changed: {image.path}. Remove the existing pair before loading it again.")
+                    return
+                selected.append(existing.id)
+                continue
+            if not self._confirm_calibration(image):
+                return
+            empty_index = next(
+                (i for i, pair in enumerate(pairs) if pair.session.moving is None and not pair.session.candidates), None
+            )
+            fixed = self.session.fixed.model_copy(deep=True) if self.session.fixed else None
+            if empty_index is None:
+                pair = ValidationPair(session=ValidationSession(fixed=fixed, moving=image))
+                pairs.append(pair)
+            else:
+                pair = pairs[empty_index].model_copy(deep=True)
+                pair.session.moving = image
+                pairs[empty_index] = pair
+            selected.append(pair.id)
+            added.append(pair.id)
+        if not selected:
+            return
+        if added:
+            self.study = ValidationStudy(pairs=pairs)
+            self._generation += 1
+            self._cancel.set()
+            self._dirty = True
+            for pair_id in added:
+                self._drop_result(pair_id)
+        index = next(i for i, pair in enumerate(self.study.pairs) if pair.id == selected[0])
+        if index != self._pair_index:
+            self._select_pair(index)
         else:
-            self._offer_landmark_copy(self.study.pairs[previous_index])
-            self._refresh_landmarks()
+            self.session = self.study.pairs[index].session
+            self._offer_landmark_copy(previous)
+            self._refresh_inputs()
+            self._load_views()
+            self._display_analysis()
+        self._set_status(f"Loaded {len(added)} new moving image(s). Existing image pairs and annotations are retained.")
 
     def remove_moving_image(self) -> None:
         """Remove the selected pair's annotations and results without changing its source files."""
@@ -1057,7 +1119,10 @@ class ImageValidationWindow(Window):
             self._load_views()
 
     def choose_image(self, index: int) -> None:
-        """Select a native image before adding registrations or relink the same input."""
+        """Choose the fixed reference or load additional moving images into separate pairs."""
+        if index == 1:
+            self.choose_moving_images()
+            return
         path, _ = QFileDialog.getOpenFileName(self, "Choose native image")
         if path:
             image = self._try(partial(inspect_validation_image, path))
@@ -1835,7 +1900,7 @@ class ImageValidationWindow(Window):
                         text={
                             "string": "{landmark_id}: {error_um:.4g} um",
                             "visible": self.error_labels.isChecked(),
-                            "size": 10,
+                            "size": max(11, THEMES.get_font_size()),
                             "color": "white",
                             "anchor": "upper_left",
                             "translation": (4 * max(grid.spacing), 4 * max(grid.spacing)),
@@ -1843,7 +1908,7 @@ class ImageValidationWindow(Window):
                     )
                     layer.face_colorbar.visible = True
                     layer.face_colorbar.position = "top_right"
-                    layer.face_colorbar.font_size = 11
+                    layer.face_colorbar.font_size = max(11, THEMES.get_font_size())
                     vectors = np.stack((data, np.array([[p["dy_um"], p["dx_um"]] for p in points])), axis=1)
                     viewer.add_vectors(
                         vectors,
