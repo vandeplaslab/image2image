@@ -127,6 +127,8 @@ class Launcher(QtDialog):
                     "Register serial sections and reconstruct calibrated 3D OME-Zarr volumes.",
                     "serial",
                     partial(self.on_open_app, Window.on_open_serial),
+                    icon_kws={"color": THEMES.get_hex_color("warning")},
+                    warning=constants.EXPERIMENTAL_WARNING,
                 ),
                 _make_tile(
                     self,
