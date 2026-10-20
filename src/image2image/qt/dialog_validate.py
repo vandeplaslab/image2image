@@ -551,6 +551,14 @@ class ImageValidationWindow(Window):
             "Deformation",
         )
         layout.addWidget(details, 1)
+        self.report_include_paths = hp.make_checkbox(
+            widget,
+            "Include source directory paths in reports",
+            value=False,
+            tooltip="Enable to retain full source paths. Otherwise HTML, PDF, JSON, CSV and figure labels retain "
+            "filenames only. The exported study copy will need its source files located again.",
+        )
+        layout.addWidget(self.report_include_paths)
         self.export_btn = hp.make_btn(widget, "Export report...", func=self.choose_export)
         self.export_btn.setEnabled(False)
         layout.addWidget(self.export_btn)
@@ -2065,7 +2073,7 @@ class ImageValidationWindow(Window):
                 table.setItem(row, column, QTableWidgetItem(self._format(value)))
 
     def choose_export(self) -> None:
-        """Write a complete visual report into a newly named directory."""
+        """Write HTML, PDF and measurement exports using the selected path privacy option."""
         if not self._results and not self._failures:
             return
         parent = QFileDialog.getExistingDirectory(self, "Choose parent directory for report")
@@ -2079,9 +2087,16 @@ class ImageValidationWindow(Window):
             for pair in self.study.pairs
         ]
         analysis = StudyAnalysis(self.study.model_copy(deep=True), outcomes)
-        path = self._try(partial(export_validation_study_report, analysis, Path(parent) / name))
+        path = self._try(
+            partial(
+                export_validation_study_report,
+                analysis,
+                Path(parent) / name,
+                include_paths=self.report_include_paths.isChecked(),
+            )
+        )
         if path:
-            self._set_status(f"Exported {path}")
+            self._set_status(f"Exported HTML and PDF reports to {path.parent}")
 
     def closeEvent(self, event: QCloseEvent) -> None:
         """Cancel running work before disposing readers, views, and temporary maps."""

@@ -140,6 +140,53 @@ def test_geojson_preserves_holes_ids_properties(project, tmp_path, units):
     assert store.find_id(imported, 12) is None
 
 
+@pytest.mark.parametrize("format_", ["geojson", "labels"])
+def test_exchange_training_defaults_and_ignore_role(project: tuple, tmp_path: Path, format_: str) -> None:
+    store, slide, cls, set_id = project
+    ignore = AnnotationClass(name="Renamed exclusion", is_ignore=True)
+    store.save_class(ignore)
+    add(store, set_id, box(1, 1, 8, 8), object_id=1, class_id=cls.id, training=False)
+    add(store, set_id, box(10, 10, 20, 20), object_id=2, class_id=ignore.id, training=False)
+    path = tmp_path / ("exchange.geojson" if format_ == "geojson" else "exchange.tiff")
+    if format_ == "geojson":
+        export_geojson(store, set_id, path, CoordinateSpec())
+        data = json.loads(path.read_text())
+        del data["features"][0]["properties"]["image2image"]["training"]
+        path.write_text(json.dumps(data))
+    else:
+        export_labels(store, set_id, path, CoordinateSpec())
+        sidecar = path.with_name(path.name + ".objects.json")
+        data = json.loads(sidecar.read_text())
+        del data["objects"][0]["training"]
+        sidecar.write_text(json.dumps(data))
+    with AnnotationStore(tmp_path / "import.i2annotate", create=True) as target:
+        target.save_slide(slide)
+        importer = import_geojson if format_ == "geojson" else import_labels
+        imported = importer(target, slide.id, path, CoordinateSpec())
+        objects = {obj.object_id: obj for obj in target.iter_objects(set_id=imported)}
+        assert objects[1].training
+        assert not objects[2].training
+        classes = {item.id: item for item in target.classes()}
+        assert classes[objects[2].class_id].is_ignore
+        summary = {row["class_name"]: row for row in target.training_summary()}
+        assert summary["Tissue"]["included"] == 1
+        assert summary["Renamed exclusion"]["included"] == 0
+        assert summary["Renamed exclusion"]["is_ignore"] == 1
+
+
+def test_legacy_class_and_training_summary(project: tuple) -> None:
+    store, _slide, cls, set_id = project
+    assert not AnnotationClass.model_validate({"name": "Ignore"}).is_ignore
+    add(store, set_id, object_id=1, class_id=cls.id, training=True)
+    add(store, set_id, object_id=2, class_id=cls.id, training=False)
+    add(store, set_id, object_id=3, class_id=cls.id, training=True, review="proposed")
+    add(store, set_id, object_id=4, training=True)
+    summary = {row["class_name"]: row for row in store.training_summary()}
+    assert summary["Tissue"]["total"] == 2
+    assert summary["Tissue"]["included"] == 1
+    assert summary["Unclassified"]["included"] == 0
+
+
 @pytest.mark.parametrize("container", ["single", "array", "collection"])
 def test_geojson_forms_and_atomic_failure(project, tmp_path, container):
     store, slide, _cls, _set_id = project

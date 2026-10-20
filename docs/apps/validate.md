@@ -145,10 +145,22 @@ Help bubbles beside the map selector, measurement tables, and downsample control
 
 **Export report...**, at the bottom of **Analysis**, creates a new directory containing:
 
-- A self-contained `report.html`, with embedded diagnostic images, metric tables, exclusions, units, and explanations.
+- A self-contained `report.html`, with a comparison summary, separate candidate sections, embedded diagnostic images,
+  readable metric tables, and expandable methods, input calibration, analysis settings, and provenance.
+- A paginated `report.pdf`, with measurements, diagnostic figures, exclusions, input calibration, software versions,
+  and method explanations, ready to share or print.
 - Combined `summary.csv`, `landmarks.csv`, and `masks.csv`, with pair identifiers.
 - `results.json` and a copy of the versioned validation study, including pair failures.
-- A subdirectory per analyzed pair containing its full report, candidate PNG figures, and compressed NPZ numerical maps.
+- A subdirectory per analyzed pair containing its HTML and PDF reports, candidate PNG figures, and compressed NPZ
+  numerical maps.
+
+**Include source directory paths in reports** is off by default. Source references then retain filenames without
+directory components throughout HTML, PDF, JSON, CSV, and figure labels, including paths in notes and failure messages.
+Generated links and numerical map references remain relative to the report directory. The live study is unchanged;
+the exported study copy contains filenames and needs its source files located again before reuse. Filenames,
+annotations, and image content remain visible, so this option does not anonymize the underlying data.
+Enable the checkbox when full source paths are needed for provenance or reopening the exported study.
+The Python export functions accept `include_paths=False` for the same omission; their default preserves full paths.
 
 Measurements remain separate for each image pair; errors are not pooled across moving images.
 

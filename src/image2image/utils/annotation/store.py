@@ -273,7 +273,8 @@ class AnnotationStore:
 
     def _row(self, key: int) -> sqlite3.Row | None:
         return cast(
-            sqlite3.Row | None, self.db.execute(f"SELECT {OBJECT_COLUMNS} FROM objects WHERE id=?", (key,)).fetchone()  # noqa: S608 - fixed internal SQL identifiers
+            sqlite3.Row | None,
+            self.db.execute(f"SELECT {OBJECT_COLUMNS} FROM objects WHERE id=?", (key,)).fetchone(),  # noqa: S608 - fixed internal SQL identifiers
         )  # noqa: S608 - fixed columns
 
     def get(self, key: int) -> AnnotationObject:
@@ -454,6 +455,7 @@ class AnnotationStore:
         bounds: tuple[float, float, float, float] | None = None,
         review: str | None = "accepted",
         training: bool = False,
+        class_id: str | None = None,
         visible_only: bool = False,
         limit: int | None = None,
         after: int = 0,
@@ -469,7 +471,12 @@ class AnnotationStore:
             x0, y0, x1, y1 = bounds
             clauses.extend(["b.minx<=?", "b.maxx>=?", "b.miny<=?", "b.maxy>=?"])
             args.extend((x1, x0, y1, y0))
-        for column, value in (("s.slide_id", slide_id), ("o.set_id", set_id), ("o.review", review)):
+        for column, value in (
+            ("s.slide_id", slide_id),
+            ("o.set_id", set_id),
+            ("o.review", review),
+            ("o.class_id", class_id),
+        ):
             if value is not None:
                 clauses.append(f"{column}=?")
                 args.append(value)
@@ -485,6 +492,23 @@ class AnnotationStore:
             args.append(limit)
         for row in self.db.execute(sql, args):
             yield _object(row)
+
+    def training_summary(self) -> list[dict[str, Any]]:
+        """Count accepted training candidates by slide and class without decoding geometry."""
+        return [
+            dict(row)
+            for row in self.db.execute(
+                "SELECT json_extract(sl.data,'$.name') slide_name, "
+                "c.id class_id, COALESCE(json_extract(c.data,'$.name'),'Unclassified') class_name, "
+                "COALESCE(json_extract(c.data,'$.is_ignore'),0) is_ignore, "
+                "COUNT(*) total, SUM(CASE WHEN o.training=1 AND c.id IS NOT NULL "
+                "AND COALESCE(json_extract(c.data,'$.is_ignore'),0)=0 THEN 1 ELSE 0 END) included "
+                "FROM objects o JOIN annotation_sets s ON s.id=o.set_id "
+                "JOIN slides sl ON sl.id=s.slide_id LEFT JOIN classes c ON c.id=o.class_id "
+                "WHERE s.state='ready' AND o.review='accepted' "
+                "GROUP BY sl.id,o.class_id ORDER BY slide_name,class_name"
+            )
+        ]
 
     def count(self, set_id: str, review: str | None = "accepted") -> int:
         """Count one annotation set without materializing its objects."""
@@ -602,6 +626,9 @@ class AnnotationStore:
             model = metadata.get("model", {})
             if model.get("fingerprint") and fingerprint(Path(model["checkpoint"])) != model["fingerprint"]:
                 raise ValueError("Results are stale because the model checkpoint changed. Run prediction again.")
+            decoder = model.get("decoder", {})
+            if decoder.get("fingerprint") and fingerprint(Path(decoder["checkpoint"])) != decoder["fingerprint"]:
+                raise ValueError("Results are stale because the SAM decoder changed. Run prediction again.")
         revision = metadata.get("review_revision", metadata.get("request", {}).get("revision"))
         objects = (
             (self.get(key) for key in keys) if keys is not None else self.iter_objects(set_id=set_id, review="proposed")

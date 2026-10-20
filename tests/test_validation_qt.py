@@ -483,6 +483,8 @@ def test_analysis_layout_help_and_escaped_messages(validation_window: ImageValid
         assert analysis.isAncestorOf(widget)
     assert analysis.layout().itemAt(0).layout().itemAt(0).widget() is window.run_all_btn
     assert analysis.layout().itemAt(analysis.layout().count() - 1).widget() is window.export_btn
+    assert not window.report_include_paths.isChecked()
+    assert analysis.isAncestorOf(window.report_include_paths)
     landmarks = window.tabs.widget(1).layout()
     csv_controls = landmarks.itemAt(0).layout()
     assert [csv_controls.itemAt(i).widget().text() for i in range(3)] == ["Import CSV...", "Export CSV...", "CSV units"]
@@ -910,3 +912,33 @@ def test_validation_help_uses_readable_rich_text_sections(qapp: QApplication) ->
         assert document.blockCount() >= 3
         assert "<b>" in message and "<p>" in message
         assert "<br>" not in document.toPlainText() and "  " not in document.toPlainText()
+
+
+@pytest.mark.parametrize("include_paths", [False, True])
+def test_export_uses_path_privacy_setting(
+    qapp: QApplication, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, include_paths: bool
+) -> None:
+    import qtextra.helpers as hp
+
+    from image2image.models.validation import StudyAnalysis
+
+    study = ValidationStudy()
+    window = SimpleNamespace(
+        study=study,
+        _results={},
+        _failures={study.pairs[0].id: "Analysis failed"},
+        report_include_paths=hp.make_checkbox(None, "Include source directory paths", value=include_paths),
+        _try=lambda function: function(),
+        _set_status=lambda message: None,
+    )
+    calls = []
+
+    def export(analysis: StudyAnalysis, directory: Path, *, include_paths: bool) -> Path:
+        calls.append((directory, include_paths, analysis.pairs[0].error))
+        return directory / "report.html"
+
+    monkeypatch.setattr("image2image.qt.dialog_validate.QFileDialog.getExistingDirectory", lambda *args: str(tmp_path))
+    monkeypatch.setattr(QInputDialog, "getText", lambda *args, **kwargs: ("report", True))
+    monkeypatch.setattr("image2image.qt.dialog_validate.export_validation_study_report", export)
+    ImageValidationWindow.choose_export(window)
+    assert calls == [(tmp_path / "report", include_paths, "Analysis failed")]

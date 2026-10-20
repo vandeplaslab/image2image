@@ -6,6 +6,7 @@ APP_NAME = "image2image"
 APP_AUTHOR = False
 
 USER_DATA_DIR = Path(appdirs.user_data_dir(APP_NAME, APP_AUTHOR))
+USER_CACHE_DIR = Path(appdirs.user_cache_dir(APP_NAME, APP_AUTHOR))
 
 USER_CONFIG_DIR = USER_DATA_DIR / "Configs"
 USER_CONFIG_DIR.mkdir(parents=True, exist_ok=True)

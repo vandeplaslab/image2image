@@ -99,13 +99,14 @@ class AnnotationSlide(AnnotationModel):
 
 
 class AnnotationClass(AnnotationModel):
-    """Shared project class with independent visibility and edit protection."""
+    """Shared class with visibility, edit protection, and optional Ignore masking."""
 
     id: str = Field(default_factory=lambda: uuid4().hex)
     name: str = Field(min_length=1)
     color: str = Field(default="#e57373", pattern=r"^#[0-9a-fA-F]{6}$")
     visible: bool = True
     locked: bool = False
+    is_ignore: bool = False
 
 
 @dataclass
@@ -155,7 +156,8 @@ class FeatureSettings(AnnotationModel):
     sigma_max: float = Field(default=8.0, gt=0)
     samples_per_class: int = Field(default=10000, ge=10, le=100000)
     trees: int = Field(default=100, ge=1, le=1000)
-    seed: int = 42
+    seed: int = Field(default=42, ge=0, le=2**32 - 1)
+    max_depth: int = Field(default=24, ge=1)
 
 
 class PredictionRequest(AnnotationModel):
@@ -166,6 +168,7 @@ class PredictionRequest(AnnotationModel):
     slide_id: str
     revision: int
     backend: Literal["forest", "micro-sam", "cellpose"] = "forest"
+    sam_mode: Literal["prompts", "automatic"] = "prompts"
     model: str = ""
     checkpoint: str = ""
     device: Literal["auto", "cpu", "cuda", "mps"] = "auto"
@@ -176,6 +179,7 @@ class PredictionRequest(AnnotationModel):
     bounds: tuple[float, float, float, float] | None = None
     points: list[tuple[float, float, int]] = Field(default_factory=list)
     box: tuple[float, float, float, float] | None = None
+    boxes: list[tuple[float, float, float, float]] = Field(default_factory=list)
     class_id: str | None = None
     allow_download: bool = False
 

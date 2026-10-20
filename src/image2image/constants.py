@@ -160,3 +160,7 @@ DIAGNOSTIC_HELP = {
         "or registration-failure score.</p>"
     ),
 }
+
+LINKS = {
+    "micro-sam": "https://computational-cell-analytics.github.io/micro-sam/micro_sam.html#choosing-a-model",
+}

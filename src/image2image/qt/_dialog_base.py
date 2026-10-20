@@ -129,7 +129,7 @@ class BasePluginMixin(ImageViewMixin):
         wrapper = model.wrapper
         if not wrapper:
             for layer in view_wrapper.layers:
-                if isinstance(layer, (Image, Shapes)):
+                if isinstance(layer, Image | Shapes):
                     if channel_names and layer.name not in channel_names:
                         continue
                     layer.visible = state
@@ -362,7 +362,7 @@ class BasePluginMixin(ImageViewMixin):
             exclude_names = []
         try:
             channel_names = model.channel_names()
-            layer_names = [layer.name for layer in view_wrapper.layers if isinstance(layer, (Image, Shapes, Points))]
+            layer_names = [layer.name for layer in view_wrapper.layers if isinstance(layer, Image | Shapes | Points)]
             for name in layer_names:
                 if (
                     name not in exclude_names
@@ -461,8 +461,8 @@ class BasePluginMixin(ImageViewMixin):
         hp.make_menu_item(self, "Open Elastix App", menu=menu_apps, func=self.on_open_elastix, icon="elastix")
         hp.make_menu_item(self, "Open Valis App", menu=menu_apps, func=self.on_open_valis, icon="valis")
         hp.make_menu_item(self, "Open Elastix/Valis Runner", menu=menu_apps, func=self.on_open_runner, icon="queue")
-        hp.make_menu_item(self, "Open Validate App", menu=menu_apps, func=self.on_open_validate, icon="register")
-        hp.make_menu_item(self, "Open Annotation Editor", menu=menu_apps, func=self.on_open_annotate, icon="crop")
+        hp.make_menu_item(self, "Open Validate App", menu=menu_apps, func=self.on_open_validate, icon="measure")
+        hp.make_menu_item(self, "Open Annotation Editor", menu=menu_apps, func=self.on_open_annotate, icon="annotate")
         menu_apps.addSection("Utilities")
         hp.make_menu_item(self, "Open Crop App", menu=menu_apps, func=self.on_open_crop, icon="crop")
         hp.make_menu_item(
@@ -473,11 +473,11 @@ class BasePluginMixin(ImageViewMixin):
             # disabled=STATE.allow_convert,
             icon="convert",
         )
-        hp.make_menu_item(self, "Open Volume Builder", menu=menu_apps, func=self.on_open_volume, icon="layers")
+        hp.make_menu_item(self, "Open Volume Builder", menu=menu_apps, func=self.on_open_volume, icon="builder")
         hp.make_menu_item(
-            self, "Open Illumination Correction", menu=menu_apps, func=self.on_open_illumination, icon="fa5s.adjust"
+            self, "Open Illumination Correction", menu=menu_apps, func=self.on_open_illumination, icon="illumination"
         )
-        hp.make_menu_item(self, "Open Stain Separation", menu=menu_apps, func=self.on_open_stains, icon="fa5s.adjust")
+        hp.make_menu_item(self, "Open Stain Separation", menu=menu_apps, func=self.on_open_stains, icon="stain")
         hp.make_menu_item(self, "Open Merge App", menu=menu_apps, func=self.on_open_merge, icon="merge")
         hp.make_menu_item(self, "Open Fusion App", menu=menu_apps, func=self.on_open_fusion, icon="fusion")
         menu_apps.addSeparator()

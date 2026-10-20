@@ -2,11 +2,15 @@
 
 from __future__ import annotations
 
+import json
+import sys
 from pathlib import Path
+from types import ModuleType, SimpleNamespace
 
 import numpy as np
 import pytest
 import tifffile
+from shapely import from_wkb
 from shapely.geometry import box
 
 from image2image.models.annotation import (
@@ -16,6 +20,7 @@ from image2image.models.annotation import (
     FeatureSettings,
     PredictionRequest,
 )
+from image2image.utils.annotation import ml
 from image2image.utils.annotation.images import inspect_slide
 from image2image.utils.annotation.ml import load_forest, predict, train_classifier
 from image2image.utils.annotation.store import AnnotationStore
@@ -88,6 +93,49 @@ def test_training_conflicts_and_stale_requests(trained):
         predict(store, request)
 
 
+def test_ignore_masks_precede_conflict_checks_and_respect_sets(trained: tuple) -> None:
+    store, slide, set_id, _model, settings, dark, light = trained
+    ignore = AnnotationClass(name="Renamed Ignore", is_ignore=True)
+    store.save_class(ignore)
+    other_set = store.create_set(slide.id, "Other annotations")
+    mask_geometry = box(10, 10, 30, 70)
+    keys = store.apply(
+        EditCommand(
+            "Ignore masks",
+            [
+                (None, AnnotationObject(set_id, "mask", mask_geometry, ignore.id, training=False)),
+                (None, AnnotationObject(other_set, "foreign mask", box(0, 0, 160, 96), ignore.id, training=True)),
+                (None, AnnotationObject(set_id, "proposed mask", box(0, 0, 160, 96), ignore.id, review="proposed")),
+                (None, AnnotationObject(set_id, "masked conflict", box(12, 12, 20, 25), light.id, training=True)),
+            ],
+        )
+    )
+    model = train_classifier(store, "Masked", settings)
+    _forest, metadata = load_forest(model)
+    assert set(metadata["classes"]) == {dark.id, light.id}
+    assert [mask["key"] for mask in metadata["ignore_regions"]] == [keys[0]]
+    examples = {example["id"]: example for example in metadata["training"]}
+    assert "masked conflict" not in examples
+    assert from_wkb(bytes.fromhex(examples["dark"]["geometry"])).equals(box(30, 10, 50, 70))
+    assert from_wkb(bytes.fromhex(examples["light"]["geometry"])).equals(box(100, 10, 140, 70))
+
+
+def test_training_reports_fully_masked_classes(trained: tuple) -> None:
+    store, _slide, set_id, _model, settings, _dark, _light = trained
+    ignore = AnnotationClass(name="Ignore", is_ignore=True)
+    store.save_class(ignore)
+    store.apply(
+        EditCommand(
+            "Mask all light pixels",
+            [
+                (None, AnnotationObject(set_id, "mask", box(90, 0, 160, 96), ignore.id)),
+            ],
+        )
+    )
+    with pytest.raises(ValueError, match="no usable pixels"):
+        train_classifier(store, "Empty class", settings)
+
+
 def test_missing_backend_and_cancellation(trained, monkeypatch):
     store, slide, _set, _model, _settings, _dark, _light = trained
     monkeypatch.setattr("image2image.utils.annotation.ml.backend_available", lambda _name: False)
@@ -129,15 +177,79 @@ def test_sam_prompts_patch_coordinates_and_cache(trained, monkeypatch):
     )
     batch = predict(store, request)
     np.testing.assert_array_equal(calls[0]["point_coords"], [[5, 5]])
-    np.testing.assert_array_equal(calls[0]["box"], [2, 2, 14, 12])
+    assert calls[0]["box"] is None
+    assert calls[1]["point_coords"] is None
+    np.testing.assert_array_equal(calls[1]["box"], [2, 2, 14, 12])
+    assert batch.count == 2
     obj = next(store.iter_objects(set_id=batch.set_id, review="proposed"))
     assert obj.geometry.bounds == (28, 36, 44, 50)
+    assert obj.provenance["model"]["segmentation_mode"] == "prompts"
 
 
-def test_instance_seam_reconciliation_and_cancel(trained, monkeypatch, tmp_path):
+def test_sam_separate_prompt_instances_negative_hints_and_cancel(
+    trained: tuple, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    store, slide, _set, _model, _settings, _dark, _light = trained
+
+    class Predictor:
+        images = 0
+
+        def __init__(self) -> None:
+            self.calls = []
+
+        def set_image(self, image: np.ndarray) -> None:
+            self.images += 1
+            self.shape = image.shape[:2]
+
+        def predict(self, **kwargs: object) -> tuple[np.ndarray, np.ndarray, None]:
+            self.calls.append(kwargs)
+            masks = np.zeros((1, *self.shape), dtype=bool)
+            if kwargs["box"] is not None:
+                x0, y0, x1, y1 = np.asarray(kwargs["box"], dtype=int)
+            else:
+                x0, y0 = np.asarray(kwargs["point_coords"], dtype=int)[0]
+                x1, y1 = x0 + 4, y0 + 3
+            masks[0, y0:y1, x0:x1] = True
+            return masks, np.array([1.0]), None
+
+    predictor = Predictor()
+    monkeypatch.setattr(ml, "_pretrained", lambda *args: predictor)
+    request = PredictionRequest(
+        project=str(store.path),
+        slide_id=slide.id,
+        revision=store.revision,
+        backend="micro-sam",
+        bounds=(20, 10, 100, 90),
+        downsample=2,
+        points=[(30, 20, 1), (60, 40, 1), (50, 30, 0)],
+        boxes=[(22, 12, 34, 24), (70, 50, 90, 70)],
+    )
+    batch = predict(store, request)
+    assert batch.count == 4 and predictor.images == 1
+    objects = list(store.iter_objects(set_id=batch.set_id, review="proposed"))
+    assert [obj.geometry.bounds for obj in objects] == [
+        (30, 20, 38, 26),
+        (60, 40, 68, 46),
+        (22, 12, 34, 24),
+        (70, 50, 90, 70),
+    ]
+    assert [list(call["point_labels"]) for call in predictor.calls] == [[1, 0], [1, 0], [0], [0]]
+    assert all(obj.provenance["prompt"] for obj in objects)
+    before = store.sets(slide.id)
+    predictor.calls.clear()
+    with pytest.raises(InterruptedError):
+        predict(store, request, cancel=lambda: len(predictor.calls) > 0)
+    assert store.sets(slide.id) == before
+    with pytest.raises(ValueError, match="foreground point or box"):
+        predict(store, request.model_copy(update={"points": [(50, 30, 0)], "boxes": []}))
+
+
+@pytest.mark.parametrize("backend", ["cellpose", "micro-sam"])
+@pytest.mark.parametrize("downsample,bounds", [(1, None), (2, (16, 8, 112, 88))])
+def test_instance_seam_reconciliation_and_cancel(trained, monkeypatch, tmp_path, backend, downsample, bounds):
     store, _slide, _set, _model, _settings, dark, _light = trained
     data = np.zeros((96, 128), dtype=np.uint8)
-    data[20:40, 55:74] = 200
+    data[20:40, 56:74] = 200
     path = tmp_path / "seam.tiff"
     tifffile.imwrite(path, data)
     slide = inspect_slide(path)
@@ -148,19 +260,35 @@ def test_instance_seam_reconciliation_and_cancel(trained, monkeypatch, tmp_path)
             return (image[..., 0] > 100).astype(np.int32), None, None
 
     monkeypatch.setattr("image2image.utils.annotation.ml._pretrained", lambda *args: Model())
+
+    class Segmenter:
+        def initialize(self, image: np.ndarray, **_kwargs: object) -> None:
+            self.image = image
+
+        def generate(self, **_kwargs: object) -> np.ndarray:
+            return (self.image[..., 0] > 100).astype(np.int32)
+
+    monkeypatch.setattr(ml, "_automatic_sam", lambda request: (Model(), Segmenter()))
     request = PredictionRequest(
         project=str(store.path),
         slide_id=slide.id,
         revision=store.revision,
-        backend="cellpose",
+        backend=backend,
+        sam_mode="automatic",
         class_id=dark.id,
         tile_size=64,
         halo=16,
+        downsample=downsample,
+        bounds=bounds,
     )
-    batch = predict(store, request)
+    progress = []
+    batch = predict(store, request, task_progress=lambda *args: progress.append(args))
+    stages = [step for step in progress if step[0] == "Segmenting patches"]
+    assert stages[0][1] == 0
+    assert stages[-1][1] == stages[-1][2] == (4 if downsample == 1 else 1)
     assert batch.count == 1
     obj = next(store.iter_objects(set_id=batch.set_id, review="proposed"))
-    assert obj.geometry.equals(box(55, 20, 74, 40))
+    assert obj.geometry.equals(box(56, 20, 74, 40))
     assert not obj.properties["ambiguous_seam"]
     before = store.sets(slide.id)
     with pytest.raises(InterruptedError):
@@ -170,6 +298,78 @@ def test_instance_seam_reconciliation_and_cancel(trained, monkeypatch, tmp_path)
     with pytest.raises(InterruptedError):
         store.review(batch.set_id, accept=True, cancel=lambda: True)
     assert store.count(batch.set_id) == 0
+
+
+def test_seed_depth_reproducibility_and_legacy_artifacts(trained: tuple, tmp_path: Path) -> None:
+    store, _slide, _set, _model, settings, _dark, _light = trained
+    configured = settings.model_copy(update={"seed": 19, "max_depth": 2})
+    first = train_classifier(store, "First", configured)
+    second = train_classifier(store, "Second", configured)
+    forest, metadata = load_forest(first)
+    repeated, _metadata = load_forest(second)
+    assert metadata["settings"]["seed"] == 19
+    assert metadata["settings"]["max_depth"] == forest.max_depth == 2
+    for left, right in zip(forest.estimators_, repeated.estimators_, strict=True):
+        assert left.tree_.max_depth <= 2
+        np.testing.assert_array_equal(left.tree_.threshold, right.tree_.threshold)
+    with np.load(first, allow_pickle=False) as saved:
+        arrays = {key: saved[key] for key in saved.files}
+    del metadata["settings"]["max_depth"]
+    arrays["metadata"] = np.asarray(json.dumps(metadata))
+    legacy = tmp_path / "legacy.npz"
+    np.savez_compressed(legacy, **arrays)
+    loaded, metadata = load_forest(legacy)
+    assert loaded.max_depth == FeatureSettings.model_validate(metadata["settings"]).max_depth == 24
+
+
+def test_automatic_sam_invalidates_prompt_embeddings(monkeypatch: pytest.MonkeyPatch) -> None:
+    class Segmenter:
+        def initialize(self, image: np.ndarray, **_kwargs: object) -> None:
+            self.image = image
+
+        def generate(self, **_kwargs: object) -> np.ndarray:
+            return np.ones(self.image.shape[:2], dtype=np.int32)
+
+    monkeypatch.setattr(ml, "_SAM_IMAGE_KEY", "previous prompt embedding")
+    masks = ml._sam_instance_masks(Segmenter(), np.zeros((8, 12, 3), dtype=np.uint8))
+    assert masks.shape == (8, 12)
+    assert ml._SAM_IMAGE_KEY == ""
+
+
+@pytest.mark.parametrize("decoder_available", [False, True])
+def test_automatic_sam_uses_decoder_or_default_mask_generator(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, decoder_available: bool
+) -> None:
+    checkpoint = tmp_path / "local.pt"
+    checkpoint.write_bytes(b"local weights")
+    predictor = SimpleNamespace()
+    state = {"decoder_state": {}} if decoder_available else {}
+    monkeypatch.setattr(ml, "_sam_bundle", lambda *args: (predictor, state))
+    monkeypatch.setattr(ml, "_device", lambda device: device)
+    automatic = ModuleType("micro_sam.automatic_segmentation")
+    calls = []
+    segmenter = object()
+
+    def prepare(*args: object, **kwargs: object) -> tuple[object, object]:
+        calls.append((args, kwargs))
+        return predictor, segmenter
+
+    automatic.get_predictor_and_segmenter = prepare
+    monkeypatch.setitem(sys.modules, "micro_sam", ModuleType("micro_sam"))
+    monkeypatch.setitem(sys.modules, "micro_sam.automatic_segmentation", automatic)
+    request = PredictionRequest(
+        project="unused",
+        slide_id="slide",
+        revision=0,
+        backend="micro-sam",
+        checkpoint=str(checkpoint),
+        sam_mode="automatic",
+    )
+    actual_predictor, actual_segmenter = ml._automatic_sam(request)
+    assert actual_predictor is predictor and actual_segmenter is segmenter
+    assert calls[0][1]["segmentation_mode"] == ("ais" if decoder_available else "amg")
+    assert calls[0][1]["is_tiled"] is False
+    assert calls[0][1]["state"] is state
 
 
 def test_ambiguous_instance_seams_flag_both_objects(trained, monkeypatch):

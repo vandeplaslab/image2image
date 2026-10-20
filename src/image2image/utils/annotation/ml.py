@@ -20,6 +20,7 @@ from shapely.ops import unary_union
 from image2image.models.annotation import AnnotationObject, FeatureSettings, PredictionBatch, PredictionRequest
 from image2image.utils.annotation.images import PatchReader, fingerprint
 from image2image.utils.annotation.io import Cancel, Progress, _progress, check_cancel
+from image2image.utils.annotation.model_cache import TaskProgress, resolve_pretrained_model
 from image2image.utils.annotation.store import AnnotationStore
 
 
@@ -69,7 +70,12 @@ def load_forest(path: str | Path) -> tuple[Any, dict]:
         if metadata["sklearn"].split(".")[:2] != sklearn.__version__.split(".")[:2]:
             raise ValueError("Classifier sklearn version differs. Retrain using the saved training annotations.")
         n_features, n_classes = int(arrays["n_features"]), len(metadata["classes"])
-        forest = RandomForestClassifier(n_estimators=metadata["trees"], n_jobs=1)
+        forest = RandomForestClassifier(
+            n_estimators=metadata["trees"],
+            n_jobs=1,
+            max_depth=metadata["settings"].get("max_depth", 24),
+            random_state=metadata["settings"].get("seed", 42),
+        )
         forest.n_features_in_, forest.n_classes_, forest.n_outputs_ = n_features, n_classes, 1
         forest.classes_ = np.arange(n_classes)
         forest.estimators_ = []
@@ -99,7 +105,7 @@ def train_classifier(
     cancel: Cancel | None = None,
     progress: Progress | None = None,
 ) -> Path:
-    """Train a balanced forest across marked examples with bounded reservoir sampling."""
+    """Train on included accepted examples, masking same-set Ignore regions before sampling."""
     import sklearn
     from rasterio.features import rasterize
     from rasterio.transform import Affine
@@ -109,17 +115,45 @@ def train_classifier(
         raise ValueError("Maximum feature scale must be at least the minimum scale.")
     revision = store.revision
     input_slides = {slide.id: slide for slide in store.slides()}
-    class_ids = sorted({obj.class_id for obj in store.iter_objects(training=True) if obj.class_id})
+    classes = store.classes()
+    trainable = {item.id for item in classes if not item.is_ignore}
+    ignore_ids = {item.id for item in classes if item.is_ignore}
+    class_ids = sorted(
+        {obj.class_id for obj in store.iter_objects(training=True) if obj.class_id and obj.class_id in trainable}
+    )
     if len(class_ids) < 2:
-        raise ValueError("Mark training examples for at least two classes, including background where appropriate.")
+        raise ValueError(
+            "Include accepted annotations for at least two classes, including background where appropriate."
+        )
     rng = np.random.default_rng(settings.seed)
     samples: dict[str, tuple[np.ndarray, np.ndarray]] = {}
     training: list[dict[str, Any]] = []
+    ignore_regions: dict[int, dict[str, Any]] = {}
     tile_size = 256
     ds = settings.downsample
     halo = math.ceil(4 * settings.sigma_max)
     for slide in store.slides():
-        examples = list(store.iter_objects(slide_id=slide.id, training=True))
+        examples = []
+        for obj in store.iter_objects(slide_id=slide.id, training=True):
+            check_cancel(cancel)
+            if obj.class_id not in trainable:
+                continue
+            masks = []
+            for class_id in ignore_ids:
+                for mask in store.iter_objects(
+                    slide_id=slide.id, set_id=obj.set_id, class_id=class_id, bounds=obj.geometry.bounds
+                ):
+                    masks.append(mask.geometry)
+                    ignore_regions[mask.key] = {
+                        "slide_id": slide.id,
+                        "set_id": mask.set_id,
+                        "key": mask.key,
+                        "class_id": mask.class_id,
+                        "geometry": mask.geometry.wkb_hex,
+                    }
+            geometry = obj.geometry.difference(unary_union(masks)) if masks else obj.geometry
+            if not geometry.is_empty and geometry.area > 0:
+                examples.append(replace(obj, geometry=geometry))
         if not examples:
             continue
         if fingerprint(store.resolve_path(slide)) != slide.fingerprint:
@@ -139,6 +173,7 @@ def train_classifier(
         training.extend(
             {
                 "slide_id": slide.id,
+                "set_id": obj.set_id,
                 "key": obj.key,
                 "id": obj.object_id,
                 "class_id": obj.class_id,
@@ -199,12 +234,17 @@ def train_classifier(
                 finally:
                     tiles.close()
     if set(samples) != set(class_ids):
-        raise ValueError("Some classes have no samples at this resolution. Use a smaller downsample.")
+        raise ValueError(
+            "Some included classes have no usable pixels after Ignore masking at this resolution. "
+            "Check Ignore regions, include more examples, or use a smaller downsample."
+        )
     per_class = min(len(samples[class_id][0]) for class_id in class_ids)
     train_x = np.concatenate([samples[class_id][0][:per_class] for class_id in class_ids])
     train_y = np.repeat(np.arange(len(class_ids)), per_class)
     check_cancel(cancel)
-    forest = RandomForestClassifier(n_estimators=settings.trees, random_state=settings.seed, n_jobs=1, max_depth=24)
+    forest = RandomForestClassifier(
+        n_estimators=settings.trees, random_state=settings.seed, n_jobs=1, max_depth=settings.max_depth
+    )
     _progress(progress, 0, f"Training {settings.trees} trees on {len(train_y):,} balanced samples")
     forest.fit(train_x, train_y)
     check_cancel(cancel)
@@ -225,6 +265,7 @@ def train_classifier(
         "revision": revision,
         "samples_per_class": per_class,
         "training": training,
+        "ignore_regions": list(ignore_regions.values()),
         "slides": [slide.model_dump() for slide in input_slides.values()],
         "numpy": np.__version__,
         "scikit_image": version("scikit-image"),
@@ -257,6 +298,14 @@ def _device(name: str) -> Any:
 
 
 def _pretrained(backend: str, model: str, checkpoint: str, device: str, allow_download: bool) -> Any:
+    if not backend_available(backend):
+        extra = "annotate-sam" if backend == "micro-sam" else "annotate-cellpose"
+        raise ImportError(f"Install image2image[{extra}] in this app's Python environment.")
+    decoder = ""
+    if not checkpoint:
+        checkpoint, decoder = resolve_pretrained_model(
+            backend, model or ("vit_b_lm" if backend == "micro-sam" else "cpsam"), allow_download=allow_download
+        )
     return _load_pretrained(
         backend,
         model,
@@ -264,31 +313,93 @@ def _pretrained(backend: str, model: str, checkpoint: str, device: str, allow_do
         device,
         allow_download,
         fingerprint(Path(checkpoint)) if checkpoint and Path(checkpoint).is_file() else "",
+        decoder,
+        fingerprint(Path(decoder)) if decoder else "",
     )
 
 
 @lru_cache(maxsize=2)
 def _load_pretrained(
-    backend: str, model: str, checkpoint: str, device: str, allow_download: bool, checkpoint_revision: str
+    backend: str,
+    model: str,
+    checkpoint: str,
+    device: str,
+    allow_download: bool,
+    checkpoint_revision: str,
+    decoder: str = "",
+    decoder_revision: str = "",
 ) -> Any:
     if not backend_available(backend):
         extra = "annotate-sam" if backend == "micro-sam" else "annotate-cellpose"
         raise ImportError(f"Install image2image[{extra}] in this app's Python environment, then restart Annotate.")
     if checkpoint and not Path(checkpoint).is_file():
         raise FileNotFoundError(f"Checkpoint missing: {checkpoint}")
-    if not checkpoint and not allow_download:
-        raise ValueError("Choose a local checkpoint or enable model download for this run.")
     device_ = _device(device)
     if backend == "micro-sam":
-        from micro_sam.util import get_sam_model
-
-        return get_sam_model(model_type=model or "vit_b_lm", checkpoint_path=checkpoint or None, device=device_)
+        return _sam_bundle(model, checkpoint, decoder, device, checkpoint_revision, decoder_revision)[0]
     from cellpose.models import MODEL_NAMES, CellposeModel
 
     if not checkpoint and model and model not in MODEL_NAMES:
         raise ValueError(f"Unknown Cellpose model '{model}'. Select a supported model or a local checkpoint.")
 
     return CellposeModel(gpu=device_.type != "cpu", device=device_, pretrained_model=checkpoint or model or "cpsam")
+
+
+@lru_cache(maxsize=2)
+def _sam_bundle(
+    model: str, checkpoint: str, decoder: str, device: str, checkpoint_revision: str, decoder_revision: str
+) -> tuple[Any, dict[str, Any]]:
+    from micro_sam.util import get_sam_model
+
+    predictor, state = get_sam_model(
+        model_type=model or "vit_b_lm",
+        checkpoint_path=checkpoint,
+        decoder_path=decoder or None,
+        device=_device(device),
+        return_state=True,
+    )
+    predictor._i2i_decoder_path = decoder
+    # The live model already holds encoder weights; retain only the optional instance decoder state.
+    return predictor, {"decoder_state": state["decoder_state"]} if "decoder_state" in state else {}
+
+
+def _automatic_sam(request: PredictionRequest) -> tuple[Any, Any]:
+    from micro_sam.automatic_segmentation import get_predictor_and_segmenter
+
+    checkpoint, decoder = request.checkpoint, ""
+    if not checkpoint:
+        checkpoint, decoder = resolve_pretrained_model(
+            "micro-sam", request.model or "vit_b_lm", allow_download=request.allow_download
+        )
+    predictor, state = _sam_bundle(
+        request.model,
+        checkpoint,
+        decoder,
+        request.device,
+        fingerprint(Path(checkpoint)),
+        fingerprint(Path(decoder)) if decoder else "",
+    )
+    mode = "ais" if "decoder_state" in state else "amg"
+    _predictor, segmenter = get_predictor_and_segmenter(
+        request.model or "vit_b_lm",
+        checkpoint=checkpoint,
+        device=_device(request.device),
+        predictor=predictor,
+        state=state,
+        segmentation_mode=mode,
+        is_tiled=False,
+    )
+    predictor._i2i_segmentation_mode = mode
+    return predictor, segmenter
+
+
+def _sam_instance_masks(segmenter: Any, image: np.ndarray) -> np.ndarray:
+    global _SAM_IMAGE_KEY
+
+    # Automatic segmentation changes predictor embeddings; prompted runs must set their image again.
+    _SAM_IMAGE_KEY = ""
+    segmenter.initialize(image, verbose=False)
+    return np.asarray(segmenter.generate(output_mode="instance_segmentation"))
 
 
 _SAM_IMAGE_KEY: str = ""
@@ -326,6 +437,16 @@ def _model_provenance(model: Any, backend: str, path: str = "") -> dict:
             sha256=_checkpoint_hash(path, stat.st_mtime_ns, stat.st_size),
             fingerprint=fingerprint(Path(path)),
         )
+    decoder = getattr(model, "_i2i_decoder_path", "")
+    if decoder:
+        stat = Path(decoder).stat()
+        result["decoder"] = {
+            "checkpoint": decoder,
+            "fingerprint": fingerprint(Path(decoder)),
+            "sha256": _checkpoint_hash(decoder, stat.st_mtime_ns, stat.st_size),
+        }
+    if hasattr(model, "_i2i_segmentation_mode"):
+        result["segmentation_mode"] = model._i2i_segmentation_mode
     return result
 
 
@@ -358,15 +479,23 @@ def predict(
     *,
     cancel: Cancel | None = None,
     progress: Progress | None = None,
+    task_progress: TaskProgress | None = None,
 ) -> PredictionBatch:
     """Stage complete tiled predictions for explicit review; never overwrite accepted objects."""
     import zarr
     from rasterio.features import shapes
     from rasterio.transform import Affine
 
+    def report(phase: str, completed: int = 0, total: int | None = None) -> None:
+        message = f"{phase}: {slide.name}"
+        if task_progress:
+            task_progress(phase, completed, total, message)
+        _progress(progress, completed, message)
+
     if store.revision != request.revision:
         raise ValueError("Prediction inputs are stale. Queue the current inputs again.")
     slide = store.slide(request.slide_id)
+    report("Preparing image")
     source_path = store.resolve_path(slide)
     if fingerprint(source_path) != slide.fingerprint:
         raise ValueError("Source image changed; reload its metadata before prediction.")
@@ -384,9 +513,19 @@ def predict(
             x0, y0, x1, y1 = max(0, bounds[0]), max(0, bounds[1]), min(width, bounds[2]), min(height, bounds[3])
             if x1 <= x0 or y1 <= y0:
                 raise ValueError("Prediction ROI does not intersect the slide.")  # noqa: TRY301 - the outer handler cleans up the unpublished set
-            if request.backend == "micro-sam":
-                if not request.points and request.box is None:
-                    raise ValueError("Add foreground/background points or a box prompt.")  # noqa: TRY301 - the outer handler cleans up the unpublished set
+            if request.backend == "micro-sam" and request.sam_mode == "prompts":
+                negative_points = [point for point in request.points if point[2] == 0]
+                prompts = [
+                    request.model_copy(update={"points": [point, *negative_points], "box": None, "boxes": []})
+                    for point in request.points
+                    if point[2] == 1
+                ]
+                prompts.extend(
+                    request.model_copy(update={"points": negative_points, "box": bounds_, "boxes": []})
+                    for bounds_ in ([request.box] if request.box else []) + request.boxes
+                )
+                if not prompts:
+                    raise ValueError("Add at least one foreground point or box; negative points only exclude pixels.")  # noqa: TRY301 - the outer handler cleans up the unpublished set
                 patch = reader.read(
                     (x0, y0, x1, y1),
                     downsample=request.downsample,
@@ -394,34 +533,41 @@ def predict(
                     max_pixels=4_194_304 * len(request.channels),
                 )
                 ranges = np.percentile(patch.data, (1, 99), axis=(0, 1))
+                report("Loading model")
                 predictor = _pretrained(
                     request.backend, request.model, request.checkpoint, request.device, request.allow_download
                 )
+                predictor._i2i_segmentation_mode = "prompts"
                 provenance.update(
                     model=_model_provenance(predictor, request.backend),
                     preprocessing={"percentile_ranges": ranges.tolist(), "output": "RGB uint8"},
                 )
-                check_cancel(cancel)
-                mask = _prompt_mask(predictor, _rgb(patch.data, ranges), request, patch)
-                check_cancel(cancel)
-                polygons = [shape(g) for g, v in shapes(mask.astype(np.int32), mask=mask != 0)]
-                if polygons:
-                    geometry = patch.coordinates.transform(unary_union(polygons), slide.geometry)
-                    store.append_staged(
-                        set_id,
-                        [
-                            AnnotationObject(
-                                set_id,
-                                request.id,
-                                geometry,
-                                request.class_id,
-                                provenance=provenance,
-                                review="proposed",
-                            )
-                        ],
-                    )
-                    count = 1
+                rgb = _rgb(patch.data, ranges)
+                report("Prompt inference", 0, len(prompts))
+                for index, prompt in enumerate(prompts, 1):
+                    check_cancel(cancel)
+                    mask = _prompt_mask(predictor, rgb, prompt, patch)
+                    check_cancel(cancel)
+                    polygons = [shape(g) for g, v in shapes(mask.astype(np.int32), mask=mask != 0)]
+                    if polygons:
+                        geometry = patch.coordinates.transform(unary_union(polygons), slide.geometry)
+                        store.append_staged(
+                            set_id,
+                            [
+                                AnnotationObject(
+                                    set_id,
+                                    f"{request.id}-{index}",
+                                    geometry,
+                                    request.class_id,
+                                    provenance={**provenance, "prompt": {"points": prompt.points, "box": prompt.box}},
+                                    review="proposed",
+                                )
+                            ],
+                        )
+                        count += 1
+                    report("Prompt inference", index, len(prompts))
             elif request.backend == "forest":
+                report("Loading classifier")
                 forest, metadata = load_forest(request.model)
                 provenance.update(
                     model=_model_provenance(forest, request.backend, request.model), preprocessing=metadata["settings"]
@@ -452,6 +598,9 @@ def predict(
                     )
                     # Probability blending uses overlap; feature halos are excluded from blending.
                     stride = max(32, tile_size - 2 * min(halo, tile_size // 4))
+                    total_tiles = math.ceil(out_height / stride) * math.ceil(out_width / stride)
+                    completed_tiles = 0
+                    report("Predicting patches", 0, total_tiles)
                     for ty in range(0, out_height, stride):
                         for tx in range(0, out_width, stride):
                             check_cancel(cancel)
@@ -492,7 +641,8 @@ def predict(
                             weights[ty : ty + th, tx : tx + tw] = (
                                 np.asarray(weights[ty : ty + th, tx : tx + tw]) + blend
                             )
-                        _progress(progress, ty, f"Predicting {slide.name}: row {ty:,}/{out_height:,}")
+                            completed_tiles += 1
+                            report("Predicting patches", completed_tiles, total_tiles)
                     # Merge connected semantic regions across tile boundaries using disk fragments.
                     import sqlite3
 
@@ -500,6 +650,7 @@ def predict(
                     fragments.execute("CREATE TABLE pieces(class_id INTEGER,geometry BLOB)")
                     from shapely import from_wkb, to_wkb
 
+                    report("Building regions")
                     for ty in range(0, out_height, tile_size):
                         for tx in range(0, out_width, tile_size):
                             check_cancel(cancel)
@@ -512,6 +663,7 @@ def predict(
                                 fragments.execute("INSERT INTO pieces VALUES(?,?)", (int(value) - 1, to_wkb(clipped)))
                     fragments.execute("CREATE INDEX pieces_class ON pieces(class_id)")
                     fragments.commit()
+                    report("Merging regions", 0, len(metadata["classes"]))
                     for class_index, class_id in enumerate(metadata["classes"]):
                         check_cancel(cancel)
                         # Hierarchical unions keep individual batches bounded. A large tissue object is resident once.
@@ -541,11 +693,17 @@ def predict(
                                     )
                                 ],
                             )
+                        report("Merging regions", class_index + 1, len(metadata["classes"]))
                     fragments.close()
             else:
-                model = _pretrained(
-                    request.backend, request.model, request.checkpoint, request.device, request.allow_download
-                )
+                report("Loading model")
+                segmenter = None
+                if request.backend == "micro-sam":
+                    model, segmenter = _automatic_sam(request)
+                else:
+                    model = _pretrained(
+                        request.backend, request.model, request.checkpoint, request.device, request.allow_download
+                    )
                 ds, tile = request.downsample, request.tile_size
                 halo = min(request.halo, tile // 3)
                 overview = reader.read(
@@ -559,6 +717,9 @@ def predict(
                     preprocessing={"percentile_ranges": ranges.tolist(), "output": "RGB uint8"},
                 )
                 # Reconcile overlapping instances against already staged neighboring geometry using the RTree.
+                total_tiles = math.ceil((y1 - int(y0)) / (tile * ds)) * math.ceil((x1 - int(x0)) / (tile * ds))
+                completed_tiles = 0
+                report("Segmenting patches", 0, total_tiles)
                 for y in range(int(y0), math.ceil(y1), tile * ds):
                     for x in range(int(x0), math.ceil(x1), tile * ds):
                         check_cancel(cancel)
@@ -573,8 +734,11 @@ def predict(
                             downsample=ds,
                             channels=request.channels,
                         )
-                        masks = np.asarray(
-                            model.eval(_rgb(patch.data, ranges), channel_axis=-1, do_3D=False, batch_size=1)[0]
+                        rgb = _rgb(patch.data, ranges)
+                        masks = (
+                            _sam_instance_masks(segmenter, rgb)
+                            if segmenter is not None
+                            else np.asarray(model.eval(rgb, channel_axis=-1, do_3D=False, batch_size=1)[0])
                         )
                         check_cancel(cancel)
                         grouped: dict[int, list] = {}
@@ -638,7 +802,9 @@ def predict(
                                         )
                                     ],
                                 )
-                    _progress(progress, y, f"Segmenting {slide.name}: row {y:,}/{int(y1):,}")
+                        completed_tiles += 1
+                        report("Segmenting patches", completed_tiles, total_tiles)
+        report("Publishing annotations")
         check_cancel(cancel)
         if fingerprint(source_path) != slide.fingerprint:
             raise ValueError("Source image changed during prediction; results were discarded.")  # noqa: TRY301

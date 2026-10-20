@@ -18,8 +18,10 @@ pytestmark = pytest.mark.skipif(
 )
 
 
-@pytest.mark.parametrize("backend", ["micro-sam", "cellpose"])
-def test_real_pretrained_inference(tmp_path, backend):
+@pytest.mark.parametrize(
+    "backend,sam_mode", [("micro-sam", "prompts"), ("micro-sam", "automatic"), ("cellpose", "prompts")]
+)
+def test_real_pretrained_inference(tmp_path, backend, sam_mode):
     import torch
     from skimage.data import cells3d, immunohistochemistry
 
@@ -37,6 +39,7 @@ def test_real_pretrained_inference(tmp_path, backend):
             slide_id=slide.id,
             revision=store.revision,
             backend=backend,
+            sam_mode=sam_mode,
             device="cpu",
             channels=(0, 1, 2),
             tile_size=128,

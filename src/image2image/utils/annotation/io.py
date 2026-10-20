@@ -62,7 +62,9 @@ def iter_geojson(path: Path) -> Iterator[dict]:
             yield json.loads(json.dumps(feature, default=float))
 
 
-def _class_for(store: AnnotationStore, properties: dict, cache: dict[str, str], set_id: str) -> str | None:
+def _class_for(
+    store: AnnotationStore, properties: dict, cache: dict[str, str], set_id: str, *, is_ignore: bool = False
+) -> str | None:
     classification = properties.get("classification")
     if not classification:
         return None
@@ -77,7 +79,7 @@ def _class_for(store: AnnotationStore, properties: dict, cache: dict[str, str], 
             color = f"#{color & 0xFFFFFF:06x}"
         if not isinstance(color, str) or not color.startswith("#"):
             color = "#e57373"
-        annotation_class = AnnotationClass(name=name, color=color)
+        annotation_class = AnnotationClass(name=name, color=color, is_ignore=is_ignore)
         store.stage_class(set_id, annotation_class)
         cache[name] = annotation_class.id
     return cache[name]
@@ -113,10 +115,12 @@ def import_geojson(
                     set_id,
                     object_id,
                     geometry,
-                    _class_for(store, properties, classes, set_id),
+                    _class_for(
+                        store, properties, classes, set_id, is_ignore=bool(private.get("class_is_ignore", False))
+                    ),
                     properties,
                     private.get("provenance", {"source": str(path)}),
-                    training=bool(private.get("training", False)),
+                    training=bool(private.get("training", True)),
                 )
             )
             if len(batch) >= 256:
@@ -165,7 +169,11 @@ def export_geojson(
                         classification.update(name=item.name, color=[int(item.color[i : i + 2], 16) for i in (1, 3, 5)])
                         properties["classification"] = classification
                     properties.setdefault("objectType", "annotation")
-                    properties["image2image"] = {"provenance": obj.provenance, "training": obj.training}
+                    properties["image2image"] = {
+                        "provenance": obj.provenance,
+                        "training": obj.training,
+                        "class_is_ignore": bool(obj.class_id in classes and classes[obj.class_id].is_ignore),
+                    }
                     feature = {
                         "type": "Feature",
                         "id": obj.object_id,
@@ -313,10 +321,16 @@ def import_labels(
                             set_id,
                             metadata.get("id", int(label)),
                             coordinates.transform(geometry, slide.geometry),
-                            _class_for(store, properties, classes, set_id),
+                            _class_for(
+                                store,
+                                properties,
+                                classes,
+                                set_id,
+                                is_ignore=bool(metadata.get("class_is_ignore", False)),
+                            ),
                             properties,
                             metadata.get("provenance", {"source": str(path), "label": int(label)}),
-                            training=metadata.get("training", False),
+                            training=bool(metadata.get("training", True)),
                         )
                     )
                     if len(batch) >= 256:
@@ -403,6 +417,7 @@ def export_labels(
                                 "properties": properties,
                                 "provenance": obj.provenance,
                                 "training": obj.training,
+                                "class_is_ignore": bool(obj.class_id in classes and classes[obj.class_id].is_ignore),
                             },
                             output,
                         )
