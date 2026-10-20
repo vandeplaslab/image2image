@@ -548,8 +548,6 @@ class ImageAnnotationWindow(Window):
         self.job_bar.hide()
         form.addRow(self.job_label)
         form.addRow(self.job_bar)
-        self.queue_summary = hp.make_btn(panel, "Task queue: idle", func=self.show_task_queue)
-        form.addRow(self.queue_summary)
         self.view_btn = self._button(panel, "Preview current view", self.predict_view)
         form.addRow(self.view_btn)
         self.roi_segment = QtSegmentedButton("Predict drawn rectangle", panel, func=lambda: self._try(self.predict_roi))
@@ -578,13 +576,13 @@ class ImageAnnotationWindow(Window):
             "Each positive point or box produces a separate instance. Negative points are shared exclusion hints."
         )
         form.addRow(self.prompt_segment)
-        form.addRow(hp.make_label(panel, "Predictions stay separate until accepted in Review.", wrap=True))
         self.slide_separator = hp.make_h_line(panel)
         form.addRow(self.slide_separator)
         self.slide_btn = self._button(panel, "Predict current slide", self.predict_slide)
         self.all_slides_btn = self._button(panel, "Queue all slides", self.predict_all)
         form.addRow(self.slide_btn)
         form.addRow(self.all_slides_btn)
+        form.addRow(hp.make_label(panel, "Predictions stay separate until accepted in Review.", wrap=True))
         self.predict_buttons = [self.view_btn, self.roi_segment.button, self.slide_btn, self.all_slides_btn]
         self.backend.currentTextChanged.connect(self._backend_changed)
         self.model.currentIndexChanged.connect(self._model_selected)
@@ -688,11 +686,6 @@ class ImageAnnotationWindow(Window):
                 self.task_table.setItem(row, column, item)
         self.task_table.resizeRowsToContents()
         self.queue_btn.setToolTip(f"Show task queue ({len(tasks)} tasks)")
-        self.queue_summary.setText(
-            f"Task queue: {int(self.jobs.current is not None)} active, {len(self.jobs.pending)} queued"
-            if tasks
-            else "Task queue: idle"
-        )
         if self.jobs.cancelling:
             self.job_label.setText("Cancelling the active task and clearing the queue...")
         self._update_prediction_controls()
