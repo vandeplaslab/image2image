@@ -12,11 +12,24 @@ import tifffile
 from click.testing import CliRunner
 from pytestqt.qtbot import QtBot
 from qtpy.QtCore import Qt
+from qtpy.QtWidgets import QDialog
 
 from image2image.cli import cli
+from image2image.models.validation import (
+    ImageGeometry,
+    ValidationImage,
+    ValidationPair,
+    ValidationSession,
+    ValidationStudy,
+)
 from image2image.qt.dialog_validate import ImageValidationWindow
-from image2image.utils.validation import analyze_validation_session, inspect_validation_image, save_validation_session
-from test_validation import make_validation_session
+from image2image.utils.validation import (
+    analyze_validation_session,
+    inspect_validation_image,
+    save_validation_session,
+    save_validation_study,
+)
+from test_validation import make_validation_session, make_validation_study
 
 
 @pytest.fixture
@@ -36,7 +49,7 @@ def test_controls_annotations_and_zoom(validation_window: ImageValidationWindow,
     window = validation_window
     session = make_validation_session(tmp_path)
     window.open_path(session.candidates[0].path)
-    assert [window.tabs.tabText(i) for i in range(4)] == ["Inputs", "Landmarks", "Masks", "Results"]
+    assert [window.tabs.tabText(i) for i in range(4)] == ["Inputs", "Landmarks", "Region overlap (optional)", "Results"]
     window.begin_pair()
     window._pair_click(0, None, SimpleNamespace(type="mouse_press", button=1, position=(0, 24, 20)))
     window._pair_click(1, None, SimpleNamespace(type="mouse_press", button=1, position=(0, 28, 23)))
@@ -105,6 +118,8 @@ def test_mask_controls_and_failed_worker(
         path = tmp_path / f"{name}-mask.tiff"
         tifffile.imwrite(path, np.ones((32, 40), dtype=np.uint8) * (index + 1))
         window.set_mask(index, inspect_validation_image(path, (2, 2)))
+    window.tabs.setCurrentIndex(2)
+    assert all(view.viewer.layers["Region labels"].visible for view in window.views)
     assert window.session.mask_pairs == []
     window.add_mask_pair()
     window.mask_table.item(0, 2).setText("2")
@@ -115,12 +130,14 @@ def test_mask_controls_and_failed_worker(
     window.clear_masks()
     assert window.analysis is None
     assert window.session.fixed_mask is None and window.session.moving_mask is None
+    assert all("Region labels" not in view.viewer.layers for view in window.views)
     Path(session.candidates[0].path).unlink()
     window.start_analysis()
     qtbot.waitUntil(lambda: not window._workers, timeout=30000)
     assert window.analysis is None
     assert "Registration missing" in window.status.text()
-    assert not window.export_btn.isEnabled()
+    assert window.export_btn.isEnabled()
+    assert "Registration missing" in window._failures[window._pair_id]
 
 
 def test_cli_validate_project(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -176,3 +193,252 @@ def test_register_validation_menu(qtbot: QtBot) -> None:
     qtbot.addWidget(window)
     menus = [action.menu() for action in window.menubar.actions() if action.menu()]
     assert any(action.text() == "Validate registration..." for menu in menus for action in menu.actions())
+
+
+def test_native_pyramid_calibration_and_display_state(validation_window: ImageValidationWindow, tmp_path: Path) -> None:
+    window = validation_window
+    session = make_validation_session(tmp_path)
+    window.open_path(session.candidates[0].path)
+    image = window.session.fixed
+    image.geometry.spacing, image.geometry.origin = (2, 3), (10, 20)
+    window._load_views()
+    assert window.native_splitter.orientation() == Qt.Orientation.Vertical
+    assert not window.views[0].toolbar.toolbar_right.isHidden()
+    layer = window.views[0].viewer.layers["Image"]
+    np.testing.assert_array_equal(layer.scale, (3, 2))
+    np.testing.assert_array_equal(layer.translate, (20, 10))
+    np.testing.assert_array_equal(layer.data, np.arange(32 * 40, dtype=np.uint16).reshape(32, 40))
+    layer.gamma, layer.opacity, layer.contrast_limits = 1.7, 0.4, (20, 200)
+    generation = window._generation
+    window.views[0].viewer.camera.zoom = 2
+    reader = window._readers[0]
+    window._load_views()
+    updated = window.views[0].viewer.layers["Image"]
+    assert updated.gamma == 1.7 and updated.opacity == 0.4
+    assert updated.contrast_limits == [20, 200]
+    assert window._readers[0] is reader
+    assert window.views[0].viewer.camera.zoom == 2 and window._generation == generation
+    window.begin_pair()
+    window._pair_click(0, None, SimpleNamespace(type="mouse_press", button=1, position=(0, 29, 18)))
+    window._pair_click(1, None, SimpleNamespace(type="mouse_press", button=1, position=(0, 28, 23)))
+    assert window.session.landmarks[-1].fixed == (18, 29)
+    assert image.path == window.image_labels[0].toolTip()
+    window.views[0].viewer.cursor.position = (0, 29, 18)
+    assert window.coordinate_labels[0].text() == "X: 18 um, Y: 29 um"
+
+
+def test_study_switching_keeps_results_and_invalidates_only_edited_pair(
+    validation_window: ImageValidationWindow, qtbot: QtBot, tmp_path: Path
+) -> None:
+    window = validation_window
+    study = make_validation_study(tmp_path)
+    window.open_path(save_validation_study(tmp_path / "study", study))
+    first_reader = window._readers[1]
+    window.start_analysis_all()
+    qtbot.waitUntil(lambda: not window._workers, timeout=30000)
+    assert len(window._results) == 2, window.status.text()
+    assert window.analysis.candidates[0].validation["rms"] == 5
+    directory = Path(window._result_directory.name)
+    window.pair_selector.setCurrentIndex(1)
+    assert window.analysis.candidates[0].validation["rms"] == 10
+    assert first_reader.fh is None
+    window.downsample.setValue(2)
+    assert window.analysis is None and len(window._results) == 1 and directory.exists()
+    window.pair_selector.setCurrentIndex(0)
+    assert window.analysis.candidates[0].validation["rms"] == 5
+    window.downsample.setValue(2)
+    assert not window._results and not directory.exists()
+
+
+def test_results_without_independent_evidence(
+    validation_window: ImageValidationWindow, qtbot: QtBot, tmp_path: Path
+) -> None:
+    window = validation_window
+    session = make_validation_session(tmp_path)
+    window.open_path(session.candidates[0].path)
+    window.start_analysis()
+    qtbot.waitUntil(lambda: not window._workers, timeout=30000)
+    assert window.analysis is not None, window.status.text()
+    assert "add held-out landmark" in window.result_detail.text()
+    assert window.summary_table.item(0, 4).text() == "Unavailable"
+    assert window.fitting_table.item(0, 1).text() == "3"
+    assert window.deformation_table.item(0, 1).text() == "100.0%"
+    assert "No segmentation masks supplied" in window.overlap_table.item(0, 6).text()
+    generation = window._generation
+    window.views[0].viewer.layers["Image"].gamma = 1.5
+    assert window.analysis is not None and window._generation == generation
+
+
+def test_calibration_confirmation_and_cancellation(
+    validation_window: ImageValidationWindow, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    session = make_validation_session(tmp_path)
+    image = inspect_validation_image(session.fixed.path)
+    monkeypatch.setattr(QDialog, "exec", lambda _dialog: QDialog.DialogCode.Rejected)
+    assert not validation_window._confirm_calibration(image)
+    assert not image.calibration_confirmed
+    monkeypatch.setattr(QDialog, "exec", lambda _dialog: QDialog.DialogCode.Accepted)
+    assert validation_window._confirm_calibration(image)
+    assert image.calibration_confirmed and image.calibration_source == "user"
+
+
+def test_rgb_pyramid_channel_selection(validation_window: ImageValidationWindow, tmp_path: Path) -> None:
+    path = tmp_path / "rgb.ome.tiff"
+    pixels = np.zeros((32, 40, 3), dtype=np.uint8)
+    pixels[..., 1], pixels[..., 2] = 55, 77
+    with tifffile.TiffWriter(path, ome=True) as writer:
+        writer.write(pixels, subifds=1, photometric="rgb", metadata={"axes": "YXS"})
+        writer.write(pixels[::2, ::2], subfiletype=1, photometric="rgb")
+    image = inspect_validation_image(path, (2, 3))
+    image.geometry.origin = (10, 20)
+    study = ValidationStudy(pairs=[ValidationPair(session=ValidationSession(fixed=image))])
+    window = validation_window
+    window.open_path(save_validation_study(tmp_path / "rgb-study", study))
+    window.channels[0].setCurrentIndex(1)
+    layer = window.views[0].viewer.layers["Image"]
+    assert layer.multiscale and window.channels[0].currentText() == "G"
+    assert [level.shape for level in layer.data] == [(32, 40), (16, 20)]
+    np.testing.assert_array_equal(layer.data[0].compute(), 55)
+    np.testing.assert_array_equal(layer.scale, (3, 2))
+    np.testing.assert_array_equal(layer.translate, (20, 10))
+    layer.gamma = 1.8
+    window.channels[0].setCurrentIndex(2)
+    np.testing.assert_array_equal(window.views[0].viewer.layers["Image"].data[0].compute(), 77)
+    window.channels[0].setCurrentIndex(1)
+    assert window.views[0].viewer.layers["Image"].gamma == 1.8
+
+
+def test_reader_reopens_when_scene_changes_and_cancelled_add_keeps_study(
+    validation_window: ImageValidationWindow, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    window = validation_window
+    session = make_validation_session(tmp_path)
+    window.open_path(session.candidates[0].path)
+    reader = window._readers[1]
+    window.session.moving.reader_kws = {"scene_index": 0}
+    window._load_views()
+    assert window._readers[1] is not reader and reader.fh is None
+    monkeypatch.setattr("image2image.qt.dialog_validate.QFileDialog.getOpenFileName", lambda *_args: ("", ""))
+    pair_id = window._pair_id
+    window.add_moving_image()
+    assert len(window.study.pairs) == 1 and window._pair_id == pair_id
+
+
+def test_linked_camera_centers_and_image_selection(validation_window: ImageValidationWindow, tmp_path: Path) -> None:
+    window = validation_window
+    session = make_validation_session(tmp_path)
+    window.open_path(session.candidates[0].path)
+    window._reset_native_views()
+    fixed, moving = (view.viewer for view in window.views)
+    assert fixed.camera.center == moving.camera.center
+    fixed.camera.center = (0, 34, 25)
+    fixed.camera.zoom = 7
+    assert moving.camera.center == fixed.camera.center and moving.camera.zoom == 7
+    moving.camera.center = (0, 17, 14)
+    assert fixed.camera.center == moving.camera.center
+    window.link_views.setChecked(False)
+    fixed.camera.center = (0, 20, 20)
+    assert moving.camera.center != fixed.camera.center
+    window.link_views.setChecked(True)
+    assert moving.camera.center == fixed.camera.center
+    assert all(view.viewer.layers.selection.active is view.viewer.layers["Image"] for view in window.views)
+    fixed.layers.selection.active = window.point_layers[0]
+    assert fixed.layers.selection.active is fixed.layers["Image"]
+    window.begin_pair()
+    assert all(
+        view.viewer.layers.selection.active is point
+        for view, point in zip(window.views, window.point_layers, strict=True)
+    )
+    window._pair_click(0, None, SimpleNamespace(type="mouse_press", button=1, position=(0, 20, 20)))
+    window._pair_click(1, None, SimpleNamespace(type="mouse_press", button=1, position=(0, 24, 23)))
+    assert all(view.viewer.layers.selection.active is view.viewer.layers["Image"] for view in window.views)
+    window.edit_landmarks.setChecked(True)
+    assert fixed.layers.selection.active is window.point_layers[0]
+    window.tabs.setCurrentIndex(0)
+    assert fixed.layers.selection.active is fixed.layers["Image"]
+
+
+def test_direct_image_analysis_and_section_controls(
+    validation_window: ImageValidationWindow, qtbot: QtBot, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    window = validation_window
+    source = make_validation_session(tmp_path)
+    Path(source.candidates[0].path).unlink()
+    paths = iter((source.fixed.path, source.moving.path))
+    monkeypatch.setattr("image2image.qt.dialog_validate.QFileDialog.getOpenFileName", lambda *_args: (next(paths), ""))
+    monkeypatch.setattr(QDialog, "exec", lambda _dialog: QDialog.DialogCode.Accepted)
+    window.choose_image(0)
+    window.choose_image(1)
+    assert window.session.candidates == []
+    window.begin_pair()
+    window._pair_click(0, None, SimpleNamespace(type="mouse_press", button=1, position=(0, 24, 20)))
+    window._pair_click(1, None, SimpleNamespace(type="mouse_press", button=1, position=(0, 28, 23)))
+    assert window.pair_selector.parent() is window.image_sections[1]
+    assert all(
+        button.parent() is section
+        for button, section in zip(window.geometry_buttons, window.image_sections, strict=True)
+    )
+    window.start_analysis()
+    qtbot.waitUntil(lambda: not window._workers, timeout=30000)
+    assert window.analysis is not None, window.status.text()
+    assert window.analysis.candidates[0].validation["rms"] == 5
+    assert window.summary_table.item(0, 4).text() == "5"
+    assert "original registration deformation is unknown" in window.result_detail.text()
+
+
+def test_geometry_edit_remaps_native_annotations_and_invalidates_shared_results(
+    validation_window: ImageValidationWindow, qtbot: QtBot, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    window = validation_window
+    window.open_path(save_validation_study(tmp_path / "study", make_validation_study(tmp_path)))
+    window.start_analysis_all()
+    qtbot.waitUntil(lambda: not window._workers, timeout=30000)
+    old_fixed = window.session.fixed.geometry.model_copy()
+    original = [pair.session.landmarks[0].fixed for pair in window.study.pairs]
+    window.views[0].viewer.layers["Image"].gamma = 1.7
+
+    def confirm(image: ValidationImage, force: bool = False) -> bool:
+        image.geometry = ImageGeometry(shape=image.geometry.shape, spacing=(3, 5), origin=(7, 11))
+        image.calibration_source, image.calibration_confirmed = "user", True
+        return True
+
+    with monkeypatch.context() as patcher:
+        patcher.setattr(window, "_confirm_calibration", confirm)
+        window.geometry_buttons[0].click()
+    assert not window._results
+    assert window.views[0].viewer.layers["Image"].gamma == 1.7
+    for pair, coordinates in zip(window.study.pairs, original, strict=True):
+        geometry = pair.session.fixed.geometry
+        np.testing.assert_allclose(
+            pair.session.landmarks[0].fixed, geometry.to_physical(old_fixed.to_pixels(np.asarray(coordinates)))
+        )
+        assert geometry.spacing == (3, 5) and geometry.origin == (7, 11)
+    window.start_analysis_all()
+    qtbot.waitUntil(lambda: not window._workers, timeout=30000)
+    assert len(window._results) == 2 and not window._failures, window.status.text()
+
+
+def test_remove_last_moving_and_shared_fixed_images(
+    validation_window: ImageValidationWindow, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    window = validation_window
+    source = make_validation_session(tmp_path)
+    window.open_path(source.candidates[0].path)
+    monkeypatch.setattr("image2image.qt.dialog_validate.hp.confirm", lambda *_args: True)
+    fixed_reader, moving_reader = window._readers
+    window.remove_moving_btn.click()
+    assert window.session.moving is None and window.session.fixed is not None
+    assert window._readers[1] is None and moving_reader.fh is None
+    assert window._readers[0] is fixed_reader
+    assert not window.session.candidates and not window.session.landmarks
+    assert "Image" not in window.views[1].viewer.layers
+    window.open_path(source.candidates[0].path)
+    window.remove_image_buttons[0].click()
+    assert window.session.fixed is None and window.session.moving is not None
+    assert window._readers[0] is None and fixed_reader.fh is None
+    assert not window.session.candidates and not window.session.landmarks
+    assert Path(source.fixed.path).exists() and Path(source.moving.path).exists()
+    window.open_path(save_validation_study(tmp_path / "multiple", make_validation_study(tmp_path)))
+    window.remove_fixed_image()
+    assert all(pair.session.fixed is None and pair.session.moving is not None for pair in window.study.pairs)
+    assert all(not pair.session.candidates and not pair.session.landmarks for pair in window.study.pairs)

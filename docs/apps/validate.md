@@ -1,7 +1,8 @@
 # Registration Validation and Deformation Analysis
 
-Validate compares registrations of one fixed/moving image pair using independent landmarks, corresponding label masks,
-and local deformation diagnostics. Open **Validate App** from the launcher, or run:
+Validate compares aligned images or imported registrations using independent landmarks, corresponding region masks, and local deformation
+diagnostics. A study can contain several moving images sharing one fixed reference. Each pair keeps separate
+annotations, registration candidates, and results. Open **Validate App** from the launcher, or run:
 
 ```bash
 i2i --tool validate
@@ -10,25 +11,42 @@ i2i --tool validate --project_dir comparison.i2validate.json
 
 Register's **Tools > Validate registration...** saves a frozen registration snapshot before opening Validate.
 Completed Elastix projects have a **Validate...** action in Runner. Validation does not refit registrations or rewrite
-their settings. Valis, 3D images, external transform formats, and comparisons across different image pairs are not supported.
+their settings. Valis, 3D images, external transform formats, and studies with different fixed references are not supported.
 
 ## Set up a comparison
 
-1. Add a Register `.i2r.json`/`.i2r.toml` file or a completed Elastix project directory. A Register export must contain
-   one fixed image and one moving image. For an Elastix project with several registration paths, select the image pair.
+1. Choose fixed and moving images directly to evaluate images already aligned in the same physical coordinate space.
+   Add corresponding landmarks and optionally region masks, then analyze; no registration project is required.
+   Alternatively, add a Register `.i2r.json`/`.i2r.toml` file or a completed Elastix project directory to evaluate its transform.
+   A Register export must contain one fixed image and one moving image. For an Elastix project with several registration paths, select the image pair.
 2. Add other registrations of the same pair. Native image paths, calibration, and reader settings must agree.
-3. Choose the image channels to display. The analysis downsample applies to images, masks, and deformation maps;
+   Registrations of another moving image are grouped into a separate pair when they share the fixed reference.
+   Use the selector in the **Moving** section to switch pairs, or its **Add moving image...** button to start another pair manually.
+3. Choose the image channels to display. Fixed and moving viewers are stacked vertically with resizable panels.
+   Their image toolbars open layer controls for contrast, gamma, opacity, and colormap. Display adjustments do not
+   change measurements. Saved registration calibration takes precedence; otherwise confirm the X/Y spacing and origin
+   before loading. Calibration source and confirmation are retained in the saved study and reports.
+   The edit icon next to each **Choose image...** button updates spacing and origin. Existing annotations stay attached
+   to the same native pixels. Fixed calibration changes apply to every pair; imported transforms are expressed in the
+   updated coordinate system. The delete icon removes an image from the app without deleting source files. Removing
+   the fixed reference clears dependent registration candidates and landmarks across all pairs.
+4. The analysis downsample applies to diagnostic images, masks, and deformation maps;
    a four-million-pixel cap limits the common fixed-image grid. Landmark calculations use native physical coordinates.
-4. Save the session as `.i2validate.json` to retain annotations, exclusions, mask geometry, candidates, and settings.
+5. Save the study as `.i2validate.json` to retain annotations, exclusions, mask geometry, candidates, and settings.
+   Existing version 1 pair sessions open as a one-pair study; new saves use version 2.
    Changed or missing inputs are reported when reopening. Re-add a changed candidate to accept its new definition.
 
 ## Independent landmarks
 
 In **Landmarks**, choose **Add pair**, click the fixed image, then the corresponding location in the moving image.
-Drag existing markers or edit their coordinates in the table. Selecting a row centers both views on that pair.
-Zoom is synchronized in physical units. Uncheck **Use** to exclude a pair; use **Note** to explain the exclusion.
-Image previews are capped at four million pixels using bounded source reads. Their layer names show the displayed
-resolution; annotation coordinates and landmark calculations retain physical precision independently of this preview.
+Enable **Edit landmarks in the viewers** to drag existing markers, or edit coordinates in the table. The image layer
+is selected for image controls by default, and is restored after adding a pair. Selecting a row focuses its location.
+**Link physical view centers and zoom** keeps both viewers on the same physical region and magnification. Disable it
+for independent navigation while annotating images in different native frames. Uncheck **Use** to exclude a pair;
+use **Note** to explain the exclusion.
+Native viewers use lazy image pyramids, retaining the full-resolution level for zooming. Large images without stored
+pyramids receive lazy display levels. The analysis downsample does not reduce native viewer detail. Coordinates,
+image layers, landmarks, and scalebars use `um`, including images with different X/Y spacing and nonzero origins.
 
 CSV imports use these columns:
 
@@ -43,6 +61,10 @@ Y is the row axis, and pixel coordinate zero is the center of the first pixel. T
 CSV export includes all coordinates; exclusions and notes are retained in the session and full report.
 
 Validation evaluates the fixed-to-moving map `G` and reports `G(fixed) - moving` in the **moving physical frame**.
+For image-only comparisons, `G` is the identity mapping: residuals are the direct differences between the calibrated
+landmark coordinates. Validation landmarks are not used to fit a transform. All distance summaries, region overlap,
+coverage and identity-map diagnostics can be calculated directly. Original fitting residuals and historical registration
+deformation are unavailable without the original registration; an identity Jacobian is not evidence of no past deformation.
 Each row includes X/Y residuals and Euclidean distance. Summaries include count, mean, median, RMS, 95th percentile,
 and maximum. The evaluated count and eligible count remain visible when a transform cannot evaluate every landmark.
 
@@ -58,10 +80,14 @@ that evidence as unavailable.
 
 ## Corresponding masks
 
-Load a fixed and moving binary or integer-label mask in **Masks**. Confirm each mask's pixel spacing and origin in `um`.
+The **Region overlap (optional)** tab evaluates how well corresponding anatomical segmentations overlap after
+registration. It is optional evidence alongside landmarks, rather than a required registration step.
+Load a fixed and moving binary or integer-label mask. Confirm each mask's pixel spacing and origin in `um`.
 Masks matching the native image shape default to that image's geometry. Select corresponding anatomical labels in the
 table; matching positive IDs detected in a sampled preview are proposed automatically. Add small regions or unmatched IDs
 explicitly. Label zero is background. This version loads masks; it does not create segmentations.
+Mask overlays appear on the native viewers while this tab is selected. A missing second mask disables overlap scores
+while allowing landmark, fitting, and deformation measurements to run.
 
 The moving mask is sampled onto the shared fixed grid using nearest-neighbor interpolation. Dice, IoU, and areas are
 reported per label correspondence. Both-empty regions are unavailable; one-empty regions score zero. A coarse grid can
@@ -86,16 +112,24 @@ These maps describe the registration deformation and do not by themselves establ
 
 ## Results and export
 
-**Analyze** runs in the background and can be cancelled. Editing inputs invalidates existing results. Use **Results**
-to switch candidates and inspect overlap, point residuals, mask disagreements, signed Jacobians, and area change.
-No universal pass/fail threshold is applied.
+**Analyze current pair** evaluates the selected moving image. **Analyze all** evaluates pairs sequentially in the
+background and records pair failures separately. Either operation can be cancelled. Editing evidence invalidates that
+pair's results; results for other pairs remain available. Switching moving images restores their annotations and results.
+
+**Results** separates independent landmark accuracy, original fitting residuals, optional region overlap, and deformation
+statistics. Unavailable measurements explain the evidence needed. Registrations without validation landmarks can still
+show fitting statistics and deformation; fitting residuals are not independent accuracy. Use the candidate and map
+selectors to inspect image overlap, point residuals, mask disagreements, signed Jacobians, and area change.
+Residual distances use the moving physical frame in `um`. No universal pass/fail threshold is applied.
 
 **Export report...** creates a new directory containing:
 
 - A self-contained `report.html`, with embedded diagnostic images, metric tables, exclusions, units, and explanations.
-- `summary.csv`, `landmarks.csv`, and `masks.csv`.
-- `results.json` and a copy of the validation session.
-- One PNG diagnostic figure and compressed NPZ numerical maps per candidate.
+- Combined `summary.csv`, `landmarks.csv`, and `masks.csv`, with pair identifiers.
+- `results.json` and a copy of the versioned validation study, including pair failures.
+- A subdirectory per analyzed pair containing its full report, candidate PNG figures, and compressed NPZ numerical maps.
+
+Measurements remain separate for each image pair; errors are not pooled across moving images.
 
 NPZ arrays use YX indexing. `spacing_xy_um` and `origin_xy_um` describe their physical grid. `valid`, `coverage`, and
 `nonpositive` distinguish usable derivatives, source coverage, and nonpositive determinants. Numerical values remain

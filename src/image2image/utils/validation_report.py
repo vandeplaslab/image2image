@@ -15,7 +15,7 @@ from typing import Any
 
 import numpy as np
 
-from image2image.models.validation import CandidateAnalysis, ValidationAnalysis
+from image2image.models.validation import CandidateAnalysis, StudyAnalysis, ValidationAnalysis
 
 
 def comparison_rows(analysis: ValidationAnalysis) -> list[dict[str, Any]]:
@@ -24,6 +24,7 @@ def comparison_rows(analysis: ValidationAnalysis) -> list[dict[str, Any]]:
         {
             "candidate": result.name,
             "status": result.status,
+            "transform_reference": result.deformation.get("reference", "Imported registration transform."),
             "validation_count": result.validation.get("count", 0),
             "validation_eligible": result.validation.get("eligible", 0),
             **{
@@ -143,7 +144,9 @@ def plot_validation_candidate(
             disagreement[b & ~a] = (0, 0.7, 1)
         axes[1, 1].imshow(disagreement, extent=extent)
     else:
-        axes[1, 1].text(0.5, 0.5, "No corresponding masks supplied", ha="center", transform=axes[1, 1].transAxes)
+        axes[1, 1].text(
+            0.5, 0.5, "Region overlap unavailable; see report notes", ha="center", transform=axes[1, 1].transAxes
+        )
     axes[1, 1].set_title("Masks: green agreement, magenta fixed, cyan moving")
     for ax in axes.flat:
         ax.set_xlabel("X (um)")
@@ -165,6 +168,89 @@ def export_validation_report(analysis: ValidationAnalysis, output_dir: str | Pat
         if output_dir.exists():
             output_dir.rmdir()  # Fails safely if another writer populated this directory.
         Path(temporary).replace(output_dir)
+    return output_dir / "report.html"
+
+
+def export_validation_study_report(analysis: StudyAnalysis, output_dir: str | Path) -> Path:
+    """Export combined tables and self-contained HTML with separate pair measurements."""
+    output_dir = Path(output_dir)
+    if output_dir.exists() and any(output_dir.iterdir()):
+        raise ValueError("Choose a new or empty report directory to avoid overwriting an earlier report.")
+    output_dir.parent.mkdir(parents=True, exist_ok=True)
+    with TemporaryDirectory(prefix=".i2validate-report-", dir=output_dir.parent) as temporary:
+        root = Path(temporary)
+        summaries, landmarks, masks, records, sections = [], [], [], [], []
+        for index, pair in enumerate(analysis.pairs, 1):
+            identity = {"pair_id": pair.pair_id, "moving_image": pair.name}
+            status = "complete" if pair.analysis is not None else "failed" if pair.error else "not_analyzed"
+            record = {**identity, "status": status, "error": pair.error, "analysis": None}
+            sections.append(f"<section><h2>{html.escape(pair.name)}</h2>")
+            if pair.analysis is None:
+                summaries.append({**identity, "candidate": "", "status": status, "error": pair.error})
+                message = (
+                    f"Analysis failed: {pair.error}" if pair.error else "Not analyzed. No measurements are available."
+                )
+                sections.append(f"<p>{html.escape(message)}</p>")
+            else:
+                directory = root / f"pair-{index}"
+                directory.mkdir()
+                _write_report(pair.analysis, directory)
+                payload = json.loads((directory / "results.json").read_text())
+                for candidate in payload["candidates"]:
+                    if candidate["map_path"]:
+                        candidate["map_path"] = f"pair-{index}/{candidate['map_path']}"
+                record["analysis"] = payload
+                rows = comparison_rows(pair.analysis)
+                summaries.extend({**identity, **row, "error": ""} for row in rows)
+                sections.append(_table(rows))
+                for candidate_index, candidate in enumerate(pair.analysis.candidates, 1):
+                    landmarks.extend({**identity, "candidate": candidate.name, **row} for row in candidate.landmarks)
+                    masks.extend({**identity, "candidate": candidate.name, **row} for row in candidate.masks)
+                    png = (directory / f"candidate-{candidate_index}.png").read_bytes()
+                    sections.append(
+                        f"<h3>{html.escape(candidate.name)}</h3>"
+                        f"<img alt='Registration diagnostics' src='data:image/png;base64,{base64.b64encode(png).decode()}'>"
+                        f"<h4>Fitting residuals (um, moving frame)</h4>{_table([candidate.fitting])}"
+                        f"<h4>Region overlap</h4>{_table(candidate.masks)}"
+                        f"<p>{html.escape(candidate.mask_reason)}</p>"
+                        f"<h4>Deformation</h4>{_table([candidate.deformation])}"
+                        f"<details><summary>Landmark residuals and exclusions</summary>{_table(candidate.landmarks)}</details>"
+                    )
+                sections.append(f"<p><a href='pair-{index}/report.html'>Full pair report and provenance</a></p>")
+                provenance = {key: value for key, value in payload.items() if key != "candidates"}
+                sections.append(
+                    "<details><summary>Inputs, calibration, grid and software versions</summary><pre>"
+                    + html.escape(json.dumps(provenance, indent=2))
+                    + "</pre></details>"
+                )
+            sections.append("</section>")
+            records.append(record)
+        for filename, rows in (("summary.csv", summaries), ("landmarks.csv", landmarks), ("masks.csv", masks)):
+            columns = list(dict.fromkeys(key for row in rows for key in row)) or ["pair_id", "moving_image"]
+            _write_csv(root / filename, rows, columns)
+        payload = {"schema_version": "2.0", "study": analysis.study.model_dump(mode="json"), "pairs": records}
+        (root / "results.json").write_text(json.dumps(payload, indent=2, allow_nan=False) + "\n")
+        (root / "session.i2validate.json").write_text(analysis.study.model_dump_json(indent=2) + "\n")
+        summary_keys = list(dict.fromkeys(key for row in summaries for key in row))
+        document = (
+            "<!doctype html><html lang='en'><meta charset='utf-8'><title>Registration validation study</title>"
+            "<style>body{font:15px system-ui,sans-serif;max-width:1400px;margin:36px auto;padding:0 24px}"
+            "img{width:100%;height:auto}.table{overflow:auto}table{border-collapse:collapse}"
+            "td,th{padding:8px;border:1px solid #ccc;text-align:left}section{margin-top:32px}</style>"
+            "<h1>Registration validation study</h1><p>Each moving image is evaluated against the shared fixed reference. "
+            "Landmark residuals are G(fixed) - moving in moving-image physical coordinates (um). "
+            "Fitting residuals are separate from independent validation accuracy. "
+            "Already aligned images use an identity mapping in calibrated physical space; their original registration deformation is unknown. "
+            "Region scores use the sampled fixed grid. Deformation describes the transform, not measured accuracy. "
+            "No universal pass/fail threshold is applied. Measurements are not pooled across image pairs.</p>"
+            + _table([{key: row.get(key) for key in summary_keys} for row in summaries])
+            + "".join(sections)
+            + "</html>"
+        )
+        (root / "report.html").write_text(document, encoding="utf-8")
+        if output_dir.exists():
+            output_dir.rmdir()
+        root.replace(output_dir)
     return output_dir / "report.html"
 
 
@@ -208,6 +294,7 @@ def _write_report(analysis: ValidationAnalysis, output_dir: Path) -> Path:
             f"<img alt='Registration diagnostics' src='data:image/png;base64,{base64.b64encode(png).decode()}'>"
             f"<h3>Fitting evidence (um, moving frame)</h3>{_table([candidate.fitting])}"
             f"<h3>Mask overlap on fixed grid</h3>{_table(candidate.masks)}"
+            f"<p>{html.escape(candidate.mask_reason)}</p>"
             f"<h3>Deformation</h3>{_table([candidate.deformation])}"
             f"<details><summary>Per-landmark validation and exclusions</summary>"
             f"{_table(candidate.landmarks)}</details></section>"
@@ -225,6 +312,7 @@ Known fitting landmarks are excluded from every candidate's validation set. Othe
 Excluded rows and evaluated counts are reported explicitly; sparse landmark measurements do not establish accuracy
 everywhere. No universal pass/fail threshold is applied.</p>
 <p>The signed Jacobian describes the complete fixed-to-moving map, including global affine scaling.
+Already aligned images use an identity mapping in calibrated physical space; original registration deformation is unknown.
 For positive determinants, area ratio = 1 / determinant. The displayed log2 ratio is positive for expansion and
 negative for compression when mapping moving tissue to fixed space. Purple identifies orientation reversal or
 singularity, which can include intended reflections. Gray identifies unavailable regions and derivative boundaries.

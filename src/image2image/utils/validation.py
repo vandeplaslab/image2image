@@ -19,11 +19,15 @@ import numpy as np
 from image2image.models.validation import (
     CandidateAnalysis,
     ImageGeometry,
+    PairAnalysis,
+    StudyAnalysis,
     ValidationAnalysis,
     ValidationCandidate,
     ValidationImage,
     ValidationLandmark,
+    ValidationPair,
     ValidationSession,
+    ValidationStudy,
 )
 
 CSV_COLUMNS = ("id", "fixed_x", "fixed_y", "moving_x", "moving_y")
@@ -53,6 +57,8 @@ def image_fingerprint(path: str | Path) -> str:
 
 def transform_fingerprint(candidate: ValidationCandidate) -> str:
     """Hash registration definitions, transform chains, and cached geometry metadata."""
+    if candidate.kind == "aligned":
+        return "identity-physical-v1"
     path = Path(candidate.path)
     if candidate.kind == "register":
         paths = [path]
@@ -93,6 +99,34 @@ def open_validation_reader(image: ValidationImage) -> Any:
     return reader
 
 
+def validation_image_pyramid(reader: Any, channel: int, max_size: int = 1024) -> list[Any]:
+    """Return lazy 2D channel levels, extending large non-pyramidal inputs for display."""
+    import dask.array as da
+
+    levels = [reader.get_channel(channel, level, split_rgb=True) for level in range(reader.n_in_pyramid)]
+    if not levels or any(level.ndim != 2 for level in levels):
+        raise ValueError("Only 2D image channels are supported by Validate.")
+    while max(levels[-1].shape) > max_size and min(levels[-1].shape) >= 2:
+        source = da.asarray(levels[-1])
+        levels.append(da.coarsen(np.mean, source, {0: 2, 1: 2}, trim_excess=True).astype(source.dtype))
+    return levels
+
+
+def validation_contrast_limits(levels: list[Any]) -> tuple[float, float]:
+    """Estimate display contrast from a bounded sample of the coarsest image level."""
+    source = levels[-1]
+    sample = np.asarray(
+        source[:: max(1, math.ceil(source.shape[0] / 256)), :: max(1, math.ceil(source.shape[1] / 256))]
+    )
+    finite = sample[np.isfinite(sample)]
+    if not finite.size:
+        return 0.0, 1.0
+    low, high = (float(value) for value in np.percentile(finite, (1, 99)))
+    if low == high:
+        high = low + (1.0 if np.issubdtype(sample.dtype, np.integer) else max(abs(low) * 0.01, 0.001))
+    return low, high
+
+
 def inspect_validation_image(
     path: str | Path, spacing: tuple[float, float] | None = None, reader_kws: dict | None = None
 ) -> ValidationImage:
@@ -111,15 +145,47 @@ def inspect_validation_image(
             raise ValueError("Only 2D image channels are supported by Validate.")
         return ValidationImage(
             path=str(path),
-            geometry=ImageGeometry(
-                shape=reader.image_shape, spacing=spacing or tuple(float(v) for v in reader.scale[::-1])
-            ),
-            channel_names=reader.get_channel_names(split_rgb=True),
+            geometry=ImageGeometry(shape=reader.image_shape, spacing=spacing or _suggest_image_spacing(reader)),
+            channel_names=["R", "G", "B"] if reader.is_rgb else reader.get_channel_names(split_rgb=True),
             reader_kws=reader_kws,
             fingerprint=image_fingerprint(path),
+            calibration_source="user" if spacing is not None else "unconfirmed",
+            calibration_confirmed=spacing is not None,
         )
     finally:
         reader.close()
+
+
+def _suggest_image_spacing(reader: Any) -> tuple[float, float]:
+    """Preserve separate TIFF X/Y calibration when the reader exposes a scalar resolution."""
+    from lxml import etree
+
+    handle = getattr(reader, "fh", None)
+    metadata = getattr(handle, "ome_metadata", None)
+    if metadata:
+        images = etree.fromstring(
+            metadata.encode(), parser=etree.XMLParser(resolve_entities=False, no_network=True)
+        ).findall("{*}Image")
+        pixels = images[getattr(reader, "series_index", 0)].find("{*}Pixels")
+        if pixels is not None and all(f"PhysicalSize{axis}" in pixels.attrib for axis in "XY"):
+            factors = {"um": 1.0, "nm": 0.001, "mm": 1000.0, "cm": 10_000.0, "m": 1_000_000.0}
+            values = []
+            for axis in "XY":
+                unit = pixels.get(f"PhysicalSize{axis}Unit", "um").replace("\u00b5", "u").replace("\u03bc", "u")
+                if unit not in factors:
+                    break
+                values.append(float(pixels.attrib[f"PhysicalSize{axis}"]) * factors[unit])
+            if len(values) == 2 and all(np.isfinite(value) and value > 0 for value in values):
+                return values[0], values[1]
+    elif handle is not None and hasattr(handle, "series"):
+        tags = handle.series[getattr(reader, "series_index", 0)].levels[0].pages[0].tags
+        unit = tags.get("ResolutionUnit")
+        factor = {2: 25_400.0, 3: 10_000.0}.get(unit.value if unit else None)
+        if factor and "XResolution" in tags and "YResolution" in tags:
+            x, y = tags["XResolution"].value, tags["YResolution"].value
+            if x[0] > 0 and y[0] > 0:
+                return factor * x[1] / x[0], factor * y[1] / y[0]
+    return tuple(float(value) for value in reader.scale[::-1])
 
 
 def _resolve_image_path(path: str, parent: Path) -> Path:
@@ -156,6 +222,8 @@ def discover_validation_candidates(
                     entry.get("reader_kws"),
                 )
             )
+            if spacing is not None:
+                images[-1].calibration_source = "registration"
             if entry.get("image_shape") and tuple(entry["image_shape"]) != images[-1].geometry.shape:
                 raise ValueError("Image geometry no longer matches the saved Register image shape.")
         candidate = ValidationCandidate(
@@ -164,6 +232,8 @@ def discover_validation_candidates(
         candidate.fingerprint = transform_fingerprint(candidate)
         return [(candidate, *images)]
     root = path if path.is_dir() else path.parent
+    if root.suffix.lower() in (".valis", ".i2valis"):
+        raise ValueError("Valis validation is not supported yet. Choose a Register file or Elastix project.")
     config = json.loads((root / "project.config.json").read_text())
     if not (root / "registered-project.config.json").exists():
         raise ValueError("Elastix registration is incomplete: registered-project.config.json is missing.")
@@ -179,6 +249,7 @@ def discover_validation_candidates(
                     _resolve_image_path(entry["path"], root), (spacing, spacing), entry.get("reader_kws")
                 )
             )
+            images[-1].calibration_source = "registration"
         candidate = ValidationCandidate(
             name=f"{root.stem}: {source} to {target}", kind="elastix", path=str(root), source=source
         )
@@ -189,17 +260,42 @@ def discover_validation_candidates(
     return result
 
 
-def require_same_pair(session: ValidationSession, fixed: ValidationImage, moving: ValidationImage) -> None:
+def require_same_pair(
+    session: ValidationSession, fixed: ValidationImage, moving: ValidationImage, *, allow_user_calibration: bool = False
+) -> None:
     """Reject a candidate belonging to another pair or native coordinate system."""
     for selected, actual in ((session.fixed, fixed), (session.moving, moving)):
         if selected is None:
             raise ValueError("Select both images before analysis.")
         if (
             Path(selected.path).resolve() != Path(actual.path).resolve()
-            or selected.geometry != actual.geometry
+            or (
+                selected.geometry != actual.geometry
+                and not (
+                    allow_user_calibration
+                    and selected.calibration_source == "user"
+                    and selected.calibration_confirmed
+                    and selected.geometry.shape == actual.geometry.shape
+                )
+            )
             or selected.reader_kws != actual.reader_kws
         ):
             raise ValueError("Candidate image pair or native calibration does not match this session.")
+
+
+def adopt_validation_calibration(image: ValidationImage, reference: ValidationImage | None) -> None:
+    """Reuse confirmed geometry only when a registration omits calibration for the same native image."""
+    if (
+        image.calibration_source == "unconfirmed"
+        and reference is not None
+        and reference.calibration_confirmed
+        and Path(image.path).resolve() == Path(reference.path).resolve()
+        and image.geometry.shape == reference.geometry.shape
+        and image.reader_kws == reference.reader_kws
+    ):
+        image.geometry = reference.geometry.model_copy()
+        image.calibration_source = reference.calibration_source
+        image.calibration_confirmed = True
 
 
 @dataclass
@@ -240,12 +336,16 @@ def load_validation_transform(candidate: ValidationCandidate, session: Validatio
     """Load a complete transform, checking its pair and saved fingerprint before use."""
     from image2image.models.utilities import _read_config_from_file
 
+    if candidate.kind == "aligned":
+        return ValidationTransform(candidate, matrix=np.eye(3))
     discovered = discover_validation_candidates(candidate.path)
     match = next((item for item in discovered if item[0].source == candidate.source), None)
     if match is None:
         raise ValueError(f"Registration path {candidate.source!r} no longer exists.")
     current, fixed, moving = match
-    require_same_pair(session, fixed, moving)
+    adopt_validation_calibration(fixed, session.fixed)
+    adopt_validation_calibration(moving, session.moving)
+    require_same_pair(session, fixed, moving, allow_user_calibration=True)
     if candidate.fingerprint and candidate.fingerprint != current.fingerprint:
         raise ValueError("Registration changed since it was added. Remove and re-add this candidate to accept it.")
     loaded = ValidationTransform(candidate.model_copy(update={"fingerprint": current.fingerprint}))
@@ -313,6 +413,18 @@ def load_validation_transform(candidate: ValidationCandidate, session: Validatio
         loaded.itk_transform = sitk.Transform(sequence.final_transform)
         if loaded.itk_transform.GetDimension() != 2:
             raise ValueError("Only 2D transformations are supported.")
+        if session.fixed.geometry != fixed.geometry or session.moving.geometry != moving.geometry:
+            transforms = []
+            for source_geometry, target_geometry in (
+                (moving.geometry, session.moving.geometry),
+                (session.fixed.geometry, fixed.geometry),
+            ):
+                ratio = np.asarray(target_geometry.spacing) / source_geometry.spacing
+                affine = sitk.AffineTransform(2)
+                affine.SetMatrix(np.diag(ratio).ravel().tolist())
+                affine.SetTranslation((np.asarray(target_geometry.origin) - ratio * source_geometry.origin).tolist())
+                transforms.append(affine)
+            loaded.itk_transform = sitk.CompositeTransform([transforms[0], loaded.itk_transform, transforms[1]])
         return loaded
     config = _read_config_from_file(candidate.path)
     points_fixed = np.asarray(config.get("fixed_points_yx_px", []), dtype=float).reshape(-1, 2)[:, ::-1]
@@ -333,9 +445,10 @@ def load_validation_transform(candidate: ValidationCandidate, session: Validatio
     if matrix.shape != (3, 3) or not np.isfinite(matrix).all():
         raise ValueError("A finite 3x3 registration matrix is required.")
     # Saved fitting coordinates already have the display-only initial affine removed.
-    source = np.diag([*moving.geometry.spacing, 1.0])
-    target = np.diag([*fixed.geometry.spacing, 1.0])
-    source[:2, 2], target[:2, 2] = moving.geometry.origin, fixed.geometry.origin
+    fixed_geometry, moving_geometry = session.fixed.geometry, session.moving.geometry
+    source = np.diag([*moving_geometry.spacing, 1.0])
+    target = np.diag([*fixed_geometry.spacing, 1.0])
+    source[:2, 2], target[:2, 2] = moving_geometry.origin, fixed_geometry.origin
     try:
         loaded.matrix = source @ np.linalg.inv(matrix) @ np.linalg.inv(target)
     except np.linalg.LinAlgError as exc:
@@ -343,7 +456,7 @@ def load_validation_transform(candidate: ValidationCandidate, session: Validatio
     loaded.fitting = [
         ValidationLandmark(id=f"fit-{i + 1}", fixed=tuple(f), moving=tuple(m))
         for i, (f, m) in enumerate(
-            zip(fixed.geometry.to_physical(points_fixed), moving.geometry.to_physical(points_moving), strict=True)
+            zip(fixed_geometry.to_physical(points_fixed), moving_geometry.to_physical(points_moving), strict=True)
         )
     ]
     return loaded
@@ -367,10 +480,38 @@ def load_validation_session(path: str | Path) -> tuple[ValidationSession, list[s
     return session, validation_input_changes(session)
 
 
-def validation_input_changes(session: ValidationSession) -> list[str]:
+def save_validation_study(path: str | Path, study: ValidationStudy) -> Path:
+    """Atomically save the versioned collection without embedding image data."""
+    path = Path(path)
+    if not path.name.endswith(".i2validate.json"):
+        path = path.with_name(path.name + ".i2validate.json")
+    validated = ValidationStudy.model_validate(study.model_dump())
+    temporary = path.with_name(path.name + ".tmp")
+    temporary.write_text(validated.model_dump_json(indent=2) + "\n")
+    temporary.replace(path)
+    return path
+
+
+def load_validation_study(path: str | Path) -> tuple[ValidationStudy, list[str]]:
+    """Open a study or migrate a legacy pair, retaining input-change warnings."""
+    payload = json.loads(Path(path).read_text())
+    if payload.get("schema_version") == "1.0":
+        study = ValidationStudy(pairs=[ValidationPair(session=ValidationSession.model_validate(payload))])
+    else:
+        study = ValidationStudy.model_validate(payload)
+    changes = [f"{pair.name}: {change}" for pair in study.pairs for change in validation_input_changes(pair.session)]
+    return study, changes
+
+
+def validation_input_changes(session: ValidationSession, include_masks: bool = True) -> list[str]:
     """Check provenance before analysis or reuse of a saved session."""
     changes = []
-    for item in (session.fixed, session.moving, session.fixed_mask, session.moving_mask):
+    images = (
+        (session.fixed, session.moving, session.fixed_mask, session.moving_mask)
+        if include_masks
+        else (session.fixed, session.moving)
+    )
+    for item in images:
         if item is not None:
             try:
                 if item.fingerprint and image_fingerprint(item.path) != item.fingerprint:
@@ -692,11 +833,19 @@ def analyze_validation_session(
 ) -> ValidationAnalysis:
     """Analyze a frozen session and stream candidate maps to disk, keeping memory bounded."""
     session = ValidationSession.model_validate(session.model_dump())
-    if session.fixed is None or session.moving is None or not session.candidates:
-        raise ValueError("Select both images and at least one registration.")
-    if bool(session.fixed_mask) != bool(session.moving_mask):
-        raise ValueError("Provide both corresponding masks or neither mask.")
-    changes = validation_input_changes(session)
+    if session.fixed is None or session.moving is None:
+        raise ValueError("Select both images before analysis.")
+    if session.fixed_mask is None and session.moving_mask is None:
+        mask_reason = "No segmentation masks supplied. Region overlap is optional."
+    elif session.fixed_mask is None or session.moving_mask is None:
+        mask_reason = "Provide both fixed and moving segmentation masks to measure region overlap."
+    elif not Path(session.fixed_mask.path).exists() or not Path(session.moving_mask.path).exists():
+        mask_reason = "A segmentation mask file is missing. Reload both masks to measure region overlap."
+    elif not session.mask_pairs:
+        mask_reason = "No corresponding region labels selected. Add label pairs in Region overlap (optional)."
+    else:
+        mask_reason = ""
+    changes = validation_input_changes(session, include_masks=not mask_reason)
     if changes:
         raise ValueError("\n".join(changes))
     output_dir = Path(output_dir)
@@ -704,7 +853,9 @@ def analyze_validation_session(
     grid = analysis_grid(session)
     transforms = []
     # Load all definitions first: otherwise an unreadable candidate could hide fitting-point leakage.
-    for candidate in session.candidates:
+    for candidate in session.candidates or [
+        ValidationCandidate(id="aligned-images", name="Already aligned images", kind="aligned", path="")
+    ]:
         check_cancel(cancel)
         if progress:
             progress(f"Loading {candidate.name}")
@@ -713,7 +864,7 @@ def analyze_validation_session(
     exclusions = landmark_exclusions(session, transforms)
     fixed_image, _ = sample_image(session.fixed, grid, cancel=cancel)
     fixed_mask = fixed_mask_coverage = None
-    if session.fixed_mask is not None:
+    if not mask_reason:
         fixed_mask, fixed_mask_coverage = sample_image(session.fixed_mask, grid, labels=True, cancel=cancel)
     analyses = []
     for index, transform in enumerate(transforms):
@@ -722,10 +873,18 @@ def analyze_validation_session(
         if progress:
             progress(f"Analyzing {index + 1}/{len(transforms)}: {candidate.name}")
         result = CandidateAnalysis(id=candidate.id, name=candidate.name, fingerprint=candidate.fingerprint)
+        result.mask_reason = mask_reason
         result.landmarks, result.validation = landmark_errors(transform, session.landmarks, exclusions)
         _, result.fitting = landmark_errors(transform, transform.fitting)
         result.fitting["reason"] = "" if transform.fitting else "Original fitting landmarks unavailable"
+        if candidate.kind == "aligned":
+            result.fitting["reason"] = "Already aligned images: validation landmarks are measured directly, not fitted."
         maps, result.deformation = deformation_maps(transform, grid, session.moving.geometry, cancel)
+        result.deformation["reference"] = (
+            "Identity mapping in calibrated physical space; original registration deformation is unknown."
+            if candidate.kind == "aligned"
+            else "Imported registration transform."
+        )
         maps["fixed_image"] = fixed_image
         maps["registered_image"], maps["image_coverage"] = sample_image(session.moving, grid, transform, cancel=cancel)
         if fixed_mask is not None and session.moving_mask is not None:
@@ -755,7 +914,7 @@ def analyze_validation_session(
         analyses.append(result)
         del maps
     check_cancel(cancel)
-    changes = validation_input_changes(session)
+    changes = validation_input_changes(session, include_masks=not mask_reason)
     if changes:
         raise ValueError("Inputs changed during analysis.\n" + "\n".join(changes))
     versions = {}
@@ -765,3 +924,30 @@ def analyze_validation_session(
         except PackageNotFoundError:
             versions[package] = "unavailable"
     return ValidationAnalysis(session, grid, analyses, versions, datetime.now(UTC).isoformat())
+
+
+def analyze_validation_study(
+    study: ValidationStudy,
+    output_dir: str | Path,
+    cancel: Event | None = None,
+    progress: Callable[[str], None] | None = None,
+) -> StudyAnalysis:
+    """Analyze pairs sequentially, isolating pair failures while honoring cancellation."""
+    snapshot = ValidationStudy.model_validate(study.model_dump())
+    results = []
+    for index, pair in enumerate(snapshot.pairs):
+        check_cancel(cancel)
+        if progress:
+            progress(f"Pair {index + 1}/{len(snapshot.pairs)}: {pair.name}")
+        try:
+            analysis = analyze_validation_session(
+                pair.session, Path(output_dir) / f"pair-{index + 1}", cancel, progress
+            )
+        except AnalysisCancelled:
+            raise
+        except (OSError, ValueError, RuntimeError, KeyError, ImportError) as exc:
+            results.append(PairAnalysis(pair.id, pair.name, error=str(exc)))
+        else:
+            results.append(PairAnalysis(pair.id, pair.name, analysis=analysis))
+    check_cancel(cancel)
+    return StudyAnalysis(snapshot, results)

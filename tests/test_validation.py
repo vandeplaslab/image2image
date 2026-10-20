@@ -16,13 +16,16 @@ from image2image.models.validation import (
     MaskCorrespondence,
     ValidationCandidate,
     ValidationLandmark,
+    ValidationPair,
     ValidationSession,
+    ValidationStudy,
 )
 from image2image.utils.validation import (
     AnalysisCancelled,
     ValidationTransform,
     analysis_grid,
     analyze_validation_session,
+    analyze_validation_study,
     deformation_maps,
     discover_validation_candidates,
     distance_statistics,
@@ -32,12 +35,16 @@ from image2image.utils.validation import (
     landmark_errors,
     landmark_exclusions,
     load_validation_session,
+    load_validation_study,
     load_validation_transform,
     mask_overlap,
     sample_pixels,
     save_validation_session,
+    save_validation_study,
+    validation_contrast_limits,
+    validation_image_pyramid,
 )
-from image2image.utils.validation_report import export_validation_report
+from image2image.utils.validation_report import export_validation_report, export_validation_study_report
 
 
 def make_validation_session(tmp_path: Path, spacing: tuple[float, float] = (2, 2)) -> ValidationSession:
@@ -461,3 +468,231 @@ def test_elastix_through_chain_and_missing_stage(tmp_path: Path) -> None:
     candidate.fingerprint = ""
     with pytest.raises(ValueError, match="missing a stage"):
         load_validation_transform(candidate, session)
+
+
+def make_validation_study(tmp_path: Path) -> ValidationStudy:
+    first = make_validation_session(tmp_path)
+    second_path = tmp_path / "moving-second.ome.tiff"
+    second_path.write_bytes(Path(first.moving.path).read_bytes())
+    config = json.loads(Path(first.candidates[0].path).read_text())
+    config["moving_paths"][0]["path"] = str(second_path)
+    registration = tmp_path / "second.i2r.json"
+    registration.write_text(json.dumps(config))
+    candidate, fixed, moving = discover_validation_candidates(registration)[0]
+    second = first.model_copy(deep=True)
+    second.fixed, second.moving, second.candidates = fixed, moving, [candidate]
+    second.landmarks[0].moving = (26, 32)
+    return ValidationStudy(pairs=[ValidationPair(session=first), ValidationPair(session=second)])
+
+
+def test_study_roundtrip_legacy_and_shared_reference(tmp_path: Path) -> None:
+    study = make_validation_study(tmp_path)
+    path = save_validation_study(tmp_path / "study", study)
+    loaded, changes = load_validation_study(path)
+    assert loaded == study and not changes
+    legacy_path = save_validation_session(tmp_path / "legacy", study.pairs[0].session)
+    legacy, changes = load_validation_study(legacy_path)
+    assert len(legacy.pairs) == 1 and legacy.pairs[0].session == study.pairs[0].session
+    assert not changes
+    invalid = study.model_copy(deep=True)
+    invalid.pairs[1].session.fixed.geometry.spacing = (3, 3)
+    with pytest.raises(ValueError, match="same fixed image"):
+        save_validation_study(path, invalid)
+    assert load_validation_study(path)[0] == study
+    payload = study.model_dump()
+    payload["pairs"][1]["id"] = payload["pairs"][0]["id"]
+    with pytest.raises(ValueError, match="unique"):
+        ValidationStudy.model_validate(payload)
+
+
+def test_study_analysis_failure_isolation_and_export(tmp_path: Path) -> None:
+    study = make_validation_study(tmp_path)
+    result = analyze_validation_study(study, tmp_path / "maps")
+    assert [pair.analysis.candidates[0].validation["rms"] for pair in result.pairs] == [5, 10]
+    assert result.pairs[0].analysis.grid == result.pairs[1].analysis.grid
+    Path(study.pairs[0].session.candidates[0].path).unlink()
+    partial = analyze_validation_study(study, tmp_path / "partial")
+    assert partial.pairs[0].analysis is None and "Registration missing" in partial.pairs[0].error
+    assert partial.pairs[1].analysis.candidates[0].validation["rms"] == 10
+    report = export_validation_study_report(partial, tmp_path / "study-report")
+    text = report.read_text()
+    assert "Analysis failed" in text and "data:image/png;base64," in text
+    import csv
+
+    with (report.parent / "summary.csv").open() as stream:
+        rows = list(csv.DictReader(stream))
+    assert [row["pair_id"] for row in rows] == [pair.id for pair in study.pairs]
+    assert rows[0]["status"] == "failed" and float(rows[1]["validation_rms_um"]) == 10
+    payload = json.loads((report.parent / "results.json").read_text())
+    for record in payload["pairs"]:
+        if record["analysis"]:
+            for candidate in record["analysis"]["candidates"]:
+                assert (report.parent / candidate["map_path"]).exists()
+    cancel = Event()
+    cancel.set()
+    with pytest.raises(AnalysisCancelled):
+        analyze_validation_study(study, tmp_path / "cancelled", cancel)
+
+
+def test_incomplete_masks_do_not_block_other_measurements(tmp_path: Path) -> None:
+    session = make_validation_session(tmp_path)
+    session.fixed_mask = session.fixed.model_copy(deep=True)
+    result = analyze_validation_session(session, tmp_path / "maps")
+    assert result.candidates[0].validation["rms"] == 5
+    assert result.candidates[0].fitting["count"] == 3
+    assert result.candidates[0].masks == []
+    assert result.candidates[0].deformation["coverage"] == 1
+
+
+def test_display_pyramids_are_lazy_and_split_rgb(tmp_path: Path) -> None:
+    from types import SimpleNamespace
+
+    import dask.array as da
+    from dask import delayed
+
+    from image2image.utils.validation import open_validation_reader
+
+    reads = []
+
+    @delayed
+    def source() -> np.ndarray:
+        reads.append(True)
+        return np.ones((2048, 4096), dtype=np.uint16)
+
+    array = da.from_delayed(source(), shape=(2048, 4096), dtype=np.uint16)
+    reader = SimpleNamespace(n_in_pyramid=1, get_channel=lambda index, level, split_rgb: array)
+    levels = validation_image_pyramid(reader, 0)
+    assert reads == [] and levels[0] is array
+    assert [level.shape for level in levels] == [(2048, 4096), (1024, 2048), (512, 1024)]
+    np.testing.assert_array_equal(levels[-1].compute(), 1)
+    assert reads == [True]
+    path = tmp_path / "rgb.ome.tiff"
+    pixels = np.zeros((32, 40, 3), dtype=np.uint8)
+    pixels[..., 1] = 77
+    with tifffile.TiffWriter(path, ome=True) as writer:
+        writer.write(pixels, subifds=1, photometric="rgb", metadata={"axes": "YXS"})
+        writer.write(pixels[::2, ::2], subfiletype=1, photometric="rgb")
+    image = inspect_validation_image(path, spacing=(2, 3))
+    native = open_validation_reader(image)
+    try:
+        levels = validation_image_pyramid(native, 1)
+        assert [level.shape for level in levels] == [(32, 40), (16, 20)]
+        np.testing.assert_array_equal(levels[0].compute(), 77)
+    finally:
+        native.close()
+
+
+def test_calibration_provenance(tmp_path: Path) -> None:
+    session = make_validation_session(tmp_path)
+    assert session.fixed.calibration_source == "registration" and session.fixed.calibration_confirmed
+    unconfirmed = inspect_validation_image(session.fixed.path)
+    assert unconfirmed.calibration_source == "unconfirmed" and not unconfirmed.calibration_confirmed
+    explicit = inspect_validation_image(session.fixed.path, spacing=(1, 1))
+    assert explicit.calibration_source == "user" and explicit.calibration_confirmed
+
+
+def test_anisotropic_tiff_metadata_and_manual_legacy_calibration(tmp_path: Path) -> None:
+    session = make_validation_session(tmp_path)
+    ome = tmp_path / "anisotropic.ome.tiff"
+    tifffile.imwrite(
+        ome,
+        np.ones((8, 10), dtype=np.uint8),
+        metadata={
+            "axes": "YX",
+            "PhysicalSizeX": 500,
+            "PhysicalSizeXUnit": "nm",
+            "PhysicalSizeY": 3000,
+            "PhysicalSizeYUnit": "nm",
+        },
+    )
+    assert inspect_validation_image(ome).geometry.spacing == (0.5, 3)
+    tags = tmp_path / "anisotropic.tiff"
+    tifffile.imwrite(tags, np.ones((8, 10), dtype=np.uint8), resolution=(20000, 4000), resolutionunit="CENTIMETER")
+    assert inspect_validation_image(tags).geometry.spacing == (0.5, 2.5)
+    registration = Path(session.candidates[0].path)
+    config = json.loads(registration.read_text())
+    for key in ("fixed_paths", "moving_paths"):
+        del config[key][0]["pixel_size_um"]
+    registration.write_text(json.dumps(config))
+    candidate, fixed, moving = discover_validation_candidates(registration)[0]
+    for image in (fixed, moving):
+        image.geometry.spacing, image.geometry.origin = (3, 5), (7, 11)
+        image.calibration_source, image.calibration_confirmed = "user", True
+    custom = ValidationSession(fixed=fixed, moving=moving, candidates=[candidate])
+    transform = load_validation_transform(candidate, custom)
+    np.testing.assert_allclose(transform.map_points([[19, 31]]), [[19, 31]])
+    assert transform.fitting[0].fixed == (7, 11)
+
+
+def test_contrast_limits_use_coarsest_level_and_preserve_small_image_range() -> None:
+    small = np.arange(32 * 40, dtype=np.uint16).reshape(32, 40)
+    low, high = validation_contrast_limits([small])
+    assert 0 < low < 20 and 1200 < high < 1280
+    assert validation_contrast_limits([np.ones((2, 2), dtype=np.uint8) * 77]) == (77, 78)
+    assert validation_contrast_limits([np.full((2, 2), np.nan)]) == (0, 1)
+
+    class Coarsest:
+        shape = (8192, 8192)
+
+        def __getitem__(self, slices: tuple[slice, slice]) -> np.ndarray:
+            assert slices[0].step == slices[1].step == 32
+            return small
+
+    assert validation_contrast_limits([object(), Coarsest()]) == (low, high)
+
+
+def test_aligned_images_without_registration_project(tmp_path: Path) -> None:
+    session = make_validation_session(tmp_path)
+    Path(session.candidates[0].path).unlink()
+    session.candidates = []
+    session.landmarks = session.landmarks[:1]
+    session.fixed_mask, session.moving_mask = session.fixed.model_copy(), session.moving.model_copy()
+    session.mask_pairs = [MaskCorrespondence(name="region", fixed_label=1, moving_label=1)]
+    result = analyze_validation_session(session, tmp_path / "direct-maps")
+    candidate = result.candidates[0]
+    assert candidate.name == "Already aligned images"
+    assert candidate.validation["count"] == 1 and candidate.validation["rms"] == 5
+    assert candidate.fitting["rms"] is None and "not fitted" in candidate.fitting["reason"]
+    assert candidate.masks[0]["dice"] == 1 and candidate.masks[0]["iou"] == 1
+    assert (
+        candidate.deformation["median"] == 1
+        and "original registration deformation is unknown" in candidate.deformation["reference"]
+    )
+    report = export_validation_report(result, tmp_path / "direct-report")
+    assert "original registration deformation is unknown" in report.read_text()
+    reopened, changes = load_validation_session(report.parent / "session.i2validate.json")
+    assert not changes
+    assert analyze_validation_session(reopened, tmp_path / "reopened-maps").candidates[0].validation["rms"] == 5
+
+
+def test_register_user_calibration_preserves_pixel_transform(tmp_path: Path) -> None:
+    session = make_validation_session(tmp_path)
+    session.fixed.geometry.spacing, session.fixed.geometry.origin = (3, 5), (7, 11)
+    session.moving.geometry.spacing, session.moving.geometry.origin = (6, 10), (13, 17)
+    session.fixed.calibration_source = session.moving.calibration_source = "user"
+    transform = load_validation_transform(session.candidates[0], session)
+    fixed_pixels = np.array([[2, 4], [6, 8]])
+    np.testing.assert_allclose(
+        transform.map_points(session.fixed.geometry.to_physical(fixed_pixels)),
+        session.moving.geometry.to_physical(fixed_pixels),
+    )
+    assert transform.fitting[0].fixed == (7, 11) and transform.fitting[0].moving == (13, 17)
+
+
+def test_elastix_user_calibration_reexpresses_saved_physical_transform(tmp_path: Path) -> None:
+    path = make_elastix_project(tmp_path)
+    candidate, fixed, moving = discover_validation_candidates(path)[0]
+    original = ValidationSession(fixed=fixed, moving=moving, candidates=[candidate])
+    base = load_validation_transform(candidate, original)
+    edited = original.model_copy(deep=True)
+    edited.fixed.geometry.spacing, edited.fixed.geometry.origin = (3, 5), (7, 11)
+    edited.moving.geometry.spacing, edited.moving.geometry.origin = (6, 10), (13, 17)
+    edited.fixed.calibration_source = edited.moving.calibration_source = "user"
+    updated = load_validation_transform(candidate, edited)
+    pixels = np.array([[5, 6], [10, 12]])
+    expected_pixels = moving.geometry.to_pixels(base.map_points(fixed.geometry.to_physical(pixels)))
+    expected = edited.moving.geometry.to_physical(expected_pixels)
+    np.testing.assert_allclose(updated.map_points(edited.fixed.geometry.to_physical(pixels)), expected)
+    grid = ImageGeometry(shape=(5, 6), spacing=(3, 5), origin=(7, 11))
+    xy = grid.to_physical(np.stack(np.indices(grid.shape)[::-1], axis=-1))
+    np.testing.assert_allclose(updated.map_grid(grid), updated.map_points(xy.reshape(-1, 2)).reshape(5, 6, 2))

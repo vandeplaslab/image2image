@@ -8,7 +8,7 @@ from typing import Any, Literal
 from uuid import uuid4
 
 import numpy as np
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 class ValidationModel(BaseModel):
@@ -59,6 +59,8 @@ class ValidationImage(ValidationModel):
     channel_names: list[str] = Field(default_factory=list)
     reader_kws: dict[str, Any] = Field(default_factory=dict)
     fingerprint: str = ""
+    calibration_source: Literal["unconfirmed", "registration", "user"] = "unconfirmed"
+    calibration_confirmed: bool = False
 
 
 class ValidationLandmark(ValidationModel):
@@ -76,7 +78,7 @@ class ValidationCandidate(ValidationModel):
 
     id: str = Field(default_factory=lambda: uuid4().hex)
     name: str
-    kind: Literal["register", "elastix"]
+    kind: Literal["register", "elastix", "aligned"]
     path: str
     source: str = ""
     fingerprint: str = ""
@@ -99,7 +101,7 @@ class ValidationSession(ValidationModel):
     moving: ValidationImage | None = None
     candidates: list[ValidationCandidate] = Field(default_factory=list)
     landmarks: list[ValidationLandmark] = Field(default_factory=list)
-    landmark_units: Literal["px", "um"] = "px"
+    landmark_units: Literal["px", "um"] = "um"
     fixed_mask: ValidationImage | None = None
     moving_mask: ValidationImage | None = None
     mask_pairs: list[MaskCorrespondence] = Field(default_factory=list)
@@ -116,6 +118,43 @@ class ValidationSession(ValidationModel):
         return values
 
 
+class ValidationPair(ValidationModel):
+    """An identified image pair with its own annotations and candidates."""
+
+    id: str = Field(default_factory=lambda: uuid4().hex, min_length=1)
+    session: ValidationSession = Field(default_factory=ValidationSession)
+
+    @property
+    def name(self) -> str:
+        """Return the moving image filename for display and reports."""
+        return Path(self.session.moving.path).name if self.session.moving else "New moving image"
+
+
+class ValidationStudy(ValidationModel):
+    """A collection of independent pair sessions sharing one fixed reference."""
+
+    schema_version: Literal["2.0"] = "2.0"
+    tool: Literal["validate"] = "validate"
+    pairs: list[ValidationPair] = Field(default_factory=lambda: [ValidationPair()], min_length=1)
+
+    @model_validator(mode="after")
+    def shared_reference(self) -> ValidationStudy:
+        """Reject duplicate pair identifiers or incompatible fixed references."""
+        if len({pair.id for pair in self.pairs}) != len(self.pairs):
+            raise ValueError("Pair identifiers must be unique.")
+        references = [pair.session.fixed for pair in self.pairs if pair.session.fixed is not None]
+        if references:
+            fixed = references[0]
+            for image in references[1:]:
+                if (
+                    Path(image.path).resolve() != Path(fixed.path).resolve()
+                    or image.geometry != fixed.geometry
+                    or image.reader_kws != fixed.reader_kws
+                ):
+                    raise ValueError("Every pair must use the same fixed image and calibration.")
+        return self
+
+
 @dataclass
 class CandidateAnalysis:
     """Small result record; dense maps are stored separately on disk."""
@@ -129,6 +168,7 @@ class CandidateAnalysis:
     validation: dict[str, Any] = field(default_factory=dict)
     fitting: dict[str, Any] = field(default_factory=dict)
     masks: list[dict[str, Any]] = field(default_factory=list)
+    mask_reason: str = ""
     deformation: dict[str, Any] = field(default_factory=dict)
     map_path: Path | None = None
 
@@ -142,3 +182,21 @@ class ValidationAnalysis:
     candidates: list[CandidateAnalysis]
     versions: dict[str, str]
     created: str
+
+
+@dataclass
+class PairAnalysis:
+    """Completed measurements or a failure for one identified study pair."""
+
+    pair_id: str
+    name: str
+    analysis: ValidationAnalysis | None = None
+    error: str = ""
+
+
+@dataclass
+class StudyAnalysis:
+    """A study snapshot with separate outcomes for each analyzed pair."""
+
+    study: ValidationStudy
+    pairs: list[PairAnalysis]
