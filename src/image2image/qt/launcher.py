@@ -14,7 +14,7 @@ from qtextra.widgets.qt_tile import QtTileWidget, Tile
 from qtpy.QtCore import Qt
 from qtpy.QtWidgets import QVBoxLayout, QWidget
 
-import image2image.constants as C
+import image2image.constants as constants
 from image2image import __version__
 from image2image.config import STATE, get_app_config
 from image2image.utils._appdirs import USER_LOG_DIR
@@ -59,7 +59,7 @@ class Launcher(QtDialog):
                 _make_tile(
                     self,
                     "Viewer<br>App",
-                    C.VIEWER_TEXT,
+                    constants.VIEWER_TEXT,
                     "viewer",
                     partial(self.on_open_app, Window.on_open_viewer),
                 ),
@@ -69,6 +69,24 @@ class Launcher(QtDialog):
                     "Create tissue classes, edit label objects, and review local AI predictions.",
                     "crop",
                     partial(self.on_open_app, Window.on_open_annotate),
+                ),
+                _make_tile(
+                    self,
+                    "Illumination<br>Correction",
+                    "Preview dark-frame, flat-field, and background correction with explicit intensity handling.",
+                    "illumination",
+                    partial(self.on_open_app, Window.on_open_illumination),
+                    icon_kws={"color": THEMES.get_hex_color("warning")},
+                    warning=constants.EXPERIMENTAL_WARNING,
+                ),
+                _make_tile(
+                    self,
+                    "Stain Separation<br>and Normalization",
+                    "Separate brightfield stains, edit stain vectors, and normalize batches against a reference slide.",
+                    "stain",
+                    partial(self.on_open_app, Window.on_open_stains),
+                    icon_kws={"color": THEMES.get_hex_color("warning")},
+                    warning=constants.EXPERIMENTAL_WARNING,
                 ),
                 stretch_after=True,
                 spacing=2,
@@ -83,21 +101,21 @@ class Launcher(QtDialog):
                 _make_tile(
                     self,
                     "Registration<br>App",
-                    C.REGISTER_TEXT,
+                    constants.REGISTER_TEXT,
                     "register",
                     partial(self.on_open_app, Window.on_open_register),
                 ),
                 _make_tile(
                     self,
                     "Elastix<br>App",
-                    C.ELASTIX_TEXT,
+                    constants.ELASTIX_TEXT,
                     "elastix",
                     partial(self.on_open_app, Window.on_open_elastix),
                 ),
                 _make_tile(
                     self,
                     "Elastix/Valis<br>Runner",
-                    C.RUNNER_TEXT,
+                    constants.RUNNER_TEXT,
                     "queue",
                     partial(self.on_open_app, Window.on_open_runner),
                 ),
@@ -105,15 +123,17 @@ class Launcher(QtDialog):
                     self,
                     "Serial Sections<br>App",
                     "Register serial sections and reconstruct calibrated 3D OME-Zarr volumes.",
-                    "layers",
+                    "serial",
                     partial(self.on_open_app, Window.on_open_serial),
                 ),
                 _make_tile(
                     self,
                     "Validate<br>App",
                     "Compare registrations using independent landmarks, corresponding masks, and local deformation maps.",
-                    "register",
+                    "measure",
                     partial(self.on_open_app, Window.on_open_validate),
+                    icon_kws={"color": THEMES.get_hex_color("warning")},
+                    warning=constants.EXPERIMENTAL_WARNING,
                 ),
                 # _make_tile(
                 #     self,
@@ -137,51 +157,39 @@ class Launcher(QtDialog):
                 _make_tile(
                     self,
                     "Image Crop<br>App",
-                    C.CROP_TEXT,
+                    constants.CROP_TEXT,
                     "crop",
                     partial(self.on_open_app, Window.on_open_crop),
                 ),
                 _make_tile(
                     self,
                     "Image to OME-TIFF<br>App",
-                    C.CONVERT_TEXT,
+                    constants.CONVERT_TEXT,
                     "convert",
                     partial(self.on_open_app, Window.on_open_convert),
                     icon_kws=None if STATE.allow_convert else {"color": THEMES.get_hex_color("warning")},
-                    warning=C.CONVERT_WARNING,
+                    warning=constants.CONVERT_WARNING,
                 ),
                 _make_tile(
                     self,
                     "Volume Builder<br>App",
                     "Arrange aligned slides, match channels, and write calibrated OME-Zarr volumes.",
-                    "layers",
+                    "builder",
                     partial(self.on_open_app, Window.on_open_volume),
-                ),
-                _make_tile(
-                    self,
-                    "Illumination<br>Correction",
-                    "Preview dark-frame, flat-field, and background correction with explicit intensity handling.",
-                    "fa5s.adjust",
-                    partial(self.on_open_app, Window.on_open_illumination),
-                ),
-                _make_tile(
-                    self,
-                    "Stain Separation<br>and Normalization",
-                    "Separate brightfield stains, edit stain vectors, and normalize batches against a reference slide.",
-                    "fa5s.adjust",
-                    partial(self.on_open_app, Window.on_open_stains),
+                    icon_kws={"color": THEMES.get_hex_color("warning")},
+                    warning=constants.EXPERIMENTAL_WARNING,
                 ),
                 _make_tile(
                     self,
                     "Merge OME-TIFFs<br>App",
-                    C.MERGE_TEXT,
+                    constants.MERGE_TEXT,
                     "merge",
                     partial(self.on_open_app, Window.on_open_merge),
                 ),
                 _make_tile(
                     self,
                     "Fusion Preparation<br>App",
-                    C.FUSION_TEXT,
+                    constants.FUSION_TEXT,
                     "fusion",
                     partial(self.on_open_app, Window.on_open_fusion),
                 ),

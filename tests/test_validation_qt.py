@@ -19,6 +19,7 @@ from image2image.cli import cli
 from image2image.models.validation import (
     ImageGeometry,
     ValidationImage,
+    ValidationLandmark,
     ValidationPair,
     ValidationSession,
     ValidationStudy,
@@ -26,6 +27,7 @@ from image2image.models.validation import (
 from image2image.qt.dialog_validate import ImageValidationWindow
 from image2image.utils.validation import (
     analyze_validation_session,
+    discover_validation_candidates,
     inspect_validation_image,
     landmark_exclusions,
     load_validation_transform,
@@ -665,3 +667,97 @@ def test_rgb_display_during_analysis_keeps_measurements_and_native_background(
     window.channels[0].setCurrentText("RGB")
     assert window.views[0].viewer.layers["Image"].gamma == 1.4
     assert window.views[0].viewer.layers.selection.active.name == "Image"
+
+
+def test_validation_error_legend_labels_and_shared_color_scale(
+    validation_window: ImageValidationWindow, qtbot: QtBot, tmp_path: Path
+) -> None:
+    session = make_validation_session(tmp_path)
+    session.landmarks.append(ValidationLandmark(id="zero-error", fixed=(30, 35), moving=(30, 35)))
+    translated = tmp_path / "translated.i2r.json"
+    definition = json.loads(Path(session.candidates[0].path).read_text())
+    definition["matrix_yx_px"][0][2] = 6
+    translated.write_text(json.dumps(definition))
+    session.candidates.append(discover_validation_candidates(translated)[0][0])
+    window = validation_window
+    window.open_path(save_validation_session(tmp_path / "legend", session))
+    window.start_analysis()
+    qtbot.waitUntil(lambda: not window._workers, timeout=30000)
+    window.result_mode.setCurrentIndex(1)
+    assert not window.validation_legend.isHidden()
+    summary = window.validation_summary.text()
+    assert "2/2 eligible landmarks evaluated" in summary and "3 supplied, 1 excluded" in summary
+    assert "Mean: 2.5 um" in summary and "Max: 5 um" in summary
+    layer = window.result_view.viewer.layers["Validation error (um)"]
+    assert layer.face_colorbar.visible and layer.face_colorbar.position == "top_right"
+    maximum = max(
+        point["error_um"]
+        for result in window.analysis.candidates
+        for point in result.landmarks
+        if point["error_um"] is not None
+    )
+    assert layer.face_contrast_limits == (0, maximum)
+    assert list(layer.features["landmark_id"]) == ["independent", "zero-error"]
+    assert list(layer.text.values) == ["independent: 5 um", "zero-error: 0 um"]
+    vectors = window.result_view.viewer.layers["Residual G(fixed)-moving"]
+    assert vectors.vector_style == "arrow" and vectors.length == 1
+    assert vectors.blending == "translucent_no_depth"
+    np.testing.assert_array_equal(vectors.data[0, 0] + vectors.data[0, 1], [24, 20])
+    analysis, generation = window.analysis, window._generation
+    window.error_labels.setChecked(False)
+    assert not layer.text.visible and window.analysis is analysis and window._generation == generation
+    window.result_candidate.setCurrentIndex(1)
+    layer = window.result_view.viewer.layers["Validation error (um)"]
+    assert not layer.text.visible and layer.face_contrast_limits == (0, maximum)
+    window.result_mode.setCurrentIndex(0)
+    assert window.validation_legend.isHidden()
+    assert "Validation error (um)" not in window.result_view.viewer.layers
+    window.result_mode.setCurrentIndex(1)
+    window.downsample.setValue(2)
+    assert window.validation_legend.isHidden() and not window.validation_summary.text()
+
+
+@pytest.mark.parametrize("evidence", ["missing", "fitting", "disabled"])
+def test_validation_error_legend_explains_missing_measurements(
+    validation_window: ImageValidationWindow, qtbot: QtBot, tmp_path: Path, evidence: str
+) -> None:
+    session = make_validation_session(tmp_path)
+    if evidence == "missing":
+        session.landmarks = []
+    elif evidence == "fitting":
+        session.landmarks = session.landmarks[1:]
+    else:
+        session.landmarks = session.landmarks[:1]
+        session.landmarks[0].enabled = False
+        session.landmarks[0].note = "Excluded <sample&1>"
+    window = validation_window
+    window.open_path(save_validation_session(tmp_path / "unavailable-legend", session))
+    window.start_analysis()
+    qtbot.waitUntil(lambda: not window._workers, timeout=30000)
+    window.result_mode.setCurrentIndex(1)
+    assert not window.validation_legend.isHidden() and not window.error_labels.isEnabled()
+    assert "No independent validation errors to display" in window.validation_summary.text()
+    assert "Validation error (um)" not in window.result_view.viewer.layers
+    expected = {
+        "missing": "Add independent landmark pairs",
+        "fitting": "Reuses a known fitting landmark",
+        "disabled": "Excluded &lt;sample&amp;1&gt;",
+    }
+    assert expected[evidence] in window.validation_summary.text()
+
+
+def test_validation_zero_errors_have_real_values_and_visible_color_scale(
+    validation_window: ImageValidationWindow, qtbot: QtBot, tmp_path: Path
+) -> None:
+    session = make_validation_session(tmp_path)
+    session.landmarks[0].moving = session.landmarks[0].fixed
+    window = validation_window
+    window.open_path(save_validation_session(tmp_path / "zero-legend", session))
+    window.start_analysis()
+    qtbot.waitUntil(lambda: not window._workers, timeout=30000)
+    window.result_mode.setCurrentIndex(1)
+    layer = window.result_view.viewer.layers["Validation error (um)"]
+    assert layer.face_colorbar.visible and layer.face_contrast_limits == (0, 1)
+    assert "Mean: 0 um" in window.validation_summary.text()
+    assert "All measured errors are zero" in window.result_detail.text()
+    assert list(layer.text.values) == ["independent: 0 um"]

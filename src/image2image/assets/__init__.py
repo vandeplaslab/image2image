@@ -62,6 +62,11 @@ update_icon_mapping(
         "fusion": "mdi6.content-save-check-outline",
         "merge": "msc.merge",
         "valis": "fa5b.vimeo-square",
+        "stain": "mdi.brightness-4",
+        "illumination": "fa5s.lightbulb",
+        "serial": "ph.cube",
+        "measure": "mdi6.map-marker-distance",
+        "builder": "mdi.account-hard-hat",
         "launch": "mdi.rocket-launch",
         "overlap": "mdi.checkbox-multiple-blank-circle",
     }

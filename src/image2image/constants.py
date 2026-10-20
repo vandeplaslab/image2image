@@ -46,6 +46,8 @@ VALIS_WARNING = ""
 if not STATE.allow_valis:
     VALIS_WARNING = "<br><br><i>Might not work without a proper setup.</i>"
 
+EXPERIMENTAL_WARNING = "This plugin is experimental and may not work as intended. Please report any issues."
+
 LANDMARK_HELP = (
     "Residual = G(fixed) - moving, measured in um in the moving physical frame."
     "<br>Evaluated/eligible counts  show how many independent landmarks were usable. "
@@ -55,13 +57,13 @@ LANDMARK_HELP = (
 FITTING_HELP = (
     "Fitting residuals describe the original points used to estimate a registration, when available."
     "<br>They measure fit to training evidence and are separate from independent validation accuracy."
-    "<br>Register's original root-sum-square error is preserved and increases with point count.",
+    "<br>Register's original root-sum-square error is preserved and increases with point count."
 )
 OVERLAP_HELP = (
     "Dice = 2 * intersection / summed areas; IoU = intersection / union. Both range from zero to one."
     "<br>Areas use um2 on the fixed analysis grid. Coverage describes available mask fields of view."
     "<br>Background zero is excluded, both-empty labels are unavailable, and one-empty labels score zero."
-    "<br>Small regions may require a finer analysis grid.",
+    "<br>Small regions may require a finer analysis grid."
 )
 DOWNSAMPLE_HELP = (
     "This setting applies to the selected moving-image pair. The common fixed analysis grid is "

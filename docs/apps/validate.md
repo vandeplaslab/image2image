@@ -80,6 +80,12 @@ excludes that landmark from the shared validation set. Otherwise, independence i
 know whether an externally supplied point was previously used to tune a registration. Landmark errors describe sampled
 locations and are not interpolated into a claim of accuracy across unmeasured tissue.
 
+The **Validation errors** view includes a visible legend and summary beside the image. Point colors encode positional
+error in `um`, with a numeric colorbar shared across registration candidates for the current pair. Cyan arrows run
+from observed moving landmarks to their predicted positions at actual physical length. Optional point labels show
+each landmark ID and error. The native moving image provides context; its intensity is not an error measurement.
+The legend explains missing or excluded evidence, and zero error remains distinct from an unavailable measurement.
+
 When switching to a pair without landmarks, Validate offers to copy existing validation pairs from another moving
 image. The previous pair is selected as the source when available; another annotated source can be chosen.
 Copying preserves physical coordinates, notes, and **Use** flags, with independent editable rows in the destination.

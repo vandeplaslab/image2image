@@ -42,6 +42,7 @@ from superqt.utils import create_worker
 import image2image.constants as constants
 from image2image.config import SingleAppConfig
 from image2image.models.validation import (
+    CandidateAnalysis,
     ImageGeometry,
     MaskCorrespondence,
     PairAnalysis,
@@ -213,9 +214,9 @@ class ImageValidationWindow(Window):
             func=self._link_views_changed,
             tooltip="Show the same physical location and magnification in both images. Disable for independent navigation.",
         )
-        raw_layout.addWidget(self.link_views)
         self.native_splitter = QSplitter(Qt.Orientation.Vertical, raw)
         raw_layout.addWidget(self.native_splitter)
+        raw_layout.addWidget(self.link_views)
         self.views: list[NapariImageView] = []
         self.coordinate_labels: list[QLabel] = []
         self.point_layers: list[Any] = []
@@ -249,10 +250,34 @@ class ImageValidationWindow(Window):
         self.result_coordinates = hp.make_label(result_panel, "X: -- um, Y: -- um")
         result_layout.addWidget(self.result_coordinates)
         self.result_view = NapariImageView(
-            result_panel, add_toolbars=True, disable_new_layers=True, allow_crosshair=False
+            result_panel, add_toolbars=True, disable_new_layers=True, allow_crosshair=False, allow_extraction=False
         )
         self.result_view.viewer.cursor.events.position.connect(partial(self._cursor_changed, None))
         self.result_view.viewer.scale_bar.visible = True
+        self.validation_legend = hp.make_group_box(result_panel, "Independent landmark errors (um, moving frame)")
+        self.validation_summary = self._message_label(self.validation_legend, "")
+        self.error_labels = hp.make_checkbox(
+            self.validation_legend, "Show landmark IDs and errors", value=True, func=self._error_labels_changed
+        )
+        hp.make_v_layout(
+            self.validation_summary,
+            hp.make_label(
+                self.validation_legend,
+                "Point color shows positional error in um; use the colorbar at the upper right of the image. "
+                "Smaller errors mean closer agreement at those landmarks. "
+                "Cyan arrows run from the observed moving point to the position predicted by the registration, "
+                "at their actual physical length. The background is the native moving image for context. "
+                "Errors are measured only at the landmarks; no accuracy is inferred between them and no "
+                "universal pass/fail threshold is applied.",
+                wrap=True,
+            ),
+            self.error_labels,
+            parent=self.validation_legend,
+            margin=6,
+            spacing=3,
+        )
+        self.validation_legend.hide()
+        result_layout.addWidget(self.validation_legend)
         result_layout.addWidget(self.result_view.widget)
         self.view_stack.addWidget(result_panel)
         splitter = QSplitter(Qt.Orientation.Horizontal, widget)
@@ -427,7 +452,7 @@ class ImageValidationWindow(Window):
     def _make_results(self) -> QWidget:
         widget = QWidget(self)
         layout = hp.make_v_layout(parent=widget)
-        self.run_all_btn = hp.make_btn(widget, "Analyze all", func=self.start_analysis_all)
+        self.run_all_btn = hp.make_btn(widget, "Analyze", func=self.start_analysis_all)
         self.cancel_btn = hp.make_btn(widget, "Cancel", func=self.cancel_analysis)
         self.cancel_btn.setEnabled(False)
         layout.addLayout(hp.make_h_layout(self.run_all_btn, self.cancel_btn))
@@ -435,8 +460,8 @@ class ImageValidationWindow(Window):
         layout.addLayout(
             hp.make_h_layout(
                 hp.make_label(widget, "Requested analysis downsample"),
-                hp.make_help_label(widget, constants.DOWNSAMPLE_HELP),
                 self.downsample,
+                hp.make_help_label(widget, constants.DOWNSAMPLE_HELP),
                 stretch_id=2,
             )
         )
@@ -520,7 +545,14 @@ class ImageValidationWindow(Window):
     @staticmethod
     def _measurement_panel(parent: QWidget, table: QTableWidget, help_text: str) -> QWidget:
         panel = QWidget(parent)
-        hp.make_v_layout(table, hp.make_help_label(panel, help_text), parent=panel, stretch_id=(0,), spacing=1)
+        hp.make_h_layout(
+            table,
+            hp.make_help_label(panel, help_text),
+            parent=panel,
+            stretch_id=(0,),
+            spacing=1,
+            widget_alignment=Qt.AlignmentFlag.AlignTop,
+        )
         return panel
 
     def _diagnostic_changed(self, index: int) -> None:
@@ -551,6 +583,8 @@ class ImageValidationWindow(Window):
         ):
             table.setRowCount(0)
         self.result_view.viewer.layers.clear()
+        self.validation_legend.hide()
+        self.validation_summary.clear()
         with hp.qt_signals_blocked(self.result_candidate):
             self.result_candidate.clear()
         self._set_message(self.result_detail, message)
@@ -1690,6 +1724,44 @@ class ImageValidationWindow(Window):
             if "Region labels" in view.viewer.layers:
                 view.viewer.layers["Region labels"].visible = index == 2
 
+    def _error_labels_changed(self, checked: bool) -> None:
+        viewer = self.result_view.viewer
+        if "Validation error (um)" in viewer.layers:
+            viewer.layers["Validation error (um)"].text.visible = checked
+
+    def _show_error_summary(self, result: CandidateAnalysis) -> None:
+        evaluated = int(result.validation.get("count", 0))
+        eligible = int(result.validation.get("eligible", 0))
+        total = len(result.landmarks)
+        counts = (
+            f"{evaluated}/{eligible} eligible landmarks evaluated; {total} supplied, {total - eligible} excluded, "
+            f"{eligible - evaluated} not evaluated."
+        )
+        if evaluated:
+            statistics = "; ".join(
+                f"{label}: {self._format(result.validation.get(key))} um"
+                for key, label in (
+                    ("mean", "Mean"),
+                    ("median", "Median"),
+                    ("rms", "RMS"),
+                    ("p95", "P95"),
+                    ("maximum", "Max"),
+                )
+            )
+            self._set_message(self.validation_summary, counts + "\n" + statistics, "Measured positional errors")
+        else:
+            reasons = list(dict.fromkeys(point["excluded"] for point in result.landmarks if point["excluded"]))
+            reason = (
+                "Add independent landmark pairs in Landmarks."
+                if not result.landmarks
+                else " ".join(reasons) + " See Landmark residuals for each point."
+            )
+            self._set_message(
+                self.validation_summary, counts + "\n" + reason, "No independent validation errors to display"
+            )
+        self.error_labels.setEnabled(bool(evaluated))
+        self.validation_legend.show()
+
     def show_result(self, _index: int = 0) -> None:
         """Display calibrated diagnostics for the selected candidate without interpolating landmark errors."""
         if self.analysis is None or self.result_candidate.currentIndex() < 0:
@@ -1708,6 +1780,7 @@ class ImageValidationWindow(Window):
             return
         viewer = self.result_view.viewer
         viewer.layers.clear()
+        self.validation_legend.hide()
         grid = self.analysis.grid
         kwargs = {"scale": grid.spacing[::-1], "translate": grid.origin[::-1], "units": ("um", "um")}
         with np.load(result.map_path) as arrays:
@@ -1719,6 +1792,7 @@ class ImageValidationWindow(Window):
                 viewer.add_image(moving, colormap="green", blending="additive", name="Registered moving", **kwargs)
                 legend = "Magenta: fixed; green: registered moving; gray: agreement."
             elif mode == 1:
+                self._show_error_summary(result)
                 image = self.session.moving
                 if image is not None and self._readers[1] is not None:
                     display = image.display_channel if image.display_channel is not None else image.channel
@@ -1748,19 +1822,45 @@ class ImageValidationWindow(Window):
                         ]
                         or [1]
                     )
-                    viewer.add_points(
+                    error_limit = maximum if maximum > 0 else 1.0
+                    layer = viewer.add_points(
                         data,
                         name="Validation error (um)",
-                        features={"error_um": errors},
+                        features={"error_um": errors, "landmark_id": [point["id"] for point in points]},
                         face_color="error_um",
                         face_colormap="magma",
-                        face_contrast_limits=(0, max(maximum, 1e-9)),
+                        face_contrast_limits=(0, error_limit),
                         size=6 * max(grid.spacing),
                         units=("um", "um"),
+                        text={
+                            "string": "{landmark_id}: {error_um:.4g} um",
+                            "visible": self.error_labels.isChecked(),
+                            "size": 10,
+                            "color": "white",
+                            "anchor": "upper_left",
+                            "translation": (4 * max(grid.spacing), 4 * max(grid.spacing)),
+                        },
                     )
+                    layer.face_colorbar.visible = True
+                    layer.face_colorbar.position = "top_right"
+                    layer.face_colorbar.font_size = 11
                     vectors = np.stack((data, np.array([[p["dy_um"], p["dx_um"]] for p in points])), axis=1)
-                    viewer.add_vectors(vectors, name="Residual G(fixed)-moving", edge_color="cyan", units=("um", "um"))
-                    legend = f"Moving frame, um. Dark to light: 0 to {maximum:.4g} um; cyan arrows are residuals."
+                    viewer.add_vectors(
+                        vectors,
+                        name="Residual G(fixed)-moving",
+                        edge_color="cyan",
+                        units=("um", "um"),
+                        vector_style="arrow",
+                        length=1,
+                        blending="translucent_no_depth",
+                    )
+                    legend = (
+                        f"Point color: positional error from 0 to {error_limit:.4g} um; "
+                        "the color range is shared by registration candidates for this pair. "
+                        "Cyan arrows: observed moving point to predicted position."
+                    )
+                    if maximum == 0:
+                        legend += " All measured errors are zero; the 0 to 1 um scale is for display."
                 else:
                     legend = "No independent validation landmarks available."
             elif mode == 2:
