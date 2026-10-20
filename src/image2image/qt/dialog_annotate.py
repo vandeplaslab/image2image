@@ -26,25 +26,22 @@ from qtextraplot._napari.image.wrapper import NapariImageView
 from qtpy.QtCore import QLockFile, QSignalBlocker, Qt, QTimer
 from qtpy.QtGui import QCloseEvent, QColor, QKeySequence, QShortcut  # type: ignore[attr-defined]
 from qtpy.QtWidgets import (
-    QAbstractItemView,
     QColorDialog,
     QComboBox,
     QDialog,
     QDialogButtonBox,
     QFileDialog,
-    QHeaderView,
+    QFormLayout,
     QInputDialog,
     QListWidget,
     QListWidgetItem,
     QMenuBar,
     QSizePolicy,
     QSplitter,
-    QTableWidget,
-    QTableWidgetItem,
     QTabWidget,
     QWidget,
 )
-from shapely.geometry import LineString, MultiPolygon, Point, Polygon
+from shapely.geometry import LineString, MultiPolygon, Polygon
 from superqt.utils import create_worker
 
 from image2image.config import SingleAppConfig
@@ -58,10 +55,13 @@ from image2image.models.annotation import (
     PredictionRequest,
     SlideGeometry,
 )
+from image2image.qt._annotation_finetune import FineTuneDialog, model_requirements_html
 from image2image.qt._annotation_jobs import AnnotationJobs
+from image2image.qt._annotation_table import AnnotationTable
 from image2image.qt._dialog_base import Window
 from image2image.utils.annotation.geometry import (
     brush_object,
+    brush_stroke,
     edit_geometry,
     merge_objects,
     split_object,
@@ -78,16 +78,12 @@ from image2image.utils.annotation.render import AnnotationRenderer
 from image2image.utils.annotation.store import AnnotationStore
 
 
-def _table_key(table: QTableWidget, row: int) -> int:
-    item = table.item(row, 0)
-    if item is None:
-        raise ValueError("Select an object row first.")
-    return int(item.data(Qt.ItemDataRole.UserRole))
+def _table_key(table: AnnotationTable, row: int) -> int:
+    return int(table.key_at(row))
 
 
-def _selected_keys(table: QTableWidget) -> list[int]:
-    selection = table.selectionModel()
-    return [_table_key(table, index.row()) for index in selection.selectedRows()] if selection else []
+def _selected_keys(table: AnnotationTable) -> list[int]:
+    return list(map(int, table.selected_keys()))
 
 
 class AnnotateConfig(SingleAppConfig):
@@ -163,6 +159,8 @@ class ImageAnnotationWindow(Window):
         self.renderer: AnnotationRenderer | None = None
         self.slide_id: str | None = None
         self.selected: list[int] = []
+        self._review_selection: list[int] = []
+        self._excluded_training_classes: set[str] = set()
         self._threads: list[Any] = []
         self._forest_scans: set[Any] = set()
         self._closing = False
@@ -170,6 +168,9 @@ class ImageAnnotationWindow(Window):
         self._rendering = False
         self._generation = 0
         self._pages: dict[str, list[int]] = {"accepted": [0], "proposed": [0]}
+        self._page_last: dict[str, int] = {"accepted": 0, "proposed": 0}
+        self._page_totals: dict[str, int] = {"accepted": 0, "proposed": 0}
+        self._class_labels: dict[str, str | None] = {}
         self._pagination: dict[str, tuple[Any, Any, Any]] = {}
         self._mode = "Select"
         self._ring_layout: list[int] = []
@@ -190,6 +191,8 @@ class ImageAnnotationWindow(Window):
         self._catalogues: dict[str, list[dict[str, Any]]] = {}
         self._catalogue_pending: set[str] = set()
         self._catalogue_errors: dict[str, str] = {}
+        self._catalogue_project: dict[str, str | None] = {}
+        self._selected_custom_checkpoint = ""
         self._stroke_revision = 0
         self._preview_updated = 0.0
         self.jobs = AnnotationJobs()
@@ -288,6 +291,12 @@ class ImageAnnotationWindow(Window):
         left_box.addWidget(hp.make_label(left, "Annotation set"))
         left_box.addWidget(self.sets)
         left_box.addWidget(self._button(left, "New annotation set", self.new_set))
+        left_box.addLayout(
+            hp.make_h_layout(
+                self._button(left, "Combine sets...", self.choose_combine_sets),
+                self._button(left, "Remove set", self.remove_set),
+            )
+        )
         left_box.addWidget(hp.make_label(left, "Shared classes"))
         self.classes = QListWidget(left)
         left_box.addWidget(self.classes, 1)
@@ -350,7 +359,7 @@ class ImageAnnotationWindow(Window):
         self.brush_radius.valueChanged.connect(lambda *_: self.set_mode(self._mode))
         self.tabs = QTabWidget(splitter)
         self.tabs.addTab(self._annotation_panel(), "Annotate")
-        self.tabs.addTab(self._train_panel(), "Train classifier")
+        self.tabs.addTab(self._train_panel(), "Train")
         self.tabs.addTab(self._predict_panel(), "Predict")
         self.tabs.addTab(self._review_panel(), "Review")
         self.tabs.currentChanged.connect(lambda index: self._refresh_training_summary() if index == 1 else None)
@@ -380,13 +389,28 @@ class ImageAnnotationWindow(Window):
             ("Delete", self.delete_selected),
             ("Escape", self.clear_drawing),
             ("Return", self.apply_drawing),
-            ("M", self.merge_selected),
+            (
+                "M",
+                lambda: (
+                    self._review_action(self.merge_proposals)
+                    if self.tabs.currentIndex() == 3
+                    else self.merge_selected()
+                ),
+            ),
             ("V", lambda: self.tool.setCurrentText("Select")),
             ("P", lambda: self.tool.setCurrentText("Polygon")),
             ("B", lambda: self.tool.setCurrentText("Brush +")),
         ):
             shortcut = QShortcut(QKeySequence(key), self)
             shortcut.activated.connect(partial(self._try, function))
+            self._shortcuts.append(shortcut)
+        for key, function in (
+            ("A", partial(self.review, True, False)),
+            ("R", partial(self.review, False, False)),
+            ("E", self.refine_proposal),
+        ):
+            shortcut = QShortcut(QKeySequence(key), self)
+            shortcut.activated.connect(partial(self._review_action, function))
             self._shortcuts.append(shortcut)
 
     def _annotation_panel(self) -> QWidget:
@@ -402,20 +426,21 @@ class ImageAnnotationWindow(Window):
         self.search.setPlaceholderText("Object ID (or int:12 / str:12)")
         self.search.returnPressed.connect(lambda: self._try(self.find_object))
         layout.addLayout(hp.make_h_layout(self.search, self._button(panel, "Find", self.find_object)))
-        self.objects = QTableWidget(0, 4, panel)
-        self.objects.setHorizontalHeaderLabels(["ID", "Class", "Area (px2)", "Training"])
-        self.objects.horizontalHeader().setMinimumSectionSize(45)
-        self.objects.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
-        self.objects.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Fixed)
-        self.objects.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeMode.Fixed)
-        self.objects.setColumnWidth(0, 60)
-        self.objects.setColumnWidth(3, 75)
-        self.objects.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
-        self.objects.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
-        self.objects.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
-        self.objects.itemSelectionChanged.connect(self._table_selection)
-        self.objects.itemChanged.connect(self._training_checked)
-        self.objects.cellDoubleClicked.connect(lambda *_: self.zoom_selected())
+        self.objects = AnnotationTable(
+            panel,
+            TableConfig()
+            .add("Training", "training", dtype="bool", checkable=True, tooltip="Include in classifier training")
+            .add("ID", "id", width=60, resizable=True, tooltip="Original object ID (read-only)")
+            .add("Class", "class", width=100, resizable=True, tooltip="Double-click to choose a class")
+            .add("Area (px2)", "area", dtype="float", tooltip="Object area in full-resolution pixels (read-only)"),
+            paged=True,
+            editable={"class", "training"},
+            on_edit=self._table_edited,
+        )
+        self.objects.proxy.evt_filtered.connect(partial(self._page_status, "accepted"))
+        self.objects.selectionModel().selectionChanged.connect(lambda *_: self._table_selection())
+        self.objects.doubleClicked.connect(lambda index: self.zoom_selected() if index.column() != 2 else None)
+        layout.addWidget(self.objects.filter_widget)
         layout.addWidget(self.objects, 1)
         layout.addLayout(self._pagination_controls(panel, "accepted"))
         self.selection_label = hp.make_label(panel, "No selection", wrap=True)
@@ -456,7 +481,7 @@ class ImageAnnotationWindow(Window):
                 panel,
                 "Train a CPU random forest to classify pixels using multiscale intensity, edge, and texture features. "
                 "Include accepted examples for at least two classes, usually including Background. "
-                "micro-SAM and Cellpose use independent pretrained models; this tab does not train them.",
+                "Choose classes below for this training run. Fine-tune Cellpose or SAM with the separate action below.",
                 wrap=True,
             )
         )
@@ -481,15 +506,26 @@ class ImageAnnotationWindow(Window):
         self.sample_count.setToolTip("Upper limit per class. Classes use equal counts, limited by the smallest class.")
         self.training_summary = hp.make_label(panel, "No training examples.", wrap=True)
         form.addRow(self.training_summary)
-        self.training_counts = QTableWidget(0, 4, panel)
-        self.training_counts.setHorizontalHeaderLabels(["Slide", "Class", "Included", "Total"])
-        self.training_counts.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
-        self.training_counts.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.training_counts = AnnotationTable(
+            panel,
+            TableConfig()
+            .add(
+                "Use", "use", dtype="bool", checkable=True, tooltip="Enable this class for the next model training run"
+            )
+            .add("Class", "class", width=100, resizable=True)
+            .add("Included", "included", sizing="contents")
+            .add("Total", "total", dtype="int", sizing="contents"),
+            editable={"use"},
+            on_edit=self._training_class_edited,
+        )
         self.training_counts.setMaximumHeight(190)
+        form.addRow(self.training_counts.filter_widget)
         form.addRow(self.training_counts)
         self.train_btn = self._button(panel, "Train from included annotations", self.train)
         self.train_btn.setEnabled(False)
         form.addRow(self.train_btn)
+        self.finetune_btn = self._button(panel, "Fine-tune Cellpose / SAM...", self.choose_finetuning)
+        form.addRow(self.finetune_btn)
         form.addRow(
             hp.make_label(
                 panel,
@@ -497,6 +533,7 @@ class ImageAnnotationWindow(Window):
                 "to exclude examples or include reviewed predictions. Existing saved choices are preserved. "
                 "Ignore regions exclude overlapping pixels in the same annotation set. Counts show candidate objects "
                 "before masking and sampling. Training starts only when you click Train.\n\n"
+                "Class checkboxes choose this run's classes without changing individual object flags. "
                 "Channels come from Annotate. The forest uses 100 trees and the seed/depth selected above. "
                 "Examples, Ignore masks, and settings are saved with the classifier.",
                 wrap=True,
@@ -507,6 +544,7 @@ class ImageAnnotationWindow(Window):
     def _predict_panel(self) -> QWidget:
         panel, scroll = hp.make_scroll_area(self)
         form = hp.make_form_layout(parent=panel)
+        form.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)
         self._predict_form = form
         self.backend = hp.make_combobox(panel, ["forest", "micro-sam", "cellpose"])
         self.model = hp.make_combobox(panel)
@@ -533,8 +571,10 @@ class ImageAnnotationWindow(Window):
         )
         self.model_help = hp.make_help_label(panel, "Select a model to see its purpose and requirements.")
         form.addRow("Model", hp.make_h_layout(self.model, self.download_btn, self.model_help, stretch_id=0, spacing=2))
-        self.model_status = hp.make_label(panel, "", wrap=True)
+        self.model_status = hp.make_label(panel, "", wrap=True, enable_url=True)
         form.addRow(self.model_status)
+        self.model_requirements = hp.make_label(panel, "", wrap=True, enable_url=True)
+        form.addRow(self.model_requirements)
         self.choose_model_btn = self._button(panel, "Load classifier...", self.choose_model)
         form.addRow(self.choose_model_btn)
         form.addRow("Optional local checkpoint", self.checkpoint)
@@ -598,35 +638,43 @@ class ImageAnnotationWindow(Window):
                 panel, "Choose a prediction set on the left. Proposed objects appear in this paged list.", wrap=True
             )
         )
-        self.proposals = QTableWidget(0, 4, panel)
-        self.proposals.setHorizontalHeaderLabels(["ID", "Class", "Area (px2)", "Review note"])
-        self.proposals.horizontalHeader().setMinimumSectionSize(45)
-        self.proposals.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
-        self.proposals.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Fixed)
-        self.proposals.setColumnWidth(0, 60)
-        self.proposals.horizontalHeader().setStretchLastSection(True)
-        self.proposals.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
-        self.proposals.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
-        self.proposals.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
-        self.proposals.cellDoubleClicked.connect(self._zoom_proposal)
-        self.proposals.itemSelectionChanged.connect(self._proposal_details)
+        self.proposals = AnnotationTable(
+            panel,
+            TableConfig()
+            .add("ID", "id", width=60, resizable=True, tooltip="Original object ID (read-only)")
+            .add("Class", "class", width=100, resizable=True, tooltip="Double-click to choose a class")
+            .add("Area (px2)", "area", dtype="float", width=80, resizable=True)
+            .add("Review note", "review"),
+            paged=True,
+            editable={"class"},
+            on_edit=self._table_edited,
+        )
+        self.proposals.proxy.evt_filtered.connect(partial(self._page_status, "proposed"))
+        self.proposals.doubleClicked.connect(
+            lambda index: self._zoom_proposal(index.row(), index.column()) if index.column() != 1 else None
+        )
+        self.proposals.selectionModel().selectionChanged.connect(lambda *_: self._table_selection(self.proposals))
+        layout.addWidget(self.proposals.filter_widget)
         layout.addWidget(self.proposals, 1)
         self.proposal_details = hp.make_label(panel, "Select a proposal to see its source model.", wrap=True)
         layout.addWidget(self.proposal_details)
         layout.addLayout(self._pagination_controls(panel, "proposed"))
-        layout.addLayout(
-            hp.make_h_layout(
-                self._button(panel, "Accept selected", partial(self.review, True, False)),
-                self._button(panel, "Reject selected", partial(self.review, False, False)),
-            )
-        )
+        self.accept_selected_btn = self._button(panel, "Accept selected (A)", partial(self.review, True, False))
+        self.reject_selected_btn = self._button(panel, "Reject selected (R)", partial(self.review, False, False))
+        layout.addLayout(hp.make_h_layout(self.accept_selected_btn, self.reject_selected_btn))
         layout.addLayout(
             hp.make_h_layout(
                 self._button(panel, "Accept batch", partial(self.review, True, True)),
                 self._button(panel, "Reject batch", partial(self.review, False, True)),
             )
         )
-        layout.addWidget(self._button(panel, "Refine selected proposal", self.refine_proposal))
+        self.refine_btn = self._button(panel, "Refine selected (E)", self.refine_proposal)
+        self.merge_proposals_btn = self._button(panel, "Merge selected (M)", self.merge_proposals)
+        layout.addLayout(hp.make_h_layout(self.refine_btn, self.merge_proposals_btn))
+        self.accept_selected_btn.setToolTip("Accept selected proposals (A). Undo restores their proposed state.")
+        self.reject_selected_btn.setToolTip("Reject selected proposals (R). Undo restores them.")
+        self.refine_btn.setToolTip("Edit one selected proposal with vertices or brush tools (E).")
+        self.merge_proposals_btn.setToolTip("Merge selected proposals and choose the surviving object ID (M).")
         return panel
 
     def _make_queue_dialog(self) -> None:
@@ -641,10 +689,10 @@ class ImageAnnotationWindow(Window):
                 wrap=True,
             )
         )
-        columns = TableConfig().add("Status", "status", sizing="contents").add("Task", "task")
-        self.task_table = hp.make_table(self.queue_dialog, columns)
-        self.task_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
-        self.task_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.task_table = AnnotationTable(
+            self.queue_dialog, TableConfig().add("Status", "status", sizing="contents").add("Task", "task")
+        )
+        layout.addWidget(self.task_table.filter_widget)
         layout.addWidget(self.task_table, 1)
         layout.addWidget(hp.make_btn(self.queue_dialog, "Cancel active and queued tasks", func=self.jobs.cancel))
 
@@ -657,7 +705,7 @@ class ImageAnnotationWindow(Window):
 
     def _refresh_queue(self) -> None:
         tasks = ([self.jobs.current] if self.jobs.current else []) + list(self.jobs.pending)
-        self.task_table.setRowCount(len(tasks))
+        rows = []
         for row, job in enumerate(tasks):
             active = job is self.jobs.current
             status = (
@@ -671,7 +719,9 @@ class ImageAnnotationWindow(Window):
                 "model_catalogue": "Discover models",
                 "download_model": "Download model",
                 "train": "Train classifier",
+                "finetune": "Fine-tune instance model",
                 "predict": "Predict",
+                "combine_sets": "Combine annotation sets",
             }.get(operation, operation.capitalize())
             details = job.get("model") or job.get("name") or request.get("model") or ""
             if request.get("slide_id") and self.store:
@@ -680,10 +730,8 @@ class ImageAnnotationWindow(Window):
                 details = " / ".join(value for value in (job["backend"], details) if value)
             elif job.get("path"):
                 details = Path(job["path"]).name
-            for column, value in enumerate((status, f"{description}: {details}".rstrip(": "))):
-                item = QTableWidgetItem(value)
-                item.setToolTip(value)
-                self.task_table.setItem(row, column, item)
+            rows.append([status, f"{description}: {details}".rstrip(": "), job.get("id", row)])
+        self.task_table.set_rows(rows)
         self.task_table.resizeRowsToContents()
         self.queue_btn.setToolTip(f"Show task queue ({len(tasks)} tasks)")
         if self.jobs.cancelling:
@@ -765,7 +813,14 @@ class ImageAnnotationWindow(Window):
             self._project_lock.unlock()
         self._project_lock = lock
         self.store = new_store
+        self._excluded_training_classes.clear()
         self._backend_state.clear()
+        self._selected_custom_checkpoint = ""
+        self._catalogues = {
+            backend: [entry for entry in entries if not entry.get("custom")]
+            for backend, entries in self._catalogues.items()
+        }
+        self._catalogue_project.clear()
         self._active_backend = ""
         self._forest_path = ""
         self._forest_metadata = None
@@ -965,11 +1020,75 @@ class ImageAnnotationWindow(Window):
         self.sets.clear()
         if self.store and self.slide_id:
             for item in self.store.sets(self.slide_id):
-                self.sets.addItem(item["name"], item["id"])
+                self.sets.addItem(
+                    f"{item['name']} ({item['object_count']:,} {'object' if item['object_count'] == 1 else 'objects'})",
+                    item["id"],
+                )
             index = self.sets.findData(current)
             self.sets.setCurrentIndex(max(0, index))
         self._syncing = False
         self._set_changed()
+
+    def _refresh_set_counts(self) -> None:
+        if self.store and self.slide_id:
+            for info in self.store.sets(self.slide_id):
+                index = self.sets.findData(info["id"])
+                if index >= 0:
+                    self.sets.setItemText(
+                        index,
+                        f"{info['name']} ({info['object_count']:,} {'object' if info['object_count'] == 1 else 'objects'})",
+                    )
+
+    def choose_combine_sets(self) -> None:
+        """Select same-slide sets and name a combined copy, retaining the source sets."""
+        store = self._require_project()
+        slide = self._require_slide()
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Combine annotation sets")
+        dialog.resize(580, 400)
+        layout = hp.make_v_layout(parent=dialog)
+        layout.addWidget(
+            hp.make_label(
+                dialog,
+                "Select at least two sets with Ctrl/Shift. A combined copy keeps the original sets and resolves duplicate object IDs.",
+                wrap=True,
+            )
+        )
+        table = AnnotationTable(
+            dialog, TableConfig().add("Annotation set", "set").add("Objects", "objects", dtype="int", sizing="contents")
+        )
+        table.set_rows(
+            [[info["name"], info["object_count"], info["id"]] for info in store.sets(slide.id)], selected=[self.set_id]
+        )
+        layout.addWidget(table.filter_widget)
+        layout.addWidget(table, 1)
+        name = hp.make_line_edit(dialog, text="Combined annotations")
+        layout.addWidget(hp.make_label(dialog, "Combined set name"))
+        layout.addWidget(name)
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel, dialog)
+        buttons.accepted.connect(dialog.accept)
+        buttons.rejected.connect(dialog.reject)
+        layout.addWidget(buttons)
+        if dialog.exec():
+            self.combine_sets(table.selected_keys(), name.text())
+
+    def combine_sets(self, set_ids: list[str], name: str) -> None:
+        """Queue a cancellable combined copy of two or more same-slide sets."""
+        store = self._require_project()
+        if len(set(set_ids)) < 2:
+            raise ValueError("Select at least two annotation sets.")
+        self.jobs.submit({"operation": "combine_sets", "project": str(store.path), "set_ids": set_ids, "name": name})
+
+    def remove_set(self) -> None:
+        """Remove the active set from the editor; Undo restores it with its objects."""
+        store = self._require_project()
+        if not self.set_id:
+            raise ValueError("Select an annotation set first.")
+        if self.jobs.busy:
+            raise ValueError("Wait for background work or cancel it before removing a set.")
+        store.remove_set(self.set_id)
+        self.refresh_sets()
+        self._changed()
 
     def _set_changed(self, *_args: Any) -> None:
         if self._syncing:
@@ -977,6 +1096,7 @@ class ImageAnnotationWindow(Window):
         self._pages = {"accepted": [0], "proposed": [0]}
         self.clear_drawing()
         self.selected.clear()
+        self._review_selection.clear()
         self.refresh_tables()
         self.schedule_render()
 
@@ -993,107 +1113,160 @@ class ImageAnnotationWindow(Window):
         """Fetch a page of objects rather than populating a million-row Qt table."""
         self._syncing = True
         classes = {item.id: item for item in self.store.classes()} if self.store else {}
+        names = [item.name for item in classes.values()]
+        class_names = {
+            key: item.name
+            if names.count(item.name) == 1 and item.name != "Unclassified"
+            else f"{item.name} ({key[:8]})"
+            for key, item in classes.items()
+        }
+        self._class_labels = {"Unclassified": None, **{name: key for key, name in class_names.items()}}
         for table, review in ((self.objects, "accepted"), (self.proposals, "proposed")):
-            table.setRowCount(0)
+            selected = self.selected if review == "accepted" else self._review_selection
+            model = table.model()
+            model.disabled, model.tooltips, model.colors = set(), {}, {}
+            table.set_class_choices(list(self._class_labels))
             previous, next_, label = self._pagination[review]
             if not self.store or not self.set_id:
                 previous.setEnabled(False)
                 next_.setEnabled(False)
                 label.setText("Page 1 of 1; 0 objects (100 per page)")
+                table.set_rows([])
+                self._page_totals[review] = 0
                 continue
             pages = self._pages[review]
             objects = list(self.store.iter_objects(set_id=self.set_id, review=review, after=pages[-1], limit=101))
             while not objects and len(pages) > 1:
                 pages.pop()
                 objects = list(self.store.iter_objects(set_id=self.set_id, review=review, after=pages[-1], limit=101))
-            total = self.store.count(self.set_id, review=review)
+            self._page_totals[review] = self.store.count(self.set_id, review=review)
             previous.setEnabled(len(pages) > 1)
             next_.setEnabled(len(objects) > 100)
-            label.setText(
-                f"Page {len(pages)} of {max(1, math.ceil(total / 100))}\n"
-                f"Showing {min(100, len(objects))} of {total:,} objects (100 per page)"
-            )
-            for row, obj in enumerate(objects[:100]):
-                table.insertRow(row)
+            self._page_last[review] = objects[min(100, len(objects)) - 1].key if objects else 0
+            rows = []
+            for obj in objects[:100]:
                 annotation_class = classes.get(obj.class_id or "")
-                values = [
-                    str(obj.object_id),
-                    annotation_class.name if annotation_class else "Unclassified",
-                    f"{obj.geometry.area:.1f}",
-                    ""
+                eligible = annotation_class is not None and not annotation_class.is_ignore
+                locked = bool(
+                    obj.properties.get("locked")
+                    or obj.properties.get("isLocked")
+                    or (annotation_class and annotation_class.locked)
+                )
+                if locked:
+                    model.disabled.add((obj.key, table.config.find_col_id("class")))
+                if annotation_class:
+                    model.colors[obj.key] = annotation_class.color
+                if review == "accepted":
+                    if locked or not eligible:
+                        model.disabled.add((obj.key, 0))
+                    model.tooltips[obj.key, 0] = (
+                        "Ignore mask: excludes training pixels in this annotation set."
+                        if annotation_class and annotation_class.is_ignore
+                        else "Assign a class before including this annotation."
+                        if not eligible
+                        else "Unlock this object and its class to change training inclusion."
+                        if locked
+                        else "Include this accepted annotation in the next classifier training run."
+                    )
+                row = [str(obj.object_id), class_names.get(obj.class_id, "Unclassified"), round(obj.geometry.area, 1)]
+                rows.append(
+                    [bool(obj.training and eligible), *row, obj.key]
                     if review == "accepted"
-                    else ("Check tile seam" if obj.properties.get("ambiguous_seam") else "Needs review"),
-                ]
-                for column, value in enumerate(values):
-                    cell = QTableWidgetItem(value)
-                    cell.setToolTip(value)
-                    cell.setData(Qt.ItemDataRole.UserRole, obj.key)
-                    if column == 1 and annotation_class:
-                        cell.setData(Qt.ItemDataRole.DecorationRole, QColor(annotation_class.color))
-                    if column == 3 and review == "accepted":
-                        eligible = annotation_class is not None and not annotation_class.is_ignore
-                        locked = bool(
-                            obj.properties.get("locked")
-                            or obj.properties.get("isLocked")
-                            or (annotation_class and annotation_class.locked)
-                        )
-                        cell.setCheckState(
-                            Qt.CheckState.Checked if obj.training and eligible else Qt.CheckState.Unchecked
-                        )
-                        cell.setFlags(cell.flags() | Qt.ItemFlag.ItemIsUserCheckable)
-                        if not eligible or locked:
-                            cell.setFlags(cell.flags() & ~Qt.ItemFlag.ItemIsEnabled)
-                        cell.setToolTip(
-                            "Ignore mask: excludes pixels in this annotation set regardless of this checkbox."
-                            if annotation_class and annotation_class.is_ignore
-                            else "Assign a class before this annotation can contribute to training."
-                            if not eligible
-                            else "Unlock this object and its class to change training inclusion."
-                            if locked
-                            else "Include this accepted annotation in the next classifier training run."
-                        )
-                    table.setItem(row, column, cell)
-                if obj.key in self.selected:
-                    table.selectRow(row)
+                    else [*row, "Check tile seam" if obj.properties.get("ambiguous_seam") else "Needs review", obj.key]
+                )
+            table.set_rows(rows, selected=selected)
+            self._page_status(review)
         self._syncing = False
         self.selection_label.setText(f"{len(self.selected)} selected.")
         self._refresh_training_summary()
         self._proposal_details()
+        self._refresh_set_counts()
+
+    def _page_status(self, review: str) -> None:
+        table = self.proposals if review == "proposed" else self.objects
+        total = self._page_totals[review]
+        count = table.proxy.rowCount()
+        self._pagination[review][2].setText(
+            f"Page {len(self._pages[review])} of {max(1, math.ceil(total / 100))}\nShowing {count} of {total:,} objects (100 per page)"
+            + (f"; {count} of {table.n_rows} loaded rows match" if table.filter_edit.text() else "")
+        )
 
     def _refresh_training_summary(self) -> None:
         # Aggregate the project only when these counts are visible, keeping drawing and paging responsive.
         if self.tabs.currentIndex() != 1:
             return
         rows = self.store.training_summary() if self.store else []
-        self.training_counts.setRowCount(len(rows))
-        for row, values in enumerate(rows):
-            for column, value in enumerate(
-                (
-                    values["slide_name"],
-                    values["class_name"],
-                    "Mask" if values["is_ignore"] else values["included"],
-                    values["total"],
-                )
-            ):
-                self.training_counts.setItem(row, column, QTableWidgetItem(str(value)))
-        included = sum(values["included"] for values in rows)
-        classes = {values["class_id"] for values in rows if values["included"]}
-        self.training_summary.setText(
-            f"Across all project slides: {included:,} included annotations in {len(classes)} classes. "
-            "At least two classes are required."
+        classes = self.store.classes() if self.store else []
+        counts: dict[str, list[int]] = {item.id: [0, 0] for item in classes}
+        for row in rows:
+            if row["class_id"] in counts:
+                counts[row["class_id"]][0] += row["included"]
+                counts[row["class_id"]][1] += row["total"]
+        model = self.training_counts.model()
+        model.disabled = {(item.id, 0) for item in classes if item.is_ignore}
+        model.colors = {item.id: item.color for item in classes}
+        model.tooltips = {
+            (item.id, 0): "Ignore regions mask training pixels and cannot be trained as a class."
+            if item.is_ignore
+            else "Choose this class for the next training run; individual object flags are preserved."
+            for item in classes
+        }
+        self.training_counts.set_rows(
+            [
+                [
+                    not item.is_ignore and item.id not in self._excluded_training_classes,
+                    item.name,
+                    "Mask" if item.is_ignore else counts[item.id][0],
+                    counts[item.id][1],
+                    item.id,
+                ]
+                for item in classes
+            ]
         )
-        self.train_btn.setEnabled(len(classes) >= 2)
+        selected = {
+            item.id for item in classes if not item.is_ignore and item.id not in self._excluded_training_classes
+        }
+        included = sum(counts[key][0] for key in selected)
+        available = sum(counts[key][0] > 0 for key in selected)
+        self.training_summary.setText(
+            f"Across all project slides: {included:,} included annotations in {available} enabled classes. "
+            "The forest requires at least two classes."
+        )
+        self.train_btn.setEnabled(available >= 2 and not self.jobs.busy)
+        self.finetune_btn.setEnabled(available >= 1 and not self.jobs.busy)
 
-    def _training_checked(self, item: QTableWidgetItem) -> None:
-        if not self._syncing and item.column() == 3:
-            enabled = item.checkState() == Qt.CheckState.Checked
-            self._try(partial(self.set_training, enabled, keys=[int(item.data(Qt.ItemDataRole.UserRole))]))
-            self.refresh_tables()
+    def _training_class_edited(self, key: str, _column: str, value: Any) -> bool:
+        if value:
+            self._excluded_training_classes.discard(key)
+        else:
+            self._excluded_training_classes.add(key)
+        self._refresh_training_summary()
+        return True
+
+    def _table_edited(self, key: int, column: str, value: Any) -> bool:
+        if self._syncing:
+            return False
+
+        def edit() -> bool:
+            if column == "training":
+                self.set_training(bool(value), keys=[key])
+            else:
+                store = self._require_project()
+                obj = store.get(key)
+                store.apply(EditCommand("Assign class", [(key, replace(obj, class_id=self._class_labels[value]))]))
+                self._changed(obj.geometry.bounds)
+            return True
+
+        return bool(self._try(edit))
 
     def _proposal_details(self) -> None:
         if self._syncing or not hasattr(self, "proposal_details"):
             return
-        keys = _selected_keys(self.proposals)
+        keys = self._review_selection
+        self.refine_btn.setEnabled(len(keys) == 1 and not self.jobs.busy)
+        self.merge_proposals_btn.setEnabled(len(keys) >= 2 and not self.jobs.busy)
+        self.accept_selected_btn.setEnabled(bool(keys) and not self.jobs.busy)
+        self.reject_selected_btn.setEnabled(bool(keys) and not self.jobs.busy)
         if not keys or not self.store:
             self.proposal_details.setText("Select a proposal to see its source model.")
             return
@@ -1109,8 +1282,8 @@ class ImageAnnotationWindow(Window):
         """Advance through objects using indexed keyset pagination."""
         review = review or ("proposed" if self.tabs.currentIndex() == 3 else "accepted")
         table = self.proposals if review == "proposed" else self.objects
-        if table.rowCount() and self._pagination[review][1].isEnabled():
-            self._pages[review].append(_table_key(table, table.rowCount() - 1))
+        if table.n_rows and self._pagination[review][1].isEnabled():
+            self._pages[review].append(self._page_last[review])
             self.refresh_tables()
 
     def previous_page(self, review: str | None = None) -> None:
@@ -1120,10 +1293,13 @@ class ImageAnnotationWindow(Window):
             self._pages[review].pop()
             self.refresh_tables()
 
-    def _table_selection(self) -> None:
+    def _table_selection(self, table: AnnotationTable | None = None) -> None:
         if not self._syncing:
-            self.selected = _selected_keys(self.objects)
+            self.selected = _selected_keys(table if table is not None else self.objects)
+            if table is self.proposals:
+                self._review_selection = list(self.selected)
             self._show_selected()
+            self._proposal_details()
 
     def _show_selected(self) -> None:
         summary = f"{len(self.selected)} selected."
@@ -1202,13 +1378,35 @@ class ImageAnnotationWindow(Window):
             return
         xy = (float(event.position[-1]), float(event.position[-2]))
         if self._mode == "Select":
-            obj = self.store.hit_test(self.slide_id, xy, set_id=self.set_id)
+            reviewing = self.tabs.currentIndex() == 3
+            obj = self.store.hit_test(
+                self.slide_id, xy, set_id=self.set_id, review="proposed" if reviewing else "accepted"
+            )
             extend = "Shift" in event.modifiers
+            previous = self._review_selection if reviewing else self.selected
             self.selected = (
-                ([*self.selected, obj.key] if extend and obj and obj.key not in self.selected else [obj.key])
+                (
+                    [*previous, obj.key]
+                    if extend and obj and obj.key not in previous
+                    else list(previous)
+                    if extend and obj
+                    else [obj.key]
+                )
                 if obj
                 else []
             )
+            if reviewing:
+                keys = list(self.selected)
+                self._syncing = True
+                self._review_selection = keys
+                if obj and obj.key not in self.proposals.get_col_data(4):
+                    self._pages["proposed"] = self.store.page_cursors(self.set_id, obj.key, review="proposed")
+                if obj and not any(
+                    self.proposals.key_at(row) == obj.key for row in range(self.proposals.proxy.rowCount())
+                ):
+                    self.proposals.filter_edit.clear()
+                self.refresh_tables()
+                self.selected = keys
             self._show_selected()
             return
         if self._mode in ("Prompt +", "Prompt -"):
@@ -1256,7 +1454,7 @@ class ImageAnnotationWindow(Window):
                 self.draw_layer.add(np.asarray(points)[:, ::-1], shape_type="polygon")
                 self._try(lambda: self.add_geometry(Polygon(points)))
         else:
-            stroke = (LineString(points) if len(points) > 1 else Point(points[0])).buffer(radius)
+            stroke = brush_stroke(points, radius, fill=not subtract)
             if self.selected:
                 self._try(lambda: self._brush(stroke, subtract))
             elif not subtract:
@@ -1269,9 +1467,9 @@ class ImageAnnotationWindow(Window):
         if not force and now - self._preview_updated < 1 / 30:
             return
         self._preview_updated = now
-        stroke = (LineString(points) if len(points) > 1 else Point(points[0])).buffer(radius)
+        stroke = brush_stroke(points, radius, fill=not subtract)
         polygons = list(stroke.geoms) if stroke.geom_type == "MultiPolygon" else [stroke]
-        # Outlines retain holes in looped strokes without filling unpainted regions.
+        # Match the committed footprint, including filled interiors for addition.
         rings = [
             np.asarray(ring.coords)[:, ::-1] for polygon in polygons for ring in (polygon.exterior, *polygon.interiors)
         ]
@@ -1455,6 +1653,38 @@ class ImageAnnotationWindow(Window):
             self.selected = [key]
             self._changed()
 
+    def merge_proposals(self) -> None:
+        """Union selected Review proposals without accepting them or changing their class silently."""
+        store = self._require_project()
+        keys = self._review_selection
+        if len(keys) < 2:
+            raise ValueError("Select at least two proposals to merge.")
+        objects = [store.get(key) for key in keys]
+        classes = {obj.class_id for obj in objects}
+        class_id = objects[0].class_id
+        if len(classes) > 1:
+            labels = list(self._class_labels)
+            label, ok = QInputDialog.getItem(self, "Merge proposals", "Class for merged object:", labels, 0, False)
+            if not ok:
+                return
+            class_id = self._class_labels[label]
+            if class_id is None:
+                raise ValueError("Choose a shared class when merging proposals with different classes.")
+        options = [repr(obj.object_id) for obj in objects]
+        choice, ok = QInputDialog.getItem(self, "Merge proposals", "Keep this object ID:", options, 0, False)
+        if ok:
+            survivor = merge_objects(store, keys, keys[options.index(choice)], class_id)
+            self.selected = [survivor]
+            self._review_selection = [survivor]
+            self._pages["proposed"] = store.page_cursors(self.set_id, survivor, review="proposed")
+            self._changed()
+            row = self.proposals.get_row_id(4, survivor)
+            if row >= 0:
+                source = self.proposals.model().index(row, 0)
+                visible = self.proposals.proxy.mapFromSource(source)
+                if visible.isValid():
+                    self.proposals.selectRow(visible.row())
+
     def undo(self) -> None:
         """Undo a persisted command and refresh the editor."""
         store = self._require_project()
@@ -1464,6 +1694,7 @@ class ImageAnnotationWindow(Window):
         store.undo()
         self.selected.clear()
         self.refresh_classes()
+        self.refresh_sets()
         self._changed()
 
     def redo(self) -> None:
@@ -1475,6 +1706,7 @@ class ImageAnnotationWindow(Window):
         store.redo()
         self.selected.clear()
         self.refresh_classes()
+        self.refresh_sets()
         self._changed()
 
     def add_class(self) -> None:
@@ -1747,6 +1979,11 @@ class ImageAnnotationWindow(Window):
             samples_per_class=self.sample_count.value(),
             seed=self.random_seed.value(),
             max_depth=self.max_depth.value(),
+            class_ids=tuple(
+                item.id
+                for item in store.classes()
+                if not item.is_ignore and item.id not in self._excluded_training_classes
+            ),
         )
         self.jobs.submit(
             {
@@ -1756,6 +1993,39 @@ class ImageAnnotationWindow(Window):
                 "settings": settings.model_dump(),
             }
         )
+
+    def choose_finetuning(self) -> None:
+        """Inspect pretrained fine-tuning settings and queue an explicit instance-training run."""
+        store = self._require_project()
+        class_ids = tuple(
+            item.id for item in store.classes() if not item.is_ignore and item.id not in self._excluded_training_classes
+        )
+        if not class_ids:
+            raise ValueError("Enable at least one instance class in Train.")
+        dialog = FineTuneDialog(self, class_ids)
+        if dialog.exec():
+            self.jobs.submit(
+                {
+                    "operation": "finetune",
+                    "project": str(store.path),
+                    "name": dialog.name.text(),
+                    "settings": dialog.settings().model_dump(),
+                }
+            )
+        dialog.deleteLater()
+
+    def _ensure_model_catalogue(self, backend: str) -> None:
+        project = str(self.store.path) if self.store else None
+        if (
+            backend != "forest"
+            and backend_available(backend)
+            and backend not in self._catalogue_pending
+            and (backend not in self._catalogues or self._catalogue_project.get(backend) != project)
+        ):
+            self._catalogue_pending.add(backend)
+            self.jobs.submit(
+                {"operation": "model_catalogue", "backend": backend, **({"project": project} if project else {})}
+            )
 
     def choose_model(self) -> None:
         """Validate and copy an external classifier into this project's model library."""
@@ -1848,7 +2118,11 @@ class ImageAnnotationWindow(Window):
             worker.finished.connect(lambda: self._forest_scans.discard(worker))
             return
         entries = [
-            (f"{entry['name']} ({'cached' if entry['cached'] else 'not downloaded'})", entry["name"], entry["reason"])
+            (
+                f"{entry.get('display_name', entry['name'])} ({'cached' if entry['cached'] else 'not downloaded'})",
+                entry["name"],
+                entry["reason"],
+            )
             for entry in self._catalogues.get(backend, [])
         ]
         self._set_model_entries(entries, preferred)
@@ -1880,6 +2154,22 @@ class ImageAnnotationWindow(Window):
         if self.backend.currentText() == "forest":
             self._try(self._read_classifier)
         else:
+            entry = next(
+                (
+                    item
+                    for item in self._catalogues.get(self.backend.currentText(), [])
+                    if item["name"] == self._model_value()
+                ),
+                {},
+            )
+            custom = entry.get("custom")
+            if custom:
+                self.checkpoint.setText(entry["path"])
+                self.predict_downsample.setValue(custom["settings"]["downsample"])
+                self._selected_custom_checkpoint = entry["path"]
+            elif self.checkpoint.text() == self._selected_custom_checkpoint:
+                self.checkpoint.clear()
+                self._selected_custom_checkpoint = ""
             self._update_prediction_controls()
 
     def _read_classifier(self) -> None:
@@ -1932,9 +2222,8 @@ class ImageAnnotationWindow(Window):
         self._changing_backend = False
         if backend == "forest":
             self._read_classifier()
-        elif backend_available(backend) and backend not in self._catalogues and backend not in self._catalogue_pending:
-            self._catalogue_pending.add(backend)
-            self.jobs.submit({"operation": "model_catalogue", "backend": backend})
+        else:
+            self._ensure_model_catalogue(backend)
         self._update_prediction_controls()
 
     def download_selected_model(self) -> None:
@@ -1960,9 +2249,9 @@ class ImageAnnotationWindow(Window):
             metadata is not None if forest else bool(checkpoint or (entry and entry["cached"] and not entry["reason"]))
         )
         explanations = {
-            "forest": "Uses the classifier created in Train classifier or a saved classifier. Runs on CPU.",
-            "micro-sam": "Predict actions detect instances automatically. Point/box assistance uses your prompts. Train classifier does not train SAM.",
-            "cellpose": "Uses an independent pretrained Cellpose model for cell instances. No training in this app is needed.",
+            "forest": "Uses the random forest created in Train or a saved classifier. Runs on CPU.",
+            "micro-sam": "Predict actions detect instances automatically. Point/box assistance uses your prompts. Use Train's fine-tuning action to adapt SAM.",
+            "cellpose": "Uses pretrained or fine-tuned Cellpose weights for cell instances. Fine-tuning is optional and available in Train.",
         }
         message = explanations[backend]
         if not available:
@@ -1983,6 +2272,9 @@ class ImageAnnotationWindow(Window):
             "border: 1px solid #ef9a3c; padding: 6px;" if not available or not ready else ""
         )
         self.choose_model_btn.setVisible(forest)
+        requirements = model_requirements_html(backend, self._catalogues.get(backend, [])) if not forest else ""
+        self.model_requirements.setText(requirements)
+        self.model_requirements.setVisible(bool(requirements))
         for widget, visible in (
             (self.checkpoint, not forest),
             (self.choose_checkpoint_btn, not forest),
@@ -2015,11 +2307,16 @@ class ImageAnnotationWindow(Window):
             self.model_status.setText(
                 "Using local checkpoint."
                 if checkpoint
-                else "Ready in the i2i model cache."
+                else f"Model cached in {hp.hyper(model_cache_directory(backend), value=escape(backend + ' model directory'))}."
                 if ready
                 else "Not downloaded. Choose a model, then Download selected model."
             )
             self.model_status.setToolTip(str(model_cache_directory(backend)))
+            if entry and entry.get("custom"):
+                self.model_status.setText(
+                    "Project model in " + hp.hyper(Path(entry["path"]).parent, value="model directory") + "."
+                )
+                self.model_status.setToolTip(entry["path"])
         for button in self.predict_buttons:
             button.setEnabled(available and ready and not self.jobs.busy)
             button.setToolTip(message)
@@ -2044,10 +2341,19 @@ class ImageAnnotationWindow(Window):
                 else "Uses channels from Annotate and the resolution below. Assigns the selected shared class to detections.\n"
                 "Device: auto chooses CUDA, then Apple MPS, then CPU. Downloads start only with the Download button."
             )
+            if entry and entry.get("custom"):
+                training = entry["custom"]["settings"]
+                self.predict_downsample.setValue(training["downsample"])
+                self.predict_downsample.setEnabled(False)
+                self.model_summary.setText(
+                    f"Fine-tuned model: {entry['custom']['name']}\nBase: {training['model']}; epochs: {training['epochs']}; learning rate: {training['learning_rate']:g}\nSaved channels: {training['channels']}; downsample: {training['downsample']}. Assigns the selected shared class to detections."
+                )
         help_text = (
             self.model_summary.text()
             if forest
-            else pretrained_model_help(backend, self._model_value())
+            else pretrained_model_help(
+                backend, entry["custom"]["settings"]["model"] if entry and entry.get("custom") else self._model_value()
+            )
             + (f"\n{entry['reason']}" if entry and entry["reason"] else "")
         )
         self.model_help.setToolTip("<qt>" + escape(help_text).replace("\n", "<br>") + "</qt>")
@@ -2080,6 +2386,9 @@ class ImageAnnotationWindow(Window):
                     raise ValueError("Choose an existing local checkpoint.")
             elif entry is None or entry["reason"] or not entry["cached"]:
                 raise ValueError("Download an available model or choose a local checkpoint before predicting.")
+            if entry and entry.get("custom"):
+                channels = tuple(entry["custom"]["settings"]["channels"])
+                downsample = entry["custom"]["settings"]["downsample"]
         points, prompt_boxes = [], []
         if prompts:
             points = [
@@ -2092,7 +2401,9 @@ class ImageAnnotationWindow(Window):
             slide_id=slide_id or slide.id,
             revision=store.revision,
             backend=cast(Literal["forest", "micro-sam", "cellpose"], self.backend.currentText()),
-            model=self._model_value(),
+            model=entry["custom"]["settings"]["model"]
+            if backend != "forest" and entry and entry.get("custom")
+            else self._model_value(),
             sam_mode="prompts" if prompts else "automatic",
             checkpoint=self.checkpoint.text(),
             device=cast(
@@ -2149,6 +2460,8 @@ class ImageAnnotationWindow(Window):
         self.cancel_btn.setEnabled(busy)
         self.job_bar.setVisible(busy)
         self._update_prediction_controls()
+        self._proposal_details()
+        self._refresh_training_summary()
 
     def _job_progress(self, details: dict[str, Any]) -> None:
         completed, total = details.get("completed", 0), details.get("total")
@@ -2194,6 +2507,7 @@ class ImageAnnotationWindow(Window):
                 self._catalogue_pending.discard(backend)
                 self._catalogue_errors.pop(backend, None)
                 self._catalogues[backend] = result
+                self._catalogue_project[backend] = job.get("project")
             else:
                 entries = self._catalogues.setdefault(backend, [])
                 entries[:] = [entry for entry in entries if entry["name"] != result["name"]] + [result]
@@ -2207,6 +2521,14 @@ class ImageAnnotationWindow(Window):
         if job["operation"] == "train":
             self.backend.setCurrentText("forest")
             self._refresh_model_selector(str(result))
+        elif job["operation"] == "finetune":
+            from image2image.utils.annotation.worker import finetuned_entry
+
+            backend = result["settings"]["backend"]
+            self._catalogues.setdefault(backend, []).append(finetuned_entry(result))
+            self.backend.setCurrentText(backend)
+            self._refresh_model_selector(result["checkpoint"])
+            self.tabs.setCurrentIndex(2)
         self.refresh_classes()
         self.refresh_sets()
         if job["operation"] == "predict":
@@ -2215,7 +2537,7 @@ class ImageAnnotationWindow(Window):
             if index >= 0:
                 self.sets.setCurrentIndex(index)
                 self.tabs.setCurrentIndex(3)
-        elif job["operation"] == "import":
+        elif job["operation"] in ("import", "combine_sets"):
             self.sets.setCurrentIndex(self.sets.findData(result))
         if self.renderer:
             self.renderer.invalidate()
@@ -2228,12 +2550,16 @@ class ImageAnnotationWindow(Window):
     def review(self, accept: bool, batch: bool) -> None:
         """Accept or reject a selected subset or the complete current prediction batch."""
         store = self._require_project()
-        keys = None if batch else _selected_keys(self.proposals)
+        keys = None if batch else list(self._review_selection)
         if keys == []:
             raise ValueError("Select proposals to review.")
         self.jobs.submit(
             {"operation": "review", "project": str(store.path), "set_id": self.set_id, "accept": accept, "keys": keys}
         )
+
+    def _review_action(self, function: Any) -> None:
+        if self.tabs.currentIndex() == 3 and not self.jobs.busy and self._review_selection:
+            self._try(function)
 
     def _zoom_proposal(self, row: int, _column: int) -> None:
         self.selected = [_table_key(self.proposals, row)]
@@ -2241,7 +2567,7 @@ class ImageAnnotationWindow(Window):
 
     def refine_proposal(self) -> None:
         """Load one proposed object for manual vertex or brush correction before acceptance."""
-        keys = _selected_keys(self.proposals)
+        keys = self._review_selection
         if len(keys) != 1:
             raise ValueError("Select one proposal to refine.")
         self.selected = keys

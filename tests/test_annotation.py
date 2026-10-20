@@ -13,7 +13,7 @@ import tifffile
 from shapely.geometry import LineString, MultiPolygon, Polygon, box
 
 from image2image.models.annotation import AnnotationClass, AnnotationObject, CoordinateSpec, EditCommand, SlideGeometry
-from image2image.utils.annotation.geometry import brush_object, edit_geometry, merge_objects, split_object
+from image2image.utils.annotation.geometry import brush_object, brush_stroke, edit_geometry, merge_objects, split_object
 from image2image.utils.annotation.images import PatchReader, inspect_slide
 from image2image.utils.annotation.io import export_geojson, export_labels, import_geojson, import_labels
 from image2image.utils.annotation.render import AnnotationRenderer
@@ -65,6 +65,138 @@ def test_split_merge_identity_history_reopen(project):
     assert store.hit_test(slide.id, (2, 2)).key == key
 
 
+def test_set_counts_combined_copy_and_remove_undo(project: tuple) -> None:
+    store, slide, cls, first = project
+    second = store.create_set(slide.id, "Second")
+    left = add(store, first, object_id=12, class_id=cls.id, training=True)
+    right = add(store, second, object_id=12, class_id=cls.id, review="proposed")
+    add(store, second, object_id="12", class_id=cls.id, review="rejected")
+    assert [info["object_count"] for info in store.sets(slide.id)] == [1, 1]
+    combined = store.combine_sets([first, second], "Combined")
+    objects = list(store.iter_objects(set_id=combined, review=None))
+    assert len(objects) == 3
+    assert len({(type(obj.object_id), obj.object_id) for obj in objects}) == 3
+    assert store.get(left).object_id == store.get(right).object_id == 12
+    assert {obj.review for obj in objects} == {"accepted", "proposed", "rejected"}
+    assert next(obj for obj in objects if obj.review == "accepted").training
+    assert {obj.provenance["combined_from"]["set_id"] for obj in objects} == {first, second}
+    assert next(info for info in store.sets(slide.id) if info["id"] == combined)["object_count"] == 2
+    store.remove_set(first)
+    assert first not in {info["id"] for info in store.sets(slide.id)}
+    assert not list(store.iter_objects(set_id=first))
+    assert store.get(left).object_id == 12
+    assert store.undo() == "Remove annotation set"
+    assert first in {info["id"] for info in store.sets(slide.id)}
+    assert store.count(first) == 1
+    store.redo()
+    assert first not in {info["id"] for info in store.sets(slide.id)}
+
+
+def test_combined_copy_cancellation_and_same_slide_validation(project: tuple) -> None:
+    store, slide, cls, first = project
+    store.apply(
+        EditCommand("Many", [(None, AnnotationObject(first, index, box(1, 1, 3, 3), cls.id)) for index in range(501)])
+    )
+    second = store.create_set(slide.id, "Second")
+    before = store.sets(slide.id)
+    cancelled = False
+
+    def progress(*_args: object) -> None:
+        nonlocal cancelled
+        cancelled = True
+
+    with pytest.raises(InterruptedError):
+        store.combine_sets([first, second], "Cancelled", cancel=lambda: cancelled, task_progress=progress)
+    assert store.sets(slide.id) == before
+    assert store.db.execute("SELECT count(*) FROM annotation_sets WHERE state='staging'").fetchone()[0] == 0
+    other_slide = slide.model_copy(update={"id": "other"})
+    store.save_slide(other_slide)
+    other_set = store.create_set(other_slide.id, "Other slide")
+    with pytest.raises(ValueError, match="same slide"):
+        store.combine_sets([first, other_set], "Wrong slide")
+
+
+def test_combined_proposals_keep_review_revision_and_model_validation(project: tuple, tmp_path: Path) -> None:
+    from image2image.utils.annotation.images import fingerprint
+
+    store, slide, cls, _manual = project
+    checkpoint = tmp_path / "checkpoint.bin"
+    checkpoint.write_bytes(b"original")
+    metadata = {
+        "request": {"revision": store.revision},
+        "source_fingerprint": slide.fingerprint,
+        "model": {"checkpoint": str(checkpoint), "fingerprint": fingerprint(checkpoint)},
+    }
+    sources = []
+    for index in range(2):
+        source = store.create_set(slide.id, f"Prediction {index}", staging=True, metadata=metadata)
+        store.append_staged(
+            source, [AnnotationObject(source, index, box(index * 10, 0, index * 10 + 5, 5), cls.id, review="proposed")]
+        )
+        store.publish_set(source, prediction=True)
+        sources.append(source)
+    combined = store.combine_sets(sources, "Review combined")
+    keys = [obj.key for obj in store.iter_objects(set_id=combined, review="proposed")]
+    store.review(combined, accept=True, keys=keys[:1])
+    assert store.count(combined) == 1
+    store.review(combined, accept=True, keys=keys[1:])
+    assert store.count(combined) == 2
+    assert all(store.count(source, review="proposed") == 1 for source in sources)
+    # Copying stale sources never makes them valid for acceptance again.
+    stale = store.combine_sets(sources, "Stale originals")
+    with pytest.raises(ValueError, match="stale before combining"):
+        store.review(stale, accept=True)
+    store.undo()  # Undo the stale copy; the accepted combined batch remains available.
+    # A fresh combined batch still checks the original model asset at acceptance.
+    current = store.revision
+    with store.transaction():
+        for source in sources:
+            values = store.set_info(source)["metadata"]
+            values["review_revision"] = current
+            store.db.execute("UPDATE annotation_sets SET metadata=? WHERE id=?", (json.dumps(values), source))
+    fresh = store.combine_sets(sources, "Fresh copy")
+    checkpoint.write_bytes(b"changed model")
+    with pytest.raises(ValueError, match="checkpoint changed"):
+        store.review(fresh, accept=True)
+
+
+def test_merged_combined_proposals_validate_every_model(project: tuple, tmp_path: Path) -> None:
+    from image2image.utils.annotation.images import fingerprint
+
+    store, slide, cls, _manual = project
+    sources = []
+    checkpoints = []
+    for index in range(2):
+        checkpoint = tmp_path / f"checkpoint-{index}.bin"
+        checkpoint.write_bytes(b"original")
+        checkpoints.append(checkpoint)
+        source = store.create_set(
+            slide.id,
+            f"Prediction {index}",
+            staging=True,
+            metadata={
+                "request": {"revision": store.revision},
+                "source_fingerprint": slide.fingerprint,
+                "model": {"checkpoint": str(checkpoint), "fingerprint": fingerprint(checkpoint)},
+            },
+        )
+        store.append_staged(
+            source, [AnnotationObject(source, index, box(index, 0, index + 2, 2), cls.id, review="proposed")]
+        )
+        store.publish_set(source, prediction=True)
+        sources.append(source)
+    combined = store.combine_sets(sources, "Combined")
+    keys = [obj.key for obj in store.iter_objects(set_id=combined, review="proposed")]
+    merge_objects(store, keys, keys[0])
+    assert len(store.get(keys[0]).provenance["merged_review_inputs"]) == 2
+    checkpoints[1].write_bytes(b"changed non-surviving model")
+    with pytest.raises(ValueError, match="checkpoint changed"):
+        store.review(combined, accept=True)
+    assert store.count(combined, review="proposed") == 1
+    store.undo()
+    assert store.count(combined, review="proposed") == 2
+
+
 def test_atomic_invalid_geometry_locks_and_redo_branch(project):
     store, _slide, cls, set_id = project
     key = add(store, set_id, class_id=cls.id)
@@ -99,6 +231,25 @@ def test_brush_holes_and_multipart(project):
     brush_object(store, key, box(40, 40, 45, 45))
     assert store.get(key).geometry.geom_type == "MultiPolygon"
     assert store.get(key).object_id == 23
+
+
+def test_brush_stroke_fills_only_enclosed_painted_regions(project: tuple) -> None:
+    store, _slide, _cls, set_id = project
+    loop = [(0, 0), (10, 0), (10, 10), (0, 10), (0, 0)]
+    painted = brush_stroke(loop, 1, fill=True)
+    outline = brush_stroke(loop, 1)
+    assert painted.covers(box(2, 2, 8, 8)) and not painted.interiors
+    assert len(outline.interiors) == 1
+    assert not brush_stroke(loop[:3], 1, fill=True).covers(box(2, 2, 8, 8))
+    assert brush_stroke([(5, 5)], 1, fill=True).area > 0
+    original = box(-5, -5, 20, 20).difference(box(12, 12, 18, 18))
+    key = add(store, set_id, geometry=original)
+    brush_object(store, key, painted)
+    assert len(store.get(key).geometry.interiors) == 1
+    brush_object(store, key, painted, subtract=True)
+    assert len(store.get(key).geometry.interiors) == 2
+    store.undo()
+    assert store.get(key).geometry.equals(original)
 
 
 def test_explicit_coordinates():

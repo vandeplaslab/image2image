@@ -8,6 +8,7 @@ import zlib
 from collections.abc import Iterable, Iterator
 from contextlib import contextmanager
 from dataclasses import replace
+from itertools import islice
 from pathlib import Path
 from typing import Any, Self, cast
 from uuid import uuid4
@@ -244,9 +245,90 @@ class AnnotationStore:
         return [
             dict(row)
             for row in self.db.execute(
-                "SELECT * FROM annotation_sets WHERE slide_id=? AND state='ready' ORDER BY rowid", (slide_id,)
+                "SELECT s.*, (SELECT COUNT(*) FROM objects o WHERE o.set_id=s.id AND o.review IN ('accepted','proposed')) object_count "
+                "FROM annotation_sets s WHERE slide_id=? AND state='ready' ORDER BY rowid",
+                (slide_id,),
             )
         ]
+
+    def remove_set(self, set_id: str) -> None:
+        """Hide a published annotation set with one undoable catalog edit."""
+        with self.transaction():
+            info = self.set_info(set_id)
+            if info["state"] != "ready":
+                raise ValueError("Only a published set can be removed.")
+            command = self._command("Remove annotation set")
+            self.db.execute(
+                "INSERT INTO catalog_changes VALUES(?,?,?,?,?)",
+                (command, "annotation_set_state", set_id, "ready", "removed"),
+            )
+            self.db.execute("UPDATE annotation_sets SET state='removed' WHERE id=?", (set_id,))
+            self._bump()
+
+    def combine_sets(self, set_ids: list[str], name: str, *, cancel: Any = None, task_progress: Any = None) -> str:
+        """Copy same-slide sets into a new namespace, preserving sources and review checks."""
+        from image2image.utils.annotation.io import check_cancel
+
+        sources = [self.set_info(key) for key in dict.fromkeys(set_ids)]
+        if len(sources) < 2 or any(info["state"] != "ready" for info in sources):
+            raise ValueError("Choose at least two published annotation sets.")
+        if len({info["slide_id"] for info in sources}) != 1:
+            raise ValueError("Only sets from the same slide can be combined.")
+        if not name.strip():
+            raise ValueError("Enter a combined set name.")
+        revision = self.revision
+        set_id = self.create_set(
+            sources[0]["slide_id"],
+            name.strip(),
+            staging=True,
+            metadata={"combined_sources": set_ids, "review_revision": revision + 1},
+        )
+        total = sum(self.count(info["id"], review=None) for info in sources)
+        completed = 0
+        try:
+            for info in sources:
+                metadata = info["metadata"]
+                expected = metadata.get("review_revision", metadata.get("request", {}).get("revision"))
+                objects = self.iter_objects(set_id=info["id"], review=None)
+                while True:
+                    batch = list(islice(objects, 500))
+                    if not batch:
+                        break
+                    with self.transaction():
+                        for obj in batch:
+                            check_cancel(cancel)
+                            object_id = obj.object_id
+                            while self.db.execute(
+                                "SELECT 1 FROM objects WHERE set_id=? AND object_id=?",
+                                (set_id, json.dumps(object_id, ensure_ascii=False)),
+                            ).fetchone():
+                                object_id = uuid4().hex
+                            provenance = {
+                                **obj.provenance,
+                                "combined_from": {"set_id": info["id"], "object_id": obj.object_id},
+                            }
+                            if obj.review == "proposed":
+                                inputs = obj.provenance.get("review_inputs", metadata)
+                                provenance["review_inputs"] = {
+                                    "source_fingerprint": inputs.get("source_fingerprint"),
+                                    "model": inputs.get("model", {}),
+                                    "stale_at_combine": inputs.get("stale_at_combine", False)
+                                    or (expected is not None and expected != revision),
+                                }
+                            self._write(replace(obj, set_id=set_id, object_id=object_id, provenance=provenance), None)
+                            if isinstance(object_id, int):
+                                self._remember_ids({set_id: object_id})
+                    completed += len(batch)
+                    if task_progress:
+                        task_progress(
+                            "Combining annotation sets", completed, total, f"Copied {completed:,} of {total:,} objects"
+                        )
+            check_cancel(cancel)
+            self.publish_set(set_id, expected_revision=revision)
+        except BaseException:
+            self.discard_set(set_id)
+            raise
+        return set_id
 
     def set_info(self, set_id: str) -> dict:
         """Return namespace metadata, including prediction provenance."""
@@ -407,7 +489,8 @@ class AnnotationStore:
         for set_id in set_ids:
             metadata = self.set_info(set_id)["metadata"]
             request = metadata.get("request")
-            if request and metadata.get("review_revision", request["revision"]) == previous_revision:
+            expected = metadata.get("review_revision", request.get("revision") if request else None)
+            if expected == previous_revision:
                 metadata["review_revision"] = self.revision
                 self.db.execute("UPDATE annotation_sets SET metadata=? WHERE id=?", (json.dumps(metadata), set_id))
 
@@ -529,14 +612,27 @@ class AnnotationStore:
         ).fetchone()
         return _object(row) if row else None
 
-    def hit_test(self, slide_id: str, xy: tuple[float, float], *, set_id: str | None = None) -> AnnotationObject | None:
-        """Select the smallest visible accepted polygon containing the pixel location."""
+    def hit_test(
+        self, slide_id: str, xy: tuple[float, float], *, set_id: str | None = None, review: str = "accepted"
+    ) -> AnnotationObject | None:
+        """Select the smallest visible polygon in the requested review state at a pixel location."""
         point = Point(xy)
         winner = None
-        for obj in self.iter_objects(slide_id=slide_id, set_id=set_id, bounds=(*xy, *xy), visible_only=True):
+        for obj in self.iter_objects(
+            slide_id=slide_id, set_id=set_id, review=review, bounds=(*xy, *xy), visible_only=True
+        ):
             if obj.geometry.covers(point) and (winner is None or obj.geometry.area < winner.geometry.area):
                 winner = obj
         return winner
+
+    def page_cursors(self, set_id: str, key: int, *, review: str, page_size: int = 100) -> list[int]:
+        """Find bounded keyset page anchors leading to an object without decoding geometry."""
+        rows = self.db.execute(
+            "SELECT id FROM (SELECT id, ROW_NUMBER() OVER (ORDER BY id) position FROM objects "
+            "WHERE set_id=? AND review=? AND id<?) WHERE position % ? = 0 ORDER BY id",
+            (set_id, review, key, page_size),
+        )
+        return [0, *(int(row[0]) for row in rows)]
 
     def next_id(self, set_id: str, *, integer: bool = False) -> str | int:
         """Allocate a fresh ID; original IDs are never renumbered."""
@@ -606,6 +702,10 @@ class AnnotationStore:
                 (command,),  # noqa: S608 - identifiers are fixed internal SQL; all data is bound
             ):  # noqa: S608
                 kind, record_id, data = item
+                if kind == "annotation_set_state":
+                    self.db.execute("UPDATE annotation_sets SET state=? WHERE id=?", (data, record_id))
+                    affected_sets.add(record_id)
+                    continue
                 if kind not in ("slides", "classes"):
                     raise ValueError("Invalid history catalog.")
                 self.db.execute(f"UPDATE {kind} SET data=? WHERE id=?", (data, record_id))  # noqa: S608
@@ -614,14 +714,13 @@ class AnnotationStore:
             self._advance_batch_revisions(affected_sets, previous_revision)
             return str(label)
 
-    def review(self, set_id: str, *, accept: bool, keys: list[int] | None = None, cancel: Any = None) -> None:
-        """Accept/reject selected predictions or an entire batch as one undoable command."""
-        info = self.set_info(set_id)
-        metadata = info["metadata"]
-        if accept and metadata.get("source_fingerprint"):
+    def _check_review_source(self, metadata: dict, slide_id: str) -> None:
+        if metadata.get("stale_at_combine"):
+            raise ValueError("A source prediction batch was stale before combining. Run prediction again.")
+        if metadata.get("source_fingerprint"):
             from image2image.utils.annotation.images import fingerprint
 
-            if fingerprint(self.resolve_path(self.slide(info["slide_id"]))) != metadata["source_fingerprint"]:
+            if fingerprint(self.resolve_path(self.slide(slide_id))) != metadata["source_fingerprint"]:
                 raise ValueError("Results are stale because the source image changed. Run prediction again.")
             model = metadata.get("model", {})
             if model.get("fingerprint") and fingerprint(Path(model["checkpoint"])) != model["fingerprint"]:
@@ -629,6 +728,14 @@ class AnnotationStore:
             decoder = model.get("decoder", {})
             if decoder.get("fingerprint") and fingerprint(Path(decoder["checkpoint"])) != decoder["fingerprint"]:
                 raise ValueError("Results are stale because the SAM decoder changed. Run prediction again.")
+
+    def review(self, set_id: str, *, accept: bool, keys: list[int] | None = None, cancel: Any = None) -> None:
+        """Accept/reject selected predictions or an entire batch as one undoable command."""
+        info = self.set_info(set_id)
+        metadata = info["metadata"]
+        if accept:
+            self._check_review_source(metadata, info["slide_id"])
+        validated: set[str] = set()
         revision = metadata.get("review_revision", metadata.get("request", {}).get("revision"))
         objects = (
             (self.get(key) for key in keys) if keys is not None else self.iter_objects(set_id=set_id, review="proposed")
@@ -640,6 +747,16 @@ class AnnotationStore:
                     raise InterruptedError("Review cancelled; no changes were published.")
                 if obj.set_id != set_id or obj.review != "proposed":
                     raise ValueError("Only proposed objects from this batch can be reviewed.")
+                if accept:
+                    for inputs in [
+                        obj.provenance.get("review_inputs"),
+                        *obj.provenance.get("merged_review_inputs", []),
+                    ]:
+                        if inputs:
+                            signature = json.dumps(inputs, sort_keys=True)
+                            if signature not in validated:
+                                self._check_review_source(inputs, info["slide_id"])
+                                validated.add(signature)
                 yield obj.key, replace(obj, review="accepted" if accept else "rejected")
 
         self.apply_stream(

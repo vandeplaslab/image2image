@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import replace
 from uuid import uuid4
 
-from shapely.geometry import LineString
+from shapely.geometry import LineString, Point, Polygon
 from shapely.geometry.base import BaseGeometry
 from shapely.ops import split, unary_union
 
@@ -25,6 +25,12 @@ def brush_object(store: AnnotationStore, key: int, stroke: BaseGeometry, *, subt
     obj = store.get(key)
     geometry = obj.geometry.difference(stroke) if subtract else obj.geometry.union(stroke)
     edit_geometry(store, key, geometry, "Erase from object" if subtract else "Brush object")
+
+
+def brush_stroke(points: list[tuple[float, float]], radius: float, *, fill: bool = False) -> Polygon:
+    """Buffer a continuous brush stroke, optionally filling its enclosed interiors."""
+    stroke = (LineString(points) if len(points) > 1 else Point(points[0])).buffer(radius)
+    return Polygon(stroke.exterior) if fill else stroke
 
 
 def split_preview(obj: AnnotationObject, cut: LineString) -> list[BaseGeometry]:
@@ -81,11 +87,19 @@ def merge_objects(store: AnnotationStore, keys: list[int], survivor: int, class_
     validate_geometry(geometry)
     parents = [obj.object_id for obj in objects]
     lineage = [*retained.provenance.get("lineage", []), {"operation": "merge", "parents": parents}]
+    provenance = {**retained.provenance, "lineage": lineage}
+    review_inputs = []
+    for obj in objects:
+        for inputs in [obj.provenance.get("review_inputs"), *obj.provenance.get("merged_review_inputs", [])]:
+            if inputs and inputs not in review_inputs:
+                review_inputs.append(inputs)
+    if review_inputs:
+        provenance["merged_review_inputs"] = review_inputs
     merged = replace(
         retained,
         geometry=geometry,
         class_id=class_id or retained.class_id,
-        provenance={**retained.provenance, "lineage": lineage},
+        provenance=provenance,
     )
     store.apply(EditCommand("Merge objects", [(obj.key, merged if obj.key == survivor else None) for obj in objects]))
     return survivor

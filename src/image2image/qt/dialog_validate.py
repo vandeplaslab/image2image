@@ -144,14 +144,14 @@ class ImageValidationWindow(Window):
         font = self.font()
         font.setPointSize(size)
         self.setFont(font)
-        self.centralWidget().setStyleSheet(
-            "QLabel, QAbstractButton, QComboBox, QLineEdit, QAbstractSpinBox, QAbstractItemView, "
-            "QHeaderView, QHeaderView::section, QTabBar, QTabBar::tab, QGroupBox {"
-            f"font-size: {size}pt;"
-            "}"
-        )
-        self.menuBar().setStyleSheet(f"font-size: {size}pt;")
-        self.statusBar().setStyleSheet(f"font-size: {size}pt;")
+        # self.centralWidget().setStyleSheet(
+        #     "QLabel, QAbstractButton, QComboBox, QLineEdit, QAbstractSpinBox, QAbstractItemView, "
+        #     "QHeaderView, QHeaderView::section, QTabBar, QTabBar::tab, QGroupBox {"
+        #     f"font-size: {size}pt;"
+        #     "}"
+        # )
+        # self.menuBar().setStyleSheet(f"font-size: {size}pt;")
+        # self.statusBar().setStyleSheet(f"font-size: {size}pt;")
         for tabs in self.findChildren(QTabWidget):
             tabs.tabBar().setElideMode(Qt.TextElideMode.ElideNone)
         for view in (*self.views, self.result_view):

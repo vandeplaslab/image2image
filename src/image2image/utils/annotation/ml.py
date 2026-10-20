@@ -117,6 +117,10 @@ def train_classifier(
     input_slides = {slide.id: slide for slide in store.slides()}
     classes = store.classes()
     trainable = {item.id for item in classes if not item.is_ignore}
+    if settings.class_ids is not None:
+        if set(settings.class_ids) - {item.id for item in classes}:
+            raise ValueError("Some selected training classes no longer exist.")
+        trainable.intersection_update(settings.class_ids)
     ignore_ids = {item.id for item in classes if item.is_ignore}
     class_ids = sorted(
         {obj.class_id for obj in store.iter_objects(training=True) if obj.class_id and obj.class_id in trainable}

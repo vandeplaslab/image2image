@@ -93,6 +93,28 @@ def test_training_conflicts_and_stale_requests(trained):
         predict(store, request)
 
 
+def test_training_class_selection_filters_inputs_and_round_trips(trained: tuple) -> None:
+    store, _slide, set_id, _model, settings, dark, light = trained
+    excluded = AnnotationClass(name="Excluded")
+    store.save_class(excluded)
+    key = store.apply(
+        EditCommand(
+            "Excluded example",
+            [(None, AnnotationObject(set_id, "excluded", box(11, 11, 45, 65), excluded.id, training=True))],
+        )
+    )[0]
+    configured = settings.model_copy(update={"class_ids": (dark.id, light.id)})
+    model = train_classifier(store, "Subset", configured)
+    _, metadata = load_forest(model)
+    assert set(metadata["classes"]) == {dark.id, light.id}
+    assert configured == FeatureSettings.model_validate(metadata["settings"])
+    assert key not in {item["key"] for item in metadata["training"]}
+    assert store.get(key).training
+    with pytest.raises(ValueError, match="at least two"):
+        train_classifier(store, "One class", configured.model_copy(update={"class_ids": (dark.id,)}))
+    assert FeatureSettings.model_validate({"downsample": 1}).class_ids is None
+
+
 def test_ignore_masks_precede_conflict_checks_and_respect_sets(trained: tuple) -> None:
     store, slide, set_id, _model, settings, dark, light = trained
     ignore = AnnotationClass(name="Renamed Ignore", is_ignore=True)

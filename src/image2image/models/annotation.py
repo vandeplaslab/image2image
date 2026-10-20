@@ -158,6 +158,26 @@ class FeatureSettings(AnnotationModel):
     trees: int = Field(default=100, ge=1, le=1000)
     seed: int = Field(default=42, ge=0, le=2**32 - 1)
     max_depth: int = Field(default=24, ge=1)
+    class_ids: tuple[str, ...] | None = None
+
+
+class FineTuneSettings(AnnotationModel):
+    """Explicit inputs for fine-tuning an instance model from accepted annotations."""
+
+    backend: Literal["cellpose", "micro-sam"]
+    model: str
+    checkpoint: str = ""
+    class_ids: tuple[str, ...]
+    channels: tuple[int, ...] = (0,)
+    downsample: int = Field(default=1, ge=1)
+    epochs: int = Field(default=100, ge=1, le=10000)
+    learning_rate: float = Field(default=1e-5, gt=0, le=1)
+    batch_size: int = Field(default=1, ge=1, le=32)
+    patch_size: int = Field(default=256, ge=256, le=1024)
+    max_patches: int = Field(default=128, ge=2, le=1024)
+    seed: int = Field(default=42, ge=0, le=2**32 - 1)
+    device: Literal["auto", "cpu", "cuda", "mps"] = "auto"
+    freeze_encoder: bool = True
 
 
 class PredictionRequest(AnnotationModel):

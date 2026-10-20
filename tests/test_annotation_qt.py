@@ -4,17 +4,26 @@ from __future__ import annotations
 
 from pathlib import Path
 from time import sleep
+from types import SimpleNamespace
 
 import numpy as np
 import pytest
 import tifffile
 from click.testing import CliRunner
 from pytestqt.qtbot import QtBot
+from qtextra.widgets.qt_table_view_check import QtCheckableTableView
 from qtpy.QtCore import QPoint, Qt
+from qtpy.QtWidgets import QApplication, QComboBox, QHeaderView, QStyle, QStyleOptionViewItem
 from shapely.geometry import box
 
 from image2image.cli import cli
-from image2image.models.annotation import AnnotationClass, AnnotationObject, EditCommand, FeatureSettings
+from image2image.models.annotation import (
+    AnnotationClass,
+    AnnotationObject,
+    EditCommand,
+    FeatureSettings,
+)
+from image2image.qt._annotation_finetune import FineTuneDialog
 from image2image.qt.dialog_annotate import ImageAnnotationWindow
 from image2image.utils.annotation.ml import backend_available, train_classifier
 from image2image.utils.annotation.model_cache import read_classifier_metadata
@@ -144,6 +153,7 @@ def test_rgb_slide_and_classify_review_workflow(editor, qtbot, tmp_path):
     qtbot.waitUntil(lambda: not window.jobs.busy and not window._threads, timeout=60000)
     assert Path(window._model_value()).is_file(), window.status.text()
     model_path = window._model_value()
+    window._catalogue_project["cellpose"] = str(window.store.path)
     window._catalogues["cellpose"] = [{"name": "cpsam", "cached": False, "reason": ""}]
     window.backend.setCurrentText("cellpose")
     window.checkpoint.setText("/tmp/cellpose-checkpoint")
@@ -167,8 +177,8 @@ def test_rgb_slide_and_classify_review_workflow(editor, qtbot, tmp_path):
     qtbot.waitUntil(lambda: not window.jobs.busy, timeout=60000)
     assert window.store.count(window.set_id, review="proposed") > 0, window.status.text()
     assert window.store.count(window.set_id) == 0
-    assert window.proposals.item(0, 1).text() in {"Tissue", "Stroma"}
-    assert window.proposals.item(0, 3).text() == "Needs review"
+    assert window.proposals.proxy.index(0, 1).data() in {"Tissue", "Stroma"}
+    assert window.proposals.proxy.index(0, 3).data() == "Needs review"
     window.proposals.selectRow(0)
     assert "forest" in window.proposal_details.text()
     window.review(True, True)
@@ -228,9 +238,14 @@ def test_search_distinguishes_integer_and_string_ids(editor):
 def test_training_checkboxes_counts_and_existing_choices(editor: ImageAnnotationWindow) -> None:
     window = editor
     key = window.add_geometry(box(5, 5, 25, 25))
-    cell = window.objects.item(0, 3)
-    assert cell.checkState() == Qt.CheckState.Checked
-    cell.setCheckState(Qt.CheckState.Unchecked)
+    cell = window.objects.proxy.index(0, 0)
+    assert cell.data(Qt.ItemDataRole.CheckStateRole) == Qt.CheckState.Checked
+    window.objects.proxy.setData(cell, Qt.CheckState.Unchecked, Qt.ItemDataRole.CheckStateRole)
+    assert not window.store.get(key).training
+    # Native Qt delegates send integer states, while direct callers can send enums.
+    assert window.objects.proxy.setData(window.objects.proxy.index(0, 0), 2, Qt.ItemDataRole.CheckStateRole)
+    assert window.store.get(key).training
+    assert window.objects.proxy.setData(window.objects.proxy.index(0, 0), 0, Qt.ItemDataRole.CheckStateRole)
     assert not window.store.get(key).training
     window.tabs.setCurrentIndex(1)
     assert "0 included" in window.training_summary.text()
@@ -247,9 +262,9 @@ def test_training_checkboxes_counts_and_existing_choices(editor: ImageAnnotation
     window.classes.setCurrentRow(window.classes.count() - 3)
     assert window.class_id == ignore.id
     window.add_geometry(box(8, 8, 12, 12))
-    cell = window.objects.item(1, 3)
-    assert not cell.flags() & Qt.ItemFlag.ItemIsEnabled
-    assert "Ignore mask" in cell.toolTip()
+    cell = window.objects.proxy.index(1, 0)
+    assert not cell.flags() & Qt.ItemFlag.ItemIsUserCheckable
+    assert "Ignore mask" in cell.data(Qt.ItemDataRole.ToolTipRole)
 
 
 def test_overview_palette_and_backend_guidance(
@@ -316,6 +331,8 @@ def test_canvas_drags_commit_without_panning(editor: ImageAnnotationWindow, qtbo
     canvas = window.view.widget.canvas.native
     center = QPoint(canvas.width() // 2, canvas.height() // 2)
     points = [center + QPoint(-25, -20), center + QPoint(25, -20), center + QPoint(25, 20), center + QPoint(-25, 20)]
+    if mode == "Brush +":
+        points.append(points[0])
     camera_center = tuple(window.view.viewer.camera.center)
     assert not window.view.viewer.camera.mouse_pan
     modifier = Qt.KeyboardModifier.AltModifier if mode == "Alt brush" else Qt.KeyboardModifier.NoModifier
@@ -339,6 +356,8 @@ def test_canvas_drags_commit_without_panning(editor: ImageAnnotationWindow, qtbo
         assert window.store.get(key).geometry.equals(original)
     else:
         assert obj.geometry.area > 0
+        if mode == "Brush +":
+            assert not obj.geometry.interiors
         window.undo()
         assert window.store.count(window.set_id) == 0
     window.tool.setCurrentText("Select")
@@ -386,14 +405,14 @@ def test_independent_pagination_and_boundaries(editor: ImageAnnotationWindow) ->
     window.next_page("accepted")
     window.next_page("proposed")
     assert "Page 2 of 3" in label.text()
-    assert window.proposals.rowCount() == 30
+    assert window.proposals.n_rows == 30
     window.next_page("accepted")
-    assert window.objects.rowCount() == 25
+    assert window.objects.n_rows == 25
     assert previous.isEnabled() and not next_.isEnabled()
     window.next_page("accepted")
-    assert window.objects.rowCount() == 25
+    assert window.objects.n_rows == 25
     window.previous_page("accepted")
-    assert window.objects.rowCount() == 100
+    assert window.objects.n_rows == 100
     assert "Page 2 of 2" in window._pagination["proposed"][2].text()
 
 
@@ -435,6 +454,7 @@ def test_pretrained_selector_download_state_and_automatic_requests(
 ) -> None:
     window = editor
     monkeypatch.setattr("image2image.qt.dialog_annotate.backend_available", lambda _backend: True)
+    window._catalogue_project["micro-sam"] = str(window.store.path)
     window._catalogues["micro-sam"] = [
         {"name": "vit_b_lm", "cached": False, "reason": ""},
         {"name": "vit_t", "cached": False, "reason": "Requires mobile_sam."},
@@ -453,6 +473,8 @@ def test_pretrained_selector_download_state_and_automatic_requests(
     assert all(button.isEnabled() for button in window.predict_buttons)
     assert window.prompt_btn.isEnabled()
     assert not window.download_btn.isEnabled()
+    assert "Model cached in <a href=" in window.model_status.text() and "file:///" in window.model_status.text()
+    assert "micro-sam model directory" in window.model_status.text()
     assert window._request().sam_mode == "automatic"
     assert window._request(prompts=True).sam_mode == "prompts"
     assert not window._request().allow_download
@@ -516,6 +538,7 @@ def test_predict_segments_help_and_multiple_prompt_boxes(
 ) -> None:
     window = editor
     monkeypatch.setattr("image2image.qt.dialog_annotate.backend_available", lambda _backend: True)
+    window._catalogue_project["micro-sam"] = str(window.store.path)
     window._catalogues["micro-sam"] = [{"name": "vit_b_lm", "cached": True, "reason": ""}]
     window.backend.setCurrentText("micro-sam")
     window.tabs.setCurrentIndex(2)
@@ -583,6 +606,7 @@ def test_download_cancel_cleans_own_files_clears_queue_and_restarts_worker(
     window, jobs = editor, editor.jobs
     monkeypatch.setattr("image2image.utils.annotation.model_cache.USER_CACHE_DIR", tmp_path)
     monkeypatch.setattr("image2image.qt.dialog_annotate.backend_available", lambda _backend: True)
+    window._catalogue_project["cellpose"] = str(window.store.path)
     window._catalogues["cellpose"] = [{"name": "cpsam", "cached": False, "reason": ""}]
     window.backend.setCurrentText("cellpose")
     directory = tmp_path / "models" / "cellpose"
@@ -599,19 +623,19 @@ def test_download_cancel_cleans_own_files_clears_queue_and_restarts_worker(
     window._catalogue_pending.add("micro-sam")
     jobs.queue_changed.emit()
     window.show_task_queue()
-    assert window.task_table.rowCount() == 2
-    assert "Download model" in window.task_table.item(0, 1).text()
-    assert "Queued" in window.task_table.item(1, 0).text()
+    assert window.task_table.n_rows == 2
+    assert "Download model" in window.task_table.proxy.index(0, 1).data()
+    assert "Queued" in window.task_table.proxy.index(1, 0).data()
     assert "Cancel download" in window.download_btn.toolTip()
     qtbot.mouseClick(window.download_btn, Qt.MouseButton.LeftButton)
     assert jobs.cancelling
-    assert window.task_table.item(0, 0).text() == "Cancelling"
+    assert window.task_table.proxy.index(0, 0).data() == "Cancelling"
     qtbot.waitUntil(lambda: not jobs.busy, timeout=5000)
     assert not worker.is_alive()
     assert not own.exists() and other.read_bytes() == b"other job"
     assert not jobs.pending and not window._catalogue_pending
-    assert window.task_table.rowCount() == 0
-    assert "idle" in window.queue_summary.text()
+    assert window.task_table.n_rows == 0
+    assert "0 tasks" in window.queue_btn.toolTip()
     assert window.download_btn.isEnabled()
     # A real operation verifies that transport queues remain usable after stopping a blocked download.
     jobs.submit(
@@ -624,3 +648,368 @@ def test_download_cancel_cleans_own_files_clears_queue_and_restarts_worker(
     )
     qtbot.waitUntil(lambda: not jobs.busy, timeout=30000)
     assert "two classes" in window.status.text()
+
+
+def test_qtextra_tables_sort_filter_and_edit_stable_objects(editor: ImageAnnotationWindow, qtbot: QtBot) -> None:
+    window = editor
+    for table in (window.objects, window.proposals, window.training_counts, window.task_table):
+        assert isinstance(table, QtCheckableTableView)
+    small = window.add_geometry(box(1, 1, 3, 3))
+    large = window.add_geometry(box(10, 10, 20, 20))
+    table = window.objects
+    table.sortByColumn(3, Qt.SortOrder.DescendingOrder)
+    assert table.key_at(0) == large
+    table.selectRow(0)
+    table.sortByColumn(3, Qt.SortOrder.AscendingOrder)
+    assert table.selected_keys() == [large]
+    assert table.key_at(0) == small
+    target_id = str(window.store.get(large).object_id)
+    table.filter_edit.setText(target_id)
+    assert table.proxy.rowCount() == 1 and table.key_at(0) == large
+    assert table.proxy.setData(table.proxy.index(0, 0), Qt.CheckState.Unchecked, Qt.ItemDataRole.CheckStateRole)
+    assert not window.store.get(large).training and window.store.get(small).training
+    class_label = next(
+        label for label, key in window._class_labels.items() if key not in (None, window.store.get(large).class_id)
+    )
+    window.show()
+    window.activateWindow()
+    table.edit(table.proxy.index(0, 2))
+    editor = table.findChild(QComboBox)
+    assert editor is not None
+    qtbot.waitUntil(editor.view().isVisible)
+    editor.hidePopup()
+    editor.setCurrentText(class_label)
+    qtbot.keyClick(editor, Qt.Key.Key_Tab)
+    assert window.store.get(large).class_id == window._class_labels[class_label]
+    assert not table.proxy.setData(table.proxy.index(0, 1), "changed ID")
+    assert str(window.store.get(large).object_id) == target_id
+    table.filter_edit.clear()
+    assert table.proxy.rowCount() == 2
+    # Sorting a page must not change the database cursor used to fetch the next page.
+    window.store.apply(
+        EditCommand(
+            "Many",
+            [(None, AnnotationObject(window.set_id, index, box(2, 2, 4, 4), window.class_id)) for index in range(250)],
+        )
+    )
+    window.refresh_tables()
+    table.sortByColumn(1, Qt.SortOrder.DescendingOrder)
+    first_page = set(table.get_col_data(4))
+    window.next_page("accepted")
+    assert not first_page.intersection(table.get_col_data(4))
+    assert len(first_page) == table.n_rows == 100
+
+
+def test_training_checkbox_clicks_and_column_configuration(editor: ImageAnnotationWindow, qtbot: QtBot) -> None:
+    window = editor
+    key = window.add_geometry(box(5, 5, 25, 25))
+    window.show()
+    qtbot.waitExposed(window)
+    table = window.objects
+    assert table.config.header[:4] == ["Training", "ID", "Class", "Area (px2)"]
+    assert table.header.sectionResizeMode(0) == QHeaderView.ResizeMode.ResizeToContents
+    assert table.header.sectionResizeMode(1) == QHeaderView.ResizeMode.Interactive
+    assert table.header.sectionResizeMode(3) == QHeaderView.ResizeMode.Stretch
+    assert table.isColumnHidden(4)
+    assert not table.model().index(0, 4).flags() & Qt.ItemFlag.ItemIsSelectable
+    assert "Double-click" in table.model().headerData(2, Qt.Orientation.Horizontal, Qt.ItemDataRole.ToolTipRole)
+    table.setColumnWidth(1, 95)
+    for expected in (False, True, False, True):
+        cell = table.proxy.index(0, 0)
+        option = QStyleOptionViewItem()
+        option.initFrom(table)
+        option.rect = table.visualRect(cell)
+        option.features |= QStyleOptionViewItem.ViewItemFeature.HasCheckIndicator
+        option.checkState = cell.data(Qt.ItemDataRole.CheckStateRole)
+        option.displayAlignment = Qt.AlignmentFlag.AlignCenter
+        checkbox = table.style().subElementRect(QStyle.SubElement.SE_ItemViewItemCheckIndicator, option, table)
+        qtbot.mouseClick(table.viewport(), Qt.MouseButton.LeftButton, pos=checkbox.center())
+        assert window.store.get(key).training is expected
+        assert table.columnWidth(1) == 95
+
+
+@pytest.mark.parametrize("review", [False, True])
+def test_class_double_click_opens_choices_and_commits(
+    editor: ImageAnnotationWindow, qtbot: QtBot, review: bool
+) -> None:
+    window = editor
+    key = window.add_geometry(box(5, 5, 25, 25))
+    if review:
+        from dataclasses import replace
+
+        window.store.apply(EditCommand("Propose", [(key, replace(window.store.get(key), review="proposed"))]))
+        window.refresh_tables()
+    table = window.proposals if review else window.objects
+    window.tabs.setCurrentIndex(3 if review else 0)
+    window.show()
+    qtbot.waitExposed(window)
+    cell = table.proxy.index(0, table.config.find_col_id("class"))
+    position = table.visualRect(cell).center()
+    qtbot.mouseClick(table.viewport(), Qt.MouseButton.LeftButton, pos=position)
+    qtbot.mouseDClick(table.viewport(), Qt.MouseButton.LeftButton, pos=position)
+    combobox = table.findChild(QComboBox)
+    assert combobox is not None
+    qtbot.waitUntil(combobox.view().isVisible)
+    label = next(
+        name
+        for name, class_id in window._class_labels.items()
+        if class_id not in (None, window.store.get(key).class_id)
+    )
+    choice = combobox.model().index(combobox.findText(label), 0)
+    qtbot.mouseClick(
+        combobox.view().viewport(), Qt.MouseButton.LeftButton, pos=combobox.view().visualRect(choice).center()
+    )
+    assert window.store.get(key).class_id == window._class_labels[label]
+    assert window.store.get(key).review == ("proposed" if review else "accepted")
+
+
+def test_review_selection_outlines_follow_sorted_filtered_rows(editor: ImageAnnotationWindow) -> None:
+    window = editor
+    geometries = [box(5, 5, 25, 25).difference(box(10, 10, 15, 15)), box(30, 30, 35, 35)]
+    keys = window.store.apply(
+        EditCommand(
+            "Proposals",
+            [
+                (None, AnnotationObject(window.set_id, str(index), geometry, window.class_id, review="proposed"))
+                for index, geometry in enumerate(geometries)
+            ],
+        )
+    )
+    window.refresh_tables()
+    window.tabs.setCurrentIndex(3)
+    table = window.proposals
+    table.sortByColumn(2, Qt.SortOrder.DescendingOrder)
+    table.selectAll()
+    assert set(window.selected) == set(keys)
+    assert len(window.draw_layer.data) == 3
+    np.testing.assert_allclose(window.draw_layer.edge_color, [[1, 1, 0, 1]] * 3)
+    table.filter_column.setCurrentText("ID")
+    table.filter_edit.setText("1")
+    table.selectRow(0)
+    assert window.selected == [keys[1]]
+    np.testing.assert_allclose(window.draw_layer.data[0], np.asarray(geometries[1].exterior.coords)[:-1, ::-1])
+    table.clearSelection()
+    assert not window.selected and not len(window.draw_layer.data)
+
+
+def test_set_counts_combine_copy_and_remove_undo_in_editor(editor: ImageAnnotationWindow, qtbot: QtBot) -> None:
+    window = editor
+    first = window.set_id
+    window.add_geometry(box(1, 1, 3, 3))
+    assert "1 object" in window.sets.currentText()
+    second = window.store.create_set(window.slide_id, "Second")
+    window.store.apply(
+        EditCommand("Second", [(None, AnnotationObject(second, 1, box(10, 10, 20, 20), window.class_id))])
+    )
+    window.refresh_sets()
+    window.combine_sets([first, second], "Joined")
+    qtbot.waitUntil(lambda: not window.jobs.busy, timeout=30000)
+    combined = window.set_id
+    assert combined not in (first, second)
+    assert window.store.set_info(combined)["name"] == "Joined"
+    assert "2 objects" in window.sets.currentText()
+    assert window.sets.findData(first) >= 0 and window.sets.findData(second) >= 0
+    window.remove_set()
+    assert window.sets.findData(combined) == -1
+    window.undo()
+    assert window.sets.findData(combined) >= 0 and window.store.count(combined) == 2
+    window.redo()
+    assert window.sets.findData(combined) == -1
+
+
+def test_review_merge_shortcuts_and_filter_typing(
+    editor: ImageAnnotationWindow, qtbot: QtBot, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    window = editor
+    window.store.apply(
+        EditCommand(
+            "Proposals",
+            [
+                (None, AnnotationObject(window.set_id, index, geometry, window.class_id, review="proposed"))
+                for index, geometry in enumerate((box(0, 0, 2, 2), box(2, 0, 4, 2), box(5, 0, 6, 1)))
+            ],
+        )
+    )
+    window.refresh_tables()
+    window.tabs.setCurrentIndex(3)
+    window.show()
+    window.activateWindow()
+    QApplication.setActiveWindow(window)
+    table = window.proposals
+    table.sortByColumn(2, Qt.SortOrder.DescendingOrder)
+    qtbot.waitUntil(window.isActiveWindow)
+    table.setFocus()
+    qtbot.waitUntil(table.hasFocus)
+
+    def press_review_key(key: Qt.Key) -> None:
+        QApplication.setActiveWindow(window)
+        table.setFocus()
+        qtbot.keyClick(table, key)
+
+    for row in (0, 1):
+        qtbot.mouseClick(
+            table.viewport(),
+            Qt.MouseButton.LeftButton,
+            modifier=Qt.KeyboardModifier.ControlModifier if row else Qt.KeyboardModifier.NoModifier,
+            pos=table.visualRect(table.proxy.index(row, 0)).center(),
+        )
+    assert len(table.selected_keys()) == 2
+    assert window.merge_proposals_btn.isEnabled()
+    monkeypatch.setattr("image2image.qt.dialog_annotate.QInputDialog.getItem", lambda *args: (args[3][0], True))
+    press_review_key(Qt.Key.Key_M)
+    assert window.store.count(window.set_id, review="proposed") == 2, (
+        window.status.text(),
+        window.isActiveWindow(),
+        table.hasFocus(),
+        table.selected_keys(),
+    )
+    survivor = window.store.get(table.selected_keys()[0])
+    assert survivor.geometry.area == 8 and survivor.review == "proposed"
+    press_review_key(Qt.Key.Key_A)
+    qtbot.waitUntil(lambda: not window.jobs.busy, timeout=30000)
+    assert window.store.count(window.set_id) == 1
+    table.selectRow(0)
+    press_review_key(Qt.Key.Key_E)
+    assert window.tool.currentText() == "Vertices"
+    press_review_key(Qt.Key.Key_R)
+    qtbot.waitUntil(lambda: not window.jobs.busy, timeout=30000)
+    assert window.store.count(window.set_id, review="rejected") == 1
+    window.undo()
+    window.undo()
+    window.undo()
+    assert window.store.count(window.set_id, review="proposed") == 3
+    table.selectRow(0)
+    table.filter_edit.setFocus()
+    qtbot.keyClicks(table.filter_edit, "AREM")
+    assert table.filter_edit.text() == "AREM"
+    assert not window.jobs.busy
+    assert window.store.count(window.set_id, review="proposed") == 3
+
+
+def test_training_class_checkboxes_preserve_object_flags(
+    editor: ImageAnnotationWindow, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    window = editor
+    first = window.add_geometry(box(5, 5, 20, 20))
+    first_class = window.store.get(first).class_id
+    window.classes.setCurrentRow(1)
+    second = window.add_geometry(box(60, 60, 80, 80))
+    window.tabs.setCurrentIndex(1)
+    assert window.tabs.tabText(1) == "Train"
+    assert window.training_counts.n_rows == 8 and window.train_btn.isEnabled()
+    revision = window.store.revision
+    table = window.training_counts
+    row = table.get_row_id(4, first_class)
+    index = table.proxy.mapFromSource(table.model().index(row, 0))
+    assert table.proxy.setData(index, 0, Qt.ItemDataRole.CheckStateRole)
+    assert not window.train_btn.isEnabled() and window.finetune_btn.isEnabled()
+    assert window.store.revision == revision
+    assert window.store.get(first).training and window.store.get(second).training
+    jobs = []
+    monkeypatch.setattr(window.jobs, "submit", jobs.append)
+    window.train()
+    assert first_class not in jobs[0]["settings"]["class_ids"]
+    row = table.get_row_id(4, first_class)
+    assert table.proxy.setData(
+        table.proxy.mapFromSource(table.model().index(row, 0)), 2, Qt.ItemDataRole.CheckStateRole
+    )
+    assert window.train_btn.isEnabled()
+    ignore = next(item for item in window.store.classes() if item.is_ignore)
+    assert not table.model().index(table.get_row_id(4, ignore.id), 0).flags() & Qt.ItemFlag.ItemIsUserCheckable
+
+
+def test_finetune_dialog_requirements_settings_and_prediction_reuse(
+    editor: ImageAnnotationWindow, qtbot: QtBot, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    window = editor
+    monkeypatch.setattr("image2image.qt.dialog_annotate.backend_available", lambda _backend: True)
+    monkeypatch.setattr("image2image.qt._annotation_finetune.backend_available", lambda _backend: True)
+    window._catalogue_project["cellpose"] = str(window.store.path)
+    window._catalogues["cellpose"] = [
+        {"name": "cpsam", "cached": True, "reason": ""},
+        {
+            "name": "cpdino",
+            "cached": False,
+            "reason": "Requires DINOv3 architecture. Downloading weights cannot supply it.",
+        },
+    ]
+    dialog = FineTuneDialog(window, (window.class_id,))
+    qtbot.addWidget(dialog)
+    dialog.show()
+    assert dialog.start.isEnabled()
+    assert "Model cached in" in dialog.hint.text() and "href=" in dialog.hint.text()
+    assert not dialog.model.model().item(1).isEnabled()
+    dialog.model.setCurrentIndex(1)
+    assert not dialog.start.isEnabled() and not dialog.download.isEnabled()
+    assert "DINOv3" in dialog.hint.text()
+    local = tmp_path / "local.pt"
+    local.write_bytes(b"weights")
+    dialog.checkpoint.setText(str(local))
+    assert not dialog.start.isEnabled()  # Weights cannot supply a missing architecture.
+    dialog.checkpoint.clear()
+    dialog.model.setCurrentIndex(0)
+    dialog.epochs.setValue(12)
+    dialog.learning_rate.setText("0.00002")
+    settings = dialog.settings()
+    assert settings.epochs == 12 and settings.learning_rate == 2e-5
+    assert settings.class_ids == (window.class_id,)
+    checkpoint = tmp_path / "custom.pt"
+    checkpoint.write_bytes(b"weights")
+    result = {
+        "kind": "finetuned",
+        "name": "Custom cells",
+        "settings": settings.model_copy(update={"downsample": 2}).model_dump(),
+        "checkpoint": str(checkpoint),
+        "manifest": str(tmp_path / "metadata.json"),
+    }
+    dialog.close()
+    window._job_done({"operation": "finetune"}, result)
+    assert window.backend.currentText() == "cellpose"
+    assert window._model_value() == str(checkpoint)
+    assert window.checkpoint.text() == str(checkpoint)
+    request = window._request()
+    assert request.model == "cpsam" and request.checkpoint == str(checkpoint)
+    assert request.downsample == 2 and request.channels == settings.channels
+    assert "cpdino" in window.model_requirements.text() and "DINOv3" in window.model_requirements.text()
+
+
+def test_review_canvas_picks_proposals_across_filters_pages_and_actions(
+    editor: ImageAnnotationWindow, qtbot: QtBot, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    window = editor
+    window.add_geometry(box(0, 0, 128, 96))  # Accepted geometry must not intercept Review picks.
+    small = AnnotationObject(window.set_id, "small", box(10, 10, 20, 20), window.class_id, review="proposed")
+    distant = [
+        AnnotationObject(
+            window.set_id,
+            f"outside-{index}",
+            box(200 + index * 2, 0, 201 + index * 2, 1),
+            window.class_id,
+            review="proposed",
+        )
+        for index in range(100)
+    ]
+    target = AnnotationObject(window.set_id, "target", box(0, 0, 128, 96), window.class_id, review="proposed")
+    keys = window.store.apply(EditCommand("Proposals", [(None, obj) for obj in (small, *distant, target)]))
+    window.refresh_tables()
+    window.tabs.setCurrentIndex(3)
+    window.tool.setCurrentText("Select")
+    window.show()
+    qtbot.waitExposed(window)
+    qtbot.waitUntil(lambda: not window._threads, timeout=30000)
+    window.proposals.filter_edit.setText("no matches")
+    canvas = window.view.widget.canvas.native
+    qtbot.mouseClick(canvas, Qt.MouseButton.LeftButton, pos=QPoint(canvas.width() // 2, canvas.height() // 2))
+    assert window._review_selection == [keys[-1]]
+    assert window.proposals.selected_keys() == [keys[-1]]
+    assert not window.proposals.filter_edit.text()
+    assert len(window._pages["proposed"]) == 2 and len(window.draw_layer.data) == 1
+    event = SimpleNamespace(button=1, modifiers=["Shift"], position=(15.0, 15.0))
+    list(window._mouse_drag(window.view.viewer, event))
+    assert set(window._review_selection) == {keys[0], keys[-1]}
+    assert set(window.selected) == {keys[0], keys[-1]} and len(window.draw_layer.data) == 2
+    assert window.merge_proposals_btn.isEnabled()
+    jobs = []
+    monkeypatch.setattr(window.jobs, "submit", jobs.append)
+    window.review(True, False)
+    assert set(jobs[0]["keys"]) == {keys[0], keys[-1]}

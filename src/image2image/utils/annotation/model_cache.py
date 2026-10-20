@@ -101,7 +101,7 @@ def _registry(backend: str) -> list[dict[str, Any]]:
         return [
             {
                 "name": name,
-                "reason": "Requires the optional mobile_sam package."
+                "reason": "Tiny SAM needs the optional mobile_sam architecture, which is missing or could not be imported. Downloading weights cannot supply it. Install MobileSAM in the app's Python environment, then restart."
                 if name.startswith("vit_t") and not VIT_T_SUPPORT
                 else "",
                 "assets": [
@@ -114,13 +114,14 @@ def _registry(backend: str) -> list[dict[str, Any]]:
             if not name.endswith("_decoder")
         ]
     os.environ["CELLPOSE_LOCAL_MODELS_PATH"] = str(directory)
+    from cellpose import models as cellpose_models
     from cellpose.models import _MODEL_URL, MODEL_NAMES
 
     return [
         {
             "name": name,
-            "reason": "Requires the optional dinov3 package."
-            if name.startswith("cpdino") and find_spec("dinov3") is None
+            "reason": "CellposeDINO needs the optional dinov3 architecture, which is missing or could not be imported. Downloading weights cannot supply it. Install DINOv3 in the app's Python environment, then restart."
+            if name.startswith("cpdino") and (find_spec("dinov3") is None or not hasattr(cellpose_models, "CPDINO"))
             else "",
             "assets": [{"name": name, "url": _MODEL_URL + name, "hash": ""}],
         }
