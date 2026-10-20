@@ -56,11 +56,21 @@ class ValidationImage(ValidationModel):
     path: str
     geometry: ImageGeometry
     channel: int = Field(0, ge=0)
+    display_channel: int | Literal["rgb"] | None = None
+    is_rgb: bool = False
     channel_names: list[str] = Field(default_factory=list)
     reader_kws: dict[str, Any] = Field(default_factory=dict)
     fingerprint: str = ""
     calibration_source: Literal["unconfirmed", "registration", "user"] = "unconfirmed"
     calibration_confirmed: bool = False
+
+    @field_validator("display_channel")
+    @classmethod
+    def valid_display_channel(cls, value: int | Literal["rgb"] | None) -> int | Literal["rgb"] | None:
+        """Keep display selection separate from the scalar channel used for analysis."""
+        if isinstance(value, int) and value < 0:
+            raise ValueError("Display channel must be nonnegative.")
+        return value
 
 
 class ValidationLandmark(ValidationModel):

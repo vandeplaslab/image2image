@@ -270,7 +270,7 @@ def test_full_analysis_and_report(tmp_path: Path) -> None:
         export_validation_report(result, path.parent)
 
 
-def make_elastix_project(tmp_path: Path, with_preprocessing: bool = False) -> Path:
+def make_elastix_project(tmp_path: Path, with_preprocessing: bool = False, *, multiple: bool = False) -> Path:
     """Save a real Elastix project with a known affine resampling chain."""
     from image2image_reg.elastix.transform_sequence import TransformSequence
     from image2image_reg.elastix.transform_utils import affine_to_itk_affine
@@ -281,6 +281,11 @@ def make_elastix_project(tmp_path: Path, with_preprocessing: bool = False) -> Pa
     for name, image in (("fixed", session.fixed), ("moving", session.moving)):
         project.add_modality(name, image.path, pixel_size=2)
     project.add_registration_path("moving", "fixed", ["affine"])
+    if multiple:
+        second = tmp_path / "moving-second.ome.tiff"
+        second.write_bytes(Path(session.moving.path).read_bytes())
+        project.add_modality("moving-second", second, pixel_size=2)
+        project.add_registration_path("moving-second", "fixed", ["affine"])
     project.save()
     matrix = np.array([[1, 0, 2], [0, 1, 4], [0, 0, 1]])  # YX physical pull transform
     parameters = affine_to_itk_affine(matrix, (40, 32), spacing=2)
@@ -293,10 +298,10 @@ def make_elastix_project(tmp_path: Path, with_preprocessing: bool = False) -> Pa
         project.original_size_transforms["fixed"] = [
             affine_to_itk_affine(np.array([[1, 0, -6], [0, 1, -8], [0, 0, 1]]), (40, 32), spacing=2)
         ]
-    edge = project.registration_nodes[0]
-    edge["registered"] = True
-    edge["transforms"] = {"initial": initial, "registration": sequence}
-    edge["transform_tag"] = "moving_to_fixed_transformations.json"
+    for edge in project.registration_nodes:
+        edge["registered"] = True
+        edge["transforms"] = {"initial": initial, "registration": sequence}
+        edge["transform_tag"] = f"{edge['modalities']['source']}_to_fixed_transformations.json"
     project.transformations = project._collate_transformations()
     project.save_transformations()
     project.save(registered=True)
@@ -696,3 +701,81 @@ def test_elastix_user_calibration_reexpresses_saved_physical_transform(tmp_path:
     grid = ImageGeometry(shape=(5, 6), spacing=(3, 5), origin=(7, 11))
     xy = grid.to_physical(np.stack(np.indices(grid.shape)[::-1], axis=-1))
     np.testing.assert_allclose(updated.map_grid(grid), updated.map_points(xy.reshape(-1, 2)).reshape(5, 6, 2))
+
+
+def test_rgb_display_levels_preserve_colors_and_lazy_spatial_reduction(tmp_path: Path) -> None:
+    from types import SimpleNamespace
+
+    import dask.array as da
+    from dask import delayed
+
+    reads = []
+
+    @delayed
+    def source() -> np.ndarray:
+        reads.append(True)
+        return np.broadcast_to(np.array([11, 77, 203], dtype=np.uint8), (2048, 3072, 3)).copy()
+
+    array = da.from_delayed(source(), shape=(2048, 3072, 3), dtype=np.uint8)
+    reader = SimpleNamespace(n_in_pyramid=1, get_channel=lambda index, level, split_rgb: array)
+    levels = validation_image_pyramid(reader, 0, rgb=True)
+    assert not reads and levels[0] is array
+    assert [level.shape for level in levels] == [(2048, 3072, 3), (1024, 1536, 3), (512, 768, 3)]
+    np.testing.assert_array_equal(levels[-1][0, 0].compute(), [11, 77, 203])
+    assert reads == [True]
+
+
+def test_display_selection_roundtrip_and_legacy_default(tmp_path: Path) -> None:
+    session = make_validation_session(tmp_path)
+    session.fixed.display_channel = "rgb"
+    session.moving.display_channel = 1
+    study, _ = load_validation_study(save_validation_session(tmp_path / "display", session))
+    assert study.pairs[0].session.fixed.display_channel == "rgb"
+    assert study.pairs[0].session.moving.display_channel == 1
+    assert study.pairs[0].session.moving.channel == 0
+    payload = session.model_dump()
+    for image in (payload["fixed"], payload["moving"]):
+        del image["display_channel"], image["is_rgb"]
+    legacy = ValidationSession.model_validate(payload)
+    assert legacy.fixed.display_channel is None and legacy.fixed.channel == 0
+    with pytest.raises(ValueError, match="nonnegative"):
+        legacy.fixed.display_channel = -1
+
+
+def test_elastix_discovery_collects_failed_paths_without_hiding_valid_pairs(tmp_path: Path) -> None:
+    path = make_elastix_project(tmp_path, multiple=True)
+    config_path = path / "project.config.json"
+    config = json.loads(config_path.read_text())
+    config["registration_paths"]["bad"] = {"source": "missing", "target": "fixed"}
+    config_path.write_text(json.dumps(config))
+    errors = []
+    choices = discover_validation_candidates(path, errors=errors)
+    assert {candidate.source for candidate, _, _ in choices} == {"moving", "moving-second"}
+    assert len(errors) == 1 and "missing to fixed" in errors[0]
+    with pytest.raises(KeyError, match="missing"):
+        discover_validation_candidates(path)
+
+
+def test_elastix_candidate_loading_isolated_from_other_missing_sources(tmp_path: Path) -> None:
+    path = make_elastix_project(tmp_path, multiple=True)
+    (tmp_path / "moving-second.ome.tiff").unlink()
+    errors = []
+    choices = discover_validation_candidates(path, errors=errors)
+    assert len(choices) == len(errors) == 1
+    candidate, fixed, moving = choices[0]
+    transform = load_validation_transform(candidate, ValidationSession(fixed=fixed, moving=moving))
+    np.testing.assert_allclose(transform.map_points([[10, 12]]), [[14, 14]])
+
+
+def test_elastix_missing_candidate_transform_fails_only_its_pair(tmp_path: Path) -> None:
+    path = make_elastix_project(tmp_path, multiple=True)
+    (path / "Transformations" / "moving-second_to_fixed_transformations.json").unlink()
+    study = ValidationStudy(
+        pairs=[
+            ValidationPair(session=ValidationSession(fixed=fixed, moving=moving, candidates=[candidate]))
+            for candidate, fixed, moving in discover_validation_candidates(path)
+        ]
+    )
+    result = analyze_validation_study(study, tmp_path / "isolated-results")
+    assert result.pairs[0].analysis is not None and not result.pairs[0].error
+    assert result.pairs[1].analysis is None and "incomplete" in result.pairs[1].error

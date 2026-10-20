@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from types import SimpleNamespace
@@ -12,7 +13,7 @@ import tifffile
 from click.testing import CliRunner
 from pytestqt.qtbot import QtBot
 from qtpy.QtCore import Qt
-from qtpy.QtWidgets import QDialog
+from qtpy.QtWidgets import QComboBox, QDialog, QInputDialog
 
 from image2image.cli import cli
 from image2image.models.validation import (
@@ -26,10 +27,12 @@ from image2image.qt.dialog_validate import ImageValidationWindow
 from image2image.utils.validation import (
     analyze_validation_session,
     inspect_validation_image,
+    landmark_exclusions,
+    load_validation_transform,
     save_validation_session,
     save_validation_study,
 )
-from test_validation import make_validation_session, make_validation_study
+from test_validation import make_elastix_project, make_validation_session, make_validation_study
 
 
 @pytest.fixture
@@ -49,7 +52,12 @@ def test_controls_annotations_and_zoom(validation_window: ImageValidationWindow,
     window = validation_window
     session = make_validation_session(tmp_path)
     window.open_path(session.candidates[0].path)
-    assert [window.tabs.tabText(i) for i in range(4)] == ["Inputs", "Landmarks", "Region overlap (optional)", "Results"]
+    assert [window.tabs.tabText(i) for i in range(4)] == [
+        "Inputs",
+        "Landmarks",
+        "Region overlap (optional)",
+        "Analysis",
+    ]
     window.begin_pair()
     window._pair_click(0, None, SimpleNamespace(type="mouse_press", button=1, position=(0, 24, 20)))
     window._pair_click(1, None, SimpleNamespace(type="mouse_press", button=1, position=(0, 28, 23)))
@@ -294,7 +302,10 @@ def test_rgb_pyramid_channel_selection(validation_window: ImageValidationWindow,
     study = ValidationStudy(pairs=[ValidationPair(session=ValidationSession(fixed=image))])
     window = validation_window
     window.open_path(save_validation_study(tmp_path / "rgb-study", study))
-    window.channels[0].setCurrentIndex(1)
+    assert window.channels[0].currentText() == "RGB"
+    rgb_layer = window.views[0].viewer.layers["Image"]
+    assert rgb_layer.rgb and rgb_layer.data[0].shape == (32, 40, 3)
+    window.channels[0].setCurrentText("G")
     layer = window.views[0].viewer.layers["Image"]
     assert layer.multiscale and window.channels[0].currentText() == "G"
     assert [level.shape for level in layer.data] == [(32, 40), (16, 20)]
@@ -302,10 +313,20 @@ def test_rgb_pyramid_channel_selection(validation_window: ImageValidationWindow,
     np.testing.assert_array_equal(layer.scale, (3, 2))
     np.testing.assert_array_equal(layer.translate, (20, 10))
     layer.gamma = 1.8
-    window.channels[0].setCurrentIndex(2)
+    window.channels[0].setCurrentText("B")
     np.testing.assert_array_equal(window.views[0].viewer.layers["Image"].data[0].compute(), 77)
-    window.channels[0].setCurrentIndex(1)
+    window.channels[0].setCurrentText("G")
     assert window.views[0].viewer.layers["Image"].gamma == 1.8
+    legacy = window.study.model_dump()
+    saved_image = legacy["pairs"][0]["session"]["fixed"]
+    saved_image.pop("display_channel")
+    saved_image.pop("is_rgb")
+    saved_image["channel"] = 1
+    legacy_path = tmp_path / "legacy-rgb.i2validate.json"
+    legacy_path.write_text(json.dumps(legacy))
+    window.open_path(legacy_path)
+    assert window.channels[0].currentText() == "G" and window.channels[0].count() == 4
+    assert not window.views[0].viewer.layers["Image"].rgb and window.session.fixed.display_channel is None
 
 
 def test_reader_reopens_when_scene_changes_and_cancelled_add_keeps_study(
@@ -442,3 +463,205 @@ def test_remove_last_moving_and_shared_fixed_images(
     window.remove_fixed_image()
     assert all(pair.session.fixed is None and pair.session.moving is not None for pair in window.study.pairs)
     assert all(not pair.session.candidates and not pair.session.landmarks for pair in window.study.pairs)
+
+
+def test_analysis_layout_help_and_escaped_messages(validation_window: ImageValidationWindow) -> None:
+    from qtextra.config import THEMES
+
+    window = validation_window
+    THEMES.set_theme_stylesheet(window)
+    window.ensurePolished()
+    analysis = window.tabs.widget(3)
+    assert not hasattr(window, "run_btn")
+    for widget in (window.run_all_btn, window.cancel_btn, window.export_btn, window.downsample, window.grid_label):
+        assert analysis.isAncestorOf(widget)
+    assert analysis.layout().itemAt(0).layout().itemAt(0).widget() is window.run_all_btn
+    assert analysis.layout().itemAt(analysis.layout().count() - 1).widget() is window.export_btn
+    landmarks = window.tabs.widget(1).layout()
+    csv_controls = landmarks.itemAt(0).layout()
+    assert [csv_controls.itemAt(i).widget().text() for i in range(3)] == ["Import CSV...", "Export CSV...", "CSV units"]
+    assert landmarks.itemAt(2).layout().itemAt(0).widget().text() == "Add pair"
+    assert landmarks.itemAt(3).widget() is window.edit_landmarks
+    assert landmarks.itemAt(4).widget() is window.landmark_table
+    for index in range(window.result_mode.count()):
+        window.result_mode.setCurrentIndex(index)
+        assert window.diagnostic_help.toolTip()
+    assert "intentional reflections" in window.diagnostic_help.toolTip().lower()
+    window._set_status("Cannot load <sample&1>.tiff\nTry another image.", "Input error")
+    assert window.status.text().startswith("<b>Input error</b>")
+    assert "&lt;sample&amp;1&gt;" in window.status.text() and "<sample" not in window.status.text()
+    assert window.status.font().pointSize() == window.font().pointSize() + 2
+    assert window.result_detail.font().pointSize() == window.status.font().pointSize()
+
+
+def test_all_elastix_paths_navigation_and_duplicate_import(
+    validation_window: ImageValidationWindow, qtbot: QtBot, tmp_path: Path
+) -> None:
+    window = validation_window
+    path = make_elastix_project(tmp_path, multiple=True)
+    window.open_path(path)
+    assert len(window.study.pairs) == window.candidate_list.count() == 2
+    assert [len(pair.session.candidates) for pair in window.study.pairs] == [1, 1]
+    window.open_path(path)
+    assert len(window.study.pairs) == window.candidate_list.count() == 2
+    assert "skipped duplicate" in window.status.text()
+    window.start_analysis_all()
+    qtbot.waitUntil(lambda: not window._workers, timeout=30000)
+    assert len(window._results) == 2 and not window._failures, window.status.text()
+    first_id = window._pair_id
+    window.candidate_list.setCurrentRow(1)
+    assert window.pair_selector.currentIndex() == 1 and window._pair_id != first_id
+    assert window.result_candidate.currentData() == window.session.candidates[0].id
+    assert window.analysis is window._results[window._pair_id]
+    window.views[1].viewer.layers["Image"].gamma = 1.9
+    window.pair_selector.setCurrentIndex(0)
+    assert window.candidate_list.currentRow() == 0
+    window.candidate_list.setCurrentRow(1)
+    assert window.views[1].viewer.layers["Image"].gamma == 1.9
+    window.remove_candidate()
+    assert window.candidate_list.count() == 1 and not window.session.candidates
+    assert first_id in window._results and len(window.study.pairs[0].session.candidates) == 1
+
+
+def test_elastix_shared_reference_filter_and_failed_paths(
+    validation_window: ImageValidationWindow, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path = make_elastix_project(tmp_path, multiple=True)
+    config_path = path / "project.config.json"
+    config = json.loads(config_path.read_text())
+    other_fixed = tmp_path / "other-fixed.ome.tiff"
+    other_fixed.write_bytes((tmp_path / "fixed.ome.tiff").read_bytes())
+    config["modalities"]["other-fixed"] = {**config["modalities"]["fixed"], "path": str(other_fixed)}
+    config["modalities"]["other-moving"] = {**config["modalities"]["moving"]}
+    config["registration_paths"]["other"] = {"source": "other-moving", "target": "other-fixed"}
+    config["registration_paths"]["missing"] = {"source": "missing", "target": "fixed"}
+    config_path.write_text(json.dumps(config))
+    prompts = []
+
+    def choose_reference(*args: object, **kwargs: object) -> tuple[str, bool]:
+        prompts.append(args[1])
+        return args[3][0], True
+
+    monkeypatch.setattr(QInputDialog, "getItem", choose_reference)
+    window = validation_window
+    window.open_path(path)
+    assert prompts == ["Choose shared fixed reference"]
+    assert len(window.study.pairs) == window.candidate_list.count() == 2
+    assert "incompatible fixed reference" in window.status.text()
+    assert "missing to fixed" in window.status.text()
+    before = window.study.model_dump()
+    window.open_path(path)
+    assert window.study.model_dump() == before and len(prompts) == 1
+    assert "skipped duplicate" in window.status.text()
+
+
+def test_cancelled_bulk_import_preserves_live_study(
+    validation_window: ImageValidationWindow, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    window = validation_window
+    path = make_elastix_project(tmp_path, multiple=True)
+    before, generation = window.study.model_dump(), window._generation
+    monkeypatch.setattr(window, "_confirm_calibration", lambda image: "moving-second" not in image.path)
+    window.open_path(path)
+    assert window.study.model_dump() == before and window._generation == generation
+    assert not window._dirty and not window.candidate_list.count()
+
+
+@pytest.mark.parametrize("accept", [False, True])
+def test_landmark_copy_offer_preserves_flags_and_pair_isolation(
+    validation_window: ImageValidationWindow, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, accept: bool
+) -> None:
+    study = make_validation_study(tmp_path)
+    study.pairs[0].session.landmarks[0].enabled = False
+    study.pairs[0].session.landmarks[0].note = "Check this location"
+    study.pairs[1].session.landmarks = []
+    window = validation_window
+    window.open_path(save_validation_study(tmp_path / "copy-study", study))
+    source = window.session
+    window._results[window._pair_id] = analyze_validation_session(source, tmp_path / "source-result")
+    source_id = window._pair_id
+    prompts = []
+
+    def offer(dialog: QDialog) -> QDialog.DialogCode:
+        prompts.append(dialog.findChild(QComboBox).currentText())
+        return QDialog.DialogCode.Accepted if accept else QDialog.DialogCode.Rejected
+
+    monkeypatch.setattr(QDialog, "exec", offer)
+    window.candidate_list.setCurrentRow(1)
+    assert prompts == [study.pairs[0].name]
+    assert window.pair_selector.currentIndex() == 1 and source_id in window._results
+    if accept:
+        assert [point.enabled for point in window.session.landmarks] == [False, True]
+        assert window.session.landmarks[0].note == source.landmarks[0].note
+        assert window.session.landmarks[0].id != source.landmarks[0].id
+        transform = load_validation_transform(window.session.candidates[0], window.session)
+        exclusions = landmark_exclusions(window.session, [transform])
+        assert exclusions[window.session.landmarks[1].id] == "Reuses a known fitting landmark"
+        window.session.landmarks[0].note = "Changed independently"
+        assert source.landmarks[0].note == "Check this location"
+        assert window._pair_id not in window._results and window._dirty
+    else:
+        assert not window.session.landmarks and not window._dirty
+
+
+def test_landmark_copy_source_selection_and_no_overwrite(
+    validation_window: ImageValidationWindow, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    study = make_validation_study(tmp_path)
+    target = ValidationPair(session=study.pairs[1].session.model_copy(deep=True, update={"landmarks": []}))
+    study.pairs.append(target)
+    window = validation_window
+    window.open_path(save_validation_study(tmp_path / "copy-sources", study))
+    window.pair_selector.setCurrentIndex(1)
+    prompts = []
+
+    def offer(dialog: QDialog) -> QDialog.DialogCode:
+        selector = dialog.findChild(QComboBox)
+        prompts.append((selector.count(), selector.currentIndex()))
+        selector.setCurrentIndex(0)
+        return QDialog.DialogCode.Accepted
+
+    monkeypatch.setattr(QDialog, "exec", offer)
+    window.pair_selector.setCurrentIndex(2)
+    assert prompts == [(2, 1)]
+    assert window.session.landmarks[0].moving == study.pairs[0].session.landmarks[0].moving
+    window.pair_selector.setCurrentIndex(0)
+    window.pair_selector.setCurrentIndex(2)
+    assert len(prompts) == 1
+
+
+def test_rgb_display_during_analysis_keeps_measurements_and_native_background(
+    validation_window: ImageValidationWindow, qtbot: QtBot, tmp_path: Path
+) -> None:
+    source = make_validation_session(tmp_path)
+    path = tmp_path / "histology.ome.tiff"
+    pixels = np.broadcast_to(np.array([11, 77, 203], dtype=np.uint8), (32, 40, 3)).copy()
+    tifffile.imwrite(path, pixels, photometric="rgb", metadata={"axes": "YXS"})
+    image = inspect_validation_image(path, (2, 3))
+    source.fixed, source.moving, source.candidates = image, image.model_copy(deep=True), []
+    window = validation_window
+    window.open_path(save_validation_session(tmp_path / "rgb-analysis", source))
+    qtbot.wait(30)
+    reader = window._readers[0]
+    window.views[0].viewer.camera.center = (0, 30, 22)
+    window.views[0].viewer.camera.zoom = 2.5
+    window.views[0].viewer.layers["Image"].gamma = 1.4
+    window.start_analysis_all()
+    generation = window._generation
+    window.channels[0].setCurrentText("G")
+    assert window._generation == generation and not window._cancel.is_set()
+    assert window._readers[0] is reader and window.session.fixed.channel == 0
+    assert window.views[0].viewer.camera.zoom == 2.5
+    qtbot.waitUntil(lambda: not window._workers, timeout=30000)
+    assert window.analysis is not None
+    # With no registration, both supplied landmarks are eligible: errors are 5 um and 0 um.
+    assert window.analysis.candidates[0].validation["rms"] == pytest.approx(5 / np.sqrt(2))
+    window.result_mode.setCurrentIndex(1)
+    assert window.result_view.viewer.layers["Native moving"].rgb
+    result, map_path = window.analysis, window.analysis.candidates[0].map_path
+    window.channels[1].setCurrentText("B")
+    assert not window.result_view.viewer.layers["Native moving"].rgb
+    assert window.analysis is result and map_path.exists() and window.export_btn.isEnabled()
+    window.channels[0].setCurrentText("RGB")
+    assert window.views[0].viewer.layers["Image"].gamma == 1.4
+    assert window.views[0].viewer.layers.selection.active.name == "Image"

@@ -18,11 +18,16 @@ their settings. Valis, 3D images, external transform formats, and studies with d
 1. Choose fixed and moving images directly to evaluate images already aligned in the same physical coordinate space.
    Add corresponding landmarks and optionally region masks, then analyze; no registration project is required.
    Alternatively, add a Register `.i2r.json`/`.i2r.toml` file or a completed Elastix project directory to evaluate its transform.
-   A Register export must contain one fixed image and one moving image. For an Elastix project with several registration paths, select the image pair.
+   A Register export must contain one fixed image and one moving image. Adding an Elastix project imports every
+   compatible registration path. If an empty study encounters several fixed references, choose the shared reference;
+   paths to other references, duplicates, and failed imports are listed explicitly.
 2. Add other registrations of the same pair. Native image paths, calibration, and reader settings must agree.
    Registrations of another moving image are grouped into a separate pair when they share the fixed reference.
    Use the selector in the **Moving** section to switch pairs, or its **Add moving image...** button to start another pair manually.
+   The registration list shows candidates across the whole study. Selecting a candidate switches to its image pair
+   and restores that pair's annotations, analysis, and viewer settings.
 3. Choose the image channels to display. Fixed and moving viewers are stacked vertically with resizable panels.
+   RGB images offer **RGB**, **R**, **G**, and **B** display choices; new RGB imports start in full color.
    Their image toolbars open layer controls for contrast, gamma, opacity, and colormap. Display adjustments do not
    change measurements. Saved registration calibration takes precedence; otherwise confirm the X/Y spacing and origin
    before loading. Calibration source and confirmation are retained in the saved study and reports.
@@ -30,8 +35,10 @@ their settings. Valis, 3D images, external transform formats, and studies with d
    to the same native pixels. Fixed calibration changes apply to every pair; imported transforms are expressed in the
    updated coordinate system. The delete icon removes an image from the app without deleting source files. Removing
    the fixed reference clears dependent registration candidates and landmarks across all pairs.
-4. The analysis downsample applies to diagnostic images, masks, and deformation maps;
+4. In **Analysis**, the requested analysis downsample applies to the selected pair's diagnostic images, masks, and deformation maps;
    a four-million-pixel cap limits the common fixed-image grid. Landmark calculations use native physical coordinates.
+   Native RGB/channel display is independent of the saved scalar analysis channel used for magenta/green overlap
+   diagnostics and exported figures. Changing native display does not invalidate numerical results.
 5. Save the study as `.i2validate.json` to retain annotations, exclusions, mask geometry, candidates, and settings.
    Existing version 1 pair sessions open as a one-pair study; new saves use version 2.
    Changed or missing inputs are reported when reopening. Re-add a changed candidate to accept its new definition.
@@ -73,6 +80,12 @@ excludes that landmark from the shared validation set. Otherwise, independence i
 know whether an externally supplied point was previously used to tune a registration. Landmark errors describe sampled
 locations and are not interpolated into a claim of accuracy across unmeasured tissue.
 
+When switching to a pair without landmarks, Validate offers to copy existing validation pairs from another moving
+image. The previous pair is selected as the source when available; another annotated source can be chosen.
+Copying preserves physical coordinates, notes, and **Use** flags, with independent editable rows in the destination.
+Check that the copied moving coordinates still identify the correct tissue locations. Existing bounds and known-fitting
+exclusions continue to apply. Declining leaves the destination empty, and existing annotations are never overwritten.
+
 Register's existing aggregate value is labeled **Fitting error - root-sum-square**. Its numerical definition is unchanged.
 It grows with the number of fitted landmarks and is not independent validation accuracy. Validate reports fitting
 statistics separately, in its common moving physical frame. Elastix projects without original fitting landmarks show
@@ -110,19 +123,20 @@ Maps include global affine scaling, not just the nonlinear residual. Derivative 
 regions without source coverage are unavailable. Sampling resolution limits the spatial detail that can be diagnosed.
 These maps describe the registration deformation and do not by themselves establish biological deformation.
 
-## Results and export
+## Analysis and export
 
-**Analyze current pair** evaluates the selected moving image. **Analyze all** evaluates pairs sequentially in the
-background and records pair failures separately. Either operation can be cancelled. Editing evidence invalidates that
+**Analyze all**, at the top of **Analysis**, evaluates pairs sequentially in the background and records pair failures
+separately. Use **Cancel** beside it to stop a run. Editing evidence invalidates that
 pair's results; results for other pairs remain available. Switching moving images restores their annotations and results.
 
-**Results** separates independent landmark accuracy, original fitting residuals, optional region overlap, and deformation
+**Analysis** separates independent landmark accuracy, original fitting residuals, optional region overlap, and deformation
 statistics. Unavailable measurements explain the evidence needed. Registrations without validation landmarks can still
 show fitting statistics and deformation; fitting residuals are not independent accuracy. Use the candidate and map
 selectors to inspect image overlap, point residuals, mask disagreements, signed Jacobians, and area change.
 Residual distances use the moving physical frame in `um`. No universal pass/fail threshold is applied.
+Help bubbles beside the map selector, measurement tables, and downsample control explain interpretation and unavailable evidence.
 
-**Export report...** creates a new directory containing:
+**Export report...**, at the bottom of **Analysis**, creates a new directory containing:
 
 - A self-contained `report.html`, with embedded diagnostic images, metric tables, exclusions, units, and explanations.
 - Combined `summary.csv`, `landmarks.csv`, and `masks.csv`, with pair identifiers.

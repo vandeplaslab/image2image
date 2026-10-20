@@ -4,13 +4,16 @@ from __future__ import annotations
 
 import json
 from functools import partial
+from html import escape
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from threading import Event
 from typing import Any
+from uuid import uuid4
 
 import numpy as np
 import qtextra.helpers as hp
+from qtextra.utils.table_config import TableConfig
 from qtextraplot._napari.image.wrapper import NapariImageView
 from qtpy.QtCore import Qt, QTimer, Signal
 from qtpy.QtGui import QCloseEvent
@@ -19,10 +22,10 @@ from qtpy.QtWidgets import (
     QDialog,
     QFileDialog,
     QFormLayout,
-    QHeaderView,
     QInputDialog,
     QLabel,
     QListWidget,
+    QListWidgetItem,
     QMenuBar,
     QMessageBox,
     QPushButton,
@@ -32,11 +35,11 @@ from qtpy.QtWidgets import (
     QTableWidget,
     QTableWidgetItem,
     QTabWidget,
-    QVBoxLayout,
     QWidget,
 )
 from superqt.utils import create_worker
 
+import image2image.constants as constants
 from image2image.config import SingleAppConfig
 from image2image.models.validation import (
     ImageGeometry,
@@ -103,6 +106,7 @@ class ImageValidationWindow(Window):
         self._view_keys: list[tuple | None] = [None, None]
         self._display_states: dict[tuple, dict[str, Any]] = {}
         self._camera_states: dict[str, list[tuple[Any, float]]] = {}
+        self._selected_candidates: dict[str, str] = {}
         self._generation = 0
         self._updating = False
         self._syncing = False
@@ -135,51 +139,73 @@ class ImageValidationWindow(Window):
         try:
             return function()
         except (OSError, ValueError, RuntimeError, KeyError, ImportError) as exc:
-            self.status.setText(str(exc))
+            self._set_status(str(exc))
             hp.warn_pretty(self, str(exc), "Validation input")
             return None
 
     @staticmethod
     def _table(parent: QWidget, headings: list[str], editable: bool = True) -> QTableWidget:
-        table = QTableWidget(0, len(headings), parent)
-        table.setHorizontalHeaderLabels(headings)
+        config = TableConfig()
+        for index, heading in enumerate(headings):
+            config.add(heading, str(index), sizing="contents")
+        table = hp.make_table(parent, config)
         table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
-        table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
         table.horizontalHeader().setStretchLastSection(True)
         if not editable:
             table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         return table
 
+    @staticmethod
+    def _set_message(label: QLabel, text: str, title: str = "") -> None:
+        if not title:
+            breaks = [(text.find(separator), separator) for separator in (". ", "\n") if separator in text]
+            if breaks:
+                index, separator = min(breaks)
+                title, text = text[:index], text[index + len(separator) :]
+            else:
+                title, text = text, ""
+        body = escape(text).replace("\n", "<br>")
+        label.setText(f"<b>{escape(title)}</b>" + (f"<br>{body}" if body else ""))
+
+    def _message_label(self, parent: QWidget, text: str) -> QLabel:
+        label = hp.make_label(
+            parent,
+            wrap=True,
+            selectable=True,
+            text_format=Qt.TextFormat.RichText,
+        )
+        font = label.font()
+        point_size = (self.font().pointSize() if self.font().pointSize() > 0 else 10) + 2
+        font.setPointSize(point_size)
+        label.setFont(font)
+        # The theme's QLabel font rule otherwise overrides an explicit QFont.
+        label.setStyleSheet(f"font-size: {point_size}pt;")
+        self._set_message(label, text)
+        return label
+
+    def _set_status(self, text: str, title: str = "") -> None:
+        self._set_message(self.status, text, title)
+
     def _setup_ui(self) -> None:
         widget = QWidget(self)
-        layout = QVBoxLayout(widget)
-        self.run_btn = hp.make_btn(widget, "Analyze current pair", func=self.start_analysis)
-        self.run_all_btn = hp.make_btn(widget, "Analyze all", func=self.start_analysis_all)
-        self.cancel_btn = hp.make_btn(widget, "Cancel", func=self.cancel_analysis)
-        self.cancel_btn.setEnabled(False)
-        self.export_btn = hp.make_btn(widget, "Export report...", func=self.choose_export)
-        self.export_btn.setEnabled(False)
+        layout = hp.make_v_layout(parent=widget)
         layout.addLayout(
             hp.make_h_layout(
                 hp.make_btn(widget, "New study", func=self.new_session),
                 hp.make_btn(widget, "Open study...", func=self.choose_session),
                 hp.make_btn(widget, "Save study...", func=self.choose_save),
-                self.run_btn,
-                self.run_all_btn,
-                self.cancel_btn,
-                self.export_btn,
             )
         )
         self.tabs = QTabWidget(widget)
         self.tabs.addTab(self._make_inputs(), "Inputs")
         self.tabs.addTab(self._make_landmarks(), "Landmarks")
         self.tabs.addTab(self._make_masks(), "Region overlap (optional)")
-        self.tabs.addTab(self._make_results(), "Results")
+        self.tabs.addTab(self._make_results(), "Analysis")
         self.tabs.setMinimumWidth(520)
         self.view_stack = QStackedWidget(widget)
         raw = QWidget(widget)
-        raw_layout = QVBoxLayout(raw)
+        raw_layout = hp.make_v_layout(parent=raw)
         self.link_views = hp.make_checkbox(
             raw,
             "Link physical view centers and zoom",
@@ -195,7 +221,7 @@ class ImageValidationWindow(Window):
         self.point_layers: list[Any] = []
         for index, name in enumerate(("Fixed", "Moving")):
             panel = QWidget(raw)
-            box = QVBoxLayout(panel)
+            box = hp.make_v_layout(parent=panel)
             coordinates = hp.make_label(panel, "X: -- um, Y: -- um")
             self.coordinate_labels.append(coordinates)
             box.addLayout(
@@ -219,7 +245,7 @@ class ImageValidationWindow(Window):
             self.native_splitter.addWidget(panel)
         self.view_stack.addWidget(raw)
         result_panel = QWidget(widget)
-        result_layout = QVBoxLayout(result_panel)
+        result_layout = hp.make_v_layout(parent=result_panel)
         self.result_coordinates = hp.make_label(result_panel, "X: -- um, Y: -- um")
         result_layout.addWidget(self.result_coordinates)
         self.result_view = NapariImageView(
@@ -234,8 +260,8 @@ class ImageValidationWindow(Window):
         splitter.addWidget(self.view_stack)
         splitter.setSizes([550, 1000])
         layout.addWidget(splitter, 1)
-        self.status = hp.make_label(
-            widget, "Load aligned images or import a registration, add evidence, then analyze.", wrap=True
+        self.status = self._message_label(
+            widget, "Load aligned images or import a registration, add evidence, then analyze."
         )
         layout.addWidget(self.status)
         self.setCentralWidget(widget)
@@ -261,7 +287,7 @@ class ImageValidationWindow(Window):
         for index, name in enumerate(("Fixed", "Moving")):
             group = hp.make_group_box(widget, name, is_flat=False)
             self.image_sections.append(group)
-            box = QVBoxLayout(group)
+            box = hp.make_v_layout(parent=group)
             geometry_btn = hp.make_qta_btn(
                 group,
                 "edit",
@@ -284,7 +310,7 @@ class ImageValidationWindow(Window):
                 remove_btn,
             ]
             if index == 1:
-                widgets.append(hp.make_btn(group, "Add moving image...", func=self.add_moving_image))
+                widgets.insert(1, hp.make_btn(group, "Add moving image...", func=self.add_moving_image))
             box.addLayout(
                 hp.make_h_layout(
                     *widgets,
@@ -311,12 +337,9 @@ class ImageValidationWindow(Window):
             )
         )
         self.candidate_list = QListWidget(widget)
+        self.candidate_list.currentItemChanged.connect(self._candidate_selected)
         form.addRow(self.candidate_list)
         form.addRow(hp.make_btn(widget, "Remove selected candidate", func=self.remove_candidate))
-        self.downsample = hp.make_int_spin_box(widget, minimum=1, maximum=10000, value=1, func=self._resolution_changed)
-        form.addRow("Requested analysis downsample", self.downsample)
-        self.grid_label = hp.make_label(widget, "The common grid is capped at 4 million pixels.", wrap=True)
-        form.addRow(self.grid_label)
         form.addRow(
             hp.make_label(
                 widget,
@@ -325,20 +348,20 @@ class ImageValidationWindow(Window):
                 wrap=True,
             )
         )
-        self.evidence_label = hp.make_label(widget, "", wrap=True)
+        self.evidence_label = self._message_label(widget, "")
         form.addRow(self.evidence_label)
         return scroll
 
     def _make_landmarks(self) -> QWidget:
         widget = QWidget(self)
-        layout = QVBoxLayout(widget)
+        layout = hp.make_v_layout(parent=widget)
         self.units = hp.make_combobox(widget, ["px", "um"], func=self._units_changed)
         layout.addLayout(
             hp.make_h_layout(
-                hp.make_label(widget, "CSV units"),
-                self.units,
                 hp.make_btn(widget, "Import CSV...", func=self.choose_landmarks),
                 hp.make_btn(widget, "Export CSV...", func=self.choose_landmark_export),
+                hp.make_label(widget, "CSV units"),
+                self.units,
             )
         )
         self.edit_landmarks = hp.make_checkbox(
@@ -348,7 +371,6 @@ class ImageValidationWindow(Window):
             func=self._landmark_edit_mode,
             tooltip="Select the landmark layers to drag existing points. Image controls are active otherwise.",
         )
-        layout.addWidget(self.edit_landmarks)
         layout.addWidget(
             hp.make_label(
                 widget,
@@ -357,22 +379,23 @@ class ImageValidationWindow(Window):
                 wrap=True,
             )
         )
-        self.landmark_table = self._table(widget, ["Use", "ID", "Fixed X", "Fixed Y", "Moving X", "Moving Y", "Note"])
-        self.landmark_table.itemChanged.connect(self._landmark_edited)
-        self.landmark_table.itemSelectionChanged.connect(self.focus_landmark)
-        layout.addWidget(self.landmark_table)
         layout.addLayout(
             hp.make_h_layout(
                 hp.make_btn(widget, "Add pair", func=self.begin_pair),
                 hp.make_btn(widget, "Delete pair", func=self.delete_pair),
             )
         )
+        layout.addWidget(self.edit_landmarks)
+        self.landmark_table = self._table(widget, ["Use", "ID", "Fixed X", "Fixed Y", "Moving X", "Moving Y", "Note"])
+        self.landmark_table.itemChanged.connect(self._landmark_edited)
+        self.landmark_table.itemSelectionChanged.connect(self.focus_landmark)
+        layout.addWidget(self.landmark_table)
         layout.addWidget(hp.make_label(widget, self.session.independence_note, wrap=True))
         return widget
 
     def _make_masks(self) -> QWidget:
         widget = QWidget(self)
-        layout = QVBoxLayout(widget)
+        layout = hp.make_v_layout(parent=widget)
         self.mask_labels = []
         for index, name in enumerate(("Fixed", "Moving")):
             label = hp.make_label(widget, "No mask", wrap=True)
@@ -403,20 +426,37 @@ class ImageValidationWindow(Window):
 
     def _make_results(self) -> QWidget:
         widget = QWidget(self)
-        layout = QVBoxLayout(widget)
+        layout = hp.make_v_layout(parent=widget)
+        self.run_all_btn = hp.make_btn(widget, "Analyze all", func=self.start_analysis_all)
+        self.cancel_btn = hp.make_btn(widget, "Cancel", func=self.cancel_analysis)
+        self.cancel_btn.setEnabled(False)
+        layout.addLayout(hp.make_h_layout(self.run_all_btn, self.cancel_btn))
+        self.downsample = hp.make_int_spin_box(widget, minimum=1, maximum=10000, value=1, func=self._resolution_changed)
+        layout.addLayout(
+            hp.make_h_layout(
+                hp.make_label(widget, "Requested analysis downsample"),
+                hp.make_help_label(widget, constants.DOWNSAMPLE_HELP),
+                self.downsample,
+                stretch_id=2,
+            )
+        )
+        self.grid_label = hp.make_label(widget, "The common grid is capped at 4 million pixels.", wrap=True)
+        layout.addWidget(self.grid_label)
         self.summary_table = self._table(
             widget,
             ["Candidate", "Used/eligible", "Mean (um)", "Median (um)", "RMS (um)", "P95 (um)", "Max (um)"],
             False,
         )
         self.summary_table.setMaximumHeight(220)
-        layout.addWidget(
-            hp.make_label(
-                widget,
-                "Independent landmark accuracy (um, moving frame)",
-                bold=True,
-                tooltip="Residual = G(fixed) - moving. Known fitting landmarks are excluded. "
-                "No universal pass/fail threshold is applied.",
+        layout.addLayout(
+            hp.make_h_layout(
+                hp.make_label(
+                    widget,
+                    "Independent landmark accuracy (um, moving frame)",
+                    bold=True,
+                ),
+                hp.make_help_label(widget, constants.LANDMARK_HELP),
+                stretch_id=0,
             )
         )
         layout.addWidget(self.summary_table)
@@ -434,25 +474,66 @@ class ImageValidationWindow(Window):
                 "Signed Jacobian",
                 "Nonpositive Jacobian",
             ],
-            func_index=lambda _: self.show_result(),
+            func_index=self._diagnostic_changed,
         )
+        self.diagnostic_help = hp.make_help_label(widget, constants.DIAGNOSTIC_HELP["overlap"])
         layout.addWidget(self.result_candidate)
-        layout.addWidget(self.result_mode)
-        self.result_detail = hp.make_label(widget, "Analyze to see results.", wrap=True)
+        layout.addLayout(hp.make_h_layout(self.result_mode, self.diagnostic_help, stretch_id=0))
+        self.result_detail = self._message_label(widget, "Analyze to see results.")
         layout.addWidget(self.result_detail)
         self.error_table = self._table(widget, ["ID", "dX (um)", "dY (um)", "Error (um)", "Exclusion"], False)
         details = QTabWidget(widget)
-        details.addTab(self.error_table, "Landmark residuals")
+        details.addTab(self._measurement_panel(widget, self.error_table, constants.LANDMARK_HELP), "Landmark residuals")
         self.fitting_table = self._table(widget, ["Statistic", "Value"], False)
-        details.addTab(self.fitting_table, "Fitting residuals")
+        details.addTab(
+            self._measurement_panel(widget, self.fitting_table, constants.FITTING_HELP),
+            "Fitting residuals",
+        )
         self.overlap_table = self._table(
             widget, ["Region", "Dice", "IoU", "Fixed area (um2)", "Moving area (um2)", "Joint coverage", "Note"], False
         )
-        details.addTab(self.overlap_table, "Region overlap")
+        details.addTab(
+            self._measurement_panel(widget, self.overlap_table, constants.OVERLAP_HELP),
+            "Region overlap",
+        )
         self.deformation_table = self._table(widget, ["Statistic", "Value"], False)
-        details.addTab(self.deformation_table, "Deformation")
-        layout.addWidget(details)
+        details.addTab(
+            self._measurement_panel(
+                widget,
+                self.deformation_table,
+                constants.DIAGNOSTIC_HELP["area_change"]
+                + " "
+                + constants.DIAGNOSTIC_HELP["signed_jacobian"]
+                + " "
+                + constants.DIAGNOSTIC_HELP["nonpositive_jacobian"]
+                + " Already aligned images use the identity map; "
+                "this cannot recover historical deformation from an unavailable registration.",
+            ),
+            "Deformation",
+        )
+        layout.addWidget(details, 1)
+        self.export_btn = hp.make_btn(widget, "Export report...", func=self.choose_export)
+        self.export_btn.setEnabled(False)
+        layout.addWidget(self.export_btn)
         return widget
+
+    @staticmethod
+    def _measurement_panel(parent: QWidget, table: QTableWidget, help_text: str) -> QWidget:
+        panel = QWidget(parent)
+        hp.make_v_layout(table, hp.make_help_label(panel, help_text), parent=panel, stretch_id=(0,), spacing=1)
+        return panel
+
+    def _diagnostic_changed(self, index: int) -> None:
+        diagnostic_help_index = {
+            0: "overlap",
+            1: "validation_errors",
+            2: "mask_disagreement",
+            3: "area_change",
+            4: "signed_jacobian",
+            5: "nonpositive_jacobian",
+        }
+        self.diagnostic_help.setToolTip(constants.DIAGNOSTIC_HELP[diagnostic_help_index[index]])
+        self.show_result()
 
     @property
     def _pair_id(self) -> str:
@@ -472,7 +553,7 @@ class ImageValidationWindow(Window):
         self.result_view.viewer.layers.clear()
         with hp.qt_signals_blocked(self.result_candidate):
             self.result_candidate.clear()
-        self.result_detail.setText(message)
+        self._set_message(self.result_detail, message)
         self.export_btn.setEnabled(bool(self._results or self._failures))
 
     def _drop_result(self, pair_id: str) -> None:
@@ -501,17 +582,71 @@ class ImageValidationWindow(Window):
         self._drop_result(self._pair_id)
         self._clear_result_widgets("Inputs changed. Analyze this pair again to update results.")
 
-    def _select_pair(self, index: int) -> None:
+    def _select_pair(self, index: int, *, offer_copy: bool = True) -> None:
         if self._updating or index < 0 or index == self._pair_index:
             return
+        previous = self.study.pairs[self._pair_index] if 0 <= self._pair_index < len(self.study.pairs) else None
         self._pair_index = index
         self.session = self.study.pairs[index].session
         self._adding_pair, self._pending_pair = False, None
         self.edit_landmarks.setChecked(False)
         self._clear_result_widgets("Analyze this pair to see available measurements.")
+        if offer_copy:
+            self._offer_landmark_copy(previous)
         self._refresh_inputs()
         self._load_views()
         self._display_analysis()
+
+    def _offer_landmark_copy(self, previous: ValidationPair | None) -> None:
+        if self.session.landmarks or self.session.fixed is None or self.session.moving is None:
+            return
+        sources = [pair for pair in self.study.pairs if pair.id != self._pair_id and pair.session.landmarks]
+        if not sources:
+            return
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Copy validation landmarks?")
+        selector = hp.make_combobox(dlg, [pair.name for pair in sources])
+        for index, pair in enumerate(sources):
+            selector.setItemData(
+                index, pair.session.moving.path if pair.session.moving else "", Qt.ItemDataRole.ToolTipRole
+            )
+            if previous is not None and pair.id == previous.id:
+                selector.setCurrentIndex(index)
+        hp.make_v_layout(
+            hp.make_label(
+                dlg,
+                "This image pair has no landmarks. Copy existing pairs from another moving image? "
+                "Coordinates stay in um and Use flags are preserved. Check that copied moving points identify "
+                "the same tissue locations in this image; known fitting points and out-of-image points remain excluded.",
+                wrap=True,
+            ),
+            selector,
+            hp.make_h_layout(
+                hp.make_btn(dlg, "Copy", func=dlg.accept),
+                hp.make_btn(dlg, "Don't copy", func=dlg.reject),
+            ),
+            parent=dlg,
+        )
+        if dlg.exec() != QDialog.DialogCode.Accepted:
+            return
+        source = sources[selector.currentIndex()]
+        self.session.landmarks = [
+            point.model_copy(deep=True, update={"id": uuid4().hex[:8]}) for point in source.session.landmarks
+        ]
+        self.invalidate()
+        self._set_status(f"Copied {len(self.session.landmarks)} landmark pair(s) from {source.name}.")
+
+    def _candidate_selected(self, item: QListWidgetItem | None, _previous: QListWidgetItem | None = None) -> None:
+        if self._updating or item is None:
+            return
+        pair_id, candidate_id = item.data(Qt.ItemDataRole.UserRole)
+        self._selected_candidates[pair_id] = candidate_id
+        index = next(index for index, pair in enumerate(self.study.pairs) if pair.id == pair_id)
+        if index != self._pair_index:
+            self._select_pair(index)
+        elif self.analysis is not None:
+            selected = next((i for i, result in enumerate(self.analysis.candidates) if result.id == candidate_id), -1)
+            self.result_candidate.setCurrentIndex(selected)
 
     def add_moving_image(self) -> None:
         """Start an independent pair while retaining the study's fixed reference."""
@@ -531,8 +666,11 @@ class ImageValidationWindow(Window):
         self.choose_image(1)
         if pair.session.moving is None:
             self.study.pairs = self.study.pairs[:-1]
-            self._select_pair(previous_index)
+            self._select_pair(previous_index, offer_copy=False)
             self._dirty = was_dirty
+        else:
+            self._offer_landmark_copy(self.study.pairs[previous_index])
+            self._refresh_landmarks()
 
     def remove_moving_image(self) -> None:
         """Remove the selected pair's annotations and results without changing its source files."""
@@ -545,7 +683,7 @@ class ImageValidationWindow(Window):
         if len(self.study.pairs) > 1:
             self.study.pairs = [pair for i, pair in enumerate(self.study.pairs) if i != index]
             self._pair_index = -1
-            self._select_pair(min(index, len(self.study.pairs) - 1))
+            self._select_pair(min(index, len(self.study.pairs) - 1), offer_copy=False)
         else:
             self.session.moving = self.session.moving_mask = None
             self.session.candidates, self.session.landmarks, self.session.mask_pairs = [], [], []
@@ -629,12 +767,19 @@ class ImageValidationWindow(Window):
                     f"Calibration: {image.calibration_source}"
                 )
                 self.image_labels[index].setToolTip(image.path if image else "Choose a calibrated image.")
-                self.channels[index].clear()
-                if image:
-                    self.channels[index].addItems(image.channel_names or ["0"])
-                    self.channels[index].setCurrentIndex(image.channel)
+                self._refresh_channels(index, image)
             self.candidate_list.clear()
-            self.candidate_list.addItems([candidate.name for candidate in self.session.candidates])
+            for pair in self.study.pairs:
+                for candidate in pair.session.candidates:
+                    item = QListWidgetItem(f"{pair.name}: {candidate.name}", self.candidate_list)
+                    item.setData(Qt.ItemDataRole.UserRole, (pair.id, candidate.id))
+                    item.setToolTip(
+                        f"{candidate.path}\nMoving: {pair.session.moving.path if pair.session.moving else ''}"
+                    )
+                    if pair.id == self._pair_id and candidate.id == self._selected_candidates.get(
+                        pair.id, pair.session.candidates[0].id
+                    ):
+                        self.candidate_list.setCurrentItem(item)
             self.downsample.setValue(self.session.downsample)
             self.units.setCurrentText(self.session.landmark_units)
             self.grid_label.setText("The common analysis grid is capped at 4 million pixels.")
@@ -650,7 +795,8 @@ class ImageValidationWindow(Window):
                     if mask is None
                     else f"{mask.path}\nSpacing XY {mask.geometry.spacing}; origin XY {mask.geometry.origin} um"
                 )
-            self.evidence_label.setText(
+            self._set_message(
+                self.evidence_label,
                 (
                     f"{len(self.session.candidates)} registration(s); "
                     if self.session.candidates
@@ -658,15 +804,29 @@ class ImageValidationWindow(Window):
                 )
                 + f"{sum(point.enabled for point in self.session.landmarks)} enabled validation landmarks; "
                 f"{len(self.session.mask_pairs)} region correspondence(s). "
-                "Analyze to calculate available fitting, validation, overlap, and deformation measurements."
+                "Analyze to calculate available fitting, validation, overlap, and deformation measurements.",
             )
         finally:
             self._updating = False
         self._refresh_landmarks()
         self._refresh_masks()
 
+    def _refresh_channels(self, index: int, image: ValidationImage | None) -> None:
+        combo = self.channels[index]
+        with hp.qt_signals_blocked(combo):
+            combo.clear()
+            if image is not None:
+                if image.is_rgb:
+                    combo.addItem("RGB", "rgb")
+                for channel, name in enumerate(image.channel_names or ["0"]):
+                    combo.addItem(name, channel)
+                display = image.display_channel if image.display_channel is not None else image.channel
+                combo.setCurrentIndex(combo.findData(display))
+                combo.setToolTip("Native display only. Registered overlap uses the saved scalar analysis channel.")
+            combo.setEnabled(image is not None)
+
     def open_path(self, path: str | Path) -> None:
-        """Open a saved validation session or add a native registration candidate."""
+        """Open a saved study or import every compatible native registration path."""
         if str(path).endswith(".i2validate.json"):
             study, changes = load_validation_study(path)
             for pair in study.pairs:
@@ -677,66 +837,126 @@ class ImageValidationWindow(Window):
             self._clear_study_results()
             self.study, self._pair_index = study, 0
             self.session = study.pairs[0].session
+            self._selected_candidates.clear()
             self._session_path = Path(path)
             self._dirty = False
             self._refresh_inputs()
             self._load_views()
-            self.status.setText(
-                "\n".join(changes) if changes else "Session loaded. Analyze to compute current results."
-            )
+            self._set_status("\n".join(changes) if changes else "Session loaded. Analyze to compute current results.")
             return
-        choices = discover_validation_candidates(path)
-        if len(choices) > 1:
-            name, ok = QInputDialog.getItem(
-                self, "Select registered pair", "Registration path", [item[0].name for item in choices], editable=False
+        issues: list[str] = []
+        choices = discover_validation_candidates(path, errors=issues)
+        if not choices:
+            self._set_status("\n".join(issues) or "No registration paths were found.", "No registrations imported")
+            return
+        staged = self.study.model_copy(deep=True)
+        reference = next((pair.session.fixed for pair in staged.pairs if pair.session.fixed), None)
+        if reference is None:
+            references: list[ValidationImage] = []
+            for _candidate, fixed, _moving in choices:
+                if not any(
+                    Path(image.path).resolve() == Path(fixed.path).resolve()
+                    and image.geometry == fixed.geometry
+                    and image.reader_kws == fixed.reader_kws
+                    for image in references
+                ):
+                    references.append(fixed)
+            reference = references[0]
+            if len(references) > 1:
+                labels = [
+                    f"{image.path}; spacing XY {image.geometry.spacing} um; origin XY {image.geometry.origin} um; "
+                    f"reader {image.reader_kws}"
+                    for image in references
+                ]
+                name, ok = QInputDialog.getItem(
+                    self,
+                    "Choose shared fixed reference",
+                    "Import all paths using this reference",
+                    labels,
+                    editable=False,
+                )
+                if not ok:
+                    return
+                reference = references[labels.index(name)].model_copy(deep=True)
+        if not self._confirm_calibration(reference):
+            return
+        added: list[tuple[str, str]] = []
+        for candidate, fixed, moving in choices:
+            adopt_validation_calibration(fixed, reference)
+            for pair in staged.pairs:
+                adopt_validation_calibration(moving, pair.session.moving)
+            try:
+                require_same_pair(
+                    ValidationSession(fixed=reference, moving=moving), fixed, moving, allow_user_calibration=True
+                )
+            except ValueError:
+                issues.append(f"{candidate.name}: incompatible fixed reference ({fixed.path}).")
+                continue
+            pair = next(
+                (
+                    pair
+                    for pair in staged.pairs
+                    if pair.session.moving is not None
+                    and Path(pair.session.moving.path).resolve() == Path(moving.path).resolve()
+                    and pair.session.moving.reader_kws == moving.reader_kws
+                ),
+                None,
             )
-            if not ok:
+            if pair is not None and any(
+                c.path == candidate.path and c.source == candidate.source for c in pair.session.candidates
+            ):
+                issues.append(f"{candidate.name}: already loaded; skipped duplicate.")
+                continue
+            if not self._confirm_calibration(moving):
                 return
-            selected = next(item for item in choices if item[0].name == name)
-        else:
-            selected = choices[0]
-        candidate, fixed, moving = selected
-        reference = next((pair.session.fixed for pair in self.study.pairs if pair.session.fixed), None)
-        adopt_validation_calibration(fixed, reference)
-        for pair in self.study.pairs:
-            adopt_validation_calibration(moving, pair.session.moving)
-        if not self._confirm_calibration(fixed) or not self._confirm_calibration(moving):
-            return
-        if reference is not None:
-            require_same_pair(
-                ValidationSession(fixed=reference, moving=moving), fixed, moving, allow_user_calibration=True
-            )
-        index = next(
-            (
-                index
-                for index, pair in enumerate(self.study.pairs)
-                if pair.session.moving is not None
-                and Path(pair.session.moving.path).resolve() == Path(moving.path).resolve()
-                and pair.session.moving.reader_kws == moving.reader_kws
-            ),
-            None,
+            if pair is None:
+                pair = next(
+                    (pair for pair in staged.pairs if pair.session.moving is None and not pair.session.candidates), None
+                )
+                if pair is None:
+                    pair = ValidationPair()
+                    staged.pairs.append(pair)
+                pair.session.fixed = reference.model_copy(deep=True)
+                pair.session.moving = moving
+            elif pair.session.fixed is None:
+                pair.session.fixed = reference.model_copy(deep=True)
+            try:
+                require_same_pair(pair.session, fixed, moving, allow_user_calibration=True)
+            except ValueError as exc:
+                issues.append(f"{candidate.name}: {exc}")
+                continue
+            pair.session.candidates = [*pair.session.candidates, candidate]
+            added.append((pair.id, candidate.id))
+        if added:
+            for pair in staged.pairs:
+                if pair.session.fixed is None:
+                    pair.session.fixed = reference.model_copy(deep=True)
+            # Validate the full staged import before changing the live study or its results.
+            staged = ValidationStudy.model_validate(staged.model_dump())
+            previous = self.study.pairs[self._pair_index]
+            self._generation += 1
+            self._cancel.set()
+            for pair_id, candidate_id in added:
+                self._drop_result(pair_id)
+                self._selected_candidates[pair_id] = candidate_id
+            self.study = staged
+            target_id = previous.id if any(pair_id == previous.id for pair_id, _ in added) else added[0][0]
+            self._pair_index = next(i for i, pair in enumerate(staged.pairs) if pair.id == target_id)
+            self.session = staged.pairs[self._pair_index].session
+            self._dirty = True
+            self._adding_pair, self._pending_pair = False, None
+            self.edit_landmarks.setChecked(False)
+            if previous.id != self._pair_id:
+                self._offer_landmark_copy(previous)
+            self._refresh_inputs()
+            self._load_views()
+            self._display_analysis()
+        self._set_status(
+            "\n".join(issues)
+            if issues
+            else "Supply independent landmarks or corresponding masks, then use Analyze all.",
+            f"Imported {len(added)} registration path(s); {len(issues)} skipped or failed",
         )
-        if index is None and (self.session.moving is not None or self.session.candidates):
-            pair = ValidationPair(session=ValidationSession(fixed=fixed, moving=moving))
-            self.study.pairs = [*self.study.pairs, pair]
-            index = len(self.study.pairs) - 1
-        if index is not None and index != self._pair_index:
-            self._select_pair(index)
-        selected_pair = self.session.model_copy(
-            update={"fixed": self.session.fixed or fixed, "moving": self.session.moving or moving}
-        )
-        require_same_pair(selected_pair, fixed, moving, allow_user_calibration=True)
-        if any(c.path == candidate.path and c.source == candidate.source for c in self.session.candidates):
-            raise ValueError("This candidate is already loaded.")
-        self.invalidate()
-        self.session.fixed, self.session.moving = selected_pair.fixed, selected_pair.moving
-        for pair in self.study.pairs:
-            if pair.session.fixed is None:
-                pair.session.fixed = fixed.model_copy(deep=True)
-        self.session.candidates = [*self.session.candidates, candidate]
-        self._refresh_inputs()
-        self._load_views()
-        self.status.setText("Candidate added. Supply independent landmarks or corresponding masks, then analyze.")
 
     def choose_register(self) -> None:
         """Choose a saved landmark registration."""
@@ -771,7 +991,7 @@ class ImageValidationWindow(Window):
         saved = self._try(partial(save_validation_study, path, self.study))
         if saved:
             self._session_path, self._dirty = saved, False
-            self.status.setText(f"Saved {saved}")
+            self._set_status(f"Saved {saved}")
         return bool(saved)
 
     def _may_discard(self) -> bool:
@@ -796,6 +1016,7 @@ class ImageValidationWindow(Window):
             self.session = self.study.pairs[0].session
             self._display_states.clear()
             self._camera_states.clear()
+            self._selected_candidates.clear()
             self._session_path = None
             self._dirty = False
             self._refresh_inputs()
@@ -818,9 +1039,7 @@ class ImageValidationWindow(Window):
                         or existing.reader_kws != image.reader_kws
                     )
                 ):
-                    self.status.setText(
-                        "The image must match its registration and reference. Start a new pair or study."
-                    )
+                    self._set_status("The image must match its registration and reference. Start a new pair or study.")
                     return
                 self.invalidate()
                 setattr(self.session, "fixed" if index == 0 else "moving", image)
@@ -833,10 +1052,12 @@ class ImageValidationWindow(Window):
 
     def remove_candidate(self) -> None:
         """Remove the selected registration without touching its source files."""
-        row = self.candidate_list.currentRow()
-        if row >= 0:
+        item = self.candidate_list.currentItem()
+        if item is not None:
+            _pair_id, candidate_id = item.data(Qt.ItemDataRole.UserRole)
             self.invalidate()
-            self.session.candidates = [c for i, c in enumerate(self.session.candidates) if i != row]
+            self.session.candidates = [c for c in self.session.candidates if c.id != candidate_id]
+            self._selected_candidates.pop(self._pair_id, None)
             self._refresh_inputs()
 
     def _channel_changed(self, index: int, channel: int) -> None:
@@ -844,10 +1065,15 @@ class ImageValidationWindow(Window):
             return
         image = self.session.fixed if index == 0 else self.session.moving
         if image:
-            self.invalidate()
-            image.channel = channel
+            image.display_channel = self.channels[index].itemData(channel)
+            self._dirty = True
             self._load_views()
             self._refresh_inputs()
+            if self.analysis is not None and self.result_mode.currentIndex() == 1:
+                camera = self.result_view.viewer.camera
+                center, zoom = tuple(camera.center), camera.zoom
+                self.show_result()
+                camera.center, camera.zoom = center, zoom
 
     def _resolution_changed(self, value: int) -> None:
         if not self._updating:
@@ -888,7 +1114,7 @@ class ImageValidationWindow(Window):
                         self._pair_id,
                         index,
                         image.path,
-                        image.channel,
+                        image.display_channel if image.display_channel is not None else image.channel,
                         image.fingerprint,
                         image.geometry.spacing,
                         image.geometry.origin,
@@ -904,9 +1130,15 @@ class ImageValidationWindow(Window):
                     ):
                         self._readers[index].close()
                         self._readers[index] = None
-                    if self._readers[index] is None:
-                        self._readers[index] = open_validation_reader(image)
-                    arrays = validation_image_pyramid(self._readers[index], image.channel)
+                    reader = self._readers[index]
+                    if reader is None:
+                        reader = open_validation_reader(image)
+                        self._readers[index] = reader
+                    image.is_rgb = bool(reader.is_rgb)
+                    if image.is_rgb:
+                        image.channel_names = ["R", "G", "B"]
+                    rgb = key[3] == "rgb" and image.is_rgb
+                    arrays = validation_image_pyramid(reader, image.channel if rgb else int(key[3]), rgb=rgb)
                     limits = validation_contrast_limits(arrays)
                     settings = self._display_states.get(key)
                     if (
@@ -920,12 +1152,14 @@ class ImageValidationWindow(Window):
                     layer = view.viewer.add_image(
                         arrays if len(arrays) > 1 else arrays[0],
                         multiscale=len(arrays) > 1,
+                        rgb=rgb,
                         name="Image",
                         scale=image.geometry.spacing[::-1],
                         translate=image.geometry.origin[::-1],
                         units=("um", "um"),
                         **settings,
                     )
+                    self._refresh_channels(index, image)
                 elif self._readers[index] is not None:
                     self._readers[index].close()
                     self._readers[index] = None
@@ -1037,7 +1271,7 @@ class ImageValidationWindow(Window):
             self.session.landmarks = pairs
             self.invalidate()
         except ValueError as exc:
-            self.status.setText(f"Invalid landmark edit: {exc}")
+            self._set_status(f"Invalid landmark edit: {exc}")
         self._refresh_landmarks()
 
     def _points_moved(self, index: int, _event: Any = None) -> None:
@@ -1120,12 +1354,12 @@ class ImageValidationWindow(Window):
     def begin_pair(self) -> None:
         """Begin a manual pair; no transformed location is inserted as validation evidence."""
         if not self.session.fixed or not self.session.moving:
-            self.status.setText("Load both images before annotating.")
+            self._set_status("Load both images before annotating.")
             return
         self._adding_pair, self._pending_pair = True, None
         self.tabs.setCurrentIndex(1)
         self.edit_landmarks.setChecked(True)
-        self.status.setText("Click the independent landmark in the fixed image, then its counterpart in moving.")
+        self._set_status("Click the independent landmark in the fixed image, then its counterpart in moving.")
 
     def _pair_click(self, index: int, _viewer: Any, event: Any) -> None:
         if not self._adding_pair or event.type != "mouse_press" or event.button != 1:
@@ -1133,7 +1367,7 @@ class ImageValidationWindow(Window):
         xy = tuple(float(v) for v in event.position[-2:][::-1])
         if index == 0:
             self._pending_pair = xy
-            self.status.setText("Now click the corresponding landmark in the moving image.")
+            self._set_status("Now click the corresponding landmark in the moving image.")
         elif self._pending_pair is not None:
             self.session.landmarks = [*self.session.landmarks, ValidationLandmark(fixed=self._pending_pair, moving=xy)]
             self._adding_pair, self._pending_pair = False, None
@@ -1141,7 +1375,7 @@ class ImageValidationWindow(Window):
             self.invalidate()
             self._refresh_landmarks()
             self.landmark_table.selectRow(len(self.session.landmarks) - 1)
-            self.status.setText("Validation pair added.")
+            self._set_status("Validation pair added.")
 
     def delete_pair(self) -> None:
         """Remove a paired annotation from both native views."""
@@ -1240,7 +1474,7 @@ class ImageValidationWindow(Window):
             ]
         self._refresh_inputs()
         self._load_mask_overlays()
-        self.status.setText(
+        self._set_status(
             "Mask loaded. Default label pairs use sampled labels; add small or missing regions explicitly."
         )
 
@@ -1268,7 +1502,7 @@ class ImageValidationWindow(Window):
             ]
             self.invalidate()
         except ValueError as exc:
-            self.status.setText(f"Invalid label pair: {exc}")
+            self._set_status(f"Invalid label pair: {exc}")
         self._refresh_masks()
 
     def add_mask_pair(self) -> None:
@@ -1337,12 +1571,11 @@ class ImageValidationWindow(Window):
         worker.errored.connect(partial(self._analysis_error, generation, pair_id=None if all_pairs else self._pair_id))
         worker.finished.connect(partial(self._analysis_finished, worker, directory))
         self._workers.append(worker)
-        self.run_btn.setEnabled(False)
         self.run_all_btn.setEnabled(False)
         self.cancel_btn.setEnabled(True)
         for button in (*self.geometry_buttons, *self.remove_image_buttons):
             button.setEnabled(False)
-        self.status.setText(
+        self._set_status(
             "Loading registration definitions..." if self.session.candidates else "Analyzing aligned images..."
         )
         worker.start()
@@ -1360,7 +1593,7 @@ class ImageValidationWindow(Window):
         if pair_id == self._pair_id:
             self._display_analysis()
             self.tabs.setCurrentIndex(3)
-        self.status.setText("Analysis complete. Results describe the supplied evidence and sampled spatial resolution.")
+        self._set_status("Analysis complete. Results describe the supplied evidence and sampled spatial resolution.")
 
     def accept_study_analysis(self, generation: int, directory: TemporaryDirectory, result: StudyAnalysis) -> None:
         """Publish a completed study only if its input generation is still current."""
@@ -1375,7 +1608,7 @@ class ImageValidationWindow(Window):
         self._display_analysis()
         self.tabs.setCurrentIndex(3)
         failures = sum(bool(pair.error) for pair in result.pairs)
-        self.status.setText(
+        self._set_status(
             f"Study analysis complete: {len(result.pairs) - failures} pair(s) completed, {failures} failed."
         )
 
@@ -1404,12 +1637,15 @@ class ImageValidationWindow(Window):
                 self.summary_table.setItem(row, col, QTableWidgetItem(self._format(value)))
         with hp.qt_signals_blocked(self.result_candidate):
             self.result_candidate.clear()
-            self.result_candidate.addItems([c.name for c in self.analysis.candidates])
+            for candidate in self.analysis.candidates:
+                self.result_candidate.addItem(candidate.name, candidate.id)
+            selected = self.result_candidate.findData(self._selected_candidates.get(self._pair_id))
+            self.result_candidate.setCurrentIndex(max(selected, 0))
         self.show_result()
 
     def _analysis_error(self, generation: int, error: Exception, pair_id: str | None = None) -> None:
         if generation == self._generation and not self._closing:
-            self.status.setText(
+            self._set_status(
                 "Analysis cancelled." if isinstance(error, AnalysisCancelled) else f"Analysis failed: {error}"
             )
             if pair_id and not isinstance(error, AnalysisCancelled):
@@ -1422,14 +1658,13 @@ class ImageValidationWindow(Window):
             self._workers.remove(worker)
         if directory not in self._directories.values():
             directory.cleanup()
-        self.run_btn.setEnabled(True)
         self.run_all_btn.setEnabled(True)
         self.cancel_btn.setEnabled(False)
         for index, image in enumerate((self.session.fixed, self.session.moving)):
             self.geometry_buttons[index].setEnabled(image is not None)
             self.remove_image_buttons[index].setEnabled(image is not None)
         if self._cancel.is_set() and not self._closing:
-            self.status.setText("Analysis cancelled. Inputs are ready for a new run.")
+            self._set_status("Analysis cancelled. Inputs are ready for a new run.")
         if self._closing:
             self.close()
 
@@ -1437,11 +1672,11 @@ class ImageValidationWindow(Window):
         """Request cancellation at the next bounded processing step."""
         self._cancel.set()
         self._generation += 1
-        self.status.setText("Cancelling analysis...")
+        self._set_status("Cancelling analysis...")
 
     def _show_progress(self, generation: int, text: str) -> None:
         if generation == self._generation and not self._closing:
-            self.status.setText(text)
+            self._set_status(text)
 
     @staticmethod
     def _format(value: Any) -> str:
@@ -1460,6 +1695,13 @@ class ImageValidationWindow(Window):
         if self.analysis is None or self.result_candidate.currentIndex() < 0:
             return
         result = self.analysis.candidates[self.result_candidate.currentIndex()]
+        self._selected_candidates[self._pair_id] = result.id
+        with hp.qt_signals_blocked(self.candidate_list):
+            for row in range(self.candidate_list.count()):
+                item = self.candidate_list.item(row)
+                if item is not None and item.data(Qt.ItemDataRole.UserRole) == (self._pair_id, result.id):
+                    self.candidate_list.setCurrentItem(item)
+                    break
         with hp.qt_signals_blocked(self.summary_table):
             self.summary_table.selectRow(self.result_candidate.currentIndex())
         if result.map_path is None:
@@ -1477,13 +1719,16 @@ class ImageValidationWindow(Window):
                 viewer.add_image(moving, colormap="green", blending="additive", name="Registered moving", **kwargs)
                 legend = "Magenta: fixed; green: registered moving; gray: agreement."
             elif mode == 1:
-                image = self.analysis.session.moving
+                image = self.session.moving
                 if image is not None and self._readers[1] is not None:
-                    levels = validation_image_pyramid(self._readers[1], image.channel)
+                    display = image.display_channel if image.display_channel is not None else image.channel
+                    rgb = display == "rgb" and image.is_rgb
+                    levels = validation_image_pyramid(self._readers[1], image.channel if rgb else int(display), rgb=rgb)
                     limits = validation_contrast_limits(levels)
                     viewer.add_image(
                         levels if len(levels) > 1 else levels[0],
                         multiscale=len(levels) > 1,
+                        rgb=rgb,
                         name="Native moving",
                         scale=image.geometry.spacing[::-1],
                         translate=image.geometry.origin[::-1],
@@ -1576,8 +1821,9 @@ class ImageValidationWindow(Window):
                 f"Independent landmarks: {result.validation['count']}/{result.validation['eligible']} evaluated."
             )
         reference = result.deformation.get("reference", "")
-        self.result_detail.setText(
-            f"{evidence_note}\n{legend}\n{reference}\nDiagnostic grid spacing XY: {grid.spacing} um."
+        self._set_message(
+            self.result_detail,
+            f"{evidence_note}\n{legend}\n{reference}\nDiagnostic grid spacing XY: {grid.spacing} um.",
         )
         self._fill_table(
             self.fitting_table,
@@ -1670,7 +1916,7 @@ class ImageValidationWindow(Window):
         analysis = StudyAnalysis(self.study.model_copy(deep=True), outcomes)
         path = self._try(partial(export_validation_study_report, analysis, Path(parent) / name))
         if path:
-            self.status.setText(f"Exported {path}")
+            self._set_status(f"Exported {path}")
 
     def closeEvent(self, event: QCloseEvent) -> None:
         """Cancel running work before disposing readers, views, and temporary maps."""

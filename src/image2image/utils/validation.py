@@ -99,14 +99,18 @@ def open_validation_reader(image: ValidationImage) -> Any:
     return reader
 
 
-def validation_image_pyramid(reader: Any, channel: int, max_size: int = 1024) -> list[Any]:
-    """Return lazy 2D channel levels, extending large non-pyramidal inputs for display."""
+def validation_image_pyramid(reader: Any, channel: int, max_size: int = 1024, *, rgb: bool = False) -> list[Any]:
+    """Return lazy scalar or RGB levels, reducing only spatial axes for large sources."""
     import dask.array as da
 
-    levels = [reader.get_channel(channel, level, split_rgb=True) for level in range(reader.n_in_pyramid)]
-    if not levels or any(level.ndim != 2 for level in levels):
-        raise ValueError("Only 2D image channels are supported by Validate.")
-    while max(levels[-1].shape) > max_size and min(levels[-1].shape) >= 2:
+    levels = [
+        reader.get_channel(0 if rgb else channel, level, split_rgb=not rgb) for level in range(reader.n_in_pyramid)
+    ]
+    if not levels or any(
+        level.ndim != (3 if rgb else 2) or (rgb and level.shape[-1] not in (3, 4)) for level in levels
+    ):
+        raise ValueError("Validate requires 2D scalar channels or interleaved RGB images.")
+    while max(levels[-1].shape[:2]) > max_size and min(levels[-1].shape[:2]) >= 2:
         source = da.asarray(levels[-1])
         levels.append(da.coarsen(np.mean, source, {0: 2, 1: 2}, trim_excess=True).astype(source.dtype))
     return levels
@@ -147,6 +151,8 @@ def inspect_validation_image(
             path=str(path),
             geometry=ImageGeometry(shape=reader.image_shape, spacing=spacing or _suggest_image_spacing(reader)),
             channel_names=["R", "G", "B"] if reader.is_rgb else reader.get_channel_names(split_rgb=True),
+            is_rgb=reader.is_rgb,
+            display_channel="rgb" if reader.is_rgb else None,
             reader_kws=reader_kws,
             fingerprint=image_fingerprint(path),
             calibration_source="user" if spacing is not None else "unconfirmed",
@@ -195,8 +201,10 @@ def _resolve_image_path(path: str, parent: Path) -> Path:
 
 def discover_validation_candidates(
     path: str | Path,
+    *,
+    errors: list[str] | None = None,
 ) -> list[tuple[ValidationCandidate, ValidationImage, ValidationImage]]:
-    """Discover native image pairs in a Register file or an Elastix project."""
+    """Discover native pairs; optionally collect failed Elastix paths instead of aborting import."""
     from image2image.models.utilities import _read_config_from_file
 
     path = Path(path).resolve()
@@ -209,7 +217,7 @@ def discover_validation_candidates(
         # A matrix has one native source/target grid. Multi-image projects require explicit selection in Register.
         if len(fixed_paths) != 1 or len(moving_paths) != 1:
             raise ValueError("Export one fixed/moving image pair from Register before validation.")
-        images = []
+        images: list[ValidationImage] = []
         for paths in (fixed_paths, moving_paths):
             entry = paths[0]
             if isinstance(entry, str):
@@ -230,32 +238,37 @@ def discover_validation_candidates(
             name=path.name.removesuffix(".i2r.json").removesuffix(".i2r.toml"), kind="register", path=str(path)
         )
         candidate.fingerprint = transform_fingerprint(candidate)
-        return [(candidate, *images)]
+        return [(candidate, images[0], images[1])]
     root = path if path.is_dir() else path.parent
     if root.suffix.lower() in (".valis", ".i2valis"):
         raise ValueError("Valis validation is not supported yet. Choose a Register file or Elastix project.")
     config = json.loads((root / "project.config.json").read_text())
     if not (root / "registered-project.config.json").exists():
         raise ValueError("Elastix registration is incomplete: registered-project.config.json is missing.")
-    result = []
+    result: list[tuple[ValidationCandidate, ValidationImage, ValidationImage]] = []
     for registration in config["registration_paths"].values():
-        source, target = registration["source"], registration["target"]
-        images = []
-        for name in (target, source):
-            entry = config["modalities"][name]
-            spacing = float(entry["pixel_size"])
-            images.append(
-                inspect_validation_image(
-                    _resolve_image_path(entry["path"], root), (spacing, spacing), entry.get("reader_kws")
+        try:
+            source, target = registration["source"], registration["target"]
+            images = []
+            for name in (target, source):
+                entry = config["modalities"][name]
+                spacing = float(entry["pixel_size"])
+                images.append(
+                    inspect_validation_image(
+                        _resolve_image_path(entry["path"], root), (spacing, spacing), entry.get("reader_kws")
+                    )
                 )
+                images[-1].calibration_source = "registration"
+            candidate = ValidationCandidate(
+                name=f"{root.stem}: {source} to {target}", kind="elastix", path=str(root), source=source
             )
-            images[-1].calibration_source = "registration"
-        candidate = ValidationCandidate(
-            name=f"{root.stem}: {source} to {target}", kind="elastix", path=str(root), source=source
-        )
-        candidate.fingerprint = transform_fingerprint(candidate)
-        result.append((candidate, *images))
-    if not result:
+            candidate.fingerprint = transform_fingerprint(candidate)
+            result.append((candidate, images[0], images[1]))
+        except (OSError, ValueError, KeyError, TypeError, RuntimeError, ImportError) as exc:
+            if errors is None:
+                raise
+            errors.append(f"{registration.get('source', '?')} to {registration.get('target', '?')}: {exc}")
+    if not result and errors is None:
         raise ValueError("No registration paths were found.")
     return result
 
@@ -338,10 +351,12 @@ def load_validation_transform(candidate: ValidationCandidate, session: Validatio
 
     if candidate.kind == "aligned":
         return ValidationTransform(candidate, matrix=np.eye(3))
-    discovered = discover_validation_candidates(candidate.path)
+    discovery_errors: list[str] = []
+    discovered = discover_validation_candidates(candidate.path, errors=discovery_errors)
     match = next((item for item in discovered if item[0].source == candidate.source), None)
     if match is None:
-        raise ValueError(f"Registration path {candidate.source!r} no longer exists.")
+        detail = "\n".join(discovery_errors)
+        raise ValueError(f"Registration path {candidate.source!r} is unavailable." + (f"\n{detail}" if detail else ""))
     current, fixed, moving = match
     adopt_validation_calibration(fixed, session.fixed)
     adopt_validation_calibration(moving, session.moving)
@@ -354,8 +369,8 @@ def load_validation_transform(candidate: ValidationCandidate, session: Validatio
         from image2image_reg.elastix.transform_sequence import TransformSequence
         from image2image_reg.workflows.elastix import ElastixReg
 
-        project = ElastixReg.from_path(candidate.path)
-        if candidate.source not in project.transformations or not project.is_registered:
+        project = ElastixReg.from_path(candidate.path, on_error="ignore")
+        if candidate.source not in project.transformations:
             raise ValueError("Elastix registration or its transformation chain is incomplete.")
         # The workflow loader initializes these entries from an unprocessed wrapper.
         # Restore the saved original-reference mapping before composing the sampling transform.
