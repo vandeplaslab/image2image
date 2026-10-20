@@ -278,19 +278,24 @@ class ImageValidationWindow(Window):
             )
             self.geometry_buttons.append(geometry_btn)
             self.remove_image_buttons.append(remove_btn)
+            widgets = [
+                hp.make_btn(group, f"Load {name.lower()} image...", func=partial(self.choose_image, index)),
+                geometry_btn,
+                remove_btn,
+            ]
+            if index == 1:
+                widgets.append(hp.make_btn(group, "Add moving image...", func=self.add_moving_image))
             box.addLayout(
                 hp.make_h_layout(
-                    hp.make_btn(group, f"Choose {name.lower()} image...", func=partial(self.choose_image, index)),
-                    geometry_btn,
-                    remove_btn,
+                    *widgets,
                     stretch_id=0,
+                    spacing=1,
                 )
             )
             if index == 1:
                 self.pair_selector = hp.make_combobox(group, func_index=self._select_pair)
                 self.remove_moving_btn = remove_btn
                 box.addWidget(self.pair_selector)
-                box.addWidget(hp.make_btn(group, "Add moving image...", func=self.add_moving_image))
             label = hp.make_label(group, "No image", wrap=True, selectable=True, text_format=Qt.TextFormat.PlainText)
             label.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Minimum)
             channel = hp.make_combobox(group, func_index=partial(self._channel_changed, index))
