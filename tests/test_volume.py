@@ -134,7 +134,9 @@ def test_validation(tmp_path: Path) -> None:
         build_volume_plan(slides, channels, z_spacing=5)
 
 
-def test_export_pixels_mapping_geometry_and_metadata(tmp_path: Path) -> None:
+@pytest.mark.parametrize("sharding", [False, True])
+@pytest.mark.parametrize("dot_separator", [False, True])
+def test_export_pixels_mapping_geometry_and_metadata(tmp_path: Path, sharding: bool, dot_separator: bool) -> None:
     slides = [
         write_slide(
             tmp_path / "slide1.ome.tif",
@@ -151,7 +153,9 @@ def test_export_pixels_mapping_geometry_and_metadata(tmp_path: Path) -> None:
     ]
     channels = reconcile_channels(slides, [])[::-1]
     channels[0].name = "Green"
-    plan = build_volume_plan(slides, channels, z_spacing=7.5, tile_size=4)
+    plan = build_volume_plan(
+        slides, channels, z_spacing=7.5, tile_size=4, sharding=sharding, dot_separator=dot_separator
+    )
     path = export_volume(plan, tmp_path / "result.ome.zarr")
     volume = open_volume(path)
     assert volume.channel_names == ("Green", "DAPI")
@@ -167,6 +171,11 @@ def test_export_pixels_mapping_geometry_and_metadata(tmp_path: Path) -> None:
     np.testing.assert_array_equal(pixels[:, 2, 6:], 0)
     np.testing.assert_array_equal(pixels[:, 2, :, 7:], 0)
     assert [level.shape for level in volume.levels] == [(2, 3, 12, 14), (2, 3, 6, 7), (2, 3, 3, 4)]
+    for index in range(len(volume.levels)):
+        level_path = path / str(index)
+        assert (level_path / ("c.0.0.0.0" if dot_separator else "c/0/0/0/0")).is_file()
+        if dot_separator:
+            assert all(child.is_file() for child in level_path.iterdir())
     assert volume.provenance["slides"][1]["channel_indices"] == [0, 1]
     assert volume.provenance["slides"][0]["channel_indices"] == [1, 0]
     assert volume.provenance["spacing_um"] == [7.5, 1.0, 1.0]

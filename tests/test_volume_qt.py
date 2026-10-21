@@ -7,6 +7,7 @@ from threading import Event
 
 import numpy as np
 import pytest
+import zarr
 from click.testing import CliRunner
 from image2image_io.volume import open_volume
 from pytestqt.qtbot import QtBot
@@ -94,12 +95,20 @@ def test_async_drop_and_duplicate_load(
     assert next(slide for slide in window.slides if slide.path.name == "slide2.tif").position == 6
 
 
-def test_real_worker_export(volume_window: ImageVolumeWindow, qtbot: QtBot, tmp_path: Path) -> None:
+@pytest.mark.parametrize("sharding", [False, True])
+@pytest.mark.parametrize("dot_separator", [False, True])
+def test_real_worker_export(
+    volume_window: ImageVolumeWindow, qtbot: QtBot, tmp_path: Path, sharding: bool, dot_separator: bool
+) -> None:
     slide = write_slide(tmp_path / "slide1.ome.tif", ("DAPI",), 1, np.full((1, 12, 14), 7, dtype="uint16"))
     window = volume_window
+    window.sharding.setChecked(sharding)
+    window.dot_separator.setChecked(dot_separator)
     window.add_paths([slide.path])
     qtbot.waitUntil(lambda: window.worker is None, timeout=15000)
     assert window.export_btn.isEnabled(), window.summary.text()
+    assert window._plan.sharding == sharding
+    assert window._plan.dot_separator == dot_separator
     window.start_export()
     assert not window.tabs.isEnabled()
     qtbot.waitUntil(lambda: window.worker is None, timeout=15000)
@@ -107,9 +116,35 @@ def test_real_worker_export(volume_window: ImageVolumeWindow, qtbot: QtBot, tmp_
     result = tmp_path / "volume.ome.zarr"
     assert result.exists(), window.status.text()
     np.testing.assert_array_equal(open_volume(result).levels[0].compute(), 7)
+    array = zarr.open_group(result, mode="r")["0"]
+    assert (array.shards is not None) == sharding
+    assert (result / "0" / ("c.0.0.0.0" if dot_separator else "c/0/0/0/0")).is_file()
     assert "Exported:" in window.status.text()
     assert not window.export_btn.isEnabled()
     assert "already exists" in window.summary.text()
+
+
+def test_storage_options_snapshot_and_preferences(
+    volume_window: ImageVolumeWindow, qtbot: QtBot, tmp_path: Path
+) -> None:
+    window = volume_window
+    assert not window.sharding.isChecked()
+    assert not window.dot_separator.isChecked()
+    window.slides = [make_slide(tmp_path / "slide1.tif", 1)]
+    window.channels = reconcile_channels(window.slides, [])
+    window.refresh()
+    snapshot = window._plan
+    window.sharding.setChecked(True)
+    window.dot_separator.setChecked(True)
+    qtbot.waitUntil(lambda: window._plan.sharding and window._plan.dot_separator)
+    assert not snapshot.sharding
+    assert not snapshot.dot_separator
+    assert "Sharding: enabled" in window.summary.text()
+    assert "File separator: dot" in window.summary.text()
+    window.close()
+    config = VolumeConfig(_auto_load=True)
+    assert config.sharding
+    assert config.dot_separator
 
 
 def test_drag_reorders_existing_slots(volume_window: ImageVolumeWindow, tmp_path: Path) -> None:

@@ -238,6 +238,8 @@ def build_volume_plan(
     z_spacing: float,
     xy_spacing: float | None = None,
     tile_size: int = 512,
+    sharding: bool = False,
+    dot_separator: bool = False,
 ) -> VolumeExportPlan:
     """Validate inputs and freeze source mappings, geometry, and exclusions."""
     if not slides or len({slide.key for slide in slides}) != len(slides):
@@ -309,6 +311,8 @@ def build_volume_plan(
             (path, tuple(next(channel.name for channel in channels if channel.key == key) for key in missing))
             for path, missing in selection.missing
         ),
+        sharding=sharding,
+        dot_separator=dot_separator,
     )
 
 
@@ -374,6 +378,8 @@ def export_volume(
             present=plan.present,
             read_tile=read_tile,
             tile_size=plan.tile_size,
+            sharding=plan.sharding,
+            dot_separator=plan.dot_separator,
             progress=progress,
             cancelled=cancelled,
             provenance={

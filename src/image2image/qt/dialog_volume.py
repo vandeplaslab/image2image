@@ -44,6 +44,8 @@ class VolumeConfig(SingleAppConfig):
     """Window preferences independent of the OME-TIFF converter."""
 
     USER_CONFIG_FILENAME = "config.volume.json"
+    sharding: bool = False
+    dot_separator: bool = False
 
 
 class VolumeTable(QTableWidget):
@@ -311,6 +313,22 @@ class ImageVolumeWindow(Window):
         self.tile_size = hp.make_combobox(panel, ["256", "512", "1024", "2048"], value="512")
         self.tile_size.currentIndexChanged.connect(self._schedule_refresh)
         form.addRow("XY tile size", self.tile_size)
+        self.sharding = hp.make_checkbox(
+            panel,
+            "",
+            value=self.CONFIG.sharding,
+            tooltip="Group up to 4x4 XY tiles per file, within one channel and section. Uses more working memory.",
+            func=self._schedule_refresh,
+        )
+        form.addRow("Enable sharding (fewer files)", self.sharding)
+        self.dot_separator = hp.make_checkbox(
+            panel,
+            "",
+            value=self.CONFIG.dot_separator,
+            tooltip="Store files as c.0.0.0.0 instead of c/0/0/0/0 within each pyramid level.",
+            func=self._schedule_refresh,
+        )
+        form.addRow("Use dot-separated filenames", self.dot_separator)
         form.addRow(
             hp.make_label(
                 panel,
@@ -594,6 +612,8 @@ class ImageVolumeWindow(Window):
                     z_spacing=self.z_spacing.value(),
                     xy_spacing=self.xy_spacing.value() or None,
                     tile_size=int(self.tile_size.currentText()),
+                    sharding=self.sharding.isChecked(),
+                    dot_separator=self.dot_separator.isChecked(),
                 )
                 plan = self._plan
                 level_shapes = [plan.shape]
@@ -605,6 +625,8 @@ class ImageVolumeWindow(Window):
                 self.summary.setText(
                     f"CZYX: {plan.shape}\nSpacing ZYX (um): {plan.spacing}\n"
                     f"Extent ZYX (um): {extent}\nOrigin ZYX (um): (0, 0, 0)\nDtype: {plan.dtype}\n"
+                    f"Sharding: {'enabled' if plan.sharding else 'disabled'}\n"
+                    f"File separator: {'dot' if plan.dot_separator else 'slash'}\n"
                     f"Pyramid levels: {len(level_shapes)}\nEstimated uncompressed size: {size / 1024**2:,.2f} MiB"
                 )
                 self._output_path()
@@ -761,6 +783,8 @@ class ImageVolumeWindow(Window):
             event.ignore()
             return
         self.CONFIG.output_dir = self.output_directory.text().strip()
+        self.CONFIG.sharding = self.sharding.isChecked()
+        self.CONFIG.dot_separator = self.dot_separator.isChecked()
         self.CONFIG.save()
         if self._console:
             self._console.close()

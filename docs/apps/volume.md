@@ -21,7 +21,10 @@ It assembles already aligned 2D microscopy slides into one OME-Zarr volume.
 6. On **Output**, choose a directory and a new `.ome.zarr` name, then set the physical section
    spacing in um. Automatic XY spacing uses the coarsest included source pixel size; set a positive
    value to override it. The summary shows dimensions, calibration, dtype, pyramid levels, and the
-   estimated uncompressed size. Click **Write OME-Zarr volume**.
+   estimated uncompressed size. Enable **Enable sharding (fewer files)** to group tiles into
+   fewer files, and **Use dot-separated filenames** for flat files instead of nested chunk paths.
+   Both options start disabled and are remembered when the window closes.
+   Click **Write OME-Zarr volume**.
 
 Slides share a top-left origin and are resampled with linear interpolation, then zero-padded to
 the largest included physical canvas. Included slides must have matching native dtypes. The first
@@ -29,5 +32,10 @@ loaded numbered position has physical Z origin zero. Filename numbers and source
 recorded in provenance; missing slices are also marked in the section-presence metadata.
 
 The writer creates OME-Zarr 0.5 / Zarr 3 with automatic XY pyramids and default compression.
+Sharding groups up to 4x4 XY tiles within one channel and section, targeting at most 16 MiB
+uncompressed per shard (or one tile if larger). Source reads stay tile-sized; each shard is
+buffered and written once, including at pyramid levels. Missing sections remain zero-filled.
+The filename option applies independently to chunks or shards: `0/c.0.0.0.1` uses dots,
+while `0/c/0/0/0/1` uses slashes. Each pyramid level retains its own folder.
 It never overwrites an existing output. Cancellation removes the partial store; closing during
 export waits for cleanup. The app does not register slides, flatten Z/T stacks, or save editing sessions.

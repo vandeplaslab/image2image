@@ -94,3 +94,5 @@ class VolumeExportPlan:
     policy: MissingChannelPolicy
     excluded_channels: tuple[str, ...]
     missing: tuple[tuple[str, tuple[str, ...]], ...]
+    sharding: bool = False
+    dot_separator: bool = False
