@@ -7,11 +7,14 @@ import json
 import math
 import shutil
 import sqlite3
-from dataclasses import replace
+from collections.abc import Generator
+from dataclasses import dataclass, replace
+from dataclasses import field as dataclass_field
 from functools import partial
-from html import escape
 from importlib.metadata import version
 from pathlib import Path
+from queue import Empty, Queue
+from threading import Event
 from time import monotonic
 from typing import Any, Literal, cast
 from uuid import uuid4
@@ -24,24 +27,40 @@ from qtextra.utils.table_config import TableConfig
 from qtextra.widgets.qt_button_segmented import QtSegmentedButton
 from qtextraplot._napari.image.wrapper import NapariImageView
 from qtpy.QtCore import QEvent, QLockFile, QObject, QSignalBlocker, Qt, QTimer
-from qtpy.QtGui import QCloseEvent, QColor, QKeySequence, QMouseEvent, QShortcut  # type: ignore[attr-defined]
+from qtpy.QtGui import (  # type: ignore[attr-defined]
+    QCloseEvent,
+    QColor,
+    QDragEnterEvent,
+    QDropEvent,
+    QKeyEvent,
+    QKeySequence,
+    QMouseEvent,
+    QShortcut,
+)
 from qtpy.QtWidgets import (
-    QColorDialog,
+    QAbstractItemView,
+    QAbstractSpinBox,
+    QApplication,
     QComboBox,
     QDialog,
     QDialogButtonBox,
     QFileDialog,
     QFormLayout,
     QInputDialog,
+    QLineEdit,
     QListWidget,
     QListWidgetItem,
     QMenuBar,
+    QPlainTextEdit,
     QSizePolicy,
     QSplitter,
     QTabWidget,
+    QTextEdit,
     QWidget,
 )
 from shapely.geometry import LineString, MultiPolygon, Point, Polygon
+from shapely.geometry.base import BaseGeometry
+from shapely.ops import unary_union
 from superqt.utils import create_worker
 
 from image2image.config import SingleAppConfig
@@ -55,8 +74,9 @@ from image2image.models.annotation import (
     PredictionRequest,
     SlideGeometry,
 )
-from image2image.qt._annotation_finetune import FineTuneDialog, model_requirements_html
+from image2image.qt._annotation_finetune import FineTuneDialog
 from image2image.qt._annotation_jobs import AnnotationJobs
+from image2image.qt._annotation_model import ModelSelector
 from image2image.qt._annotation_table import AnnotationTable
 from image2image.qt._dialog_base import Window
 from image2image.utils.annotation.geometry import (
@@ -69,13 +89,35 @@ from image2image.utils.annotation.geometry import (
 )
 from image2image.utils.annotation.images import PatchReader, inspect_slide
 from image2image.utils.annotation.ml import backend_available, load_forest
-from image2image.utils.annotation.model_cache import (
-    model_cache_directory,
-    pretrained_model_help,
-    read_classifier_metadata,
-)
+from image2image.utils.annotation.model_cache import read_classifier_metadata
 from image2image.utils.annotation.render import AnnotationRenderer
 from image2image.utils.annotation.store import AnnotationStore
+from image2image.utils.annotation.wand import WandLayer, WandSource
+
+
+@dataclass(eq=False)
+class _PaintStroke:
+    """Pending ordered paint operations, owned by one canvas gesture."""
+
+    mode: str
+    context: tuple[Any, ...]
+    start: tuple[float, float]
+    point: tuple[float, float]
+    subtract: bool
+    radius: float
+    zoom: float
+    class_id: str | None
+    fallback: list[int]
+    target: AnnotationObject | None = None
+    geometry: BaseGeometry = dataclass_field(default_factory=Polygon)
+    base: BaseGeometry = dataclass_field(default_factory=Polygon)
+    points: list[tuple[float, float]] = dataclass_field(default_factory=list)
+    queue: Queue[tuple[tuple[float, float], bool] | None] = dataclass_field(default_factory=Queue)
+    cancelled: Event = dataclass_field(default_factory=Event)
+    revision: int = 0
+    layers: tuple[WandLayer, ...] = ()
+    initial_subtract: bool = False
+    background: tuple[float, float, float] = (0, 0, 0)
 
 
 def _table_key(table: AnnotationTable, row: int) -> int:
@@ -96,6 +138,12 @@ class AnnotateConfig(SingleAppConfig):
     opacity_predictions: int = Field(default=100, ge=0, le=100)
     opacity_drawings: int = Field(default=100, ge=0, le=100)
     opacity_prompts: int = Field(default=100, ge=0, le=100)
+    brush_radius: int = Field(default=15, ge=1, le=500)
+    wand_radius: int = Field(default=75, ge=1, le=500)
+    wand_sensitivity: int = Field(default=15, ge=1, le=100)
+    freehand_color: str = Field(default="#ff00ff", pattern=r"^#[0-9a-fA-F]{6}$")
+    brush_add_color: str = Field(default="#00ff00", pattern=r"^#[0-9a-fA-F]{6}$")
+    brush_subtract_color: str = Field(default="#ff6347", pattern=r"^#[0-9a-fA-F]{6}$")
 
 
 class CoordinateDialog(QDialog):
@@ -201,6 +249,10 @@ class ImageAnnotationWindow(Window):
         self._selected_custom_checkpoint = ""
         self._stroke_revision = 0
         self._preview_updated = 0.0
+        self._paint: _PaintStroke | None = None
+        self._wand_strokes: list[_PaintStroke] = []
+        self._wand_worker: Any = None
+        self._paint_committing = False
         self.jobs = AnnotationJobs()
         super().__init__(parent, "image2image: Annotation and Label Editor", run_check_version=run_check_version)
         self.jobs.setParent(self)
@@ -224,7 +276,10 @@ class ImageAnnotationWindow(Window):
             self.jobs.busy_changed.connect(self._job_busy)
             self.jobs.queue_changed.connect(self._refresh_queue)
             self.view.viewer.camera.events.zoom.connect(self.schedule_render)
+            self.view.viewer.camera.events.zoom.connect(self._cancel_paint)
+            self.tabs.currentChanged.connect(self._cancel_paint)
             self.view.viewer.camera.events.center.connect(self.schedule_render)
+            self.view.viewer.camera.events.center.connect(self._cancel_paint)
 
     def _try(self, function: Any) -> Any:
         try:
@@ -244,7 +299,7 @@ class ImageAnnotationWindow(Window):
             return None
 
     def _error(self, message: str) -> None:
-        self.status.setText(message)
+        self._set_status(message)
         hp.warn_pretty(self, message, "Annotation editor")
 
     def _button(self, parent: QWidget, text: str, function: Any) -> Any:
@@ -325,23 +380,22 @@ class ImageAnnotationWindow(Window):
                 "Rectangle",
                 "Brush +",
                 "Brush -",
+                "Wand",
                 "Vertices",
                 "Cut",
-                "Select by area",
+                "Select by polygon",
+                "Select by rectangle",
                 "Prompt +",
                 "Prompt -",
                 "Prompt box",
             ],
             func=self.set_mode,
         )
-        self.brush_radius = hp.make_int_spin_box(center, minimum=1, maximum=500, value=15)
         self.show_predictions = hp.make_checkbox(center, "Show predictions", default=True, func=self.schedule_render)
         self.show_predictions.setToolTip("Show predictions in the active annotation set awaiting acceptance in Review.")
         center_box.addLayout(
             hp.make_h_layout(
                 self.tool,
-                hp.make_label(center, "Brush px"),
-                self.brush_radius,
                 self._button(center, "Apply drawing", self.apply_drawing),
                 self._button(center, "Clear drawing", self.clear_drawing),
             )
@@ -374,9 +428,7 @@ class ImageAnnotationWindow(Window):
         )
         self.view.viewer.mouse_drag_callbacks.append(self._mouse_drag)
         self.draw_layer.mouse_double_click_callbacks.append(self._drawing_finished)
-        self.view.widget.canvas.native.installEventFilter(self)
         self._make_display_controls()
-        self.brush_radius.valueChanged.connect(lambda *_: self.set_mode(self._mode))
         self.tabs = QTabWidget(splitter)
         self.tabs.addTab(self._annotation_panel(), "Annotate")
         self.tabs.addTab(self._train_panel(), "Train")
@@ -403,33 +455,13 @@ class ImageAnnotationWindow(Window):
         for key, function in (
             ("Ctrl+Z", self.undo),
             ("Ctrl+Shift+Z", self.redo),
-            ("Delete", self.delete_selected),
             ("Escape", self.clear_drawing),
-            ("Return", self.apply_drawing),
-            (
-                "M",
-                lambda: (
-                    self._review_action(self.merge_proposals)
-                    if self.tabs.currentIndex() == 3
-                    else self.merge_selected()
-                ),
-            ),
-            ("V", lambda: self.tool.setCurrentText("Interact")),
-            ("P", lambda: self.tool.setCurrentText("Polygon")),
-            ("B", lambda: self.tool.setCurrentText("Brush +")),
         ):
             shortcut = QShortcut(QKeySequence(key), self)
             shortcut.activated.connect(partial(self._try, function))
             self._shortcuts.append(shortcut)
-        for key, function in (
-            ("A", partial(self.review, True, False)),
-            ("R", partial(self.review, False, False)),
-            ("E", self.refine_proposal),
-        ):
-            shortcut = QShortcut(QKeySequence(key), self)
-            shortcut.activated.connect(partial(self._review_action, function))
-            self._shortcuts.append(shortcut)
         self.set_mode(self.tool.currentText())
+        QApplication.instance().installEventFilter(self)
 
     def _make_statusbar(self) -> None:
         super()._make_statusbar()
@@ -454,9 +486,48 @@ class ImageAnnotationWindow(Window):
 
     def _make_display_controls(self) -> None:
         self.display_popup = QDialog(self, Qt.WindowType.Popup)
-        self.display_popup.setWindowTitle("Overlay opacity")
+        self.display_popup.setWindowTitle("Display")
         self.display_popup.setMinimumWidth(300)
         layout = hp.make_form_layout(parent=self.display_popup)
+        self.brush_radius = hp.make_int_spin_box(
+            self.display_popup,
+            minimum=1,
+            maximum=500,
+            value=self.CONFIG.brush_radius,
+            func=self._brush_radius_changed,
+        )
+        layout.addRow("Brush radius (screen px)", self.brush_radius)
+        self.wand_radius = hp.make_int_spin_box(
+            self.display_popup,
+            minimum=1,
+            maximum=500,
+            value=self.CONFIG.wand_radius,
+            func=partial(self._wand_setting_changed, "wand_radius"),
+        )
+        self.wand_sensitivity = hp.make_int_spin_box(
+            self.display_popup,
+            minimum=1,
+            maximum=100,
+            value=self.CONFIG.wand_sensitivity,
+            func=partial(self._wand_setting_changed, "wand_sensitivity"),
+        )
+        self.wand_radius.setToolTip("Maximum local search radius in screen pixels. Zoom out to fill larger regions.")
+        self.wand_sensitivity.setToolTip(
+            "Allowed displayed color difference (%). Higher values fill more varied regions."
+        )
+        layout.addRow("Wand radius (screen px)", self.wand_radius)
+        layout.addRow("Wand sensitivity (%)", self.wand_sensitivity)
+        self.preview_colors: dict[str, Any] = {}
+        for field, label in (
+            ("freehand_color", "Freehand preview"),
+            ("brush_add_color", "Brush + preview"),
+            ("brush_subtract_color", "Brush - preview"),
+        ):
+            swatch = hp.make_swatch(
+                self.display_popup, getattr(self.CONFIG, field), func=partial(self._preview_color_changed, field)
+            )
+            self.preview_colors[field] = swatch
+            layout.addRow(label, swatch)
         self.opacity_sliders: dict[str, Any] = {}
         for group, label in (
             ("annotations", "Annotations (%)"),
@@ -473,8 +544,27 @@ class ImageAnnotationWindow(Window):
             layout.addRow(label, slider)
         self._update_opacity()
 
+    def _brush_radius_changed(self, radius: int) -> None:
+        self._cancel_paint()
+        self.CONFIG.update(brush_radius=radius)
+        self.set_mode(self._mode)
+
+    def _wand_setting_changed(self, name: str, value: int) -> None:
+        self._cancel_paint()
+        self.CONFIG.update(**{name: value})
+        self.set_mode(self._mode)
+
+    def _preview_color_changed(self, field: str, _color: np.ndarray) -> None:
+        self.CONFIG.update(**{field: self.preview_colors[field].hex_color_no_alpha})
+        if field == "freehand_color" and self._mode == "Freehand":
+            self.draw_layer.edge_color = self.CONFIG.freehand_color
+        elif field.startswith("brush_"):
+            self.brush_preview.edge_color = (
+                self.CONFIG.brush_subtract_color if self._mode == "Brush -" else self.CONFIG.brush_add_color
+            )
+
     def show_display_controls(self) -> None:
-        """Show independent opacity controls for the editor overlays."""
+        """Show overlay opacity and drawing preview controls."""
         hp.show_below_widget(self.display_popup, self.display_btn)
 
     def _opacity_changed(self, group: str, value: int) -> None:
@@ -627,11 +717,8 @@ class ImageAnnotationWindow(Window):
         form.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)
         self._predict_form = form
         self.backend = hp.make_combobox(panel, ["forest", "micro-sam", "cellpose"])
-        self.model = hp.make_combobox(panel)
-        self.model.setPlaceholderText("No models available")
-        self.model.setMinimumContentsLength(8)
-        self.model.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
-        self.model.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Fixed)
+        self.model_selector = ModelSelector(panel, self.jobs, self.on_pressed_link)
+        self.model = self.model_selector.model
         self.checkpoint = hp.make_line_edit(panel)
         self.device = hp.make_combobox(
             panel, ["auto", "cpu", "cuda", "mps"], tooltip="Device: auto chooses CUDA, then Apple MPS, then CPU."
@@ -643,21 +730,15 @@ class ImageAnnotationWindow(Window):
         self.backend_hint = hp.make_label(panel, "", wrap=True)
         form.addRow(self.backend_hint)
 
-        self.download_btn = hp.make_qta_btn(
-            panel,
-            "download",
-            tooltip="Download selected model",
-            func=lambda: self._try(self.download_selected_model),
-            size_preset="small",
-        )
-        self.model_help = hp.make_help_label(panel, "Select a model to see its purpose and requirements.")
-        form.addRow("Model", hp.make_h_layout(self.model, self.download_btn, self.model_help, stretch_id=0, spacing=2))
+        self.download_btn = self.model_selector.download
+        self.download_btn.clicked.connect(lambda: self._try(self.download_selected_model))
+        self.model_help = self.model_selector.help
+        form.addRow(hp.make_label(panel, "Model"))
+        form.addRow(self.model_selector)
         self.model_summary = hp.make_label(panel, "", wrap=True)
         form.addRow(self.model_summary)
-        self.model_status = hp.make_label(panel, "", wrap=True, enable_url=True, func_activated=self.on_pressed_link)
-        form.addRow(self.model_status)
-        self.model_requirements = hp.make_label(panel, "", wrap=True, enable_url=True)
-        form.addRow(self.model_requirements)
+        self.model_status = self.model_selector.status
+        self.model_requirements = self.model_selector.requirements
         self.choose_model_btn = self._button(panel, "Load classifier...", self.choose_model)
         form.addRow(self.choose_model_btn)
         form.addRow("Optional local checkpoint", self.checkpoint)
@@ -667,11 +748,6 @@ class ImageAnnotationWindow(Window):
         form.addRow("Device", self.device)
         form.addRow("Prediction downsample", self.predict_downsample)
         form.addRow("Patch size", self.tile_size)
-        self.job_label = hp.make_label(panel, "", wrap=True)
-        self.job_bar = hp.make_progressbar(panel)
-        self.job_bar.hide()
-        form.addRow(self.job_label)
-        form.addRow(self.job_bar)
         self.view_btn = self._button(panel, "Preview current view", self.predict_view)
         form.addRow(self.view_btn)
         self.roi_segment = QtSegmentedButton("Predict drawn rectangle", panel, func=lambda: self._try(self.predict_roi))
@@ -819,7 +895,7 @@ class ImageAnnotationWindow(Window):
         self.task_table.resizeRowsToContents()
         self.queue_btn.setToolTip(f"Show task queue ({len(tasks)} tasks)")
         if self.jobs.cancelling:
-            self.job_label.setText("Cancelling the active task and clearing the queue...")
+            self._set_status("Cancelling the active task and clearing the queue...")
         self._update_prediction_controls()
 
     def _require_project(self) -> AnnotationStore:
@@ -998,6 +1074,7 @@ class ImageAnnotationWindow(Window):
 
     def refresh_image(self) -> None:
         """Load lazy image layers and a bounded navigation overview."""
+        self._cancel_paint()
         store = self._require_project()
         slide = self._require_slide()
         path = store.resolve_path(slide)
@@ -1054,6 +1131,9 @@ class ImageAnnotationWindow(Window):
                     colormap=("green", "magenta", "cyan")[index % 3] if len(channels) > 1 and not rgb_mode else "gray",
                     translate=(0.5, 0.5),
                 )
+                layer.metadata["annotation_channels"] = channels if rgb_mode else (channels[index],)
+                for setting in ("visible", "contrast_limits", "gamma", "colormap", "opacity", "blending", "data"):
+                    getattr(layer.events, setting).connect(self._cancel_paint)
                 self._image_layers.append(layer)
             for layer in self._image_layers:
                 self.view.viewer.layers.move(self.view.viewer.layers.index(layer), 0)
@@ -1385,7 +1465,33 @@ class ImageAnnotationWindow(Window):
             self._show_selected()
             self._proposal_details()
 
+    def _select_from_canvas(self, keys: list[int], focus_key: int | None = None) -> None:
+        reviewing = self.tabs.currentIndex() == 3
+        review = "proposed" if reviewing else "accepted"
+        table = self.proposals if reviewing else self.objects
+        self.selected = list(keys)
+        if reviewing:
+            self._review_selection = list(keys)
+        focus_key = focus_key if focus_key is not None else keys[0] if keys else None
+        self._syncing = True
+        try:
+            loaded = {row[-1] for row in table.model().get_data()}
+            if focus_key is not None and focus_key not in loaded:
+                self._pages[review] = self.store.page_cursors(self.set_id, focus_key, review=review)
+                self.refresh_tables()
+                self._syncing = True
+            visible = {table.key_at(row) for row in range(table.proxy.rowCount())}
+            if focus_key is not None and focus_key not in visible:
+                table.filter_edit.clear()
+            table.select_keys(keys, scroll_to=focus_key)
+        finally:
+            self._syncing = False
+        self._show_selected()
+        self._proposal_details()
+
     def _show_selected(self) -> None:
+        if not self._paint_committing:
+            self._cancel_paint()
         self._stroke_revision += 1
         summary = f"{len(self.selected)} selected."
         if len(self.selected) == 1 and self.store:
@@ -1413,7 +1519,7 @@ class ImageAnnotationWindow(Window):
                     for ring in (polygon.exterior, *polygon.interiors):
                         rings.append(np.asarray(ring.coords)[:-1, ::-1])
             if rings:
-                self.draw_layer.add(rings, shape_type="polygon")
+                self.draw_layer.add(rings, shape_type="polygon", edge_color="yellow", edge_width=2)
             self._edit_revision = self.store.revision
         self.set_mode(self.tool.currentText())
 
@@ -1421,19 +1527,28 @@ class ImageAnnotationWindow(Window):
         """Activate a drawing or selection tool using the editor's pixel coordinate frame."""
         previous_mode, self._mode = self._mode, mode
         if previous_mode != mode:
+            self._cancel_paint()
             self._stroke_revision += 1
             if hasattr(self, "brush_preview"):
                 self.brush_preview.data = []
         if not hasattr(self, "draw_layer"):
             return
-        if previous_mode != mode and mode in ("Polygon", "Rectangle", "Cut", "Select by area", "Freehand"):
+        if previous_mode != mode and mode in (
+            "Polygon",
+            "Rectangle",
+            "Cut",
+            "Select by polygon",
+            "Select by rectangle",
+            "Freehand",
+        ):
             self.draw_layer.data = []
         mapping = {
             "Polygon": "add_polygon",
             "Rectangle": "add_rectangle",
             "Vertices": "direct",
             "Cut": "add_path",
-            "Select by area": "add_polygon",
+            "Select by polygon": "add_polygon",
+            "Select by rectangle": "add_rectangle",
         }
         self.draw_layer.mode = mapping.get(mode, "pan_zoom")
         self.prompt_box_layer.mode = "add_rectangle" if mode == "Prompt box" else "pan_zoom"
@@ -1442,9 +1557,11 @@ class ImageAnnotationWindow(Window):
             self.prompt_box_layer if mode == "Prompt box" else self.draw_layer
         )
         self.draw_layer.mouse_pan = mode == "Interact"
-        if mode in ("Brush +", "Brush -"):
+        if mode in ("Brush +", "Brush -", "Wand"):
             self.draw_layer.cursor = "circle"
-            self.draw_layer.cursor_size = self.brush_radius.value() * 2
+            self.draw_layer.cursor_size = (
+                self.wand_radius.value() if mode == "Wand" else self.brush_radius.value()
+            ) * 2
         self.prompt_layer.mode = "pan_zoom"
         self.tool_hint.setText(
             {
@@ -1454,9 +1571,11 @@ class ImageAnnotationWindow(Window):
                 "Freehand": "Drag a region; saved on release. Escape cancels.",
                 "Brush +": "Start on empty space for a new object, or inside an object to edit it. Alt subtracts; Escape cancels.",
                 "Brush -": "Start inside an object, or select one first. Drag to subtract; Escape cancels.",
+                "Wand": "Click or drag to fill similar visible pixels. Alt subtracts; zoom out for larger areas. Escape cancels.",
                 "Vertices": "Select one object and edit its yellow vertices, then Apply drawing.",
                 "Cut": "Select one object, draw a cut line, then Apply drawing to choose the surviving ID.",
-                "Select by area": "Click vertices; double-click to select intersecting objects in the active set.",
+                "Select by polygon": "Click vertices; double-click to select intersecting objects in the active set.",
+                "Select by rectangle": "Drag a rectangle to select intersecting objects in the active set.",
                 "Prompt +": "Click to mark foreground. Right-click a point or inside a box to remove it.",
                 "Prompt -": "Click to mark an exclusion. Right-click a point or inside a box to remove it.",
                 "Prompt box": "Drag a box. Right-click a point or inside a box to remove it. Clear prompts removes all hints.",
@@ -1468,9 +1587,13 @@ class ImageAnnotationWindow(Window):
         if (
             event.button != 1
             or not _layer._is_creating
-            or not (mode == "Select by area" or (mode == "Polygon" and self.auto_add_polygons.isChecked()))
+            or not (mode == "Select by polygon" or (mode == "Polygon" and self.auto_add_polygons.isChecked()))
         ):
             return
+        self._schedule_drawing_completion()
+
+    def _schedule_drawing_completion(self) -> None:
+        mode = self._mode
         self._stroke_revision += 1
         revision = self._stroke_revision
         context = (self._generation, self.slide_id, self.set_id, self.tabs.currentIndex())
@@ -1490,7 +1613,40 @@ class ImageAnnotationWindow(Window):
         QTimer.singleShot(0, finish)
 
     def eventFilter(self, obj: QObject, event: QEvent) -> bool:
-        """Consume prompt removal clicks before napari's shape drawing handlers."""
+        """Route editor shortcuts and drops before napari handles canvas events."""
+        if not isinstance(obj, QWidget) or QWidget.window(obj) is not self:
+            return super().eventFilter(obj, event)
+        if obj is self and event.type() == QEvent.Type.WindowDeactivate:
+            self._cancel_paint()
+        if event.type() in (QEvent.Type.KeyPress, QEvent.Type.KeyRelease):
+            key_event = cast(QKeyEvent, event)
+            if key_event.key() == Qt.Key.Key_Alt and not key_event.isAutoRepeat() and self._paint is not None:
+                stroke = self._paint
+                self._paint_point(
+                    stroke, stroke.point, stroke.mode == "Brush -" or event.type() == QEvent.Type.KeyPress, force=True
+                )
+        if event.type() in (QEvent.Type.ShortcutOverride, QEvent.Type.KeyPress):
+            key_event = cast(QKeyEvent, event)
+            action = self._shortcut_action(key_event)
+            if action is not None:
+                event.accept()
+                if event.type() == QEvent.Type.KeyPress and not key_event.isAutoRepeat():
+                    self._try(action)
+                return True
+        if event.type() in (QEvent.Type.DragEnter, QEvent.Type.DragMove):
+            self.dragEnterEvent(cast(QDragEnterEvent, event))
+            return True
+        if event.type() == QEvent.Type.Drop:
+            self.dropEvent(cast(QDropEvent, event))
+            return True
+        if (
+            obj is self.view.widget.canvas.native
+            and self._mode == "Select by rectangle"
+            and event.type() == QEvent.Type.MouseButtonRelease
+            and cast(QMouseEvent, event).button() == Qt.MouseButton.LeftButton
+            and self.draw_layer._is_creating
+        ):
+            self._schedule_drawing_completion()
         if (
             obj is self.view.widget.canvas.native
             and self._mode in ("Prompt +", "Prompt -", "Prompt box")
@@ -1506,6 +1662,136 @@ class ImageAnnotationWindow(Window):
                     self._remove_prompt(position[-2:])
                 return True
         return super().eventFilter(obj, event)
+
+    def _shortcut_action(self, event: QKeyEvent) -> Any:
+        focus = QApplication.focusWidget()
+        if (
+            QApplication.activePopupWidget() is not None
+            or QApplication.activeModalWidget() is not None
+            or isinstance(focus, QLineEdit | QTextEdit | QPlainTextEdit | QAbstractSpinBox)
+            or (isinstance(focus, QComboBox) and focus.isEditable())
+            or event.modifiers()
+            & (Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.MetaModifier | Qt.KeyboardModifier.AltModifier)
+        ):
+            return None
+        parent = focus
+        while parent is not None and parent is not self:
+            if isinstance(parent, QAbstractItemView) and parent.state() == QAbstractItemView.State.EditingState:
+                return None
+            parent = parent.parentWidget()
+        canvas = self.view.widget.canvas.native
+        on_canvas = focus is canvas or (focus is not None and canvas.isAncestorOf(focus))
+        key = event.key()
+        if on_canvas and key in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
+            return self.apply_drawing
+        if on_canvas and key in (Qt.Key.Key_Backspace, Qt.Key.Key_Delete):
+            return self.clear_drawing
+        modes = {
+            Qt.Key.Key_Plus: "Prompt +",
+            Qt.Key.Key_Minus: "Prompt -",
+            Qt.Key.Key_P: "Polygon",
+            Qt.Key.Key_I: "Interact",
+            Qt.Key.Key_V: "Interact",
+            Qt.Key.Key_B: "Brush +",
+            Qt.Key.Key_W: "Wand",
+            Qt.Key.Key_F: "Freehand",
+        }
+        mode = "Prompt +" if event.text() == "+" else modes.get(key)
+        if key == Qt.Key.Key_R and self.tabs.currentIndex() != 3:
+            mode = "Prompt box"
+        if mode:
+            return partial(self.tool.setCurrentText, mode)
+        if key == Qt.Key.Key_M:
+            return (
+                partial(self._review_action, self.merge_proposals)
+                if self.tabs.currentIndex() == 3
+                else self.merge_selected
+            )
+        if self.tabs.currentIndex() == 3:
+            actions = {
+                Qt.Key.Key_A: partial(self.review, True, False),
+                Qt.Key.Key_R: partial(self.review, False, False),
+                Qt.Key.Key_E: self.refine_proposal,
+            }
+            if key in actions:
+                return partial(self._review_action, actions[key])
+        return None
+
+    def _drop_paths(self, event: QDropEvent) -> tuple[list[Path], bool]:
+        urls = event.mimeData().urls()
+        if not urls or any(not url.isLocalFile() for url in urls):
+            raise ValueError("Drop a local annotation project or supported images.")
+        paths = list(dict.fromkeys(Path(url.toLocalFile()).resolve() for url in urls))
+        projects = [path for path in paths if path.suffix.lower() == ".i2annotate"]
+        if projects:
+            if len(paths) != 1 or len(projects) != 1:
+                raise ValueError("Drop one annotation project, or a batch of images, separately.")
+            if not projects[0].is_dir():
+                raise ValueError("The annotation project directory does not exist.")
+            return projects, True
+        suffixes = (
+            ".tif",
+            ".tiff",
+            ".svs",
+            ".ndpi",
+            ".czi",
+            ".scn",
+            ".qptiff",
+            ".qptiff.raw",
+            ".qptiff.intermediate",
+            ".png",
+            ".jpg",
+            ".jpeg",
+            ".zarr",
+        )
+        if any(not path.exists() or not path.name.lower().endswith(suffixes) for path in paths):
+            raise ValueError("Drop supported images, including TIFF, CZI, JPEG, PNG, or OME-Zarr.")
+        return paths, False
+
+    def dragEnterEvent(self, event: QDragEnterEvent) -> None:
+        """Accept supported project and image drops throughout the editor."""
+        try:
+            self._drop_paths(event)
+        except ValueError as exc:
+            self._set_status(str(exc))
+            event.ignore()
+        else:
+            event.acceptProposedAction()
+
+    def dropEvent(self, event: QDropEvent) -> None:
+        """Open a dropped project or add dropped images through the project workflow."""
+        try:
+            paths, project = self._drop_paths(event)
+        except ValueError as exc:
+            self._set_status(str(exc))
+            event.ignore()
+            return
+        if self._try(partial(self._open_dropped_paths, paths, project)):
+            event.acceptProposedAction()
+        else:
+            event.ignore()
+
+    def _open_dropped_paths(self, paths: list[Path], project: bool) -> bool:
+        if project:
+            path = paths[0]
+            if self.store and self.store.path == path:
+                return True
+            if self.jobs.busy or any(worker not in self._forest_scans for worker in self._threads):
+                raise ValueError("Wait for background work or cancel it before switching projects.")
+            if self.store and not hp.confirm(
+                self,
+                f"Close {self.store.path.name} and open {path.name}? Edits are saved. Temporary drawings and prompts will be discarded.",
+                "Open annotation project",
+            ):
+                return False
+            self.open_project(path)
+        else:
+            if self.store is None:
+                self.choose_new_project()
+            if self.store is None:
+                return False
+            self.add_slides([str(path) for path in paths])
+        return True
 
     def _remove_prompt(self, yx: tuple[float, float]) -> None:
         points = self.prompt_layer.data
@@ -1536,6 +1822,7 @@ class ImageAnnotationWindow(Window):
 
     def clear_drawing(self) -> None:
         """Discard temporary drawing and prompts without touching stored annotations."""
+        self._cancel_paint()
         self._stroke_revision += 1
         self.draw_layer.data = []
         self.brush_preview.data = []
@@ -1564,19 +1851,7 @@ class ImageAnnotationWindow(Window):
                 if obj
                 else []
             )
-            if reviewing:
-                keys = list(self.selected)
-                self._syncing = True
-                self._review_selection = keys
-                if obj and obj.key not in self.proposals.get_col_data(4):
-                    self._pages["proposed"] = self.store.page_cursors(self.set_id, obj.key, review="proposed")
-                if obj and not any(
-                    self.proposals.key_at(row) == obj.key for row in range(self.proposals.proxy.rowCount())
-                ):
-                    self.proposals.filter_edit.clear()
-                self.refresh_tables()
-                self.selected = keys
-            self._show_selected()
+            self._select_from_canvas(self.selected, obj.key if obj else None)
             return
         if self._mode in ("Prompt +", "Prompt -"):
             # Color only the next prompt, without editing a previously selected point.
@@ -1585,27 +1860,34 @@ class ImageAnnotationWindow(Window):
             self.prompt_layer.add(np.asarray(xy[::-1]))
             self._prompt_labels.append(1 if self._mode == "Prompt +" else 0)
             return
-        if self._mode not in ("Freehand", "Brush +", "Brush -"):
+        if self._mode in ("Brush +", "Brush -", "Wand"):
+            stroke = self._begin_paint(xy, self._mode == "Brush -" or "Alt" in event.modifiers)
+            if stroke is None:
+                return
+            yield
+            while event.type == "mouse_move":
+                if not self._paint_valid(stroke):
+                    self._cancel_paint()
+                    return
+                point = (float(event.position[-1]), float(event.position[-2]))
+                self._paint_point(stroke, point, stroke.mode == "Brush -" or "Alt" in event.modifiers)
+                yield
+            if self._paint_valid(stroke):
+                point = (float(event.position[-1]), float(event.position[-2]))
+                self._paint_point(stroke, point, stroke.mode == "Brush -" or "Alt" in event.modifiers, force=True)
+                self._paint = None
+                if stroke.mode == "Wand":
+                    stroke.queue.put(None)
+                else:
+                    self._try(partial(self._commit_paint, stroke, stroke.geometry))
+            else:
+                self._cancel_paint()
+            return
+        if self._mode != "Freehand":
             return
         mode, slide_id = self._mode, self.slide_id
         stroke_revision = self._stroke_revision
-        subtract = mode == "Brush -" or "Alt" in event.modifiers
-        target = None
-        if mode != "Freehand":
-            review = "proposed" if self.tabs.currentIndex() == 3 else "accepted"
-            obj = self.store.hit_test(self.slide_id, xy, set_id=self.set_id, review=review)
-            if obj is None and subtract and len(self.selected) == 1:
-                selected = self.store.get(self.selected[0])
-                if selected.set_id == self.set_id and selected.review == review:
-                    obj = selected
-            target = obj.key if obj else None
-            if subtract and target is None:
-                self._error("Start on an object or select exactly one object before subtracting with the brush.")
-                return
         points = [xy]
-        radius = self.brush_radius.value() / max(0.01, self.view.viewer.camera.zoom)
-        if mode != "Freehand":
-            self._preview_stroke(points, radius, subtract, force=True)
         yield
         while event.type == "mouse_move":
             if self._mode != mode or self.slide_id != slide_id or stroke_revision != self._stroke_revision:
@@ -1614,11 +1896,13 @@ class ImageAnnotationWindow(Window):
             point = (float(event.position[-1]), float(event.position[-2]))
             if np.linalg.norm(np.asarray(point) - points[-1]) > max(0.2, 1 / self.view.viewer.camera.zoom):
                 points.append(point)
-                if self._mode == "Freehand":
-                    self.draw_layer.data = []
-                    self.draw_layer.add(np.asarray(points)[:, ::-1], shape_type="path")
-                else:
-                    self._preview_stroke(points, radius, subtract)
+                self.draw_layer.data = []
+                self.draw_layer.add(
+                    np.asarray(points)[:, ::-1],
+                    shape_type="path",
+                    edge_color=self.CONFIG.freehand_color,
+                    edge_width=3,
+                )
             yield
         self.brush_preview.data = []
         if self._mode != mode or self.slide_id != slide_id or stroke_revision != self._stroke_revision:
@@ -1626,20 +1910,301 @@ class ImageAnnotationWindow(Window):
         point = (float(event.position[-1]), float(event.position[-2]))
         if point != points[-1]:
             points.append(point)
-        if self._mode == "Freehand":
-            if len(points) >= 3:
-                self.draw_layer.data = []
-                self.draw_layer.add(np.asarray(points)[:, ::-1], shape_type="polygon")
-                self._try(lambda: self.add_geometry(Polygon(points)))
+        if len(points) >= 3:
+            self.draw_layer.data = []
+            self.draw_layer.add(
+                np.asarray(points)[:, ::-1],
+                shape_type="polygon",
+                edge_color=self.CONFIG.freehand_color,
+                edge_width=3,
+            )
+            self._try(lambda: self.add_geometry(Polygon(points)))
+
+    def _paint_context(self) -> tuple[Any, ...]:
+        return (
+            self._generation,
+            id(self.store),
+            self.slide_id,
+            self.set_id,
+            self.tabs.currentIndex(),
+            self._mode,
+            float(self.view.viewer.camera.zoom),
+            self.view.widget.canvas.bgcolor,
+            tuple(id(layer) for layer in self.view.viewer.layers if layer in self._image_layers),
+        )
+
+    def _paint_valid(self, stroke: _PaintStroke) -> bool:
+        return not self._closing and not stroke.cancelled.is_set() and stroke.context == self._paint_context()
+
+    def _cancel_paint(self, *_args: Any) -> None:
+        for stroke in [self._paint, *self._wand_strokes]:
+            if stroke is not None:
+                stroke.cancelled.set()
+                stroke.queue.put(None)
+        self._paint = None
+        self._wand_strokes.clear()
+        if hasattr(self, "brush_preview"):
+            self.brush_preview.data = []
+
+    def _wand_layers(self) -> tuple[WandLayer, ...]:
+        layers = []
+        for layer in self.view.viewer.layers:
+            if layer not in self._image_layers or not layer.visible or layer.opacity <= 0:
+                continue
+            layers.append(
+                WandLayer(
+                    tuple(layer.metadata["annotation_channels"]),
+                    tuple(layer.contrast_limits),
+                    float(layer.gamma),
+                    None if layer.rgb else layer.colormap.map(np.linspace(0, 1, 1024)).copy(),
+                    float(layer.opacity),
+                    str(layer.blending),
+                )
+            )
+        return tuple(layers)
+
+    def _resolve_paint_target(self, stroke: _PaintStroke) -> None:
+        store = self._require_project()
+        review = "proposed" if self.tabs.currentIndex() == 3 else "accepted"
+        target = store.hit_test(self.slide_id, stroke.start, set_id=self.set_id, review=review)
+        if target is None and stroke.initial_subtract and len(stroke.fallback) == 1:
+            selected = store.get(stroke.fallback[0])
+            if selected.set_id == self.set_id and selected.review == review:
+                target = selected
+        if stroke.initial_subtract and target is None:
+            raise ValueError(
+                "Start on an object or select exactly one object before subtracting with the brush or wand."
+            )
+        if target is not None:
+            store._require_unlocked(target)
+        stroke.target = target
+        stroke.geometry = stroke.base = target.geometry if target is not None else Polygon()
+        stroke.revision = store.revision
+
+    def _begin_paint(self, xy: tuple[float, float], subtract: bool) -> _PaintStroke | None:
+        zoom = max(0.0001, float(self.view.viewer.camera.zoom))
+        stroke = _PaintStroke(
+            self._mode,
+            self._paint_context(),
+            xy,
+            xy,
+            subtract,
+            self.wand_radius.value() if self._mode == "Wand" else self.brush_radius.value(),
+            zoom,
+            self.class_id,
+            list(self.selected),
+            initial_subtract=subtract,
+        )
+        if stroke.mode == "Wand":
+            stroke.background = QColor(self.view.widget.canvas.bgcolor).getRgbF()[:3]
+            stroke.layers = self._wand_layers()
+            if not stroke.layers:
+                self._error("Show at least one image channel before using the wand.")
+                return None
+        try:
+            if stroke.mode == "Wand":
+                self._wand_strokes.append(stroke)
+                stroke.queue.put((xy, subtract))
+                self._start_wand()
+            else:
+                self._resolve_paint_target(stroke)
+                stroke.points = [xy]
+                self._paint_point(stroke, xy, subtract, force=True)
+        except (ValueError, KeyError) as exc:
+            stroke.cancelled.set()
+            self._error(str(exc))
+            return None
+        self._paint = stroke
+        if stroke.cancelled.is_set():
+            self._paint = None
+            return None
+        return stroke
+
+    def _paint_point(
+        self, stroke: _PaintStroke, xy: tuple[float, float], subtract: bool, *, force: bool = False
+    ) -> None:
+        if not self._paint_valid(stroke):
+            return
+        previous, previous_subtract = stroke.point, stroke.subtract
+        if stroke.mode == "Wand":
+            if xy != previous or subtract != previous_subtract:
+                stroke.queue.put((xy, subtract))
+            stroke.point, stroke.subtract = xy, subtract
+            if subtract != previous_subtract:
+                self.brush_preview.edge_color = (
+                    self.CONFIG.brush_subtract_color if subtract else self.CONFIG.brush_add_color
+                )
         else:
-            stroke = brush_stroke(points, radius, fill=not subtract)
-            if target is not None:
-                self.selected = [target]
-                if self.store.get(target).review == "proposed":
-                    self._review_selection = [target]
-                self._try(lambda: self._brush(stroke, subtract))
-            elif not subtract:
-                self._try(lambda: self.add_geometry(stroke))
+            radius = stroke.radius / stroke.zoom
+            if subtract != previous_subtract:
+                footprint = brush_stroke(stroke.points, radius, fill=not previous_subtract)
+                stroke.base = stroke.base.difference(footprint) if previous_subtract else stroke.base.union(footprint)
+                stroke.points = [previous]
+                force = True
+            if xy != stroke.points[-1]:
+                stroke.points.append(xy)
+            stroke.point, stroke.subtract = xy, subtract
+            if not force and monotonic() - self._preview_updated < 1 / 30:
+                return
+            footprint = brush_stroke(stroke.points, radius, fill=not subtract)
+            stroke.geometry = stroke.base.difference(footprint) if subtract else stroke.base.union(footprint)
+            self._preview_geometry(stroke.geometry, subtract)
+        self.tool_hint.setText(
+            f"{stroke.mode}: {'subtracting' if subtract else 'adding'}. Release to save; Escape cancels."
+        )
+
+    def _preview_geometry(self, geometry: BaseGeometry, subtract: bool) -> None:
+        self._preview_updated = monotonic()
+        polygons = list(geometry.geoms) if geometry.geom_type == "MultiPolygon" else [geometry]
+        rings = [
+            np.asarray(ring.coords)[:, ::-1]
+            for polygon in polygons
+            if not polygon.is_empty
+            for ring in (polygon.exterior, *polygon.interiors)
+        ]
+        color = self.CONFIG.brush_subtract_color if subtract else self.CONFIG.brush_add_color
+        if rings and len(rings) == len(self.brush_preview.data):
+            self.brush_preview.data = rings
+            self.brush_preview.edge_color = color
+        elif rings:
+            self.brush_preview.data = []
+            self.brush_preview.add(
+                rings,
+                shape_type="path",
+                edge_width=3,
+                edge_color=color,
+            )
+        else:
+            self.brush_preview.data = []
+
+    def _commit_paint(self, stroke: _PaintStroke, geometry: BaseGeometry) -> None:
+        if not self._paint_valid(stroke):
+            return
+        store = self._require_project()
+        target = stroke.target
+        self.brush_preview.data = []
+        if (target is None and geometry.is_empty) or (target is not None and target.geometry.equals(geometry)):
+            self.set_mode(self._mode)
+            return
+        obj = (
+            replace(target, geometry=geometry)
+            if target is not None
+            else AnnotationObject(
+                self.set_id,
+                store.next_id(self.set_id),
+                geometry,
+                stroke.class_id,
+                provenance={"source": "manual"},
+                training=True,
+            )
+        )
+        self._paint_committing = True
+        try:
+            keys = store.apply(
+                EditCommand(
+                    f"{stroke.mode} stroke", [(target.key if target else None, None if geometry.is_empty else obj)]
+                ),
+                expected_revision=stroke.revision,
+            )
+            self.selected = keys if not geometry.is_empty else []
+            if target is not None and target.review == "proposed":
+                self._review_selection = list(self.selected)
+            bounds = target.geometry.union(geometry).bounds if target is not None else geometry.bounds
+            self._changed(bounds)
+        finally:
+            self._paint_committing = False
+
+    def _start_wand(self) -> None:
+        if self._wand_worker is not None or not self._wand_strokes:
+            return
+        stroke = self._wand_strokes[0]
+        if not self._paint_valid(stroke):
+            self._wand_strokes.pop(0)
+            self._start_wand()
+            return
+        try:
+            self._resolve_paint_target(stroke)
+            slide = self._require_slide()
+            path, series = self.store.resolve_path(slide), slide.series
+        except (ValueError, KeyError) as exc:
+            stroke.cancelled.set()
+            self._wand_strokes.pop(0)
+            self._error(str(exc))
+            self._start_wand()
+            return
+        sensitivity = self.CONFIG.wand_sensitivity / 100
+
+        def work() -> Generator[tuple[BaseGeometry, bool], None, BaseGeometry | None]:
+            geometry, previous, updated, operation = stroke.base, None, 0.0, stroke.initial_subtract
+            dirty = False
+            with PatchReader(path, series=series) as reader:
+                source = WandSource(reader, stroke.layers, background=stroke.background)
+                while not stroke.cancelled.is_set():
+                    try:
+                        timeout = max(0.001, 1 / 30 - (monotonic() - updated)) if dirty else 0.03
+                        item = stroke.queue.get(timeout=timeout)
+                    except Empty:
+                        if dirty:
+                            updated, dirty = monotonic(), False
+                            yield geometry, operation
+                        continue
+                    if item is None:
+                        return geometry
+                    point, operation = item
+                    distance = math.dist(previous, point) if previous is not None else 0
+                    spacing = max(1, min(4, stroke.radius / 4)) / stroke.zoom
+                    count = max(1, math.ceil(distance / spacing))
+                    seeds = np.linspace(previous or point, point, count + 1)[1:]
+                    pieces = []
+                    for seed in seeds:
+                        if stroke.cancelled.is_set():
+                            return None
+                        pieces.append(source.region(tuple(seed), stroke.radius, stroke.zoom, sensitivity))
+                    footprint = unary_union(pieces)
+                    geometry = geometry.difference(footprint) if operation else geometry.union(footprint)
+                    previous = point
+                    dirty = True
+                    if monotonic() - updated >= 1 / 30:
+                        updated, dirty = monotonic(), False
+                        yield geometry, operation
+            return None
+
+        def preview(result: tuple[BaseGeometry, bool]) -> None:
+            if self._paint_valid(stroke):
+                stroke.geometry = result[0]
+                self._preview_geometry(result[0], stroke.subtract)
+
+        worker = create_worker(work, _ignore_errors=True)
+        self._wand_worker = worker
+        self._threads.append(worker)
+        worker.yielded.connect(preview)
+        worker.returned.connect(
+            lambda geometry: (
+                self._try(partial(self._commit_paint, stroke, geometry))
+                if geometry is not None and self._paint_valid(stroke)
+                else None
+            )
+        )
+        worker.errored.connect(partial(self._wand_failed, stroke))
+        worker.finished.connect(partial(self._finish_wand, worker, stroke))
+        worker.start()
+
+    def _wand_failed(self, stroke: _PaintStroke, exc: Exception) -> None:
+        if self._paint_valid(stroke):
+            self._error(str(exc))
+        stroke.cancelled.set()
+        if self._paint is stroke:
+            self._paint = None
+        self.brush_preview.data = []
+
+    def _finish_wand(self, worker: Any, stroke: _PaintStroke) -> None:
+        if worker in self._threads:
+            self._threads.remove(worker)
+        self._wand_worker = None
+        if stroke in self._wand_strokes:
+            self._wand_strokes.remove(stroke)
+        if not self._closing:
+            self._start_wand()
 
     def _preview_stroke(
         self, points: list[tuple[float, float]], radius: float, subtract: bool, *, force: bool = False
@@ -1647,15 +2212,8 @@ class ImageAnnotationWindow(Window):
         now = monotonic()
         if not force and now - self._preview_updated < 1 / 30:
             return
-        self._preview_updated = now
         stroke = brush_stroke(points, radius, fill=not subtract)
-        polygons = list(stroke.geoms) if stroke.geom_type == "MultiPolygon" else [stroke]
-        # Match the committed footprint, including filled interiors for addition.
-        rings = [
-            np.asarray(ring.coords)[:, ::-1] for polygon in polygons for ring in (polygon.exterior, *polygon.interiors)
-        ]
-        self.brush_preview.data = []
-        self.brush_preview.add(rings, shape_type="path", edge_color="tomato" if subtract else "lime")
+        self._preview_geometry(stroke, subtract)
 
     def _brush(self, stroke: Any, subtract: bool) -> None:
         store = self._require_project()
@@ -1663,6 +2221,9 @@ class ImageAnnotationWindow(Window):
             raise ValueError("Brush editing requires exactly one selected object.")
         old = store.get(self.selected[0]).geometry
         brush_object(store, self.selected[0], stroke, subtract=subtract)
+        if subtract and old.difference(stroke).is_empty:
+            self._review_selection = [key for key in self._review_selection if key not in self.selected]
+            self.selected.clear()
         self._changed(old.union(stroke).bounds)
 
     def add_geometry(self, geometry: Any) -> int:
@@ -1724,15 +2285,12 @@ class ImageAnnotationWindow(Window):
                     self._changed(obj.geometry.bounds)
             finally:
                 self.view.viewer.layers.remove(preview)
-        elif self._mode == "Select by area":
+        elif self._mode in ("Select by polygon", "Select by rectangle"):
             polygon = Polygon(np.asarray(self.draw_layer.data[-1])[:, ::-1])
             reviewing = self.tabs.currentIndex() == 3
             review = "proposed" if reviewing else "accepted"
-            self.selected = list(store.selection_in(slide.id, polygon, set_id=self.set_id, review=review))
-            if reviewing:
-                self._review_selection = list(self.selected)
-            self.refresh_tables()
-            self._show_selected()
+            keys = list(store.selection_in(slide.id, polygon, set_id=self.set_id, review=review))
+            self._select_from_canvas(keys)
             self.status.setText(f"{len(self.selected)} objects selected by area.")
         elif self._mode in ("Rectangle", "Polygon"):
             self.add_geometry(Polygon(np.asarray(self.draw_layer.data[-1])[:, ::-1]))
@@ -1912,17 +2470,12 @@ class ImageAnnotationWindow(Window):
         dialog.setWindowTitle("Annotation class")
         form = hp.make_form_layout(parent=dialog)
         name = hp.make_line_edit(dialog, text=item.name)
-        color = hp.make_line_edit(dialog, text=item.color)
-
-        def choose_color() -> None:
-            chosen = QColorDialog.getColor(QColor(color.text()), parent=dialog)
-            if chosen.isValid():
-                color.setText(chosen.name())
+        color = hp.make_swatch(dialog, item.color, tooltip="Choose the annotation class color.")
 
         ignore = hp.make_checkbox(dialog, "Use as Ignore mask", default=item.is_ignore)
         ignore.setToolTip("Exclude overlapping training pixels in the same annotation set. This class is not learned.")
         form.addRow("Name", name)
-        form.addRow("Color", hp.make_h_layout(color, hp.make_btn(dialog, "Choose...", func=choose_color)))
+        form.addRow("Color", color)
         form.addRow(ignore)
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel, dialog)
         buttons.accepted.connect(dialog.accept)
@@ -1930,7 +2483,7 @@ class ImageAnnotationWindow(Window):
         form.addRow(buttons)
         if dialog.exec():
             updated = item.model_copy(
-                update={"name": name.text().strip(), "color": color.text(), "is_ignore": ignore.isChecked()}
+                update={"name": name.text().strip(), "color": color.hex_color_no_alpha, "is_ignore": ignore.isChecked()}
             )
             self._require_project().save_class(AnnotationClass.model_validate(updated.model_dump()))
             self.refresh_classes()
@@ -2306,35 +2859,11 @@ class ImageAnnotationWindow(Window):
             worker.errored.connect(failed)
             worker.finished.connect(lambda: self._forest_scans.discard(worker))
             return
-        entries = [
-            (
-                f"{entry.get('display_name', entry['name'])} ({'cached' if entry['cached'] else 'not downloaded'})",
-                entry["name"],
-                entry["reason"],
-            )
-            for entry in self._catalogues.get(backend, [])
-        ]
-        self._set_model_entries(entries, preferred)
+        self.model_selector.set_catalogue(backend, self._catalogues.get(backend, []), preferred)
+        self._model_selected()
 
     def _set_model_entries(self, entries: list[tuple[str, str, str]], preferred: str) -> None:
-        with QSignalBlocker(self.model):
-            self.model.clear()
-            enabled = []
-            for label, value, error in entries:
-                index = self.model.count()
-                self.model.addItem(label, value)
-                help_text = (
-                    pretrained_model_help(self.backend.currentText(), value)
-                    if self.backend.currentText() != "forest"
-                    else value
-                )
-                help_text = escape(f"{help_text}\n{error}" if error else help_text).replace("\n", "<br>")
-                self.model.setItemData(index, f"<qt>{help_text}</qt>", Qt.ItemDataRole.ToolTipRole)
-                self.model.model().item(index).setEnabled(not error)
-                if not error:
-                    enabled.append(index)
-            index = self.model.findData(preferred)
-            self.model.setCurrentIndex(index if index in enabled else enabled[0] if enabled else -1)
+        self.model_selector.set_entries(self.backend.currentText(), entries, preferred)
         self._model_selected()
 
     def _model_selected(self, *_args: Any) -> None:
@@ -2435,7 +2964,9 @@ class ImageAnnotationWindow(Window):
         entry = next((item for item in self._catalogues.get(backend, []) if item["name"] == self._model_value()), None)
         checkpoint = Path(self.checkpoint.text()).is_file() if self.checkpoint.text() else False
         ready = (
-            metadata is not None if forest else bool(checkpoint or (entry and entry["cached"] and not entry["reason"]))
+            metadata is not None
+            if forest
+            else bool(not (entry and entry.get("reason")) and (checkpoint or (entry and entry["cached"])))
         )
         explanations = {
             "forest": "Uses the random forest created in Train or a saved classifier. Runs on CPU.",
@@ -2459,9 +2990,9 @@ class ImageAnnotationWindow(Window):
         self.backend_hint.setText(message)
         hp.set_object_name(self.backend_hint, object_name="warning_label" if not available else "")
         self.choose_model_btn.setVisible(forest)
-        requirements = model_requirements_html(backend, self._catalogues.get(backend, [])) if not forest else ""
-        self.model_requirements.setText(requirements)
-        self.model_requirements.setVisible(bool(requirements))
+        self.model_selector.update_state(
+            backend, entry, self._catalogues.get(backend, []), available=available, checkpoint=self.checkpoint.text()
+        )
         for widget, visible in (
             (self.checkpoint, not forest),
             (self.choose_checkpoint_btn, not forest),
@@ -2476,32 +3007,6 @@ class ImageAnnotationWindow(Window):
         self.predict_downsample.setToolTip(
             "Saved with the classifier." if forest else "Working image downsample for pretrained inference."
         )
-        downloading = self.jobs.current and self.jobs.current.get("operation") == "download_model"
-        self.download_btn.set_qta("mdi6.stop" if downloading else "mdi6.download")
-        self.download_btn.setToolTip(
-            f"Cancel download: {self.jobs.current['model']}" if downloading else "Download selected model"
-        )
-        self.download_btn.setEnabled(
-            not self.jobs.cancelling
-            if downloading
-            else available and entry is not None and not entry["reason"] and not entry["cached"] and not self.jobs.busy
-        )
-        if forest:
-            self.model_status.setText("")
-        else:
-            self.model_status.setText(
-                "Using local checkpoint."
-                if checkpoint
-                else f"Model cached in {hp.hyper(model_cache_directory(backend), value=escape(backend + ' model directory'))}."
-                if ready
-                else "Not downloaded. Choose a model, then Download selected model."
-            )
-            self.model_status.setToolTip(str(model_cache_directory(backend)))
-            if entry and entry.get("custom"):
-                self.model_status.setText(
-                    "Project model in " + hp.hyper(Path(entry["path"]).parent, value="model directory") + "."
-                )
-                self.model_status.setToolTip(entry["path"])
         for button in self.predict_buttons:
             button.setEnabled(available and ready and not self.jobs.busy)
             button.setToolTip(message)
@@ -2532,15 +3037,8 @@ class ImageAnnotationWindow(Window):
                 self.model_summary.setText(
                     f"Fine-tuned model: {entry['custom']['name']}\nBase: {training['model']}; epochs: {training['epochs']}; learning rate: {training['learning_rate']:g}\nSaved channels: {training['channels']}; downsample: {training['downsample']}. Assigns the selected shared class to detections."
                 )
-        help_text = (
-            self.model_summary.text()
-            if forest
-            else pretrained_model_help(
-                backend, entry["custom"]["settings"]["model"] if entry and entry.get("custom") else self._model_value()
-            )
-            + (f"\n{entry['reason']}" if entry and entry["reason"] else "")
-        )
-        self.model_help.setToolTip("<qt>" + escape(help_text).replace("\n", "<br>") + "</qt>")
+        if forest:
+            self.model_help.setToolTip(self.model_summary.text())
 
     def _request(
         self, bounds: tuple | None = None, *, prompts: bool = False, slide_id: str | None = None
@@ -2642,7 +3140,7 @@ class ImageAnnotationWindow(Window):
 
     def _job_busy(self, busy: bool) -> None:
         self.cancel_btn.setEnabled(busy)
-        self.job_bar.setVisible(busy)
+        self.tool_hint.setVisible(not busy)
         self.progress_bar.setVisible(busy)
         self._update_prediction_controls()
         self._proposal_details()
@@ -2651,16 +3149,18 @@ class ImageAnnotationWindow(Window):
     def _job_message(self, message: str) -> None:
         # Measured progress already updates the status with elapsed time and ETA.
         if self.jobs.cancelling or not self.jobs.busy:
-            self.status.setText(message)
-            self.status.setToolTip(message)
+            self._set_status(message)
+
+    def _set_status(self, message: str) -> None:
+        self.status.setText(message)
+        self.status.setToolTip(message)
 
     def _job_progress(self, details: dict[str, Any]) -> None:
         completed, total = details.get("completed", 0), details.get("total")
-        for bar in (self.job_bar, self.progress_bar):
-            bar.setVisible(True)
-            bar.setRange(0, 1000 if total else 0)
-            if total:
-                bar.setValue(min(1000, int(completed / total * 1000)))
+        self.progress_bar.setVisible(True)
+        self.progress_bar.setRange(0, 1000 if total else 0)
+        if total:
+            self.progress_bar.setValue(min(1000, int(completed / total * 1000)))
 
         def duration(seconds: float) -> str:
             minutes, seconds_ = divmod(max(0, math.ceil(seconds)), 60)
@@ -2676,14 +3176,12 @@ class ImageAnnotationWindow(Window):
         phase, message = details.get("phase", ""), details["message"]
         if phase and phase != message:
             message = f"{phase}: {message}"
-        self.job_label.setText(f"{queue}{message}{units}\nElapsed {elapsed}{remaining}")
-        self.status.setText(f"{queue}{phase or message}{units}; Elapsed {elapsed}{remaining}")
-        self.status.setToolTip(self.job_label.text())
+        self._set_status(f"{queue}{message}{units}; Elapsed {elapsed}{remaining}")
 
     def _job_failed(self, job: dict, message: str) -> None:
         if self._closing:
             return
-        self.job_label.setText(message)
+        self._set_status(message)
         if job["operation"] == "model_catalogue":
             backend = job["backend"]
             self._catalogue_pending.discard(backend)
@@ -2697,7 +3195,7 @@ class ImageAnnotationWindow(Window):
     def _job_done(self, job: dict, result: Any) -> None:
         if self._closing:
             return
-        self.job_label.setText(f"Completed {job['operation'].replace('_', ' ')}.")
+        self._set_status(f"Completed {job['operation'].replace('_', ' ')}.")
         if job["operation"] in ("model_catalogue", "download_model"):
             backend = job["backend"]
             if job["operation"] == "model_catalogue":
@@ -2711,7 +3209,7 @@ class ImageAnnotationWindow(Window):
             if self.backend.currentText() == backend:
                 preferred = self._model_value() or self._backend_state.get(backend, {}).get("model")
                 self._refresh_model_selector(preferred or ("vit_b_lm" if backend == "micro-sam" else "cpsam"))
-            self.status.setText(f"Completed {job['operation'].replace('_', ' ')}.")
+            self._set_status(f"Completed {job['operation'].replace('_', ' ')}.")
             return
         if job["operation"] in ("undo", "redo", "review"):
             self.selected.clear()
@@ -2739,7 +3237,7 @@ class ImageAnnotationWindow(Window):
         if self.renderer:
             self.renderer.invalidate()
         self.schedule_render()
-        self.status.setText(
+        self._set_status(
             f"Completed {job['operation']}."
             + (" Review predictions before accepting them." if job["operation"] == "predict" else "")
         )
@@ -2777,6 +3275,7 @@ class ImageAnnotationWindow(Window):
         if event is None:
             return
         self._closing = True
+        self._cancel_paint()
         self._stroke_revision += 1
         self.brush_preview.data = []
         self.render_timer.stop()
@@ -2785,6 +3284,7 @@ class ImageAnnotationWindow(Window):
             event.ignore()
             QTimer.singleShot(100, self.close)
             return
+        QApplication.instance().removeEventFilter(self)
         if self.reader:
             self.reader.close()
             self.reader = None

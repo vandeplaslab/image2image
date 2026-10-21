@@ -15,11 +15,15 @@ i2i -t annotate -p /path/to/study.i2annotate
 4. Choose **Polygon** and double-click to finish and save it. **Auto-add polygons** is enabled by default; uncheck it to finish first and save with **Apply drawing**. Rectangles still use **Apply drawing**, or can be used as prediction regions. **Freehand** commits when the drag ends.
 5. **Interact** picks an object on the canvas; Shift adds to the selection. Double-click a table row to navigate to it. Search for an exact ID within the active set; `int:12` and `str:12` distinguish typed IDs. The object and proposal tables load 100 rows per page.
 
-The **Overview** sits above the slide list; click its image to navigate. Drag in **Interact** to pan and scroll to zoom. Freehand and brush gestures save one undoable edit on release without moving the canvas. With **Brush +**, start on empty space to create a new object, or inside an object to edit it. Each stroke keeps its starting target even when it crosses another object. Addition fills interiors enclosed by the painted stroke; existing holes outside the painted region remain unchanged. **Brush -** and Alt-drag subtract only the painted footprint from the object under the starting point, falling back to one selected object when starting outside. The brush cursor shows its radius, and a solid outline shows the resulting footprint while dragging: green for addition and red for subtraction. Escape cancels an unfinished stroke.
+Drop an `.i2annotate` directory anywhere over the window or canvas to open it. If another project is open, confirm before replacing it; temporary drawings and prompts are discarded only when the replacement opens successfully. Drop supported images, including OME-Zarr directories, to add them to the current project. With no project open, choose a new project location first. Cancelling leaves the images unopened. Drop projects and image batches separately; project switching requires background work to finish or be cancelled.
 
-**Select by area** selects visible objects intersecting a polygon. Click its vertices and double-click to finish; no annotation is created. In Review it selects predictions, and elsewhere it selects accepted annotations in the active set.
+The **Overview** sits above the slide list; click its image to navigate. Drag in **Interact** to pan and scroll to zoom. Freehand, brush, and wand gestures save one undoable edit on release without moving the canvas. With **Brush +**, start on empty space to create a new object, or inside an object to edit it. Each stroke keeps its starting target even when it crosses another object. Addition fills interiors enclosed by the painted stroke; existing holes outside the painted region remain unchanged. **Brush -** and Alt-drag subtract from the object under the starting point, falling back to one selected object when starting outside. Press or release Alt during a Brush + or Wand drag to switch between subtraction and addition. Erasing the entire object deletes it; Undo restores it. The circular cursor shows the search radius, and an outline shows the pending result while dragging: green for addition and red for subtraction by default. Escape cancels an unfinished stroke.
 
-**Show predictions** toggles predictions awaiting acceptance in Review. **Display...** opens separate opacity sliders for saved annotations, predictions, drawing previews/selection outlines, and prompt points/boxes. Changes apply immediately. Opacity scales the existing fill and edge transparency; 0% hides an overlay. Opacity and the auto-add preference are remembered between sessions.
+**Wand** (`W`) fills connected pixels with similar displayed colors within a circle around the cursor. Click to fill locally, or drag to extend the annotation. Zoom in for small details such as nuclei; zoom out for larger tissue regions. The wand follows visible image channels, brightness/contrast, gamma, colormaps, opacity, and blending. Annotation overlays and prompts do not affect it. High-contrast boundaries give the clearest results; increase sensitivity to include more varied colors or use the brush for manual correction. Image reads run in the background using bounded patches. A released stroke saves when its pending work finishes. Escape, tool/context changes, zoom changes, or image display adjustments cancel pending work.
+
+**Select by polygon** selects visible objects intersecting a polygon. Click its vertices and double-click to finish. **Select by rectangle** selects objects when the rectangle drag ends. Neither creates an annotation. In Review they select predictions, and elsewhere they select accepted annotations in the active set. Canvas selection also selects the matching table rows, reveals their page, and clears a filter when needed. Shift-click selections retain objects across pages.
+
+**Show predictions** toggles predictions awaiting acceptance in Review. **Display...** contains brush and wand radii in screen pixels, wand sensitivity, separate freehand/Brush +/Brush - preview color swatches, and opacity sliders for saved annotations, predictions, drawing previews/selection outlines, and prompt points/boxes. The wand defaults to a 75-pixel radius and 15% sensitivity; its previews share the brush addition/subtraction colors. Freehand defaults to a thick magenta outline. Preview colors leave stored class colors and yellow selection outlines unchanged. Changes apply immediately. Opacity scales the existing fill and edge transparency; 0% hides an overlay. Drawing settings and the auto-add preference are remembered between sessions.
 
 The Annotate and Review tables show their page number, displayed/total object counts, and the 100-object page size. Each table keeps its own page position; Previous and Next are disabled at the boundaries.
 
@@ -27,7 +31,7 @@ Click a table header to sort, or use the filter field and column selector to nar
 
 The annotation set selector shows accepted and proposed object counts. **Combine sets...** creates a combined copy of sets from the current slide and keeps the originals. Review states, training flags, properties, and source provenance are retained. Duplicate typed IDs receive fresh IDs in the copy. Cancelling leaves no partial combined set. **Remove set** hides the active set; Undo restores it and its objects.
 
-New projects include Tissue, Stroma, Background (amber), Nucleus, Cells, Ignore, Other, and Necrosis. Existing projects keep their palettes. **Edit class** includes **Use as Ignore mask**; this behavior stays with the class if it is renamed.
+New projects include Tissue, Stroma, Background (amber), Nucleus, Cells, Ignore, Other, and Necrosis. Existing projects keep their palettes. Click the color swatch in **Edit class** to choose a class color. **Use as Ignore mask** stays with the class if it is renamed.
 
 **Object properties** shows provenance and lineage and allows editing the original JSON properties. Object IDs remain read-only.
 
@@ -44,13 +48,19 @@ Useful shortcuts:
 | Shortcut | Action |
 | --- | --- |
 | P | Polygon |
-| V | Interact |
+| I / V | Interact |
 | B | Brush addition |
-| Enter | Apply drawing |
+| W | Wand |
+| F | Freehand |
+| + / - | Positive / negative prompt |
+| R | Prompt box outside Review; reject selected predictions in Review |
+| Enter / Return | Apply drawing with canvas focus |
+| Backspace / Delete | Clear drawing and prompts with canvas focus |
 | Escape | Clear drawing |
 | M | Merge selected objects |
-| Delete | Delete selected objects |
 | Ctrl+Z / Ctrl+Shift+Z | Undo / redo |
+
+Mode keys work throughout the window while you are not editing a field or table cell. Open menus and popups keep their own key handling. Use the existing **Delete** action to remove stored annotations.
 
 ## Import and export
 
@@ -84,7 +94,7 @@ Processing is local and runs in a spawned worker using the app's Python environm
 
 Open the queue icon in the status bar to see the active phase and waiting tasks, including slide names, backend, and model. **Cancel job** also lives in the status bar. Tasks run in order; cancelling clears the waiting tasks too. Progress, elapsed time, and ETA remain visible while using any tab.
 
-Predict shows the active processing phase, progress, elapsed time, and an approximate ETA when enough patches have completed. The estimate covers the active phase; model loading, single prompted inference, and unmeasured postprocessing show indeterminate progress. Queued slides also show the current slide number. ETA is based on measured work and can change with image content and hardware.
+The status bar shows full job messages, the active processing phase, progress, elapsed time, and an approximate ETA when enough patches have completed. Cancellation, completion, and errors appear there too; Predict contains model controls rather than a second job readout. The estimate covers the active phase; model loading, single prompted inference, and unmeasured postprocessing show indeterminate progress. Queued slides also show the current slide number. ETA is based on measured work and can change with image content and hardware.
 
 ## Optional pretrained assistance
 
@@ -111,6 +121,8 @@ For pretrained models, choose **cpu**, **cuda**, **mps**, or **auto**. Auto sele
 ## Fine-tune instance models
 
 In **Train**, enable only the classes representing object instances, then choose **Fine-tune Cellpose / SAM...**. Accepted objects also need their object-level Training flag enabled. Classes are pooled into one foreground instance category; this does not train a semantic class classifier. Download a base model explicitly or choose a compatible local checkpoint. Set epochs, learning rate, batch size, working downsample, crop size, and the maximum number of crops. The seed from Train controls the split and PyTorch initialization; Cellpose retains its own augmentation and epoch-shuffling policy.
+
+Fine-tuning and Predict share the same model selector, cached/not-downloaded labels, help, requirements, and model-directory links. The download icon becomes a stop button during a model download. Both selectors update after completion or cancellation and retain their model choices when switching backends.
 
 The worker prepares nonoverlapping crops around included objects, bounded by the crop limit. Annotate every instance within these regions: unmarked pixels are treated as background. Crops intersecting same-set Ignore regions are skipped, overlapping instance masks are rejected, and background around objects is required. At least two spatially distinct usable crops are needed. About 20% of crop locations are held out for validation. Copies of the same source crop from different annotation sets stay in the same partition; this crop split does not guarantee an independent slide holdout.
 

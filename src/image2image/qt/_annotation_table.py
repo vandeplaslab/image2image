@@ -14,7 +14,7 @@ from qtextra.widgets.qt_table_view_check import (
     QtCheckableItemModel,
     QtCheckableTableView,
 )
-from qtpy.QtCore import QItemSelectionModel, QModelIndex, QSortFilterProxyModel, Qt, QTimer
+from qtpy.QtCore import QItemSelectionModel, QModelIndex, QSignalBlocker, QSortFilterProxyModel, Qt, QTimer
 from qtpy.QtGui import QColor, QKeyEvent
 from qtpy.QtWidgets import QAbstractItemView, QComboBox, QStyleOptionViewItem, QTableView, QWidget
 
@@ -191,6 +191,25 @@ class AnnotationTable(QtCheckableTableView):
     def selected_keys(self) -> list[Any]:
         """Return the keys of all selected visible rows."""
         return [self.key_at(index.row()) for index in self.selectionModel().selectedRows()]
+
+    def select_keys(self, keys: list[Any], *, scroll_to: Any = None) -> None:
+        """Select visible rows by stable key without emitting recursive selection changes."""
+        selection = self.selectionModel()
+        selected = set(keys)
+        with QSignalBlocker(selection):
+            selection.clearSelection()
+            if not keys:
+                selection.clearCurrentIndex()
+            for row in range(self.proxy.rowCount()):
+                key = self.key_at(row)
+                index = self.proxy.index(row, 0)
+                if key in selected:
+                    selection.select(
+                        index, QItemSelectionModel.SelectionFlag.Select | QItemSelectionModel.SelectionFlag.Rows
+                    )
+                if key == scroll_to:
+                    selection.setCurrentIndex(index, QItemSelectionModel.SelectionFlag.NoUpdate)
+                    self.scrollTo(index)
 
     def set_rows(self, rows: list[list[Any]], *, selected: list[Any] | None = None) -> None:
         """Replace bounded rows while retaining proxy filters, sorting, and selected identities."""

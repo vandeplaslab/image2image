@@ -249,6 +249,25 @@ def test_brush_holes_and_multipart(project):
     assert store.get(key).object_id == 23
 
 
+def test_brush_full_erasure_undo_and_lock(project: tuple) -> None:
+    store, _slide, _cls, set_id = project
+    key = add(store, set_id, properties={"custom": "preserved"})
+    original = store.get(key)
+    brush_object(store, key, box(-1, -1, 30, 30), subtract=True)
+    assert store.count(set_id) == 0
+    store.undo()
+    assert store.get(key).geometry.equals(original.geometry)
+    assert store.get(key).object_id == original.object_id
+    assert store.get(key).properties == original.properties
+    store.apply(
+        EditCommand("Lock", [(key, replace(original, properties={**original.properties, "isLocked": True}))]),
+        allow_unlock=True,
+    )
+    with pytest.raises(ValueError, match="locked"):
+        brush_object(store, key, box(-1, -1, 30, 30), subtract=True)
+    assert store.count(set_id) == 1
+
+
 def test_brush_stroke_fills_only_enclosed_painted_regions(project: tuple) -> None:
     store, _slide, _cls, set_id = project
     loop = [(0, 0), (10, 0), (10, 10), (0, 10), (0, 0)]

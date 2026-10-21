@@ -21,9 +21,12 @@ def edit_geometry(store: AnnotationStore, key: int, geometry: BaseGeometry, labe
 
 
 def brush_object(store: AnnotationStore, key: int, stroke: BaseGeometry, *, subtract: bool = False) -> None:
-    """Add/subtract a brush stroke, retaining holes and disconnected components."""
+    """Add/subtract a stroke, retaining holes and components; delete fully erased objects."""
     obj = store.get(key)
     geometry = obj.geometry.difference(stroke) if subtract else obj.geometry.union(stroke)
+    if geometry.is_empty:
+        store.apply(EditCommand("Erase object", [(key, None)]))
+        return
     edit_geometry(store, key, geometry, "Erase from object" if subtract else "Brush object")
 
 
