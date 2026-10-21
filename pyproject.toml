@@ -78,7 +78,9 @@ qtextraplot = { path = "../qtextraplot", editable = true }
 # https://peps.python.org/pep-0621/#dependencies-optional-dependencies
 [project.optional-dependencies]
 annotate-sam = ["micro-sam>=1.8.14,<2"]
+annotate-sam-all = ["annotate-sam", "git+https://github.com/ChaoningZhang/MobileSAM.git"]
 annotate-cellpose = ["cellpose>=4.2,<5"]
+annotate-cellpose-all = ["annotate-cellpose", "git+https://github.com/facebookresearch/dinov3"]
 pyside2 = ["pyside2"]
 pyside6 = ["pyside6"]
 pyqt5 = ["pyqt5"]

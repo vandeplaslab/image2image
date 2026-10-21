@@ -49,6 +49,8 @@ update_icon_mapping(
         "remove_image": "mdi6.close-circle-outline",
         "env": "fa5s.bookmark",
         "iterate": "mdi.view-carousel-outline",
+        "overlap": "mdi.checkbox-multiple-blank-circle",
+        "combine": "mdi.vector-combine",
         # register app
         "fixed": "fa5s.anchor",
         "moving": "ri.drag-move-2-line",
@@ -69,7 +71,6 @@ update_icon_mapping(
         "measure": "mdi6.map-marker-distance",
         "builder": "mdi.account-hard-hat",
         "launch": "mdi.rocket-launch",
-        "overlap": "mdi.checkbox-multiple-blank-circle",
     }
 )
 

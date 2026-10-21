@@ -65,6 +65,22 @@ def test_split_merge_identity_history_reopen(project):
     assert store.hit_test(slide.id, (2, 2)).key == key
 
 
+def test_area_selection_filters_review_set_and_visibility(project: tuple) -> None:
+    store, slide, cls, set_id = project
+    accepted = add(store, set_id, object_id="accepted", class_id=cls.id)
+    proposed = add(store, set_id, object_id="proposed", class_id=cls.id, review="proposed")
+    add(store, set_id, object_id="rejected", review="rejected")
+    hidden = AnnotationClass(name="Hidden", visible=False)
+    store.save_class(hidden)
+    add(store, set_id, object_id="hidden", class_id=hidden.id)
+    other_set = store.create_set(slide.id, "Other")
+    add(store, other_set, object_id="other")
+    add(store, set_id, geometry=box(40, 40, 50, 50), object_id="outside")
+    region = box(10, 10, 30, 30)
+    assert list(store.selection_in(slide.id, region, set_id=set_id)) == [accepted]
+    assert list(store.selection_in(slide.id, region, set_id=set_id, review="proposed")) == [proposed]
+
+
 def test_set_counts_combined_copy_and_remove_undo(project: tuple) -> None:
     store, slide, cls, first = project
     second = store.create_set(slide.id, "Second")

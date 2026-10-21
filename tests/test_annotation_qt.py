@@ -13,7 +13,7 @@ from click.testing import CliRunner
 from pytestqt.qtbot import QtBot
 from qtextra.widgets.qt_table_view_check import QtCheckableTableView
 from qtpy.QtCore import QPoint, Qt
-from qtpy.QtWidgets import QApplication, QComboBox, QHeaderView, QStyle, QStyleOptionViewItem
+from qtpy.QtWidgets import QApplication, QComboBox, QHeaderView, QStyle, QStyleOptionViewItem, QWidget
 from shapely.geometry import box
 
 from image2image.cli import cli
@@ -24,10 +24,15 @@ from image2image.models.annotation import (
     FeatureSettings,
 )
 from image2image.qt._annotation_finetune import FineTuneDialog
-from image2image.qt.dialog_annotate import ImageAnnotationWindow
+from image2image.qt.dialog_annotate import AnnotateConfig, ImageAnnotationWindow
 from image2image.utils.annotation.ml import backend_available, train_classifier
 from image2image.utils.annotation.model_cache import read_classifier_metadata
 from image2image.utils.annotation.store import AnnotationStore
+
+
+@pytest.fixture(autouse=True)
+def annotation_preferences(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(AnnotateConfig, "USER_CONFIG_DIR", tmp_path)
 
 
 @pytest.fixture
@@ -278,13 +283,8 @@ def test_overview_palette_and_backend_guidance(
     qtbot.wait(350)
     qtbot.waitUntil(lambda: not window.overview.widget.visibleRegion().isEmpty())
     left_layout = window.slides.parentWidget().layout()
-    assert left_layout.indexOf(window.overview_section) < left_layout.indexOf(window.sets)
-    window.overview_section.collapse(animate=False)
-    assert not window.overview_section.isExpanded()
-    qtbot.waitUntil(lambda: window.overview.widget.visibleRegion().isEmpty())
-    window.overview_section.expand(animate=False)
-    assert window.overview_section.isExpanded()
-    qtbot.waitUntil(lambda: not window.overview.widget.visibleRegion().isEmpty())
+    assert 0 <= left_layout.indexOf(window.overview.widget) < left_layout.indexOf(window.slides)
+    assert window.overview.widget.height() == 160
     monkeypatch.setattr("image2image.qt.dialog_annotate.backend_available", lambda name: name == "forest")
     window.tabs.setCurrentIndex(2)
     window.backend.setCurrentText("micro-sam")
@@ -340,6 +340,9 @@ def test_canvas_drags_commit_without_panning(editor: ImageAnnotationWindow, qtbo
     if mode != "Freehand":
         assert len(window.brush_preview.data) > 0
         assert window.draw_layer.cursor_size == window.brush_radius.value() * 2
+        expected_color = [1, 99 / 255, 71 / 255, 1] if mode in ("Brush -", "Alt brush") else [0, 1, 0, 1]
+        np.testing.assert_allclose(window.brush_preview.edge_color, [expected_color])
+        assert window.brush_preview.edge_width == [3]
     for point in points[1:]:
         qtbot.mouseMove(canvas, point)
     assert window.store.count(window.set_id) == (1 if mode in ("Brush -", "Alt brush") else 0)
@@ -360,7 +363,7 @@ def test_canvas_drags_commit_without_panning(editor: ImageAnnotationWindow, qtbo
             assert not obj.geometry.interiors
         window.undo()
         assert window.store.count(window.set_id) == 0
-    window.tool.setCurrentText("Select")
+    window.tool.setCurrentText("Interact")
     assert window.view.viewer.camera.mouse_pan
     assert window.view.viewer.camera.mouse_zoom
 
@@ -495,6 +498,7 @@ def test_progress_eta_and_phase_reset(editor: ImageAnnotationWindow, monkeypatch
     assert details[2]["eta"] == 2
     assert "Slide 2/3" in editor.job_label.text()
     assert "ETA ~2 s" in editor.job_label.text()
+    assert "ETA ~2 s" in editor.status.text()
     jobs._report_progress({"phase": "Publishing", "completed": 0, "total": None, "message": "Publishing"})
     assert details[-1]["eta"] is None
     assert details[-1]["elapsed"] == 4
@@ -502,6 +506,7 @@ def test_progress_eta_and_phase_reset(editor: ImageAnnotationWindow, monkeypatch
     jobs._poll()
     assert details[-1]["elapsed"] == 5
     assert "Elapsed 5 s" in editor.job_label.text()
+    assert "Elapsed 5 s" in editor.status.text()
     jobs.current = None
 
 
@@ -519,6 +524,250 @@ def test_brush_preview_cancellation(editor: ImageAnnotationWindow, qtbot: QtBot)
     qtbot.mouseRelease(canvas, Qt.MouseButton.LeftButton, pos=center + QPoint(25, 0))
     assert not len(window.brush_preview.data)
     assert window.store.count(window.set_id) == 0
+
+
+def _annotation_canvas(window: ImageAnnotationWindow, qtbot: QtBot) -> QWidget:
+    window.show()
+    qtbot.waitExposed(window)
+    window.raise_()
+    window.activateWindow()
+    qtbot.waitUntil(window.isActiveWindow)
+    qtbot.wait(100)
+    qtbot.waitUntil(lambda: not window._threads, timeout=30000)
+    window.render_timer.stop()
+    return window.view.widget.canvas.native
+
+
+def _draw_polygon(qtbot: QtBot, canvas: QWidget, points: list[QPoint]) -> None:
+    for point in points:
+        qtbot.mouseMove(canvas, point)
+        qtbot.wait(10)
+        qtbot.mouseClick(canvas, Qt.MouseButton.LeftButton, pos=point)
+    qtbot.mouseDClick(canvas, Qt.MouseButton.LeftButton, pos=points[-1])
+
+
+def _brush_drag(window: ImageAnnotationWindow, start: tuple[float, float], end: tuple[float, float]) -> None:
+    event = SimpleNamespace(button=1, modifiers=[], position=start[::-1], type="mouse_press")
+    gesture = window._mouse_drag(window.view.viewer, event)
+    next(gesture, None)
+    event.position, event.type = end[::-1], "mouse_release"
+    list(gesture)
+
+
+def test_brush_creates_three_objects_on_empty_space(editor: ImageAnnotationWindow, qtbot: QtBot) -> None:
+    canvas = _annotation_canvas(editor, qtbot)
+    editor.tool.setCurrentText("Brush +")
+    editor.brush_radius.setValue(5)
+    center = QPoint(canvas.width() // 2, canvas.height() // 2)
+    for index, offset in enumerate((-90, 0, 90), 1):
+        start = center + QPoint(offset, 0)
+        qtbot.mousePress(canvas, Qt.MouseButton.LeftButton, pos=start)
+        qtbot.mouseMove(canvas, start + QPoint(20, 0))
+        qtbot.mouseRelease(canvas, Qt.MouseButton.LeftButton, pos=start + QPoint(20, 0))
+        assert editor.store.count(editor.set_id) == index
+        editor.render_timer.stop()
+    assert editor.brush_preview.opacity == 1
+    editor.undo()
+    assert editor.store.count(editor.set_id) == 2
+
+
+def test_brush_targets_stroke_start_and_keeps_target(editor: ImageAnnotationWindow) -> None:
+    first = editor.add_geometry(box(10, 10, 20, 20))
+    second = editor.add_geometry(box(40, 10, 50, 20))
+    editor.tool.setCurrentText("Brush +")
+    editor.brush_radius.setValue(2)
+    editor.view.viewer.camera.zoom = 1
+    event = SimpleNamespace(button=1, modifiers=[], position=(15, 15), type="mouse_press")
+    gesture = editor._mouse_drag(editor.view.viewer, event)
+    next(gesture)
+    editor.selected = [second]
+    event.position, event.type = (15, 23), "mouse_release"
+    list(gesture)
+    assert editor.selected == [first]
+    assert editor.store.get(first).geometry.area > 100
+    assert editor.store.get(second).geometry.equals(box(40, 10, 50, 20))
+    editor.selected = [first, second]
+    _brush_drag(editor, (70, 15), (75, 15))
+    assert editor.store.count(editor.set_id) == 3
+
+
+def test_brush_locked_target_and_subtraction_fallback(editor: ImageAnnotationWindow) -> None:
+    first = editor.add_geometry(box(10, 10, 30, 30))
+    editor.toggle_object_lock()
+    editor.tool.setCurrentText("Brush +")
+    editor.brush_radius.setValue(2)
+    editor.view.viewer.camera.zoom = 1
+    _brush_drag(editor, (20, 20), (35, 20))
+    assert "locked" in editor.status.text()
+    assert editor.store.count(editor.set_id) == 1
+    assert editor.store.get(first).geometry.equals(box(10, 10, 30, 30))
+    editor.toggle_object_lock()
+    editor.tool.setCurrentText("Brush -")
+    _brush_drag(editor, (8, 20), (20, 20))
+    assert editor.store.get(first).geometry.area < 400
+    editor.undo()
+    assert editor.store.get(first).geometry.equals(box(10, 10, 30, 30))
+    editor.selected = []
+    _brush_drag(editor, (70, 70), (75, 70))
+    assert "Start on an object" in editor.status.text()
+
+
+@pytest.mark.parametrize("automatic", [True, False])
+def test_polygon_double_click_saves_once(editor: ImageAnnotationWindow, qtbot: QtBot, automatic: bool) -> None:
+    canvas = _annotation_canvas(editor, qtbot)
+    editor.auto_add_polygons.setChecked(automatic)
+    editor.tool.setCurrentText("Polygon")
+    center = QPoint(canvas.width() // 2, canvas.height() // 2)
+    points = [center + QPoint(x, y) for x, y in ((-40, -40), (40, -40), (40, 40), (-40, 40))]
+    _draw_polygon(qtbot, canvas, points)
+    qtbot.wait(10)
+    assert editor.store.count(editor.set_id) == int(automatic), editor.status.text()
+    if not automatic:
+        editor.apply_drawing()
+    assert editor.store.count(editor.set_id) == 1
+    editor.apply_drawing()
+    qtbot.mouseDClick(canvas, Qt.MouseButton.LeftButton, pos=points[-1])
+    qtbot.wait(10)
+    assert editor.store.count(editor.set_id) == 1
+    editor.tool.setCurrentText("Interact")
+    editor._show_selected()
+    editor.tool.setCurrentText("Polygon")
+    qtbot.wait(10)
+    assert editor.store.count(editor.set_id) == 1
+
+
+def test_invalid_polygon_and_cancelled_completion(editor: ImageAnnotationWindow, qtbot: QtBot) -> None:
+    canvas = _annotation_canvas(editor, qtbot)
+    editor.tool.setCurrentText("Polygon")
+    center = QPoint(canvas.width() // 2, canvas.height() // 2)
+    points = [center + QPoint(x, y) for x, y in ((-40, -40), (40, 40), (-40, 40), (40, -40))]
+    _draw_polygon(qtbot, canvas, points)
+    qtbot.wait(10)
+    assert editor.store.count(editor.set_id) == 0
+    assert len(editor.draw_layer.data) == 1
+    assert "geometry" in editor.status.text() or "Polygon" in editor.status.text()
+    for clear in (editor.clear_drawing, lambda: editor.tool.setCurrentText("Interact")):
+        editor.tool.setCurrentText("Polygon")
+        editor.clear_drawing()
+        for point in points[:3]:
+            qtbot.mouseMove(canvas, point)
+            qtbot.wait(10)
+            qtbot.mouseClick(canvas, Qt.MouseButton.LeftButton, pos=point)
+        editor._drawing_finished(editor.draw_layer, SimpleNamespace(button=1))
+        clear()
+        qtbot.wait(10)
+        assert editor.store.count(editor.set_id) == 0
+
+
+@pytest.mark.parametrize("reviewing", [False, True])
+def test_area_selection_finishes_without_creating_objects(
+    editor: ImageAnnotationWindow, qtbot: QtBot, reviewing: bool
+) -> None:
+    accepted = editor.add_geometry(box(0, 0, 128, 96))
+    proposed = editor.store.apply(
+        EditCommand(
+            "Proposal", [(None, AnnotationObject(editor.set_id, "pred", box(0, 0, 128, 96), review="proposed"))]
+        )
+    )[0]
+    editor.refresh_tables()
+    canvas = _annotation_canvas(editor, qtbot)
+    editor.tabs.setCurrentIndex(3 if reviewing else 0)
+    editor.auto_add_polygons.setChecked(False)
+    editor.tool.setCurrentText("Select by area")
+    center = QPoint(canvas.width() // 2, canvas.height() // 2)
+    _draw_polygon(qtbot, canvas, [center + QPoint(x, y) for x, y in ((-30, -30), (30, -30), (0, 30))])
+    qtbot.waitUntil(lambda: "selected by area" in editor.status.text())
+    assert editor.selected == [proposed if reviewing else accepted]
+    assert len(editor.draw_layer.data) == 1
+    if reviewing:
+        assert editor._review_selection == [proposed]
+    assert editor.store.count(editor.set_id, review=None) == 2
+
+
+def test_prompt_right_click_removes_points_then_latest_box(editor: ImageAnnotationWindow, qtbot: QtBot) -> None:
+    canvas = _annotation_canvas(editor, qtbot)
+    center = QPoint(canvas.width() // 2, canvas.height() // 2)
+    for mode, offset in (("Prompt +", -30), ("Prompt -", 0), ("Prompt +", 30)):
+        editor.tool.setCurrentText(mode)
+        qtbot.mouseClick(canvas, Qt.MouseButton.LeftButton, pos=center + QPoint(offset, 0))
+    editor.tool.setCurrentText("Prompt box")
+    for size in (60, 45):
+        qtbot.mousePress(canvas, Qt.MouseButton.LeftButton, pos=center - QPoint(size, size))
+        qtbot.mouseMove(canvas, center + QPoint(size, size))
+        qtbot.wait(10)
+        qtbot.mouseRelease(canvas, Qt.MouseButton.LeftButton, pos=center + QPoint(size, size))
+    first_box = editor.prompt_box_layer.data[0].copy()
+    assert len(editor.prompt_box_layer.data) == 2
+    qtbot.mouseClick(canvas, Qt.MouseButton.RightButton, pos=center)
+    assert editor._prompt_labels == [1, 1]
+    assert len(editor.prompt_layer.data) == 2
+    assert len(editor.prompt_box_layer.data) == 2
+    np.testing.assert_allclose(editor.prompt_layer.face_color, [[0, 1, 0, 1]] * 2)
+    qtbot.mouseClick(canvas, Qt.MouseButton.RightButton, pos=center)
+    assert len(editor.prompt_box_layer.data) == 1
+    np.testing.assert_allclose(editor.prompt_box_layer.data[0], first_box)
+    for mode, offset in (("Prompt -", -30), ("Prompt +", 30)):
+        editor.tool.setCurrentText(mode)
+        qtbot.mouseClick(canvas, Qt.MouseButton.RightButton, pos=center + QPoint(offset, 0))
+    assert not len(editor.prompt_layer.data) and not editor._prompt_labels
+    editor.draw_layer.add(np.array([[10, 10], [10, 20], [20, 20]]), shape_type="polygon")
+    editor.clear_prompts()
+    assert not len(editor.prompt_box_layer.data)
+    assert len(editor.draw_layer.data) == 1
+
+
+def test_display_preferences_survive_overlay_creation_and_reload(editor: ImageAnnotationWindow, qtbot: QtBot) -> None:
+    for attr in ("_overlay", "_proposal_overlay"):
+        layer = getattr(editor, attr)
+        if layer is not None:
+            editor.view.viewer.layers.remove(layer)
+            setattr(editor, attr, None)
+    values = {"annotations": 25, "predictions": 50, "drawings": 75, "prompts": 0}
+    for group, value in values.items():
+        editor.opacity_sliders[group].setValue(value)
+    assert editor.draw_layer.opacity == editor.brush_preview.opacity == 0.75
+    assert editor.prompt_layer.opacity == editor.prompt_box_layer.opacity == 0
+    editor._render()
+    qtbot.waitUntil(lambda: not editor._threads and editor._overlay is not None, timeout=30000)
+    assert editor._overlay.opacity == 0.25
+    assert editor._proposal_overlay.opacity == 0.5
+    editor._render()
+    qtbot.waitUntil(lambda: not editor._threads, timeout=30000)
+    assert editor._overlay.opacity == 0.25
+    editor.show_predictions.setChecked(False)
+    qtbot.waitUntil(lambda: not editor._proposal_overlay.visible, timeout=30000)
+    editor.auto_add_polygons.setChecked(False)
+    reloaded = AnnotateConfig(_auto_load=True)
+    assert not reloaded.auto_add_polygons
+    assert {group: getattr(reloaded, f"opacity_{group}") for group in values} == values
+
+
+def test_statusbar_progress_and_cancel_are_available_in_annotate(editor: ImageAnnotationWindow, qtbot: QtBot) -> None:
+    _annotation_canvas(editor, qtbot)
+    assert editor.statusBar() is editor.statusbar
+    assert all(editor.statusbar.isAncestorOf(widget) for widget in (editor.queue_btn, editor.cancel_btn, editor.status))
+    editor.jobs.current = {"operation": "predict", "id": "test"}
+    editor._job_busy(True)
+    editor._job_progress(
+        {
+            "phase": "Patches",
+            "message": "Predicting",
+            "completed": 1,
+            "total": 4,
+            "elapsed": 2,
+            "eta": 6,
+            "position": 1,
+            "queue_total": 1,
+        }
+    )
+    assert editor.progress_bar.isVisible()
+    assert editor.progress_bar.value() == 250
+    assert all(text in editor.status.text() for text in ("Patches", "Elapsed 2 s", "ETA ~6 s"))
+    qtbot.mouseClick(editor.cancel_btn, Qt.MouseButton.LeftButton)
+    assert editor.jobs.cancelling and editor.jobs._cancel.is_set()
+    editor.jobs.current = None
+    editor._job_busy(False)
+    assert editor.progress_bar.isHidden() and not editor.cancel_btn.isEnabled()
 
 
 def test_model_catalogue_before_project(qtbot: QtBot) -> None:
@@ -993,7 +1242,7 @@ def test_review_canvas_picks_proposals_across_filters_pages_and_actions(
     keys = window.store.apply(EditCommand("Proposals", [(None, obj) for obj in (small, *distant, target)]))
     window.refresh_tables()
     window.tabs.setCurrentIndex(3)
-    window.tool.setCurrentText("Select")
+    window.tool.setCurrentText("Interact")
     window.show()
     qtbot.waitExposed(window)
     qtbot.waitUntil(lambda: not window._threads, timeout=30000)

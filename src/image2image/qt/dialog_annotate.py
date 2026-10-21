@@ -19,12 +19,12 @@ from zipfile import BadZipFile
 
 import numpy as np
 import qtextra.helpers as hp
+from pydantic import Field
 from qtextra.utils.table_config import TableConfig
 from qtextra.widgets.qt_button_segmented import QtSegmentedButton
-from qtextra.widgets.qt_collapsible import QtCheckCollapsible
 from qtextraplot._napari.image.wrapper import NapariImageView
-from qtpy.QtCore import QLockFile, QSignalBlocker, Qt, QTimer
-from qtpy.QtGui import QCloseEvent, QColor, QKeySequence, QShortcut  # type: ignore[attr-defined]
+from qtpy.QtCore import QEvent, QLockFile, QObject, QSignalBlocker, Qt, QTimer
+from qtpy.QtGui import QCloseEvent, QColor, QKeySequence, QMouseEvent, QShortcut  # type: ignore[attr-defined]
 from qtpy.QtWidgets import (
     QColorDialog,
     QComboBox,
@@ -41,7 +41,7 @@ from qtpy.QtWidgets import (
     QTabWidget,
     QWidget,
 )
-from shapely.geometry import LineString, MultiPolygon, Polygon
+from shapely.geometry import LineString, MultiPolygon, Point, Polygon
 from superqt.utils import create_worker
 
 from image2image.config import SingleAppConfig
@@ -90,6 +90,12 @@ class AnnotateConfig(SingleAppConfig):
     """Keep editor preferences separate from registration configuration."""
 
     USER_CONFIG_FILENAME = "config.annotate.json"
+
+    auto_add_polygons: bool = True
+    opacity_annotations: int = Field(default=100, ge=0, le=100)
+    opacity_predictions: int = Field(default=100, ge=0, le=100)
+    opacity_drawings: int = Field(default=100, ge=0, le=100)
+    opacity_prompts: int = Field(default=100, ge=0, le=100)
 
 
 class CoordinateDialog(QDialog):
@@ -172,7 +178,7 @@ class ImageAnnotationWindow(Window):
         self._page_totals: dict[str, int] = {"accepted": 0, "proposed": 0}
         self._class_labels: dict[str, str | None] = {}
         self._pagination: dict[str, tuple[Any, Any, Any]] = {}
-        self._mode = "Select"
+        self._mode = "Interact"
         self._ring_layout: list[int] = []
         self._image_layers: list[Any] = []
         self._overlay = None
@@ -211,7 +217,7 @@ class ImageAnnotationWindow(Window):
     def setup_events(self, state: bool = True) -> None:
         """Connect background job progress and viewport changes."""
         if state:
-            self.jobs.progress.connect(self.status.setText)
+            self.jobs.progress.connect(self._job_message)
             self.jobs.details.connect(self._job_progress)
             self.jobs.completed.connect(self._job_done)
             self.jobs.failed.connect(self._job_failed)
@@ -244,13 +250,13 @@ class ImageAnnotationWindow(Window):
     def _button(self, parent: QWidget, text: str, function: Any) -> Any:
         return hp.make_btn(parent, text, func=lambda: self._try(function))
 
+    def _qta_button(self, parent: QWidget, icon: str, tooltip: str, function: Any) -> Any:
+        return hp.make_qta_btn(parent, icon, tooltip=tooltip, func=lambda: self._try(function), size_preset="small")
+
     def _setup_ui(self) -> None:
         main = QWidget(self)
         layout = hp.make_v_layout(parent=main)
         self._make_queue_dialog()
-        self.queue_btn = hp.make_qta_btn(main, "queue", tooltip="Show task queue", func=self.show_task_queue)
-        self.cancel_btn = hp.make_btn(main, "Cancel job", func=self.jobs.cancel)
-        self.cancel_btn.setEnabled(False)
         layout.addLayout(
             hp.make_h_layout(
                 self._button(main, "New project...", self.choose_new_project),
@@ -260,14 +266,17 @@ class ImageAnnotationWindow(Window):
                 self._button(main, "Export...", self.choose_export),
                 self._button(main, "Undo", self.undo),
                 self._button(main, "Redo", self.redo),
-                self.queue_btn,
-                self.cancel_btn,
             )
         )
         splitter = QSplitter(Qt.Orientation.Horizontal, main)
         left = QWidget(splitter)
-        left_box = hp.make_v_layout(parent=left)
-        left_box.addWidget(hp.make_label(left, "Slides"))
+        left_box = hp.make_v_layout(parent=left, margin=2, spacing=2)
+        left_box.addWidget(hp.make_h_line_with_text(left, "Slides"))
+        # Preview
+        self.overview = NapariImageView(left, add_toolbars=False, disable_new_layers=True, allow_crosshair=False)
+        self.overview.widget.setFixedHeight(160)
+        left_box.addWidget(self.overview.widget)
+        # Slides
         self.slides = QListWidget(left)
         self.slides.currentRowChanged.connect(self._slide_selected)
         left_box.addWidget(self.slides, 1)
@@ -277,46 +286,40 @@ class ImageAnnotationWindow(Window):
                 self._button(left, "Calibration...", self.calibrate_slide),
             )
         )
-        self.overview_section = QtCheckCollapsible("Overview (click to navigate)", left)
-        self.overview_section.set_checkbox_visible(False)
-        self.overview_section.set_icon_visible(False)
-        self.overview_section.set_warning_visible(False)
-        self.overview = NapariImageView(left, add_toolbars=False, disable_new_layers=True, allow_crosshair=False)
-        self.overview.widget.setFixedHeight(160)
-        self.overview_section.addRow(self.overview.widget)
-        self.overview_section.expand(animate=False)
-        left_box.addWidget(self.overview_section)
         self.overview.viewer.mouse_drag_callbacks.append(self._overview_click)
         self.sets = hp.make_combobox(left, func_index=self._set_changed)
-        left_box.addWidget(hp.make_label(left, "Annotation set"))
-        left_box.addWidget(self.sets)
-        left_box.addWidget(self._button(left, "New annotation set", self.new_set))
+        left_box.addWidget(hp.make_h_line_with_text(left, "Annotation set"))
         left_box.addLayout(
             hp.make_h_layout(
-                self._button(left, "Combine sets...", self.choose_combine_sets),
-                self._button(left, "Remove set", self.remove_set),
-            )
+                self.sets,
+                self._qta_button(left, "add", "Create a new annotation set", self.new_set),
+                self._qta_button(left, "remove", "Remove the selected annotation set", self.remove_set),
+                self._qta_button(left, "combine", "Combine annotation sets", self.choose_combine_sets),
+                stretch_id=(0,),
+                spacing=1,
+                margin=1,
+            ),
         )
-        left_box.addWidget(hp.make_label(left, "Shared classes"))
+        left_box.addWidget(hp.make_h_line_with_text(left, "Shared classes"))
         self.classes = QListWidget(left)
+        left_box.addLayout(
+            hp.make_h_layout(
+                self._qta_button(left, "add", "add a new class", self.add_class),
+                self._qta_button(left, "edit", "Remove the selected class", self.edit_class),
+                self._qta_button(left, "visible", "Show/hide classes", self.toggle_class_visible),
+                self._qta_button(left, "locked", "Lock/unlock classes", self.toggle_class_locked),
+                stretch_after=True,
+                spacing=1,
+                margin=1,
+            ),
+        )
         left_box.addWidget(self.classes, 1)
-        left_box.addLayout(
-            hp.make_h_layout(
-                self._button(left, "Add class", self.add_class), self._button(left, "Edit class", self.edit_class)
-            )
-        )
-        left_box.addLayout(
-            hp.make_h_layout(
-                self._button(left, "Show/hide", self.toggle_class_visible),
-                self._button(left, "Lock/unlock", self.toggle_class_locked),
-            )
-        )
         center = QWidget(splitter)
         center_box = hp.make_v_layout(parent=center)
         self.tool = hp.make_combobox(
             center,
             [
-                "Select",
+                "Interact",
                 "Polygon",
                 "Freehand",
                 "Rectangle",
@@ -324,7 +327,7 @@ class ImageAnnotationWindow(Window):
                 "Brush -",
                 "Vertices",
                 "Cut",
-                "Select region",
+                "Select by area",
                 "Prompt +",
                 "Prompt -",
                 "Prompt box",
@@ -332,7 +335,8 @@ class ImageAnnotationWindow(Window):
             func=self.set_mode,
         )
         self.brush_radius = hp.make_int_spin_box(center, minimum=1, maximum=500, value=15)
-        self.show_predictions = hp.make_checkbox(center, "Show proposals", default=True, func=self.schedule_render)
+        self.show_predictions = hp.make_checkbox(center, "Show predictions", default=True, func=self.schedule_render)
+        self.show_predictions.setToolTip("Show predictions in the active annotation set awaiting acceptance in Review.")
         center_box.addLayout(
             hp.make_h_layout(
                 self.tool,
@@ -340,7 +344,20 @@ class ImageAnnotationWindow(Window):
                 self.brush_radius,
                 self._button(center, "Apply drawing", self.apply_drawing),
                 self._button(center, "Clear drawing", self.clear_drawing),
+            )
+        )
+        self.auto_add_polygons = hp.make_checkbox(
+            center, "Auto-add polygons", default=self.CONFIG.auto_add_polygons, func=self._auto_add_changed
+        )
+        self.auto_add_polygons.setToolTip("Save polygons on double-click. Uncheck to use Apply drawing instead.")
+        self.display_btn = self._button(center, "Display...", self.show_display_controls)
+        center_box.addLayout(
+            hp.make_h_layout(
+                self.auto_add_polygons,
                 self.show_predictions,
+                self._button(center, "Clear prompts", self.clear_prompts),
+                self.display_btn,
+                stretch_after=True,
             )
         )
         self.view = NapariImageView(center, add_toolbars=False, disable_new_layers=True, allow_crosshair=False)
@@ -349,13 +366,16 @@ class ImageAnnotationWindow(Window):
             name="Drawing / selected rings", ndim=2, edge_color="yellow", face_color="transparent", edge_width=2
         )
         self.brush_preview = self.view.viewer.add_shapes(
-            name="Brush preview", ndim=2, edge_color="lime", face_color="transparent", edge_width=2, opacity=0.5
+            name="Brush preview", ndim=2, edge_color="lime", face_color="transparent", edge_width=3, opacity=1
         )
         self.prompt_layer = self.view.viewer.add_points(name="AI prompts", ndim=2, size=8, face_color="lime")
         self.prompt_box_layer = self.view.viewer.add_shapes(
             name="AI prompt boxes", ndim=2, edge_color="cyan", face_color="transparent", edge_width=2
         )
         self.view.viewer.mouse_drag_callbacks.append(self._mouse_drag)
+        self.draw_layer.mouse_double_click_callbacks.append(self._drawing_finished)
+        self.view.widget.canvas.native.installEventFilter(self)
+        self._make_display_controls()
         self.brush_radius.valueChanged.connect(lambda *_: self.set_mode(self._mode))
         self.tabs = QTabWidget(splitter)
         self.tabs.addTab(self._annotation_panel(), "Annotate")
@@ -368,11 +388,8 @@ class ImageAnnotationWindow(Window):
         splitter.addWidget(self.tabs)
         splitter.setSizes([250, 1000, 370])
         layout.addWidget(splitter, 1)
-        self.status = hp.make_label(
-            main, "Create or open an .i2annotate project. Edits are saved automatically.", wrap=True
-        )
-        layout.addWidget(self.status)
         self.setCentralWidget(main)
+        self._make_statusbar()
         self._make_icon()
         menubar = QMenuBar(self)
         for menu in (self._make_apps_menu(), self._make_help_menu()):
@@ -397,7 +414,7 @@ class ImageAnnotationWindow(Window):
                     else self.merge_selected()
                 ),
             ),
-            ("V", lambda: self.tool.setCurrentText("Select")),
+            ("V", lambda: self.tool.setCurrentText("Interact")),
             ("P", lambda: self.tool.setCurrentText("Polygon")),
             ("B", lambda: self.tool.setCurrentText("Brush +")),
         ):
@@ -412,6 +429,68 @@ class ImageAnnotationWindow(Window):
             shortcut = QShortcut(QKeySequence(key), self)
             shortcut.activated.connect(partial(self._review_action, function))
             self._shortcuts.append(shortcut)
+        self.set_mode(self.tool.currentText())
+
+    def _make_statusbar(self) -> None:
+        super()._make_statusbar()
+        self.status = hp.make_label(self, "Create or open an .i2annotate project. Edits are saved automatically.")
+        self.status.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
+        self.tool_hint = hp.make_label(self, "", wrap=False)
+        self.tool_hint.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
+        self.queue_btn = hp.make_qta_btn(
+            self, "queue", tooltip="Show task queue", func=self.show_task_queue, size_preset="small"
+        )
+        self.cancel_btn = hp.make_btn(
+            self, "Cancel job", tooltip="Stop the active job and clear queued tasks.", func=self.jobs.cancel
+        )
+        self.cancel_btn.setEnabled(False)
+        self.statusbar.insertPermanentWidget(1, self.queue_btn)
+        self.statusbar.insertPermanentWidget(2, self.cancel_btn)
+        self.statusbar.addWidget(self.status, 1)
+        self.statusbar.addWidget(self.tool_hint, 1)
+
+    def _auto_add_changed(self, enabled: bool) -> None:
+        self.CONFIG.update(auto_add_polygons=bool(enabled))
+
+    def _make_display_controls(self) -> None:
+        self.display_popup = QDialog(self, Qt.WindowType.Popup)
+        self.display_popup.setWindowTitle("Overlay opacity")
+        self.display_popup.setMinimumWidth(300)
+        layout = hp.make_form_layout(parent=self.display_popup)
+        self.opacity_sliders: dict[str, Any] = {}
+        for group, label in (
+            ("annotations", "Annotations (%)"),
+            ("predictions", "Predictions (%)"),
+            ("drawings", "Drawings (%)"),
+            ("prompts", "Prompts (%)"),
+        ):
+            slider = hp.make_slider_with_text(
+                self.display_popup,
+                value=getattr(self.CONFIG, f"opacity_{group}"),
+                func=partial(self._opacity_changed, group),
+            )
+            self.opacity_sliders[group] = slider
+            layout.addRow(label, slider)
+        self._update_opacity()
+
+    def show_display_controls(self) -> None:
+        """Show independent opacity controls for the editor overlays."""
+        hp.show_below_widget(self.display_popup, self.display_btn)
+
+    def _opacity_changed(self, group: str, value: int) -> None:
+        self.CONFIG.update(**{f"opacity_{group}": value})
+        self._update_opacity()
+
+    def _update_opacity(self) -> None:
+        for group, layers in (
+            ("annotations", (self._overlay,)),
+            ("predictions", (self._proposal_overlay,)),
+            ("drawings", (self.draw_layer, self.brush_preview)),
+            ("prompts", (self.prompt_layer, self.prompt_box_layer)),
+        ):
+            for layer in layers:
+                if layer is not None:
+                    layer.opacity = getattr(self.CONFIG, f"opacity_{group}") / 100
 
     def _annotation_panel(self) -> QWidget:
         panel = QWidget(self)
@@ -460,13 +539,6 @@ class ImageAnnotationWindow(Window):
                 self._button(panel, "Delete", self.delete_selected),
             )
         )
-        layout.addWidget(
-            hp.make_label(
-                panel,
-                "Polygon: double-click to finish, then Apply drawing.\nFreehand and brush: drag; saved on release. Alt subtracts.\nSelect: click objects or drag to pan. Scroll to zoom.\nVertices: edit yellow rings, then Apply.\nCut: draw a line, then choose the survivor.",
-                wrap=True,
-            )
-        )
         return panel
 
     def _train_panel(self) -> QWidget:
@@ -486,11 +558,11 @@ class ImageAnnotationWindow(Window):
             )
         )
         self.classifier_name = hp.make_line_edit(panel, text="Tissue classifier")
-        self.train_downsample = hp.make_int_spin_box(panel, minimum=1, maximum=256, value=4, expand=False)
-        self.feature_sigma = hp.make_int_spin_box(panel, minimum=1, maximum=32, value=8, expand=False)
-        self.sample_count = hp.make_int_spin_box(panel, minimum=100, maximum=100000, value=10000, expand=False)
-        self.random_seed = hp.make_int_spin_box(panel, minimum=0, maximum=2**31 - 1, value=42, expand=False)
-        self.max_depth = hp.make_int_spin_box(panel, minimum=1, maximum=1000, value=24, expand=False)
+        self.train_downsample = hp.make_int_spin_box(panel, minimum=1, maximum=256, value=4)
+        self.feature_sigma = hp.make_int_spin_box(panel, minimum=1, maximum=32, value=8)
+        self.sample_count = hp.make_int_spin_box(panel, minimum=100, maximum=100000, value=10000)
+        self.random_seed = hp.make_int_spin_box(panel, minimum=0, maximum=2**31 - 1, value=42)
+        self.max_depth = hp.make_int_spin_box(panel, minimum=1, maximum=1000, value=24)
         form.addRow("Classifier name", self.classifier_name)
         form.addRow("Training downsample", self.train_downsample)
         form.addRow("Largest feature scale", self.feature_sigma)
@@ -541,6 +613,14 @@ class ImageAnnotationWindow(Window):
         )
         return scroll
 
+    def on_pressed_link(self, link: str) -> None:
+        """Go to the requested task."""
+        from koyo.path import open_directory_universal
+
+        if "goto:" in link:
+            link = link.split("goto:")[-1]
+        open_directory_universal(link)
+
     def _predict_panel(self) -> QWidget:
         panel, scroll = hp.make_scroll_area(self)
         form = hp.make_form_layout(parent=panel)
@@ -553,25 +633,28 @@ class ImageAnnotationWindow(Window):
         self.model.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
         self.model.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Fixed)
         self.checkpoint = hp.make_line_edit(panel)
-        self.device = hp.make_combobox(panel, ["auto", "cpu", "cuda", "mps"])
+        self.device = hp.make_combobox(
+            panel, ["auto", "cpu", "cuda", "mps"], tooltip="Device: auto chooses CUDA, then Apple MPS, then CPU."
+        )
         self.predict_downsample = hp.make_int_spin_box(panel, minimum=1, maximum=256, value=1)
         self.tile_size = hp.make_combobox(panel, ["256", "512", "1024"])
         self.tile_size.setCurrentText("512")
         form.addRow("Backend", self.backend)
-        self.backend_hint = hp.make_label(panel, "", wrap=True, bold=True)
+        self.backend_hint = hp.make_label(panel, "", wrap=True)
         form.addRow(self.backend_hint)
-        self.model_summary = hp.make_label(panel, "", wrap=True)
-        form.addRow(self.model_summary)
+
         self.download_btn = hp.make_qta_btn(
             panel,
-            "mdi6.download",
+            "download",
             tooltip="Download selected model",
             func=lambda: self._try(self.download_selected_model),
             size_preset="small",
         )
         self.model_help = hp.make_help_label(panel, "Select a model to see its purpose and requirements.")
         form.addRow("Model", hp.make_h_layout(self.model, self.download_btn, self.model_help, stretch_id=0, spacing=2))
-        self.model_status = hp.make_label(panel, "", wrap=True, enable_url=True)
+        self.model_summary = hp.make_label(panel, "", wrap=True)
+        form.addRow(self.model_summary)
+        self.model_status = hp.make_label(panel, "", wrap=True, enable_url=True, func_activated=self.on_pressed_link)
         form.addRow(self.model_status)
         self.model_requirements = hp.make_label(panel, "", wrap=True, enable_url=True)
         form.addRow(self.model_requirements)
@@ -580,6 +663,7 @@ class ImageAnnotationWindow(Window):
         form.addRow("Optional local checkpoint", self.checkpoint)
         self.choose_checkpoint_btn = self._button(panel, "Choose checkpoint...", self.choose_checkpoint)
         form.addRow(self.choose_checkpoint_btn)
+        form.addRow(hp.make_h_line(panel))
         form.addRow("Device", self.device)
         form.addRow("Prediction downsample", self.predict_downsample)
         form.addRow("Patch size", self.tile_size)
@@ -1302,6 +1386,7 @@ class ImageAnnotationWindow(Window):
             self._proposal_details()
 
     def _show_selected(self) -> None:
+        self._stroke_revision += 1
         summary = f"{len(self.selected)} selected."
         if len(self.selected) == 1 and self.store:
             obj = self.store.get(self.selected[0])
@@ -1318,7 +1403,7 @@ class ImageAnnotationWindow(Window):
         self.selection_label.setText(summary)
         self.draw_layer.data = []
         self._ring_layout.clear()
-        if self.selected and self.store:
+        if self.selected and self.store and self._mode not in ("Polygon", "Rectangle", "Freehand"):
             rings = []
             for key in self.selected[:100]:
                 obj = self.store.get(key)
@@ -1341,14 +1426,14 @@ class ImageAnnotationWindow(Window):
                 self.brush_preview.data = []
         if not hasattr(self, "draw_layer"):
             return
-        if previous_mode != mode and mode in ("Polygon", "Rectangle", "Cut", "Select region", "Freehand"):
+        if previous_mode != mode and mode in ("Polygon", "Rectangle", "Cut", "Select by area", "Freehand"):
             self.draw_layer.data = []
         mapping = {
             "Polygon": "add_polygon",
             "Rectangle": "add_rectangle",
             "Vertices": "direct",
             "Cut": "add_path",
-            "Select region": "add_polygon",
+            "Select by area": "add_polygon",
         }
         self.draw_layer.mode = mapping.get(mode, "pan_zoom")
         self.prompt_box_layer.mode = "add_rectangle" if mode == "Prompt box" else "pan_zoom"
@@ -1356,28 +1441,112 @@ class ImageAnnotationWindow(Window):
         self.view.viewer.layers.selection.select_only(
             self.prompt_box_layer if mode == "Prompt box" else self.draw_layer
         )
-        self.draw_layer.mouse_pan = mode == "Select"
+        self.draw_layer.mouse_pan = mode == "Interact"
         if mode in ("Brush +", "Brush -"):
             self.draw_layer.cursor = "circle"
             self.draw_layer.cursor_size = self.brush_radius.value() * 2
         self.prompt_layer.mode = "pan_zoom"
+        self.tool_hint.setText(
+            {
+                "Interact": "Click to select; Shift-click to add. Drag to pan; scroll to zoom.",
+                "Polygon": "Click vertices; double-click to finish. Auto-add saves immediately; otherwise use Apply drawing.",
+                "Rectangle": "Drag a rectangle, then Apply drawing or Predict drawn rectangle.",
+                "Freehand": "Drag a region; saved on release. Escape cancels.",
+                "Brush +": "Start on empty space for a new object, or inside an object to edit it. Alt subtracts; Escape cancels.",
+                "Brush -": "Start inside an object, or select one first. Drag to subtract; Escape cancels.",
+                "Vertices": "Select one object and edit its yellow vertices, then Apply drawing.",
+                "Cut": "Select one object, draw a cut line, then Apply drawing to choose the surviving ID.",
+                "Select by area": "Click vertices; double-click to select intersecting objects in the active set.",
+                "Prompt +": "Click to mark foreground. Right-click a point or inside a box to remove it.",
+                "Prompt -": "Click to mark an exclusion. Right-click a point or inside a box to remove it.",
+                "Prompt box": "Drag a box. Right-click a point or inside a box to remove it. Clear prompts removes all hints.",
+            }.get(mode, "")
+        )
+
+    def _drawing_finished(self, _layer: Any, event: Any) -> None:
+        mode = self._mode
+        if (
+            event.button != 1
+            or not _layer._is_creating
+            or not (mode == "Select by area" or (mode == "Polygon" and self.auto_add_polygons.isChecked()))
+        ):
+            return
+        self._stroke_revision += 1
+        revision = self._stroke_revision
+        context = (self._generation, self.slide_id, self.set_id, self.tabs.currentIndex())
+
+        def finish() -> None:
+            # Napari finalizes its shape after custom double-click callbacks run.
+            if (
+                not self._closing
+                and revision == self._stroke_revision
+                and mode == self._mode
+                and context == (self._generation, self.slide_id, self.set_id, self.tabs.currentIndex())
+                and len(self.draw_layer.data)
+            ):
+                self._stroke_revision += 1
+                self._try(self.apply_drawing)
+
+        QTimer.singleShot(0, finish)
+
+    def eventFilter(self, obj: QObject, event: QEvent) -> bool:
+        """Consume prompt removal clicks before napari's shape drawing handlers."""
+        if (
+            obj is self.view.widget.canvas.native
+            and self._mode in ("Prompt +", "Prompt -", "Prompt box")
+            and event.type()
+            in (QEvent.Type.MouseButtonPress, QEvent.Type.MouseButtonRelease, QEvent.Type.MouseButtonDblClick)
+        ):
+            mouse = cast(QMouseEvent, event)
+            if mouse.button() == Qt.MouseButton.RightButton:
+                if event.type() == QEvent.Type.MouseButtonPress:
+                    point = mouse.position() if hasattr(mouse, "position") else mouse.localPos()
+                    canvas = self.view.widget.canvas
+                    position = canvas._map_canvas2world((point.x(), point.y()), canvas.view)
+                    self._remove_prompt(position[-2:])
+                return True
+        return super().eventFilter(obj, event)
+
+    def _remove_prompt(self, yx: tuple[float, float]) -> None:
+        points = self.prompt_layer.data
+        if len(points):
+            distances = np.linalg.norm(points - np.asarray(yx), axis=1) * self.view.viewer.camera.zoom
+            index = int(np.argmin(distances))
+            if distances[index] <= 8:
+                self.prompt_layer.selected_data = {index}
+                self.prompt_layer.remove_selected()
+                self.prompt_layer.selected_data = set()
+                self._prompt_labels.pop(index)
+                return
+        for index in reversed(range(len(self.prompt_box_layer.data))):
+            box = Polygon(self.prompt_box_layer.data[index])
+            if box.covers(Point(yx)):
+                self.prompt_box_layer.selected_data = {index}
+                self.prompt_box_layer.remove_selected()
+                self.prompt_box_layer.selected_data = set()
+                return
+
+    def clear_prompts(self) -> None:
+        """Remove all AI prompt points and boxes without changing annotation drawings."""
+        self.prompt_layer.selected_data = set()
+        self.prompt_layer.data = np.empty((0, 2))
+        self.prompt_box_layer.selected_data = set()
+        self.prompt_box_layer.data = []
+        self._prompt_labels.clear()
 
     def clear_drawing(self) -> None:
         """Discard temporary drawing and prompts without touching stored annotations."""
-        self.draw_layer.data = []
         self._stroke_revision += 1
+        self.draw_layer.data = []
         self.brush_preview.data = []
-        self.prompt_layer.selected_data = set()
-        self.prompt_layer.data = np.empty((0, 2))
-        self.prompt_box_layer.data = []
-        self._prompt_labels: list[int] = []
+        self.clear_prompts()
         self._ring_layout.clear()
 
     def _mouse_drag(self, _viewer: Any, event: Any) -> Any:
         if not self.store or not self.slide_id or event.button != 1:
             return
         xy = (float(event.position[-1]), float(event.position[-2]))
-        if self._mode == "Select":
+        if self._mode == "Interact":
             reviewing = self.tabs.currentIndex() == 3
             obj = self.store.hit_test(
                 self.slide_id, xy, set_id=self.set_id, review="proposed" if reviewing else "accepted"
@@ -1421,9 +1590,18 @@ class ImageAnnotationWindow(Window):
         mode, slide_id = self._mode, self.slide_id
         stroke_revision = self._stroke_revision
         subtract = mode == "Brush -" or "Alt" in event.modifiers
-        if mode != "Freehand" and (len(self.selected) > 1 or (subtract and not self.selected)):
-            self._error("Select exactly one object before subtracting or editing with the brush.")
-            return
+        target = None
+        if mode != "Freehand":
+            review = "proposed" if self.tabs.currentIndex() == 3 else "accepted"
+            obj = self.store.hit_test(self.slide_id, xy, set_id=self.set_id, review=review)
+            if obj is None and subtract and len(self.selected) == 1:
+                selected = self.store.get(self.selected[0])
+                if selected.set_id == self.set_id and selected.review == review:
+                    obj = selected
+            target = obj.key if obj else None
+            if subtract and target is None:
+                self._error("Start on an object or select exactly one object before subtracting with the brush.")
+                return
         points = [xy]
         radius = self.brush_radius.value() / max(0.01, self.view.viewer.camera.zoom)
         if mode != "Freehand":
@@ -1455,7 +1633,10 @@ class ImageAnnotationWindow(Window):
                 self._try(lambda: self.add_geometry(Polygon(points)))
         else:
             stroke = brush_stroke(points, radius, fill=not subtract)
-            if self.selected:
+            if target is not None:
+                self.selected = [target]
+                if self.store.get(target).review == "proposed":
+                    self._review_selection = [target]
                 self._try(lambda: self._brush(stroke, subtract))
             elif not subtract:
                 self._try(lambda: self.add_geometry(stroke))
@@ -1474,8 +1655,7 @@ class ImageAnnotationWindow(Window):
             np.asarray(ring.coords)[:, ::-1] for polygon in polygons for ring in (polygon.exterior, *polygon.interiors)
         ]
         self.brush_preview.data = []
-        self.brush_preview.edge_color = "tomato" if subtract else "lime"
-        self.brush_preview.add(rings, shape_type="path")
+        self.brush_preview.add(rings, shape_type="path", edge_color="tomato" if subtract else "lime")
 
     def _brush(self, stroke: Any, subtract: bool) -> None:
         store = self._require_project()
@@ -1544,10 +1724,16 @@ class ImageAnnotationWindow(Window):
                     self._changed(obj.geometry.bounds)
             finally:
                 self.view.viewer.layers.remove(preview)
-        elif self._mode == "Select region":
+        elif self._mode == "Select by area":
             polygon = Polygon(np.asarray(self.draw_layer.data[-1])[:, ::-1])
-            self.selected = list(store.selection_in(slide.id, polygon, set_id=self.set_id))
+            reviewing = self.tabs.currentIndex() == 3
+            review = "proposed" if reviewing else "accepted"
+            self.selected = list(store.selection_in(slide.id, polygon, set_id=self.set_id, review=review))
+            if reviewing:
+                self._review_selection = list(self.selected)
+            self.refresh_tables()
             self._show_selected()
+            self.status.setText(f"{len(self.selected)} objects selected by area.")
         elif self._mode in ("Rectangle", "Polygon"):
             self.add_geometry(Polygon(np.asarray(self.draw_layer.data[-1])[:, ::-1]))
 
@@ -1867,6 +2053,9 @@ class ImageAnnotationWindow(Window):
                     layer.translate = translate
                     layer.visible = True
                 self.view.viewer.layers.move(self.view.viewer.layers.index(layer), -1)
+            self._update_opacity()
+            if self._proposal_overlay is not None:
+                self._proposal_overlay.visible = self.show_predictions.isChecked() and result[1] is not None
             for layer in (self.draw_layer, self.prompt_layer, self.prompt_box_layer, self.brush_preview):
                 self.view.viewer.layers.move(self.view.viewer.layers.index(layer), -1)
             self.set_mode(self._mode)
@@ -2268,9 +2457,7 @@ class ImageAnnotationWindow(Window):
         else:
             message = "Backend available. " + message
         self.backend_hint.setText(message)
-        self.backend_hint.setStyleSheet(
-            "border: 1px solid #ef9a3c; padding: 6px;" if not available or not ready else ""
-        )
+        hp.set_object_name(self.backend_hint, object_name="warning_label" if not available else "")
         self.choose_model_btn.setVisible(forest)
         requirements = model_requirements_html(backend, self._catalogues.get(backend, [])) if not forest else ""
         self.model_requirements.setText(requirements)
@@ -2300,9 +2487,7 @@ class ImageAnnotationWindow(Window):
             else available and entry is not None and not entry["reason"] and not entry["cached"] and not self.jobs.busy
         )
         if forest:
-            self.model_status.setText(
-                "Project classifier library. Load classifier copies an external file into this project."
-            )
+            self.model_status.setText("")
         else:
             self.model_status.setText(
                 "Using local checkpoint."
@@ -2338,8 +2523,7 @@ class ImageAnnotationWindow(Window):
             self.model_summary.setText(
                 "Choose a saved .npz classifier to see its classes and settings."
                 if forest
-                else "Uses channels from Annotate and the resolution below. Assigns the selected shared class to detections.\n"
-                "Device: auto chooses CUDA, then Apple MPS, then CPU. Downloads start only with the Download button."
+                else "Uses channels from Annotate and the resolution below. Assigns the selected shared class to detections."
             )
             if entry and entry.get("custom"):
                 training = entry["custom"]["settings"]
@@ -2459,16 +2643,24 @@ class ImageAnnotationWindow(Window):
     def _job_busy(self, busy: bool) -> None:
         self.cancel_btn.setEnabled(busy)
         self.job_bar.setVisible(busy)
+        self.progress_bar.setVisible(busy)
         self._update_prediction_controls()
         self._proposal_details()
         self._refresh_training_summary()
 
+    def _job_message(self, message: str) -> None:
+        # Measured progress already updates the status with elapsed time and ETA.
+        if self.jobs.cancelling or not self.jobs.busy:
+            self.status.setText(message)
+            self.status.setToolTip(message)
+
     def _job_progress(self, details: dict[str, Any]) -> None:
         completed, total = details.get("completed", 0), details.get("total")
-        self.job_bar.setVisible(True)
-        self.job_bar.setRange(0, 1000 if total else 0)
-        if total:
-            self.job_bar.setValue(min(1000, int(completed / total * 1000)))
+        for bar in (self.job_bar, self.progress_bar):
+            bar.setVisible(True)
+            bar.setRange(0, 1000 if total else 0)
+            if total:
+                bar.setValue(min(1000, int(completed / total * 1000)))
 
         def duration(seconds: float) -> str:
             minutes, seconds_ = divmod(max(0, math.ceil(seconds)), 60)
@@ -2481,7 +2673,12 @@ class ImageAnnotationWindow(Window):
         if self.jobs.current and self.jobs.current.get("operation") == "download_model":
             units = f" ({completed / 2**20:.1f}" + (f"/{total / 2**20:.1f}" if total else "") + " MiB)"
         queue = f"Slide {details['position']}/{details['queue_total']}; " if details["queue_total"] > 1 else ""
-        self.job_label.setText(f"{queue}{details['message']}{units}\nElapsed {elapsed}{remaining}")
+        phase, message = details.get("phase", ""), details["message"]
+        if phase and phase != message:
+            message = f"{phase}: {message}"
+        self.job_label.setText(f"{queue}{message}{units}\nElapsed {elapsed}{remaining}")
+        self.status.setText(f"{queue}{phase or message}{units}; Elapsed {elapsed}{remaining}")
+        self.status.setToolTip(self.job_label.text())
 
     def _job_failed(self, job: dict, message: str) -> None:
         if self._closing:

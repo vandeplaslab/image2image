@@ -766,9 +766,13 @@ class AnnotationStore:
             collect_keys=False,
         )
 
-    def selection_in(self, slide_id: str, geometry: BaseGeometry, *, set_id: str | None = None) -> Iterator[int]:
-        """Stream selected object keys from a drawn selection region."""
-        for obj in self.iter_objects(slide_id=slide_id, set_id=set_id, bounds=geometry.bounds, visible_only=True):
+    def selection_in(
+        self, slide_id: str, geometry: BaseGeometry, *, set_id: str | None = None, review: str = "accepted"
+    ) -> Iterator[int]:
+        """Stream visible intersecting object keys in the requested review state."""
+        for obj in self.iter_objects(
+            slide_id=slide_id, set_id=set_id, review=review, bounds=geometry.bounds, visible_only=True
+        ):
             if geometry.intersects(obj.geometry):
                 yield obj.key
 
