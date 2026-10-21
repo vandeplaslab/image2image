@@ -309,8 +309,8 @@ class ImageAnnotationWindow(Window):
         self._set_status(message)
         hp.warn_pretty(self, message, "Annotation editor")
 
-    def _button(self, parent: QWidget, text: str, function: Any) -> Any:
-        return hp.make_btn(parent, text, func=lambda: self._try(function))
+    def _button(self, parent: QWidget, text: str, function: Any, *, tooltip: str | None = None) -> Any:
+        return hp.make_btn(parent, text, tooltip=tooltip, func=lambda: self._try(function))
 
     def _qta_button(self, parent: QWidget, icon: str, tooltip: str, function: Any) -> Any:
         return hp.make_qta_btn(parent, icon, tooltip=tooltip, func=lambda: self._try(function), size_preset="small")
@@ -398,8 +398,13 @@ class ImageAnnotationWindow(Window):
             ],
             func=self.set_mode,
         )
-        self.show_predictions = hp.make_checkbox(center, "Show predictions", default=True, func=self.schedule_render)
-        self.show_predictions.setToolTip("Show predictions in the active annotation set awaiting acceptance in Review.")
+        self.show_predictions = hp.make_checkbox(
+            center,
+            "Show predictions",
+            tooltip="Show predictions in the active annotation set awaiting acceptance in Review.",
+            default=True,
+            func=self.schedule_render,
+        )
         center_box.addLayout(
             hp.make_h_layout(
                 self.tool,
@@ -408,9 +413,12 @@ class ImageAnnotationWindow(Window):
             )
         )
         self.auto_add_polygons = hp.make_checkbox(
-            center, "Auto-add polygons", default=self.CONFIG.auto_add_polygons, func=self._auto_add_changed
+            center,
+            "Auto-add polygons",
+            tooltip="Save polygons on double-click. Uncheck to use Apply drawing instead.",
+            default=self.CONFIG.auto_add_polygons,
+            func=self._auto_add_changed,
         )
-        self.auto_add_polygons.setToolTip("Save polygons on double-click. Uncheck to use Apply drawing instead.")
         self.display_btn = self._button(center, "Display...", self.show_display_controls)
         center_box.addLayout(
             hp.make_h_layout(
@@ -823,7 +831,10 @@ class ImageAnnotationWindow(Window):
         )
         form.addRow(self.roi_segment)
         self.prompt_segment = QtSegmentedButton(
-            "Run point/box assistance", panel, func=lambda: self._try(self.predict_prompts)
+            "Run point/box assistance",
+            panel,
+            tooltip="Each positive point or box produces a separate instance. Negative points are shared exclusion hints.",
+            func=lambda: self._try(self.predict_prompts),
         )
         self.prompt_segment.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Minimum)
         self.prompt_btn = self.prompt_segment.button
@@ -835,9 +846,6 @@ class ImageAnnotationWindow(Window):
                 ("mdi6.rectangle-outline", "Prompt box"),
             )
         ]
-        self.prompt_segment.setToolTip(
-            "Each positive point or box produces a separate instance. Negative points are shared exclusion hints."
-        )
         form.addRow(self.prompt_segment)
         self.slide_separator = hp.make_h_line(panel)
         form.addRow(self.slide_separator)
@@ -882,8 +890,18 @@ class ImageAnnotationWindow(Window):
         self.proposal_details = hp.make_label(panel, "Select a proposal to see its source model.", wrap=True)
         layout.addWidget(self.proposal_details)
         layout.addLayout(self._pagination_controls(panel, "proposed"))
-        self.accept_selected_btn = self._button(panel, "Accept selected (A)", partial(self.review, True, False))
-        self.reject_selected_btn = self._button(panel, "Reject selected (R)", partial(self.review, False, False))
+        self.accept_selected_btn = self._button(
+            panel,
+            "Accept selected (A)",
+            partial(self.review, True, False),
+            tooltip="Accept selected proposals (A). Undo restores their proposed state.",
+        )
+        self.reject_selected_btn = self._button(
+            panel,
+            "Reject selected (R)",
+            partial(self.review, False, False),
+            tooltip="Reject selected proposals (R). Undo restores them.",
+        )
         layout.addLayout(hp.make_h_layout(self.accept_selected_btn, self.reject_selected_btn))
         layout.addLayout(
             hp.make_h_layout(
@@ -891,13 +909,19 @@ class ImageAnnotationWindow(Window):
                 self._button(panel, "Reject batch", partial(self.review, False, True)),
             )
         )
-        self.refine_btn = self._button(panel, "Refine selected (E)", self.refine_proposal)
-        self.merge_proposals_btn = self._button(panel, "Merge selected (M)", self.merge_proposals)
+        self.refine_btn = self._button(
+            panel,
+            "Refine selected (E)",
+            self.refine_proposal,
+            tooltip="Edit one selected proposal with vertices or brush tools (E).",
+        )
+        self.merge_proposals_btn = self._button(
+            panel,
+            "Merge selected (M)",
+            self.merge_proposals,
+            tooltip="Merge selected proposals and choose the surviving object ID (M).",
+        )
         layout.addLayout(hp.make_h_layout(self.refine_btn, self.merge_proposals_btn))
-        self.accept_selected_btn.setToolTip("Accept selected proposals (A). Undo restores their proposed state.")
-        self.reject_selected_btn.setToolTip("Reject selected proposals (R). Undo restores them.")
-        self.refine_btn.setToolTip("Edit one selected proposal with vertices or brush tools (E).")
-        self.merge_proposals_btn.setToolTip("Merge selected proposals and choose the surviving object ID (M).")
         return panel
 
     def _make_queue_dialog(self) -> None:
@@ -2582,8 +2606,12 @@ class ImageAnnotationWindow(Window):
         name = hp.make_line_edit(dialog, text=item.name)
         color = hp.make_swatch(dialog, item.color, tooltip="Choose the annotation class color.")
 
-        ignore = hp.make_checkbox(dialog, "Use as Ignore mask", default=item.is_ignore)
-        ignore.setToolTip("Exclude overlapping training pixels in the same annotation set. This class is not learned.")
+        ignore = hp.make_checkbox(
+            dialog,
+            "Use as Ignore mask",
+            tooltip="Exclude overlapping training pixels in the same annotation set. This class is not learned.",
+            default=item.is_ignore,
+        )
         form.addRow("Name", name)
         form.addRow("Color", color)
         form.addRow(ignore)
