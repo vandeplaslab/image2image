@@ -80,7 +80,7 @@ def test_wand_click_drag_identity_undo_and_quick_successive_strokes(
     assert editor.store.get(first.key).object_id == first.object_id
 
 
-def test_brush_live_alt_and_single_undo(editor: ImageAnnotationWindow, qtbot: QtBot) -> None:
+def test_brush_live_shift_and_single_undo(editor: ImageAnnotationWindow, qtbot: QtBot) -> None:
     canvas = _annotation_canvas(editor, qtbot)
     key = editor.add_geometry(box(10, 10, 90, 40))
     original = editor.store.get(key)
@@ -92,11 +92,11 @@ def test_brush_live_alt_and_single_undo(editor: ImageAnnotationWindow, qtbot: Qt
     next(gesture)
     event.position, event.type = (20, 40), "mouse_move"
     next(gesture)
-    qtbot.keyPress(canvas, Qt.Key.Key_Alt)
+    qtbot.keyPress(canvas, Qt.Key.Key_Shift)
     assert "subtracting" in editor.tool_hint.text()
-    event.modifiers, event.position = ["Alt"], (20, 70)
+    event.modifiers, event.position = ["Shift"], (20, 70)
     next(gesture)
-    qtbot.keyRelease(canvas, Qt.Key.Key_Alt)
+    qtbot.keyRelease(canvas, Qt.Key.Key_Shift)
     assert "adding" in editor.tool_hint.text()
     event.modifiers, event.position, event.type = [], (20, 100), "mouse_release"
     list(gesture)
@@ -116,7 +116,7 @@ def test_paint_full_erasure_and_locks(editor: ImageAnnotationWindow, qtbot: QtBo
     original = editor.store.get(key)
     editor.brush_radius.setValue(20)
     editor.tool.setCurrentText(mode)
-    event = SimpleNamespace(button=1, modifiers=["Alt"], position=(55, 50), type="mouse_press")
+    event = SimpleNamespace(button=1, modifiers=["Shift"], position=(55, 50), type="mouse_press")
     gesture = editor._mouse_drag(editor.view.viewer, event)
     next(gesture, None)
     event.type = "mouse_release"
@@ -190,21 +190,25 @@ def test_wand_visible_channels_settings_and_shortcut(editor: ImageAnnotationWind
     assert editor.store.count(editor.set_id) == 0
 
 
-def test_wand_live_alt_preview_flush_and_one_edit(editor: ImageAnnotationWindow, qtbot: QtBot) -> None:
+def test_wand_live_shift_preview_flush_and_one_edit(editor: ImageAnnotationWindow, qtbot: QtBot) -> None:
     _wand_slide(editor, qtbot)
+    editor.filled_paint_preview.setChecked(True)
     event = SimpleNamespace(button=1, modifiers=[], position=(60, 55), type="mouse_press")
     gesture = editor._mouse_drag(editor.view.viewer, event)
     next(gesture)
     qtbot.waitUntil(lambda: len(editor.brush_preview.data) > 0, timeout=10000)
-    event.type, event.modifiers = "mouse_move", ["Alt"]
+    assert editor.paint_fill_preview.visible
+    event.type, event.modifiers = "mouse_move", ["Shift"]
     next(gesture)
     qtbot.waitUntil(lambda: not len(editor.brush_preview.data), timeout=10000)
+    assert not editor.paint_fill_preview.visible
     event.position, event.modifiers = (60, 65), []
     next(gesture)
     qtbot.waitUntil(lambda: len(editor.brush_preview.data) > 0, timeout=10000)
     event.type = "mouse_release"
     list(gesture)
     qtbot.waitUntil(lambda: not editor._threads, timeout=30000)
+    assert not editor.paint_fill_preview.visible
     assert editor.store.count(editor.set_id) == 1
     obj = editor.store.get(editor.selected[0])
     assert obj.geometry.covers(Point(55, 60))
@@ -522,7 +526,7 @@ def test_overview_palette_and_backend_guidance(
     assert [(item.name, item.color) for item in window.store.classes()] == [("Background", "#bdbdbd")]
 
 
-@pytest.mark.parametrize("mode", ["Freehand", "Brush +", "Brush -", "Alt brush"])
+@pytest.mark.parametrize("mode", ["Freehand", "Brush +", "Brush -", "Shift brush"])
 def test_canvas_drags_commit_without_panning(editor: ImageAnnotationWindow, qtbot: QtBot, mode: str) -> None:
     window = editor
     window.show()
@@ -530,9 +534,9 @@ def test_canvas_drags_commit_without_panning(editor: ImageAnnotationWindow, qtbo
     window.render_timer.stop()
     qtbot.waitUntil(lambda: not window._threads, timeout=30000)
     original = box(5, 5, 120, 90)
-    if mode in ("Brush -", "Alt brush"):
+    if mode in ("Brush -", "Shift brush"):
         key = window.add_geometry(original)
-    window.tool.setCurrentText("Brush +" if mode == "Alt brush" else mode)
+    window.tool.setCurrentText("Brush +" if mode == "Shift brush" else mode)
     canvas = window.view.widget.canvas.native
     center = QPoint(canvas.width() // 2, canvas.height() // 2)
     points = [center + QPoint(-25, -20), center + QPoint(25, -20), center + QPoint(25, 20), center + QPoint(-25, 20)]
@@ -540,26 +544,26 @@ def test_canvas_drags_commit_without_panning(editor: ImageAnnotationWindow, qtbo
         points.append(points[0])
     camera_center = tuple(window.view.viewer.camera.center)
     assert not window.view.viewer.camera.mouse_pan
-    modifier = Qt.KeyboardModifier.AltModifier if mode == "Alt brush" else Qt.KeyboardModifier.NoModifier
+    modifier = Qt.KeyboardModifier.ShiftModifier if mode == "Shift brush" else Qt.KeyboardModifier.NoModifier
     qtbot.mousePress(canvas, Qt.MouseButton.LeftButton, modifier, pos=points[0])
     if mode != "Freehand":
         assert len(window.brush_preview.data) > 0
         assert window.draw_layer.cursor_size == window.brush_radius.value() * 2
-        expected_color = [1, 99 / 255, 71 / 255, 1] if mode in ("Brush -", "Alt brush") else [0, 1, 0, 1]
+        expected_color = [1, 99 / 255, 71 / 255, 1] if mode in ("Brush -", "Shift brush") else [0, 1, 0, 1]
         np.testing.assert_allclose(
             window.brush_preview.edge_color, np.tile(expected_color, (len(window.brush_preview.data), 1))
         )
         assert all(width == 3 for width in window.brush_preview.edge_width)
     for point in points[1:]:
         qtbot.mouseMove(canvas, point)
-    assert window.store.count(window.set_id) == (1 if mode in ("Brush -", "Alt brush") else 0)
+    assert window.store.count(window.set_id) == (1 if mode in ("Brush -", "Shift brush") else 0)
     qtbot.mouseRelease(canvas, Qt.MouseButton.LeftButton, modifier, pos=points[-1])
     assert not len(window.brush_preview.data)
     assert tuple(window.view.viewer.camera.center) == camera_center
     assert window.store.count(window.set_id) == 1, window.status.text()
     obj = window.store.get(window.selected[0])
     assert obj.geometry.is_valid
-    if mode in ("Brush -", "Alt brush"):
+    if mode in ("Brush -", "Shift brush"):
         assert obj.key == key
         assert obj.geometry.area < original.area
         window.undo()
@@ -746,7 +750,12 @@ def _annotation_canvas(window: ImageAnnotationWindow, qtbot: QtBot) -> QWidget:
     return window.view.widget.canvas.native
 
 
-def _canvas_mouse_event(canvas: QWidget, kind: QEvent.Type, point: QPoint) -> None:
+def _canvas_mouse_event(
+    canvas: QWidget,
+    kind: QEvent.Type,
+    point: QPoint,
+    modifiers: Qt.KeyboardModifier = Qt.KeyboardModifier.NoModifier,
+) -> None:
     """Send canvas input without relying on queued movement of the system cursor."""
     moving = kind == QEvent.Type.MouseMove
     if moving:
@@ -759,7 +768,7 @@ def _canvas_mouse_event(canvas: QWidget, kind: QEvent.Type, point: QPoint) -> No
         QPointF(canvas.mapToGlobal(point)),
         Qt.MouseButton.NoButton if moving else Qt.MouseButton.LeftButton,
         Qt.MouseButton.LeftButton if held else Qt.MouseButton.NoButton,
-        Qt.KeyboardModifier.NoModifier,
+        modifiers,
     )
     QApplication.sendEvent(canvas, event)
 
@@ -778,6 +787,133 @@ def _brush_drag(window: ImageAnnotationWindow, start: tuple[float, float], end: 
     next(gesture, None)
     event.position, event.type = end[::-1], "mouse_release"
     list(gesture)
+
+
+@pytest.mark.parametrize("fill", [False, True])
+def test_brush_optional_hole_filling(editor: ImageAnnotationWindow, fill: bool) -> None:
+    editor.view.viewer.camera.zoom = 1
+    editor.brush_radius.setValue(3)
+    editor.brush_fill_holes.setChecked(fill)
+    editor.tool.setCurrentText("Brush +")
+    event = SimpleNamespace(button=1, modifiers=[], position=(20, 20), type="mouse_press")
+    gesture = editor._mouse_drag(editor.view.viewer, event)
+    next(gesture)
+    for point in [(20, 80), (80, 80), (80, 20)]:
+        event.position, event.type = point, "mouse_move"
+        next(gesture)
+    event.position, event.type = (20, 20), "mouse_release"
+    list(gesture)
+    geometry = editor.store.get(editor.selected[0]).geometry
+    assert len(geometry.interiors) == (0 if fill else 1)
+    assert geometry.covers(Point(50, 50)) == fill
+    assert AnnotateConfig(_auto_load=True).brush_fill_holes == fill
+    editor.undo()
+    assert editor.store.count(editor.set_id) == 0
+
+
+def test_freehand_crossing_saves_both_pieces_with_one_undo(editor: ImageAnnotationWindow) -> None:
+    editor.view.viewer.camera.zoom = 1
+    editor.tool.setCurrentText("Freehand")
+    event = SimpleNamespace(button=1, modifiers=[], position=(20, 20), type="mouse_press")
+    gesture = editor._mouse_drag(editor.view.viewer, event)
+    next(gesture)
+    for point in [(80, 80), (80, 20)]:
+        event.position, event.type = point, "mouse_move"
+        next(gesture)
+    event.position, event.type = (20, 80), "mouse_release"
+    list(gesture)
+    obj = editor.store.get(editor.selected[0])
+    assert obj.geometry.is_valid and len(obj.geometry.geoms) == 2
+    assert obj.geometry.area == 1800 and obj.class_id == editor.class_id
+    assert obj.training and obj.provenance["source"] == "manual"
+    assert editor.store.count(editor.set_id) == 1
+    editor.undo()
+    assert editor.store.count(editor.set_id) == 0
+
+
+def test_filled_preview_preserves_holes_and_is_bounded(
+    editor: ImageAnnotationWindow, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    editor.tool.setCurrentText("Brush +")
+    monkeypatch.setattr(editor, "viewport", lambda: (0, 0, 100, 100))
+    geometry = box(10, 10, 90, 90).difference(box(30, 30, 70, 70))
+    editor._preview_geometry(geometry, False)
+    assert len(editor.brush_preview.data) == 2 and not editor.paint_fill_preview.visible
+    editor.filled_paint_preview.setChecked(True)
+    editor._preview_geometry(geometry, False)
+    layer = editor.paint_fill_preview
+    assert layer.visible
+    for point, alpha in [((20, 20), 64), ((50, 50), 0)]:
+        row, col = np.rint(layer.world_to_data(point)).astype(int)
+        assert layer.data[row, col, 3] == alpha
+    assert tuple(layer.data[..., :3][layer.data[..., 3] > 0][0]) == (0, 255, 0)
+    editor._preview_geometry(geometry, True)
+    assert tuple(layer.data[..., :3][layer.data[..., 3] > 0][0]) == (255, 99, 71)
+    editor.opacity_sliders["drawings"].setValue(60)
+    assert layer.opacity == 0.6
+    monkeypatch.setattr(editor, "viewport", lambda: (0, 0, 1e6, 1e6))
+    editor._preview_geometry(box(0, 0, 1e6, 1e6), False)
+    assert max(layer.data.shape[:2]) <= 512
+    assert AnnotateConfig(_auto_load=True).filled_paint_preview
+    editor.clear_drawing()
+    assert not layer.visible and not len(editor.brush_preview.data)
+    assert np.max(np.abs(layer.extent.world)) < 2
+
+
+@pytest.mark.parametrize("mode", ["Freehand", "Brush +", "Brush -", "Wand"])
+def test_alt_drag_uses_napari_box_zoom_without_drawing(editor: ImageAnnotationWindow, qtbot: QtBot, mode: str) -> None:
+    canvas = _annotation_canvas(editor, qtbot)
+    editor.tool.setCurrentText(mode)
+    QTest.qWait(20)
+    center = QPoint(canvas.width() // 2, canvas.height() // 2)
+    start, end = center - QPoint(30, 30), center + QPoint(30, 30)
+    zoom = editor.view.viewer.camera.zoom
+    modifier = Qt.KeyboardModifier.AltModifier
+    _canvas_mouse_event(canvas, QEvent.Type.MouseButtonPress, start, modifier)
+    _canvas_mouse_event(canvas, QEvent.Type.MouseMove, end, modifier)
+    _canvas_mouse_event(canvas, QEvent.Type.MouseButtonRelease, end, modifier)
+    assert editor.view.viewer.camera.zoom > zoom
+    assert editor.store.count(editor.set_id) == 0
+    assert editor._paint is None and not len(editor.brush_preview.data)
+
+
+@pytest.mark.parametrize("auto_polygons", [False, True])
+def test_rectangle_saves_once_on_release_and_can_predict_saved_selection(
+    editor: ImageAnnotationWindow, qtbot: QtBot, monkeypatch: pytest.MonkeyPatch, auto_polygons: bool
+) -> None:
+    canvas = _annotation_canvas(editor, qtbot)
+    editor.auto_add_polygons.setChecked(auto_polygons)
+    editor.tool.setCurrentText("Rectangle")
+    QTest.qWait(20)
+    center = QPoint(canvas.width() // 2, canvas.height() // 2)
+    start, end = center - QPoint(30, 25), center + QPoint(30, 25)
+    _canvas_mouse_event(canvas, QEvent.Type.MouseButtonPress, start)
+    _canvas_mouse_event(canvas, QEvent.Type.MouseMove, end)
+    assert editor.store.count(editor.set_id) == 0
+    _canvas_mouse_event(canvas, QEvent.Type.MouseButtonRelease, end)
+    qtbot.waitUntil(lambda: editor.store.count(editor.set_id) == 1)
+    obj = editor.store.get(editor.selected[0])
+    assert obj.geometry.equals(box(*obj.geometry.bounds)) and obj.training
+    assert not len(editor.draw_layer.data)
+    editor.apply_drawing()
+    assert editor.store.count(editor.set_id) == 1
+    requests = []
+    monkeypatch.setattr(editor, "_request", lambda bounds: bounds)
+    monkeypatch.setattr(editor, "_submit_prediction", requests.append)
+    editor.predict_roi()
+    assert requests == [obj.geometry.bounds]
+    editor.undo()
+    assert editor.store.count(editor.set_id) == 0
+    _canvas_mouse_event(canvas, QEvent.Type.MouseButtonPress, center)
+    _canvas_mouse_event(canvas, QEvent.Type.MouseButtonRelease, center)
+    QTest.qWait(20)
+    assert editor.store.count(editor.set_id) == 0
+    _canvas_mouse_event(canvas, QEvent.Type.MouseButtonPress, start)
+    _canvas_mouse_event(canvas, QEvent.Type.MouseMove, end)
+    _canvas_mouse_event(canvas, QEvent.Type.MouseButtonRelease, end)
+    editor.clear_drawing()
+    QTest.qWait(20)
+    assert editor.store.count(editor.set_id) == 0
 
 
 def test_brush_creates_three_objects_on_empty_space(editor: ImageAnnotationWindow, qtbot: QtBot) -> None:

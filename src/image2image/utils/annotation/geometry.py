@@ -5,6 +5,8 @@ from __future__ import annotations
 from dataclasses import replace
 from uuid import uuid4
 
+import numpy as np
+from shapely import make_valid
 from shapely.geometry import LineString, Point, Polygon
 from shapely.geometry.base import BaseGeometry
 from shapely.ops import split, unary_union
@@ -34,6 +36,33 @@ def brush_stroke(points: list[tuple[float, float]], radius: float, *, fill: bool
     """Buffer a continuous brush stroke, optionally filling its enclosed interiors."""
     stroke = (LineString(points) if len(points) > 1 else Point(points[0])).buffer(radius)
     return Polygon(stroke.exterior) if fill else stroke
+
+
+def freehand_geometry(points: list[tuple[float, float]]) -> BaseGeometry:
+    """Close a freehand stroke and retain all polygonal areas after repairing crossings.
+
+    Collapsed lines are discarded. Non-finite coordinates and strokes that do
+    not enclose an area are rejected rather than inventing an annotation.
+    """
+    coordinates = np.asarray(points, dtype=float)
+    if coordinates.ndim != 2 or coordinates.shape[1] != 2 or not np.isfinite(coordinates).all():
+        raise ValueError("Freehand coordinates must be finite XY points.")
+    if len(coordinates) < 3:
+        raise ValueError("Draw a freehand region with at least three points.")
+    geometry = Polygon(coordinates)
+    if not geometry.is_valid:
+        pending, polygons = [make_valid(geometry)], []
+        while pending:
+            part = pending.pop()
+            if part.geom_type == "Polygon":
+                polygons.append(part)
+            elif part.geom_type in ("MultiPolygon", "GeometryCollection"):
+                pending.extend(part.geoms)
+        geometry = unary_union(polygons)
+    if geometry.is_empty or geometry.area <= 0:
+        raise ValueError("The freehand stroke must enclose an area.")
+    validate_geometry(geometry)
+    return geometry
 
 
 def split_preview(obj: AnnotationObject, cut: LineString) -> list[BaseGeometry]:

@@ -58,7 +58,9 @@ from qtpy.QtWidgets import (
     QTextEdit,
     QWidget,
 )
-from shapely.geometry import LineString, MultiPolygon, Point, Polygon
+from rasterio.features import rasterize
+from rasterio.transform import Affine
+from shapely.geometry import LineString, MultiPolygon, Point, Polygon, box
 from shapely.geometry.base import BaseGeometry
 from shapely.ops import unary_union
 from superqt.utils import create_worker
@@ -83,6 +85,7 @@ from image2image.utils.annotation.geometry import (
     brush_object,
     brush_stroke,
     edit_geometry,
+    freehand_geometry,
     merge_objects,
     split_object,
     split_preview,
@@ -118,6 +121,7 @@ class _PaintStroke:
     layers: tuple[WandLayer, ...] = ()
     initial_subtract: bool = False
     background: tuple[float, float, float] = (0, 0, 0)
+    fill_holes: bool = True
 
 
 def _table_key(table: AnnotationTable, row: int) -> int:
@@ -139,6 +143,8 @@ class AnnotateConfig(SingleAppConfig):
     opacity_drawings: int = Field(default=100, ge=0, le=100)
     opacity_prompts: int = Field(default=100, ge=0, le=100)
     brush_radius: int = Field(default=15, ge=1, le=500)
+    brush_fill_holes: bool = True
+    filled_paint_preview: bool = False
     wand_radius: int = Field(default=75, ge=1, le=500)
     wand_sensitivity: int = Field(default=15, ge=1, le=100)
     freehand_color: str = Field(default="#ff00ff", pattern=r"^#[0-9a-fA-F]{6}$")
@@ -227,6 +233,7 @@ class ImageAnnotationWindow(Window):
         self._class_labels: dict[str, str | None] = {}
         self._pagination: dict[str, tuple[Any, Any, Any]] = {}
         self._mode = "Interact"
+        self._rectangle_start: tuple[float, float] | None = None
         self._ring_layout: list[int] = []
         self._image_layers: list[Any] = []
         self._overlay = None
@@ -419,6 +426,13 @@ class ImageAnnotationWindow(Window):
         self.draw_layer = self.view.viewer.add_shapes(
             name="Drawing / selected rings", ndim=2, edge_color="yellow", face_color="transparent", edge_width=2
         )
+        self.paint_fill_preview = self.view.viewer.add_image(
+            np.zeros((1, 1, 4), dtype=np.uint8),
+            name="Paint fill preview",
+            rgb=True,
+            blending="translucent",
+            visible=False,
+        )
         self.brush_preview = self.view.viewer.add_shapes(
             name="Brush preview", ndim=2, edge_color="lime", face_color="transparent", edge_width=3, opacity=1
         )
@@ -497,12 +511,29 @@ class ImageAnnotationWindow(Window):
             func=self._brush_radius_changed,
         )
         layout.addRow("Brush radius (screen px)", self.brush_radius)
+        self.brush_fill_holes = hp.make_checkbox(
+            self.display_popup,
+            "",
+            default=self.CONFIG.brush_fill_holes,
+            func=self._brush_fill_holes_changed,
+            tooltip="Fill interiors enclosed by additive brush strokes. Uncheck to keep their holes.",
+        )
+        layout.addRow("Fill enclosed brush areas", self.brush_fill_holes)
+        self.filled_paint_preview = hp.make_checkbox(
+            self.display_popup,
+            "",
+            default=self.CONFIG.filled_paint_preview,
+            func=self._filled_paint_preview_changed,
+            tooltip="Show a translucent fill while painting; show only borders when unchecked.",
+        )
+        layout.addRow("Filled brush/wand preview", self.filled_paint_preview)
         self.wand_radius = hp.make_int_spin_box(
             self.display_popup,
             minimum=1,
             maximum=500,
             value=self.CONFIG.wand_radius,
             func=partial(self._wand_setting_changed, "wand_radius"),
+            tooltip="Maximum local search radius in screen pixels. Zoom out to fill larger regions.",
         )
         self.wand_sensitivity = hp.make_int_spin_box(
             self.display_popup,
@@ -510,10 +541,7 @@ class ImageAnnotationWindow(Window):
             maximum=100,
             value=self.CONFIG.wand_sensitivity,
             func=partial(self._wand_setting_changed, "wand_sensitivity"),
-        )
-        self.wand_radius.setToolTip("Maximum local search radius in screen pixels. Zoom out to fill larger regions.")
-        self.wand_sensitivity.setToolTip(
-            "Allowed displayed color difference (%). Higher values fill more varied regions."
+            tooltip="Allowed displayed color difference (%). Higher values fill more varied regions.",
         )
         layout.addRow("Wand radius (screen px)", self.wand_radius)
         layout.addRow("Wand sensitivity (%)", self.wand_sensitivity)
@@ -554,6 +582,18 @@ class ImageAnnotationWindow(Window):
         self.CONFIG.update(**{name: value})
         self.set_mode(self._mode)
 
+    def _brush_fill_holes_changed(self, enabled: bool) -> None:
+        self._cancel_paint()
+        self.CONFIG.update(brush_fill_holes=bool(enabled))
+
+    def _filled_paint_preview_changed(self, enabled: bool) -> None:
+        self.CONFIG.update(filled_paint_preview=bool(enabled))
+        stroke = self._paint or next(iter(self._wand_strokes), None)
+        if stroke is not None and self._paint_valid(stroke):
+            self._preview_geometry(stroke.geometry, stroke.subtract)
+        elif not enabled:
+            self.paint_fill_preview.visible = False
+
     def _preview_color_changed(self, field: str, _color: np.ndarray) -> None:
         self.CONFIG.update(**{field: self.preview_colors[field].hex_color_no_alpha})
         if field == "freehand_color" and self._mode == "Freehand":
@@ -575,7 +615,7 @@ class ImageAnnotationWindow(Window):
         for group, layers in (
             ("annotations", (self._overlay,)),
             ("predictions", (self._proposal_overlay,)),
-            ("drawings", (self.draw_layer, self.brush_preview)),
+            ("drawings", (self.draw_layer, self.brush_preview, self.paint_fill_preview)),
             ("prompts", (self.prompt_layer, self.prompt_box_layer)),
         ):
             for layer in layers:
@@ -598,7 +638,7 @@ class ImageAnnotationWindow(Window):
         self.objects = AnnotationTable(
             panel,
             TableConfig()
-            .add("Training", "training", dtype="bool", checkable=True, tooltip="Include in classifier training")
+            .add("T", "training", dtype="bool", checkable=True, tooltip="Include in classifier training")
             .add("ID", "id", width=60, resizable=True, tooltip="Original object ID (read-only)")
             .add("Class", "class", width=100, resizable=True, tooltip="Double-click to choose a class")
             .add("Area (px2)", "area", dtype="float", tooltip="Object area in full-resolution pixels (read-only)"),
@@ -648,24 +688,47 @@ class ImageAnnotationWindow(Window):
             )
         )
         self.classifier_name = hp.make_line_edit(panel, text="Tissue classifier")
-        self.train_downsample = hp.make_int_spin_box(panel, minimum=1, maximum=256, value=4)
-        self.feature_sigma = hp.make_int_spin_box(panel, minimum=1, maximum=32, value=8)
-        self.sample_count = hp.make_int_spin_box(panel, minimum=100, maximum=100000, value=10000)
-        self.random_seed = hp.make_int_spin_box(panel, minimum=0, maximum=2**31 - 1, value=42)
-        self.max_depth = hp.make_int_spin_box(panel, minimum=1, maximum=1000, value=24)
+        self.train_downsample = hp.make_int_spin_box(
+            panel,
+            minimum=1,
+            maximum=256,
+            value=4,
+            tooltip="Working resolution: 4 uses one pixel per 4 x 4 full-resolution pixels.",
+        )
+        self.feature_sigma = hp.make_int_spin_box(
+            panel,
+            minimum=1,
+            maximum=32,
+            value=8,
+            tooltip="Largest Gaussian feature scale in working-resolution pixels; minimum is 1.",
+        )
+        self.sample_count = hp.make_int_spin_box(
+            panel,
+            minimum=100,
+            maximum=100000,
+            value=10000,
+            tooltip="Upper limit per class. Classes use equal counts, limited by the smallest class.",
+        )
+        self.random_seed = hp.make_int_spin_box(
+            panel,
+            minimum=0,
+            maximum=2**31 - 1,
+            value=42,
+            tooltip="Controls sampling and forest randomness. Reuse the seed to reproduce training.",
+        )
+        self.max_depth = hp.make_int_spin_box(
+            panel,
+            minimum=1,
+            maximum=1000,
+            value=24,
+            tooltip="Maximum depth of each tree. Larger values can fit finer detail and increase overfitting.",
+        )
         form.addRow("Classifier name", self.classifier_name)
         form.addRow("Training downsample", self.train_downsample)
         form.addRow("Largest feature scale", self.feature_sigma)
         form.addRow("Samples per class", self.sample_count)
         form.addRow("Random seed", self.random_seed)
         form.addRow("Maximum tree depth", self.max_depth)
-        self.random_seed.setToolTip("Controls sampling and forest randomness. Reuse the seed to reproduce training.")
-        self.max_depth.setToolTip(
-            "Maximum depth of each tree. Larger values can fit finer detail and increase overfitting."
-        )
-        self.train_downsample.setToolTip("Working resolution: 4 uses one pixel per 4 x 4 full-resolution pixels.")
-        self.feature_sigma.setToolTip("Largest Gaussian feature scale in working-resolution pixels; minimum is 1.")
-        self.sample_count.setToolTip("Upper limit per class. Classes use equal counts, limited by the smallest class.")
         self.training_summary = hp.make_label(panel, "No training examples.", wrap=True)
         form.addRow(self.training_summary)
         self.training_counts = AnnotationTable(
@@ -1567,11 +1630,11 @@ class ImageAnnotationWindow(Window):
             {
                 "Interact": "Click to select; Shift-click to add. Drag to pan; scroll to zoom.",
                 "Polygon": "Click vertices; double-click to finish. Auto-add saves immediately; otherwise use Apply drawing.",
-                "Rectangle": "Drag a rectangle, then Apply drawing or Predict drawn rectangle.",
+                "Rectangle": "Drag a rectangle; saved on release. Predict drawn rectangle can use the saved selection.",
                 "Freehand": "Drag a region; saved on release. Escape cancels.",
-                "Brush +": "Start on empty space for a new object, or inside an object to edit it. Alt subtracts; Escape cancels.",
+                "Brush +": "Start on empty space for a new object, or inside an object to edit it. Shift subtracts; Escape cancels.",
                 "Brush -": "Start inside an object, or select one first. Drag to subtract; Escape cancels.",
-                "Wand": "Click or drag to fill similar visible pixels. Alt subtracts; zoom out for larger areas. Escape cancels.",
+                "Wand": "Click or drag to fill similar visible pixels. Shift subtracts; zoom out for larger areas. Escape cancels.",
                 "Vertices": "Select one object and edit its yellow vertices, then Apply drawing.",
                 "Cut": "Select one object, draw a cut line, then Apply drawing to choose the surviving ID.",
                 "Select by polygon": "Click vertices; double-click to select intersecting objects in the active set.",
@@ -1592,14 +1655,14 @@ class ImageAnnotationWindow(Window):
             return
         self._schedule_drawing_completion()
 
-    def _schedule_drawing_completion(self) -> None:
+    def _schedule_drawing_completion(self, *, discard: bool = False) -> None:
         mode = self._mode
         self._stroke_revision += 1
         revision = self._stroke_revision
         context = (self._generation, self.slide_id, self.set_id, self.tabs.currentIndex())
 
         def finish() -> None:
-            # Napari finalizes its shape after custom double-click callbacks run.
+            # Let napari finalize its shape before saving or discarding it.
             if (
                 not self._closing
                 and revision == self._stroke_revision
@@ -1607,6 +1670,9 @@ class ImageAnnotationWindow(Window):
                 and context == (self._generation, self.slide_id, self.set_id, self.tabs.currentIndex())
                 and len(self.draw_layer.data)
             ):
+                if discard:
+                    self.draw_layer.data = []
+                    return
                 self._stroke_revision += 1
                 self._try(self.apply_drawing)
 
@@ -1620,7 +1686,7 @@ class ImageAnnotationWindow(Window):
             self._cancel_paint()
         if event.type() in (QEvent.Type.KeyPress, QEvent.Type.KeyRelease):
             key_event = cast(QKeyEvent, event)
-            if key_event.key() == Qt.Key.Key_Alt and not key_event.isAutoRepeat() and self._paint is not None:
+            if key_event.key() == Qt.Key.Key_Shift and not key_event.isAutoRepeat() and self._paint is not None:
                 stroke = self._paint
                 self._paint_point(
                     stroke, stroke.point, stroke.mode == "Brush -" or event.type() == QEvent.Type.KeyPress, force=True
@@ -1641,12 +1707,22 @@ class ImageAnnotationWindow(Window):
             return True
         if (
             obj is self.view.widget.canvas.native
-            and self._mode == "Select by rectangle"
-            and event.type() == QEvent.Type.MouseButtonRelease
+            and self._mode in ("Rectangle", "Select by rectangle")
+            and event.type() in (QEvent.Type.MouseButtonPress, QEvent.Type.MouseButtonRelease)
             and cast(QMouseEvent, event).button() == Qt.MouseButton.LeftButton
-            and self.draw_layer._is_creating
         ):
-            self._schedule_drawing_completion()
+            mouse = cast(QMouseEvent, event)
+            point = mouse.position() if hasattr(mouse, "position") else mouse.localPos()
+            if event.type() == QEvent.Type.MouseButtonPress:
+                self._rectangle_start = (point.x(), point.y())
+            elif self.draw_layer._is_creating:
+                # A click makes napari's default box; only a real drag should save it.
+                discard = self._mode == "Rectangle" and (
+                    self._rectangle_start is None
+                    or min(abs(point.x() - self._rectangle_start[0]), abs(point.y() - self._rectangle_start[1])) < 1
+                )
+                self._schedule_drawing_completion(discard=discard)
+                self._rectangle_start = None
         if (
             obj is self.view.widget.canvas.native
             and self._mode in ("Prompt +", "Prompt -", "Prompt box")
@@ -1832,6 +1908,8 @@ class ImageAnnotationWindow(Window):
     def _mouse_drag(self, _viewer: Any, event: Any) -> Any:
         if not self.store or not self.slide_id or event.button != 1:
             return
+        if "Alt" in event.modifiers and self._mode in ("Brush +", "Brush -", "Wand", "Freehand"):
+            return
         xy = (float(event.position[-1]), float(event.position[-2]))
         if self._mode == "Interact":
             reviewing = self.tabs.currentIndex() == 3
@@ -1861,7 +1939,7 @@ class ImageAnnotationWindow(Window):
             self._prompt_labels.append(1 if self._mode == "Prompt +" else 0)
             return
         if self._mode in ("Brush +", "Brush -", "Wand"):
-            stroke = self._begin_paint(xy, self._mode == "Brush -" or "Alt" in event.modifiers)
+            stroke = self._begin_paint(xy, self._mode == "Brush -" or "Shift" in event.modifiers)
             if stroke is None:
                 return
             yield
@@ -1870,11 +1948,11 @@ class ImageAnnotationWindow(Window):
                     self._cancel_paint()
                     return
                 point = (float(event.position[-1]), float(event.position[-2]))
-                self._paint_point(stroke, point, stroke.mode == "Brush -" or "Alt" in event.modifiers)
+                self._paint_point(stroke, point, stroke.mode == "Brush -" or "Shift" in event.modifiers)
                 yield
             if self._paint_valid(stroke):
                 point = (float(event.position[-1]), float(event.position[-2]))
-                self._paint_point(stroke, point, stroke.mode == "Brush -" or "Alt" in event.modifiers, force=True)
+                self._paint_point(stroke, point, stroke.mode == "Brush -" or "Shift" in event.modifiers, force=True)
                 self._paint = None
                 if stroke.mode == "Wand":
                     stroke.queue.put(None)
@@ -1911,14 +1989,9 @@ class ImageAnnotationWindow(Window):
         if point != points[-1]:
             points.append(point)
         if len(points) >= 3:
-            self.draw_layer.data = []
-            self.draw_layer.add(
-                np.asarray(points)[:, ::-1],
-                shape_type="polygon",
-                edge_color=self.CONFIG.freehand_color,
-                edge_width=3,
-            )
-            self._try(lambda: self.add_geometry(Polygon(points)))
+            geometry = self._try(partial(freehand_geometry, points))
+            if geometry is not None:
+                self._try(partial(self.add_geometry, geometry))
 
     def _paint_context(self) -> tuple[Any, ...]:
         return (
@@ -1944,7 +2017,15 @@ class ImageAnnotationWindow(Window):
         self._paint = None
         self._wand_strokes.clear()
         if hasattr(self, "brush_preview"):
-            self.brush_preview.data = []
+            self._clear_paint_preview()
+
+    def _clear_paint_preview(self) -> None:
+        self.brush_preview.data = []
+        self.paint_fill_preview.visible = False
+        # Invisible image layers still contribute to napari's reset-view bounds.
+        self.paint_fill_preview.data = np.zeros((1, 1, 4), dtype=np.uint8)
+        self.paint_fill_preview.scale = (1, 1)
+        self.paint_fill_preview.translate = (0, 0)
 
     def _wand_layers(self) -> tuple[WandLayer, ...]:
         layers = []
@@ -1994,6 +2075,7 @@ class ImageAnnotationWindow(Window):
             self.class_id,
             list(self.selected),
             initial_subtract=subtract,
+            fill_holes=self.CONFIG.brush_fill_holes,
         )
         if stroke.mode == "Wand":
             stroke.background = QColor(self.view.widget.canvas.bgcolor).getRgbF()[:3]
@@ -2037,7 +2119,7 @@ class ImageAnnotationWindow(Window):
         else:
             radius = stroke.radius / stroke.zoom
             if subtract != previous_subtract:
-                footprint = brush_stroke(stroke.points, radius, fill=not previous_subtract)
+                footprint = brush_stroke(stroke.points, radius, fill=stroke.fill_holes and not previous_subtract)
                 stroke.base = stroke.base.difference(footprint) if previous_subtract else stroke.base.union(footprint)
                 stroke.points = [previous]
                 force = True
@@ -2046,7 +2128,7 @@ class ImageAnnotationWindow(Window):
             stroke.point, stroke.subtract = xy, subtract
             if not force and monotonic() - self._preview_updated < 1 / 30:
                 return
-            footprint = brush_stroke(stroke.points, radius, fill=not subtract)
+            footprint = brush_stroke(stroke.points, radius, fill=stroke.fill_holes and not subtract)
             stroke.geometry = stroke.base.difference(footprint) if subtract else stroke.base.union(footprint)
             self._preview_geometry(stroke.geometry, subtract)
         self.tool_hint.setText(
@@ -2076,13 +2158,41 @@ class ImageAnnotationWindow(Window):
             )
         else:
             self.brush_preview.data = []
+        self._preview_fill(geometry, color)
+
+    def _preview_fill(self, geometry: BaseGeometry, color: str) -> None:
+        if not self.CONFIG.filled_paint_preview or geometry.is_empty:
+            self.paint_fill_preview.visible = False
+            return
+        visible = geometry.intersection(box(*self.viewport()))
+        if visible.is_empty or visible.area <= 0:
+            self.paint_fill_preview.visible = False
+            return
+        x0, y0, x1, y1 = visible.bounds
+        # Bound preview work independently of slide size and preserve transparent holes.
+        spacing = max(1 / self.view.viewer.camera.zoom, (x1 - x0) / 512, (y1 - y0) / 512)
+        height, width = max(1, int(np.ceil((y1 - y0) / spacing))), max(1, int(np.ceil((x1 - x0) / spacing)))
+        sy, sx = (y1 - y0) / height, (x1 - x0) / width
+        mask = rasterize(
+            [(visible, 1)],
+            out_shape=(height, width),
+            transform=Affine.translation(x0, y0) * Affine.scale(sx, sy),
+            dtype="uint8",
+        )
+        rgba = np.zeros((height, width, 4), dtype=np.uint8)
+        rgba[mask != 0] = (*QColor(color).getRgb()[:3], 64)
+        self.paint_fill_preview.data = rgba
+        self.paint_fill_preview.scale = (sy, sx)
+        self.paint_fill_preview.translate = (y0 + sy / 2, x0 + sx / 2)
+        self.paint_fill_preview.opacity = self.CONFIG.opacity_drawings / 100
+        self.paint_fill_preview.visible = True
 
     def _commit_paint(self, stroke: _PaintStroke, geometry: BaseGeometry) -> None:
         if not self._paint_valid(stroke):
             return
         store = self._require_project()
         target = stroke.target
-        self.brush_preview.data = []
+        self._clear_paint_preview()
         if (target is None and geometry.is_empty) or (target is not None and target.geometry.equals(geometry)):
             self.set_mode(self._mode)
             return
@@ -2195,7 +2305,7 @@ class ImageAnnotationWindow(Window):
         stroke.cancelled.set()
         if self._paint is stroke:
             self._paint = None
-        self.brush_preview.data = []
+        self._clear_paint_preview()
 
     def _finish_wand(self, worker: Any, stroke: _PaintStroke) -> None:
         if worker in self._threads:
@@ -2212,7 +2322,7 @@ class ImageAnnotationWindow(Window):
         now = monotonic()
         if not force and now - self._preview_updated < 1 / 30:
             return
-        stroke = brush_stroke(points, radius, fill=not subtract)
+        stroke = brush_stroke(points, radius, fill=self.CONFIG.brush_fill_holes and not subtract)
         self._preview_geometry(stroke, subtract)
 
     def _brush(self, stroke: Any, subtract: bool) -> None:
@@ -2609,7 +2719,13 @@ class ImageAnnotationWindow(Window):
             self._update_opacity()
             if self._proposal_overlay is not None:
                 self._proposal_overlay.visible = self.show_predictions.isChecked() and result[1] is not None
-            for layer in (self.draw_layer, self.prompt_layer, self.prompt_box_layer, self.brush_preview):
+            for layer in (
+                self.paint_fill_preview,
+                self.draw_layer,
+                self.prompt_layer,
+                self.prompt_box_layer,
+                self.brush_preview,
+            ):
                 self.view.viewer.layers.move(self.view.viewer.layers.index(layer), -1)
             self.set_mode(self._mode)
 
@@ -3118,9 +3234,16 @@ class ImageAnnotationWindow(Window):
 
     def predict_roi(self) -> None:
         """Predict within the most recently drawn rectangle."""
-        if not len(self.draw_layer.data):
+        if len(self.draw_layer.data):
+            bounds = Polygon(np.asarray(self.draw_layer.data[-1])[:, ::-1]).bounds
+        elif self._mode == "Rectangle" and len(self.selected) == 1:
+            geometry = self._require_project().get(self.selected[0]).geometry
+            if not geometry.equals(box(*geometry.bounds)):
+                raise ValueError("Draw a rectangle first.")
+            bounds = geometry.bounds
+        else:
             raise ValueError("Draw a rectangle first.")
-        self._submit_prediction(self._request(Polygon(np.asarray(self.draw_layer.data[-1])[:, ::-1]).bounds))
+        self._submit_prediction(self._request(bounds))
 
     def predict_slide(self) -> None:
         """Queue a complete slide prediction."""

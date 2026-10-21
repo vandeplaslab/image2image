@@ -13,7 +13,14 @@ import tifffile
 from shapely.geometry import LineString, MultiPolygon, Polygon, box
 
 from image2image.models.annotation import AnnotationClass, AnnotationObject, CoordinateSpec, EditCommand, SlideGeometry
-from image2image.utils.annotation.geometry import brush_object, brush_stroke, edit_geometry, merge_objects, split_object
+from image2image.utils.annotation.geometry import (
+    brush_object,
+    brush_stroke,
+    edit_geometry,
+    freehand_geometry,
+    merge_objects,
+    split_object,
+)
 from image2image.utils.annotation.images import PatchReader, inspect_slide
 from image2image.utils.annotation.io import export_geojson, export_labels, import_geojson, import_labels
 from image2image.utils.annotation.render import AnnotationRenderer
@@ -285,6 +292,24 @@ def test_brush_stroke_fills_only_enclosed_painted_regions(project: tuple) -> Non
     assert len(store.get(key).geometry.interiors) == 2
     store.undo()
     assert store.get(key).geometry.equals(original)
+
+
+def test_freehand_repairs_crossings_and_discards_collapsed_spikes() -> None:
+    crossing = freehand_geometry([(0, 0), (10, 10), (0, 10), (10, 0)])
+    assert crossing.is_valid and crossing.geom_type == "MultiPolygon"
+    assert len(crossing.geoms) == 2 and crossing.area == 50
+    spike = freehand_geometry([(0, 0), (10, 0), (10, 10), (15, 15), (10, 10), (0, 10)])
+    assert spike.is_valid and spike.equals(box(0, 0, 10, 10))
+    square = [(0, 0), (10, 0), (10, 10), (0, 10)]
+    assert freehand_geometry(square).equals(Polygon(square))
+    hole = freehand_geometry([*square, (0, 0), (2, 2), (2, 8), (8, 8), (8, 2), (2, 2), (0, 0)])
+    assert hole.is_valid and len(hole.interiors) == 1 and hole.area == 64
+
+
+@pytest.mark.parametrize("points", [[], [(0, 0), (1, 1)], [(0, 0), (1, 1), (2, 2)], [(0, 0), (np.nan, 0), (2, 2)]])
+def test_freehand_rejects_strokes_without_finite_area(points: list[tuple[float, float]]) -> None:
+    with pytest.raises(ValueError):
+        freehand_geometry(points)
 
 
 def test_explicit_coordinates():
