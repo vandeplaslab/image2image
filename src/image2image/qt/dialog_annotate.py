@@ -259,6 +259,8 @@ class ImageAnnotationWindow(Window):
         self._paint: _PaintStroke | None = None
         self._wand_strokes: list[_PaintStroke] = []
         self._wand_worker: Any = None
+        self._wand_source: WandSource | None = None
+        self._wand_source_stale = False
         self._paint_committing = False
         self.jobs = AnnotationJobs()
         super().__init__(parent, "image2image: Annotation and Label Editor", run_check_version=run_check_version)
@@ -1053,6 +1055,7 @@ class ImageAnnotationWindow(Window):
             lock.unlock()
             raise
         new_store.db.execute("PRAGMA busy_timeout=100")
+        self._reset_wand_source()
         self._generation += 1
         if self.store:
             self.store.close()
@@ -1162,6 +1165,7 @@ class ImageAnnotationWindow(Window):
     def refresh_image(self) -> None:
         """Load lazy image layers and a bounded navigation overview."""
         self._cancel_paint()
+        self._reset_wand_source()
         store = self._require_project()
         slide = self._require_slide()
         path = store.resolve_path(slide)
@@ -2271,36 +2275,43 @@ class ImageAnnotationWindow(Window):
         def work() -> Generator[tuple[BaseGeometry, bool], None, BaseGeometry | None]:
             geometry, previous, updated, operation = stroke.base, None, 0.0, stroke.initial_subtract
             dirty = False
-            with PatchReader(path, series=series) as reader:
-                source = WandSource(reader, stroke.layers, background=stroke.background)
-                while not stroke.cancelled.is_set():
-                    try:
-                        timeout = max(0.001, 1 / 30 - (monotonic() - updated)) if dirty else 0.03
-                        item = stroke.queue.get(timeout=timeout)
-                    except Empty:
-                        if dirty:
-                            updated, dirty = monotonic(), False
-                            yield geometry, operation
-                        continue
-                    if item is None:
-                        return geometry
-                    point, operation = item
-                    distance = math.dist(previous, point) if previous is not None else 0
-                    spacing = max(1, min(4, stroke.radius / 4)) / stroke.zoom
-                    count = max(1, math.ceil(distance / spacing))
-                    seeds = np.linspace(previous or point, point, count + 1)[1:]
-                    pieces = []
-                    for seed in seeds:
-                        if stroke.cancelled.is_set():
-                            return None
-                        pieces.append(source.region(tuple(seed), stroke.radius, stroke.zoom, sensitivity))
-                    footprint = unary_union(pieces)
-                    geometry = geometry.difference(footprint) if operation else geometry.union(footprint)
-                    previous = point
-                    dirty = True
-                    if monotonic() - updated >= 1 / 30:
+            # Only this serialized worker uses the dedicated reader and display tile cache.
+            if stroke.cancelled.is_set():
+                return None
+            if self._wand_source is None:
+                self._wand_source = WandSource(
+                    PatchReader(path, series=series), stroke.layers, background=stroke.background
+                )
+            source = self._wand_source
+            source.set_display(stroke.layers, stroke.background)
+            while not stroke.cancelled.is_set():
+                try:
+                    timeout = max(0.001, 1 / 30 - (monotonic() - updated)) if dirty else 0.03
+                    item = stroke.queue.get(timeout=timeout)
+                except Empty:
+                    if dirty:
                         updated, dirty = monotonic(), False
                         yield geometry, operation
+                    continue
+                if item is None:
+                    return geometry
+                point, operation = item
+                distance = math.dist(previous, point) if previous is not None else 0
+                spacing = max(1, min(4, stroke.radius / 4)) / stroke.zoom
+                count = max(1, math.ceil(distance / spacing))
+                seeds = np.linspace(previous or point, point, count + 1)[1:]
+                pieces = []
+                for seed in seeds:
+                    if stroke.cancelled.is_set():
+                        return None
+                    pieces.append(source.region(tuple(seed), stroke.radius, stroke.zoom, sensitivity))
+                footprint = unary_union(pieces)
+                geometry = geometry.difference(footprint) if operation else geometry.union(footprint)
+                previous = point
+                dirty = True
+                if monotonic() - updated >= 1 / 30:
+                    updated, dirty = monotonic(), False
+                    yield geometry, operation
             return None
 
         def preview(result: tuple[BaseGeometry, bool]) -> None:
@@ -2324,6 +2335,7 @@ class ImageAnnotationWindow(Window):
         worker.start()
 
     def _wand_failed(self, stroke: _PaintStroke, exc: Exception) -> None:
+        self._reset_wand_source()
         if self._paint_valid(stroke):
             self._error(str(exc))
         stroke.cancelled.set()
@@ -2335,10 +2347,21 @@ class ImageAnnotationWindow(Window):
         if worker in self._threads:
             self._threads.remove(worker)
         self._wand_worker = None
+        if self._wand_source_stale:
+            self._reset_wand_source()
         if stroke in self._wand_strokes:
             self._wand_strokes.remove(stroke)
         if not self._closing:
             self._start_wand()
+
+    def _reset_wand_source(self) -> None:
+        """Release an idle reader, deferring closure until any current read finishes."""
+        self._wand_source_stale = True
+        if self._wand_worker is None:
+            if self._wand_source is not None:
+                self._wand_source.reader.close()
+                self._wand_source = None
+            self._wand_source_stale = False
 
     def _preview_stroke(
         self, points: list[tuple[float, float]], radius: float, subtract: bool, *, force: bool = False
@@ -3427,6 +3450,7 @@ class ImageAnnotationWindow(Window):
             return
         self._closing = True
         self._cancel_paint()
+        self._reset_wand_source()
         self._stroke_revision += 1
         self.brush_preview.data = []
         self.render_timer.stop()

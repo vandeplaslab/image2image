@@ -6,6 +6,7 @@ from pathlib import Path
 from threading import Event
 from time import sleep
 from types import SimpleNamespace
+from typing import Any
 
 import numpy as np
 import pytest
@@ -35,10 +36,12 @@ from image2image.models.annotation import (
     AnnotationObject,
     EditCommand,
     FeatureSettings,
+    ImagePatch,
 )
 from image2image.qt._annotation_finetune import FineTuneDialog
 from image2image.qt._annotation_model import ModelSelector
 from image2image.qt.dialog_annotate import AnnotateConfig, ImageAnnotationWindow
+from image2image.utils.annotation.images import PatchReader
 from image2image.utils.annotation.ml import backend_available, train_classifier
 from image2image.utils.annotation.model_cache import read_classifier_metadata
 from image2image.utils.annotation.store import AnnotationStore
@@ -152,6 +155,15 @@ def test_wand_discards_delayed_work(
     gesture = editor._mouse_drag(editor.view.viewer, event)
     next(gesture)
     qtbot.waitUntil(entered.is_set, timeout=10000)
+    source = editor._wand_source
+    closed = []
+    close = source.reader.close
+
+    def track_close() -> None:
+        closed.append(1)
+        close()
+
+    monkeypatch.setattr(source.reader, "close", track_close)
     try:
         if cancel == "escape":
             editor.clear_drawing()
@@ -169,11 +181,14 @@ def test_wand_discards_delayed_work(
             editor.refresh_image()
         event.type = "mouse_release"
         list(gesture)
+        assert not closed
     finally:
         release.set()
     qtbot.waitUntil(lambda: not editor._threads, timeout=30000)
     assert editor.store.count(editor.set_id) == 0
     assert not len(editor.brush_preview.data)
+    assert closed == ([1] if cancel == "refresh" else [])
+    assert editor._wand_source is (None if cancel == "refresh" else source)
 
 
 def test_wand_visible_channels_settings_and_shortcut(editor: ImageAnnotationWindow, qtbot: QtBot) -> None:
@@ -188,6 +203,7 @@ def test_wand_visible_channels_settings_and_shortcut(editor: ImageAnnotationWind
     _brush_drag(editor, (50, 50), (50, 50))
     assert "Show at least one image channel" in editor.status.text()
     assert editor.store.count(editor.set_id) == 0
+    assert editor._wand_source is None
 
 
 def test_wand_live_shift_preview_flush_and_one_edit(editor: ImageAnnotationWindow, qtbot: QtBot) -> None:
@@ -232,10 +248,72 @@ def test_wand_read_failure_can_retry(
     assert "Synthetic image read failure" in editor.status.text()
     assert not len(editor.brush_preview.data)
     assert editor.store.count(editor.set_id) == 0
+    assert editor._wand_source is None
     monkeypatch.setattr(WandSource, "region", region)
     _brush_drag(editor, (55, 60), (55, 60))
     qtbot.waitUntil(lambda: not editor._threads, timeout=30000)
     assert editor.store.count(editor.set_id) == 1
+
+
+@pytest.mark.parametrize("finish", ["release", "refresh", "slide", "project", "close"])
+def test_wand_reader_and_tile_cache_survive_strokes_and_close_on_context_change(
+    editor: ImageAnnotationWindow, qtbot: QtBot, monkeypatch: pytest.MonkeyPatch, finish: str
+) -> None:
+    editor.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, False)
+    _wand_slide(editor, qtbot)
+    opened, closed, reads = [], [], []
+
+    def track_reader(path: str | Path, *, series: int = 0) -> PatchReader:
+        reader = PatchReader(path, series=series)
+        opened.append(reader)
+        original_read, original_close = reader.read, reader.close
+
+        def read(*args: Any, **kwargs: Any) -> ImagePatch:
+            reads.append(reader)
+            return original_read(*args, **kwargs)
+
+        def close() -> None:
+            closed.append(reader)
+            original_close()
+
+        monkeypatch.setattr(reader, "read", read)
+        monkeypatch.setattr(reader, "close", close)
+        return reader
+
+    monkeypatch.setattr("image2image.qt.dialog_annotate.PatchReader", track_reader)
+    _brush_drag(editor, (55, 60), (55, 60))
+    qtbot.waitUntil(lambda: not editor._threads, timeout=30000)
+    source = editor._wand_source
+    assert source is not None and opened == [source.reader] and not closed
+    first_reads = len(reads)
+    assert first_reads > 0 and source.cache_bytes > 0
+    _brush_drag(editor, (55, 60), (55, 60))
+    qtbot.waitUntil(lambda: not editor._threads, timeout=30000)
+    assert editor._wand_source is source and len(opened) == 1
+    assert len(reads) == first_reads and not closed
+    editor.render_timer.stop()
+    if finish == "release":
+        editor.clear_drawing()
+        editor.tool.setCurrentText("Interact")
+        editor.view.viewer.camera.zoom = 2
+        editor.tool.setCurrentText("Wand")
+        assert editor._wand_source is source and not closed
+        editor._image_layers[0].gamma = 2
+        _brush_drag(editor, (55, 60), (55, 60))
+        qtbot.waitUntil(lambda: not editor._threads, timeout=30000)
+        assert editor._wand_source is source and len(opened) == 1
+        assert len(reads) > first_reads and not closed
+        editor.close()
+    elif finish == "refresh":
+        editor.refresh_image()
+    elif finish == "slide":
+        editor.slides.setCurrentRow(0)
+    elif finish == "project":
+        editor.new_project(editor.store.path.parent / "other.i2annotate")
+    else:
+        editor.close()
+    qtbot.waitUntil(lambda: not editor._threads, timeout=30000)
+    assert closed.count(source.reader) == 1 and editor._wand_source is None
 
 
 @pytest.fixture(autouse=True)

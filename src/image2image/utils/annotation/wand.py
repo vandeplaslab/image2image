@@ -7,9 +7,10 @@ from collections import OrderedDict
 from dataclasses import dataclass
 
 import numpy as np
+from numba import njit
 from rasterio.features import shapes
 from rasterio.transform import Affine
-from scipy.ndimage import binary_fill_holes, gaussian_filter, label, map_coordinates
+from scipy.ndimage import binary_fill_holes, gaussian_filter, map_coordinates
 from shapely.geometry import Polygon, box, shape
 from shapely.geometry.base import BaseGeometry
 from shapely.ops import unary_union
@@ -85,6 +86,54 @@ def display_patch(
     return result
 
 
+@njit(cache=True, nogil=True)
+def _connected_mask(
+    smooth: np.ndarray,
+    valid: np.ndarray,
+    row: int,
+    column: int,
+    x: float,
+    y: float,
+    sx: float,
+    sy: float,
+    radius: float,
+    sensitivity: float,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Fuse eligibility checks and visit only the seed's four-connected component."""
+    height, width = valid.shape
+    disk = np.empty((height, width), dtype=np.bool_)
+    allowed = np.empty((height, width), dtype=np.bool_)
+    for r in range(height):
+        dy2 = ((r + 0.5 - y) * sy) ** 2
+        for c in range(width):
+            inside = ((c + 0.5 - x) * sx) ** 2 + dy2 <= radius**2 or (r == row and c == column)
+            disk[r, c] = inside
+            accept = inside and valid[r, c]
+            if accept:
+                for channel in range(smooth.shape[2]):
+                    if abs(smooth[r, c, channel] - smooth[row, column, channel]) > sensitivity:
+                        accept = False
+                        break
+            allowed[r, c] = accept
+    mask = np.zeros((height, width), dtype=np.bool_)
+    queue = np.empty(height * width, dtype=np.intp)
+    queue[0] = row * width + column
+    allowed[row, column] = False
+    mask[row, column] = True
+    head, tail = 0, 1
+    while head < tail:
+        index = queue[head]
+        head += 1
+        r, c = index // width, index % width
+        for nr, nc in ((r - 1, c), (r + 1, c), (r, c - 1), (r, c + 1)):
+            if 0 <= nr < height and 0 <= nc < width and allowed[nr, nc]:
+                allowed[nr, nc] = False
+                mask[nr, nc] = True
+                queue[tail] = nr * width + nc
+                tail += 1
+    return mask, disk
+
+
 def wand_region(patch: ImagePatch, seed: tuple[float, float], radius: float, sensitivity: float) -> BaseGeometry:
     """Grow a filled, four-connected region near a native XY seed in displayed RGB.
 
@@ -101,16 +150,15 @@ def wand_region(patch: ImagePatch, seed: tuple[float, float], radius: float, sen
     valid = np.isfinite(data).all(axis=-1)
     if not valid[row, column]:
         return Polygon()
-    # Normalize around missing pixels so they cannot contaminate nearby seeds.
-    weights = gaussian_filter(valid.astype(np.float32), 1, mode="nearest")
-    smooth = gaussian_filter(np.where(valid[..., None], data, 0), (1, 1, 0), mode="nearest")
-    smooth /= np.maximum(weights[..., None], np.finfo(np.float32).eps)
-    yy, xx = np.ogrid[:height, :width]
-    disk = ((xx + 0.5 - x) * sx) ** 2 + ((yy + 0.5 - y) * sy) ** 2 <= radius**2
-    disk[row, column] = True
-    allowed = (np.max(np.abs(smooth - smooth[row, column]), axis=-1) <= sensitivity) & disk & valid
-    regions, _ = label(allowed)
-    mask = binary_fill_holes(regions == regions[row, column]) & disk & valid
+    if valid.all():
+        smooth = gaussian_filter(data, (1, 1, 0), mode="nearest")
+    else:
+        # Normalize around missing pixels so they cannot contaminate nearby seeds.
+        weights = gaussian_filter(valid.astype(np.float32), 1, mode="nearest")
+        smooth = gaussian_filter(np.where(valid[..., None], data, 0), (1, 1, 0), mode="nearest")
+        smooth /= np.maximum(weights[..., None], np.finfo(np.float32).eps)
+    mask, disk = _connected_mask(smooth, valid, row, column, x, y, sx, sy, radius, smooth.dtype.type(sensitivity))
+    mask = binary_fill_holes(mask) & disk & valid
     transform = Affine.translation(*patch.offset) * Affine.scale(sx, sy)
     polygons = [shape(geometry) for geometry, _ in shapes(mask.astype(np.uint8), mask=mask, transform=transform)]
     return unary_union(polygons).simplify(min(sx, sy) * 0.25, preserve_topology=True)
@@ -133,6 +181,24 @@ class WandSource:
         self.layers = layers
         self.background = background
         self._tiles: OrderedDict[tuple[int, int, int], np.ndarray] = OrderedDict()
+        self.cache_bytes = 0
+
+    def set_display(self, layers: tuple[WandLayer, ...], background: tuple[float, float, float]) -> None:
+        """Reuse image reads across strokes, discarding composites when the display changes."""
+        if self.background == background and len(self.layers) == len(layers):
+            for old, new in zip(self.layers, layers, strict=True):
+                if (old.channels, old.contrast, old.gamma, old.opacity, old.blending) != (
+                    new.channels,
+                    new.contrast,
+                    new.gamma,
+                    new.opacity,
+                    new.blending,
+                ) or not np.array_equal(old.colors, new.colors):
+                    break
+            else:
+                return
+        self.layers, self.background = layers, background
+        self._tiles.clear()
         self.cache_bytes = 0
 
     def _tile(self, x: int, y: int, downsample: int) -> np.ndarray:

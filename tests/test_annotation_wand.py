@@ -8,13 +8,44 @@ from pathlib import Path
 import numpy as np
 import pytest
 import tifffile
+from scipy.ndimage import label
 from shapely.geometry import Point, box
 
 from image2image.models.annotation import ImagePatch
 from image2image.utils.annotation.images import PatchReader
-from image2image.utils.annotation.wand import WandLayer, WandSource, display_patch, wand_region
+from image2image.utils.annotation.wand import WandLayer, WandSource, _connected_mask, display_patch, wand_region
 
 GRAY = np.array([[0, 0, 0, 1], [1, 1, 1, 1]], dtype=np.float32)
+
+
+@pytest.mark.parametrize("dtype", [np.float32, np.float64])
+@pytest.mark.parametrize("size", [(1, 1), (7, 9), (154, 154), (512, 512)])
+def test_compiled_component_matches_reference(dtype: type, size: tuple[int, int]) -> None:
+    rng = np.random.default_rng(2026)
+    smooth = rng.choice([0.0, 0.1, 0.15, 0.2, 0.9], (*size, 3)).astype(dtype)
+    valid = rng.random(size) > 0.05
+    row, col = size[0] // 2, size[1] // 2
+    valid[row, col] = True
+    smooth[row, col] = 0
+    x, y, sx, sy, radius = col + 0.2, row + 0.9, 2.0, 3.0, min(size) * 0.8
+    threshold = dtype(0.15)
+    yy, xx = np.ogrid[: size[0], : size[1]]
+    expected_disk = ((xx + 0.5 - x) * sx) ** 2 + ((yy + 0.5 - y) * sy) ** 2 <= radius**2
+    expected_disk[row, col] = True
+    allowed = (np.max(np.abs(smooth - smooth[row, col]), axis=-1) <= threshold) & expected_disk & valid
+    labels, _ = label(allowed)
+    expected = labels == labels[row, col]
+    actual, disk = _connected_mask(smooth, valid, row, col, x, y, sx, sy, radius, threshold)
+    np.testing.assert_array_equal(disk, expected_disk)
+    np.testing.assert_array_equal(actual, expected)
+    # Exercise the largest possible queue as well as fragmented/isolated regions.
+    smooth[:] = 0
+    actual, disk = _connected_mask(smooth, valid, row, col, x, y, sx, sy, radius, threshold)
+    labels, _ = label(disk & valid)
+    np.testing.assert_array_equal(actual, labels == labels[row, col])
+    valid[:] = True
+    actual, _ = _connected_mask(smooth, valid, row, col, x, y, sx, sy, 1e9, threshold)
+    assert actual.all()
 
 
 def test_wand_connected_filled_region_and_color_contrast() -> None:
@@ -51,6 +82,9 @@ def test_wand_coordinates_radius_and_missing_pixels() -> None:
     assert wand_region(patch, (99, 200), 10, 0.1).is_empty
     image[25, 25] = np.nan
     assert wand_region(patch, (151, 276.5), 10, 0.1).is_empty
+    adjacent = wand_region(patch, (153, 276.5), 10, 0.1)
+    assert adjacent.is_valid and adjacent.covers(Point(153, 276.5))
+    assert not adjacent.covers(Point(151, 276.5))
 
 
 def test_display_channels_gamma_color_opacity_and_order() -> None:
@@ -114,3 +148,42 @@ def test_source_zoom_cache_edges_and_work_limit(tmp_path: Path, monkeypatch: pyt
         assert source.cache_bytes <= source.MAX_BYTES
         assert all(h <= 256 and w <= 256 for h, w, _ in calls)
         assert all(h <= 512 and w <= 512 for h, w, _ in shapes)
+
+
+@pytest.mark.parametrize("setting", ["channels", "contrast", "gamma", "opacity", "blending", "colors", "background"])
+def test_display_cache_invalidates_only_when_settings_change(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, setting: str
+) -> None:
+    path = tmp_path / "image.ome.tiff"
+    image = np.full((2, 64, 64), 40, dtype=np.uint8)
+    image[1] = 180
+    tifffile.imwrite(path, image, photometric="minisblack", metadata={"axes": "CYX"})
+    layer = WandLayer((0,), (0, 255), 1, GRAY.copy())
+    with PatchReader(path) as reader:
+        source = WandSource(reader, (layer,))
+        tile = source._tile(0, 0, 1)
+        read = reader.read
+        calls = []
+
+        def track(*args, **kwargs):
+            calls.append(1)
+            return read(*args, **kwargs)
+
+        monkeypatch.setattr(reader, "read", track)
+        source.set_display((replace(layer, colors=GRAY.copy()),), (0, 0, 0))
+        assert source._tile(0, 0, 1) is tile and not calls
+        settings = {
+            "channels": {"channels": (1,)},
+            "contrast": {"contrast": (0, 100)},
+            "gamma": {"gamma": 2},
+            "opacity": {"opacity": 0.5},
+            "blending": {"blending": "minimum"},
+            "colors": {"colors": np.array([[0, 0, 0, 1], [0, 1, 0, 1]], dtype=np.float32)},
+            "background": {},
+        }
+        changed = replace(layer, **settings[setting])
+        source.set_display((changed,), (1, 1, 1) if setting == "background" else (0, 0, 0))
+        assert source.cache_bytes == 0
+        assert source._tile(0, 0, 1) is not tile and calls == [1]
+        source.set_display((), (0, 0, 0))
+        assert source.cache_bytes == 0 and not source._tiles
