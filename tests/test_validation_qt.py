@@ -1098,27 +1098,51 @@ def test_assisted_landmark_and_fixed_replacement(
     assert Path(window.session.fixed.path) == other.resolve() and window.session.landmarks == []
 
 
-def test_automatic_evidence_modes_and_analyze_scope(
+def test_detected_landmarks_fill_table_and_automatic_modes(
     validation_window: ImageValidationWindow, qtbot: QtBot, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     window = validation_window
     fixed, moving = _textured_pair(tmp_path)
     _load_direct_images(window, monkeypatch, fixed, moving)
+    window.begin_pair()
+    _click(window, 0, (100, 80))
+    _click(window, 1, (103, 78))
+    window.cancel_pair()
+    window.detect_count.setValue(20)
+    window.detect_landmarks()
+    qtbot.waitUntil(lambda: not window._assist_workers, timeout=60000)
+    automatic = [point for point in window.session.landmarks if point.source == "automatic"]
+    assert 5 <= len(automatic) <= 20, window.status.text()
+    assert window.landmark_table.rowCount() == len(window.session.landmarks)
+    assert window.landmark_table.item(1, 7).text().startswith("automatic (")
+    assert window.landmark_table.item(1, 8).text() not in ("", "No registration loaded")
+    assert "automatic landmarks" in window.status.text()
+    # One undo removes the whole detection; Remove automatic keeps manual landmarks.
+    window.undo_stack.undo()
+    assert [point.source for point in window.session.landmarks] == ["manual"]
+    window.undo_stack.redo()
+    assert len(window.session.landmarks) == len(automatic) + 1
+
     window.auto_residual_map.setChecked(True)
-    window.auto_features.setChecked(True)
     window.auto_tile.setValue(48)
     assert window.session.auto_residual_map and window.session.auto_tile_um == 48
     window.start_analysis_all()
     qtbot.waitUntil(lambda: not window._workers, timeout=60000)
     result = window.analysis.candidates[0]
-    assert result.residual_map["median"] == pytest.approx(np.hypot(3, 2), abs=0.3)
+    assert result.validation["total"] == 1 and result.validation["median"] == pytest.approx(np.hypot(3, 2))
     assert result.automatic["median"] == pytest.approx(np.hypot(3, 2), abs=0.3)
-    assert window.summary_table.item(0, 8).text() != "Unavailable"
-    for name in ("Residual shift map", "Automatic landmarks"):
-        window.result_mode.setCurrentText(name)
-        assert "Residual shift" in window.result_view.viewer.layers or "Automatic error (um)" in (
-            window.result_view.viewer.layers
-        )
+    assert result.residual_map["median"] == pytest.approx(np.hypot(3, 2), abs=0.3)
+    assert window.summary_table.item(0, 1).text() == "1/1" and window.summary_table.item(0, 7).text() != "Unavailable"
+    window.result_mode.setCurrentText("Validation errors")
+    assert len(window.result_view.viewer.layers["Validation error (um)"].data) == 1
+    assert "1/1 eligible landmarks evaluated" in window.validation_summary.text()
+    window.result_mode.setCurrentText("Automatic landmarks")
+    assert len(window.result_view.viewer.layers["Automatic error (um)"].data) == result.automatic["count"]
+    window.result_mode.setCurrentText("Residual shift map")
+    assert "Residual shift" in window.result_view.viewer.layers
     assert window.automatic_table.item(0, 1).text() == "Measured"
+    assert window.automatic_table.item(0, 2).text() == "Measured"
     window.start_analysis_all()
     assert not window._workers and "current results" in window.status.text()
+    window.remove_automatic()
+    assert [point.source for point in window.session.landmarks] == ["manual"]

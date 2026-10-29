@@ -15,8 +15,16 @@ from typing import Any
 
 import numpy as np
 
-from image2image.models.validation import ImageGeometry
-from image2image.utils.validation import ValidationTransform, check_cancel, distance_statistics, sample_pixels
+from image2image.models.validation import ImageGeometry, ValidationLandmark, ValidationSession
+from image2image.utils.validation import (
+    ValidationTransform,
+    analysis_grid,
+    check_cancel,
+    distance_statistics,
+    open_validation_reader,
+    sample_image,
+    sample_pixels,
+)
 
 UNAVAILABLE_REASON = "Unavailable: too few reliable matches (low texture or cross-modal images)."
 
@@ -238,6 +246,21 @@ def _outliers(errors: np.ndarray) -> np.ndarray:
     return errors > median + 3.5 * max(mad, 1e-12)
 
 
+def _spread_order(xy: np.ndarray, cells: int) -> np.ndarray:
+    """Order points so the first of each spatial cell comes first, giving even coverage when truncated."""
+    if len(xy) == 0:
+        return np.arange(0)
+    order = np.random.default_rng(0).permutation(len(xy))
+    low, high = xy.min(axis=0), xy.max(axis=0)
+    size = np.maximum((high - low) / max(1, cells), 1e-9)
+    cell = np.floor((xy[order] - low) / size).clip(0, cells - 1).astype(int)
+    keys = cell[:, 1] * cells + cell[:, 0]
+    _, first = np.unique(keys, return_index=True)
+    leading = np.zeros(len(order), dtype=bool)
+    leading[first] = True
+    return np.concatenate((order[leading], order[~leading]))
+
+
 def automatic_landmarks(
     fixed_image: np.ndarray,
     registered_image: np.ndarray,
@@ -254,11 +277,14 @@ def automatic_landmarks(
     max_points: int = 300,
     min_score: float = 0.6,
     max_detection_px: int = 1500,
+    avoid_xy: np.ndarray | None = None,
+    avoid_um: float = 0.0,
     cancel: Event | None = None,
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     """Detect SIFT correspondences between fixed and registered images, refine them natively, and score residuals.
 
     Rows match the independent landmark schema (moving frame, um) with ``score`` and ``outlier`` added.
+    Points are chosen to cover the image evenly; fixed points within ``avoid_um`` of ``avoid_xy`` are skipped.
     """
     from skimage.feature import SIFT, match_descriptors
 
@@ -288,15 +314,18 @@ def automatic_landmarks(
     fixed_xy = detection.to_physical(keypoints[0][matches[:, 0]][:, ::-1].astype(float))
     registered_xy = detection.to_physical(keypoints[1][matches[:, 1]][:, ::-1].astype(float))
     offsets = registered_xy - fixed_xy
-    keep = np.linalg.norm(offsets, axis=1) <= search_um
+    tolerance = 2 * float(max(detection.spacing))
+    keep = np.linalg.norm(offsets, axis=1) <= max(search_um, tolerance)
+    if avoid_xy is not None and len(avoid_xy) and avoid_um > 0:
+        distance = np.linalg.norm(fixed_xy[:, None] - np.asarray(avoid_xy)[None], axis=-1).min(axis=1)
+        keep &= distance >= avoid_um
     fixed_xy, offsets = fixed_xy[keep], offsets[keep]
     summary["matched"] = len(fixed_xy)
-    if len(fixed_xy) > max_points:
-        chosen = np.sort(np.random.default_rng(0).choice(len(fixed_xy), max_points, replace=False))
-        fixed_xy, offsets = fixed_xy[chosen], offsets[chosen]
-    tolerance = 2 * float(max(detection.spacing))
+    order = _spread_order(fixed_xy, max(1, math.ceil(math.sqrt(max_points))))
     rows = []
-    for point, offset in zip(fixed_xy, offsets, strict=True):
+    for point, offset in zip(fixed_xy[order], offsets[order], strict=True):
+        if len(rows) >= max_points:
+            break
         check_cancel(cancel)
         match = match_through_transform(
             fixed_array,
@@ -339,3 +368,76 @@ def automatic_landmarks(
         reason="" if len(rows) >= 3 else UNAVAILABLE_REASON,
     )
     return rows, summary
+
+
+def detect_landmarks(
+    session: ValidationSession,
+    transform: ValidationTransform,
+    *,
+    max_points: int = 50,
+    template_um: float | None = None,
+    search_um: float | None = None,
+    cancel: Event | None = None,
+    progress: Any = None,
+) -> tuple[list[ValidationLandmark], dict[str, Any]]:
+    """Propose automatic landmarks for review, numbered after existing ``auto-N`` IDs.
+
+    Outliers are returned unticked with a note. Points closer than half a template to an existing
+    landmark are skipped, so repeated detection does not duplicate points.
+    """
+    if session.fixed is None or session.moving is None:
+        raise ValueError("Load both images before detecting landmarks.")
+    spacing = max(session.fixed.geometry.spacing)
+    template_um = template_um or 48 * spacing
+    search_um = search_um or 24 * spacing
+    grid = analysis_grid(session)
+    if progress:
+        progress("Sampling images on the analysis grid...")
+    fixed_image, _ = sample_image(session.fixed, grid, cancel=cancel)
+    registered, coverage = sample_image(session.moving, grid, transform, cancel=cancel)
+    if progress:
+        progress("Matching image features...")
+    readers = [open_validation_reader(session.fixed), open_validation_reader(session.moving)]
+    try:
+        rows, summary = automatic_landmarks(
+            fixed_image,
+            registered,
+            coverage,
+            grid,
+            transform,
+            readers[0].get_channel(session.fixed.channel, split_rgb=True),
+            session.fixed.geometry,
+            readers[1].get_channel(session.moving.channel, split_rgb=True),
+            session.moving.geometry,
+            template_um,
+            search_um,
+            max_points=max_points,
+            avoid_xy=np.array([point.fixed for point in session.landmarks]).reshape(-1, 2),
+            avoid_um=template_um / 2,
+            cancel=cancel,
+        )
+    finally:
+        for reader in readers:
+            reader.close()
+    used = {point.id for point in session.landmarks}
+    number = max(
+        [int(i.removeprefix("auto-")) for i in used if i.startswith("auto-") and i.removeprefix("auto-").isdigit()]
+        or [0]
+    )
+    landmarks = []
+    for row in rows:
+        number += 1
+        while f"auto-{number}" in used:
+            number += 1
+        landmarks.append(
+            ValidationLandmark(
+                id=f"auto-{number}",
+                fixed=(row["fixed_x"], row["fixed_y"]),
+                moving=(row["moving_x"], row["moving_y"]),
+                source="automatic",
+                score=round(float(row["score"]), 4),
+                enabled=not row["outlier"],
+                note="Automatic outlier" if row["outlier"] else "",
+            )
+        )
+    return landmarks, summary

@@ -176,6 +176,7 @@ class ImageValidationWindow(Window):
         self._transform_errors: dict[tuple, str] = {}
         self._transform_workers: list[Any] = []
         self._assist_workers: list[Any] = []
+        self._detect_cancel = Event()
         self._suggestion: TemplateMatch | None = None
         self._assist_generation = 0
         super().__init__(
@@ -531,30 +532,48 @@ class ImageValidationWindow(Window):
         self.landmark_table.itemChanged.connect(self._landmark_edited)
         self.landmark_table.itemSelectionChanged.connect(self.focus_landmark)
         layout.addWidget(self.landmark_table)
+        assistance = hp.make_group_box(widget, "Assistance")
         self.assist = hp.make_checkbox(
-            widget,
+            assistance,
             "Suggest the moving point by template matching",
             value=False,
             tooltip="After a fixed click, search near the selected registration's prediction for the same image "
             "content. Press Enter to accept the suggestion (stored as assisted) or click the moving image to place "
             "the point yourself (stored as manual).",
         )
-        self.assist_template = hp.make_double_spin_box(widget, minimum=0, maximum=1e5, value=0, n_decimals=1)
-        self.assist_search = hp.make_double_spin_box(widget, minimum=0, maximum=1e5, value=0, n_decimals=1)
+        self.assist_template = hp.make_double_spin_box(assistance, minimum=0, maximum=1e5, value=0, n_decimals=1)
+        self.assist_search = hp.make_double_spin_box(assistance, minimum=0, maximum=1e5, value=0, n_decimals=1)
         for control in (self.assist_template, self.assist_search):
             control.setSpecialValueText("Auto")
             control.setSuffix(" um")
-        layout.addWidget(self.assist)
-        layout.addLayout(
-            hp.make_h_layout(
-                hp.make_label(widget, "Template"),
-                self.assist_template,
-                hp.make_label(widget, "Search radius"),
-                self.assist_search,
-                hp.make_help_label(widget, constants.ASSIST_HELP),
-                stretch_id=4,
-            )
+        self.detect_btn = hp.make_btn(
+            assistance,
+            "Detect landmarks",
+            func=self.detect_landmarks,
+            tooltip="Find matching image features through the selected registration and add them to the table "
+            "as automatic landmarks for review.",
         )
+        self.detect_count = hp.make_int_spin_box(assistance, minimum=1, maximum=1000, value=50)
+        self.detect_count.setPrefix("Max ")
+        self.remove_automatic_btn = hp.make_btn(
+            assistance, "Remove automatic", func=self.remove_automatic, tooltip="Delete every automatic landmark."
+        )
+        hp.make_v_layout(
+            self.assist,
+            hp.make_h_layout(
+                hp.make_label(assistance, "Template"),
+                self.assist_template,
+                hp.make_label(assistance, "Search radius"),
+                self.assist_search,
+                hp.make_help_label(assistance, constants.ASSIST_HELP),
+                stretch_id=4,
+            ),
+            hp.make_h_layout(self.detect_btn, self.detect_count, self.remove_automatic_btn, stretch_id=0),
+            parent=assistance,
+            margin=6,
+            spacing=3,
+        )
+        layout.addWidget(assistance)
         layout.addWidget(hp.make_label(widget, self.session.independence_note, wrap=True))
         return widget
 
@@ -622,32 +641,18 @@ class ImageValidationWindow(Window):
             func=self._automatic_changed,
             tooltip="Tile-wise phase correlation between the fixed and registered moving images.",
         )
-        self.auto_features = hp.make_checkbox(
-            automatic,
-            "Automatic feature landmarks",
-            value=False,
-            func=self._automatic_changed,
-            tooltip="SIFT correspondences refined by template matching at native resolution.",
-        )
         self.auto_tile = hp.make_double_spin_box(
             automatic, minimum=0, maximum=1e6, value=0, n_decimals=1, func=self._automatic_changed
         )
-        self.auto_search = hp.make_double_spin_box(
-            automatic, minimum=0, maximum=1e6, value=0, n_decimals=1, func=self._automatic_changed
-        )
-        for control in (self.auto_tile, self.auto_search):
-            control.setSpecialValueText("Auto")
-            control.setSuffix(" um")
+        self.auto_tile.setSpecialValueText("Auto")
+        self.auto_tile.setSuffix(" um")
         hp.make_v_layout(
             hp.make_h_layout(
-                self.auto_residual_map, self.auto_features, hp.make_help_label(automatic, constants.AUTOMATIC_HELP)
-            ),
-            hp.make_h_layout(
+                self.auto_residual_map,
                 hp.make_label(automatic, "Tile"),
                 self.auto_tile,
-                hp.make_label(automatic, "Search radius"),
-                self.auto_search,
-                stretch_id=4,
+                hp.make_help_label(automatic, constants.AUTOMATIC_HELP),
+                stretch_id=0,
             ),
             parent=automatic,
             margin=6,
@@ -1066,9 +1071,7 @@ class ImageValidationWindow(Window):
             self.downsample.setValue(self.session.downsample)
             self.units.setCurrentText(self.session.landmark_units)
             self.auto_residual_map.setChecked(self.session.auto_residual_map)
-            self.auto_features.setChecked(self.session.auto_features)
             self.auto_tile.setValue(self.session.auto_tile_um or 0)
-            self.auto_search.setValue(self.session.auto_search_um or 0)
             self.grid_label.setText("The common analysis grid is capped at 4 million pixels.")
             if self.session.fixed:
                 grid = analysis_grid(self.session)
@@ -1388,9 +1391,7 @@ class ImageValidationWindow(Window):
             return
         settings = {
             "auto_residual_map": self.auto_residual_map.isChecked(),
-            "auto_features": self.auto_features.isChecked(),
             "auto_tile_um": self.auto_tile.value() or None,
-            "auto_search_um": self.auto_search.value() or None,
         }
         for pair in self.study.pairs:
             for key, value in settings.items():
@@ -1628,7 +1629,10 @@ class ImageValidationWindow(Window):
                     [p.fixed[::-1] if index == 0 else p.moving[::-1] for p in self.session.landmarks]
                 ).reshape(-1, 2)
             for index, layer in enumerate(self.point_layers):
-                layer.face_color = ["lime" if p.enabled else "gray" for p in self.session.landmarks] or "lime"
+                layer.face_color = [
+                    ("cyan" if p.source == "automatic" else "lime") if p.enabled else "gray"
+                    for p in self.session.landmarks
+                ] or "lime"
                 labels = [p.id for p in self.session.landmarks]
                 if index == 1 and errors:
                     labels = [
@@ -2028,6 +2032,73 @@ class ImageValidationWindow(Window):
             ValidationLandmark(fixed=self._pending_pair, moving=match.moving_xy, source="assisted", score=match.score)
         )
 
+    def detect_landmarks(self) -> None:
+        """Propose automatic landmarks through the selected registration; they are added for review."""
+        if not self.session.fixed or not self.session.moving:
+            self._set_status("Load both images before detecting landmarks.")
+            return
+        if self._assist_workers:
+            return
+        transform = self._current_transform()
+        if transform is None:
+            self._set_status("The registration is still loading. Try again in a moment.")
+            return
+        from image2image.utils.validation_auto import detect_landmarks
+
+        template_um, search_um = self._assist_sizes()
+        session, pair_id = self.session.model_copy(deep=True), self._pair_id
+        self._detect_cancel = Event()
+        worker = create_worker(
+            detect_landmarks,
+            session,
+            transform,
+            max_points=self.detect_count.value(),
+            template_um=template_um,
+            search_um=search_um,
+            cancel=self._detect_cancel,
+            progress=lambda text: self.progress_changed.emit(self._generation, text),
+            _start_thread=False,
+            _ignore_errors=True,
+        )
+        worker.returned.connect(partial(self._landmarks_detected, pair_id, session.landmarks))
+        worker.errored.connect(
+            lambda exc: self._set_status(
+                "Detection cancelled." if isinstance(exc, AnalysisCancelled) else f"Detection failed: {exc}"
+            )
+        )
+        worker.finished.connect(partial(self._worker_finished, self._assist_workers, worker))
+        worker.finished.connect(lambda: self.detect_btn.setEnabled(True))
+        self._assist_workers.append(worker)
+        self.detect_btn.setEnabled(False)
+        self._set_status("Detecting landmarks...")
+        worker.start()
+
+    def _landmarks_detected(
+        self, pair_id: str, before: list[ValidationLandmark], result: tuple[list[ValidationLandmark], dict]
+    ) -> None:
+        if self._closing:
+            return
+        landmarks, summary = result
+        if pair_id != self._pair_id or [p.id for p in self.session.landmarks] != [p.id for p in before]:
+            self._set_status("Landmarks changed during detection; detect again to add automatic landmarks.")
+            return
+        if not landmarks:
+            self._set_status(summary.get("reason") or "No reliable matches were found.", "No landmarks detected")
+            return
+        self._set_landmarks([*self.session.landmarks, *landmarks], "Detect landmarks")
+        outliers = sum(not point.enabled for point in landmarks)
+        self._set_status(
+            "Review them in the table and viewers: Del removes selected rows and Ctrl+Z removes them all. "
+            "Automatic landmarks are reported separately from manual and assisted ones.",
+            f"Added {len(landmarks)} automatic landmarks ({outliers} outliers unticked)",
+        )
+
+    def remove_automatic(self) -> None:
+        """Delete every automatic landmark of the selected image pair."""
+        kept = [point for point in self.session.landmarks if point.source != "automatic"]
+        if len(kept) != len(self.session.landmarks):
+            self._set_landmarks(kept, "Remove automatic landmarks")
+
     def delete_pair(self) -> None:
         """Remove the selected landmarks from both native views."""
         rows = {index.row() for index in self.landmark_table.selectionModel().selectedRows()}
@@ -2376,7 +2447,8 @@ class ImageValidationWindow(Window):
     def _show_error_summary(self, result: CandidateAnalysis) -> None:
         evaluated = int(result.validation.get("count", 0))
         eligible = int(result.validation.get("eligible", 0))
-        total = len(result.landmarks)
+        independent = self._rows(result, automatic=False)
+        total = len(independent)
         counts = (
             f"{evaluated}/{eligible} eligible landmarks evaluated; {total} supplied, {total - eligible} excluded, "
             f"{eligible - evaluated} not evaluated."
@@ -2394,10 +2466,10 @@ class ImageValidationWindow(Window):
             )
             self._set_message(self.validation_summary, counts + "\n" + statistics, "Measured positional errors")
         else:
-            reasons = list(dict.fromkeys(point["excluded"] for point in result.landmarks if point["excluded"]))
+            reasons = list(dict.fromkeys(point["excluded"] for point in independent if point["excluded"]))
             reason = (
                 "Add independent landmark pairs in Landmarks."
-                if not result.landmarks
+                if not independent
                 else " ".join(reasons) + " See Landmark residuals for each point."
             )
             self._set_message(
@@ -2465,14 +2537,19 @@ class ImageValidationWindow(Window):
         )
         return error_limit
 
-    def _shared_maximum(self, key: str) -> float:
+    @staticmethod
+    def _rows(result: CandidateAnalysis, *, automatic: bool) -> list[dict[str, Any]]:
+        """Residual rows for automatic landmarks, or for manual and assisted (independent) landmarks."""
+        return [row for row in result.landmarks if (row.get("source") == "automatic") == automatic]
+
+    def _shared_maximum(self, *, automatic: bool) -> float:
         """Largest finite error for this pair, so candidates share one color scale."""
         return max(
             [
                 p["error_um"]
                 for c in self.analysis.candidates
-                for p in getattr(c, key)
-                if p["error_um"] is not None and not p.get("outlier")
+                for p in self._rows(c, automatic=automatic)
+                if p["error_um"] is not None
             ]
             or [1]
         )
@@ -2510,9 +2587,9 @@ class ImageValidationWindow(Window):
             elif mode == "validation_errors":
                 self._show_error_summary(result)
                 self._add_native_moving(viewer)
-                points = [p for p in result.landmarks if p["error_um"] is not None]
+                points = [p for p in self._rows(result, automatic=False) if p["error_um"] is not None]
                 if points:
-                    maximum = self._shared_maximum("landmarks")
+                    maximum = self._shared_maximum(automatic=False)
                     error_limit = self._add_point_errors(viewer, points, "Validation error (um)", maximum)
                     legend = (
                         f"Point color: positional error from 0 to {error_limit:.4g} um; "
@@ -2542,21 +2619,20 @@ class ImageValidationWindow(Window):
                 legend = self._show_residual_map(viewer, arrays, result, kwargs)
             elif mode == "automatic_landmarks":
                 self._add_native_moving(viewer)
-                points = [p for p in result.automatic_landmarks if p["error_um"] is not None]
+                points = [p for p in self._rows(result, automatic=True) if p["error_um"] is not None]
                 if points:
                     error_limit = self._add_point_errors(
-                        viewer, points, "Automatic error (um)", self._shared_maximum("automatic_landmarks")
+                        viewer, points, "Automatic error (um)", self._shared_maximum(automatic=True)
                     )
-                    outliers = sum(p["outlier"] for p in points)
                     legend = (
-                        f"{len(points)} automatic landmarks; point color 0 to {error_limit:.4g} um "
-                        f"(outliers excluded from the color range; {outliers} flagged). Moving frame. "
-                        "Image-similarity evidence, reported separately from independent landmarks."
+                        f"{len(points)} automatic landmarks; point color 0 to {error_limit:.4g} um. Moving frame. "
+                        f"{result.automatic.get('outliers', 0)} unticked outliers are not shown. "
+                        "Image-similarity evidence, reported separately from manual and assisted landmarks."
                     )
-                elif not self.analysis.session.auto_features:
-                    legend = "Enable Automatic feature landmarks under Automatic evidence and analyze again."
+                elif not result.automatic:
+                    legend = "No automatic landmarks. Use Detect landmarks in the Landmarks tab."
                 else:
-                    legend = result.automatic.get("reason") or "No automatic landmarks were found."
+                    legend = result.automatic.get("reason") or "No automatic landmarks were measured."
             else:
                 key = {
                     "area_change": "log2_area_ratio",
@@ -2593,7 +2669,7 @@ class ImageValidationWindow(Window):
                     "All maps include global affine scaling."
                 )
         viewer.reset_view()
-        if not result.landmarks:
+        if not self._rows(result, automatic=False):
             evidence_note = "Independent accuracy unavailable: add held-out landmark pairs in Landmarks."
         elif not result.validation.get("eligible"):
             evidence_note = "Independent accuracy unavailable: all landmarks are excluded; see Landmark residuals."
@@ -2602,6 +2678,11 @@ class ImageValidationWindow(Window):
         else:
             evidence_note = (
                 f"Independent landmarks: {result.validation['count']}/{result.validation['eligible']} evaluated."
+            )
+        if result.automatic:
+            evidence_note += (
+                f" Automatic landmarks (reported separately): "
+                f"{result.automatic.get('count', 0)}/{result.automatic.get('eligible', 0)} evaluated."
             )
         reference = result.deformation.get("reference", "")
         self._set_message(
@@ -2730,22 +2811,25 @@ class ImageValidationWindow(Window):
         rows = [
             (
                 "Status",
-                self._automatic_status(shift, "auto_residual_map"),
-                self._automatic_status(auto, "auto_features"),
+                self._automatic_status(shift),
+                (auto.get("reason") or "Measured") if auto else "Not detected",
             ),
             ("Frame", shift.get("frame", ""), auto.get("frame", "")),
             (
                 "Measurements",
                 f"{shift.get('valid_tiles', '')}/{shift.get('tiles', '')} tiles" if shift else "",
-                f"{auto.get('refined', '')} points ({auto.get('outliers', 0)} outliers)" if auto else "",
+                f"{auto.get('count', 0)}/{auto.get('eligible', 0)} eligible points "
+                f"({auto.get('outliers', 0)} unticked outliers)"
+                if auto
+                else "",
             ),
         ]
         for key, label in (("mean", "Mean"), ("median", "Median"), ("rms", "RMS"), ("p95", "P95"), ("maximum", "Max")):
             rows.append((f"{label} (um)", shift.get(key), auto.get(key)))
         self._fill_table(self.automatic_table, rows)
 
-    def _automatic_status(self, summary: dict[str, Any], setting: str) -> str:
-        if not getattr(self.analysis.session, setting):
+    def _automatic_status(self, summary: dict[str, Any]) -> str:
+        if not self.analysis.session.auto_residual_map:
             return "Not requested"
         return summary.get("reason") or "Measured"
 
@@ -2788,6 +2872,7 @@ class ImageValidationWindow(Window):
             return
         self._closing = True
         if self._workers or self._transform_workers or self._assist_workers:
+            self._detect_cancel.set()
             if self._workers:
                 self.cancel_analysis()
             event.ignore()

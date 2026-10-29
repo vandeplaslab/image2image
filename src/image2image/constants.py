@@ -171,23 +171,23 @@ DIAGNOSTIC_HELP = {
     ),
     "automatic_landmarks": (
         "<p><b>Automatic landmarks</b></p>\n"
-        "<p>SIFT correspondences between the fixed and registered images, refined by template matching "
-        "at native resolution.</p>\n"
+        "<p>Landmarks added with <b>Detect landmarks</b> in the Landmarks tab: SIFT correspondences between "
+        "the fixed and registered images, refined by template matching at native resolution.</p>\n"
         "<p><b>Point color:</b> residual G(fixed) - moving in um, <b>moving frame</b>, as for manual landmarks.<br>"
         "<b>Background:</b> the native moving image.</p>\n"
-        "<p>Reported separately from independent landmarks and never pooled with them. Outliers are flagged "
-        "with a robust (median absolute deviation) rule.</p>"
+        "<p>Reported separately from manual and assisted landmarks and never pooled with them. Unticked "
+        "landmarks, including detected outliers, are not shown.</p>"
     ),
 }
 AUTOMATIC_HELP = (
     "<p><b>Automatic evidence</b></p>\n"
-    "<p>Optional measurements computed from image content on the analysis grid, in addition to "
-    "independent landmarks. Both compare the fixed image with the moving image resampled through each "
-    "registration, so only remaining local misalignment is measured.</p>\n"
-    "<p><b>Residual shift map:</b> per-tile shift in um (fixed frame), with valid-tile coverage.<br>"
-    "<b>Automatic landmarks:</b> per-point residuals in um (moving frame), with outliers flagged.</p>\n"
-    "<p><b>Tile:</b> correlation window; Auto uses 64 grid pixels.<br>"
-    "<b>Search radius:</b> largest residual searched for; Auto uses 16 grid pixels.</p>\n"
+    "<p>Measurements computed from image content, reported separately from manual and assisted landmarks. "
+    "They compare the fixed image with the moving image resampled through each registration, so only "
+    "remaining local misalignment is measured.</p>\n"
+    "<p><b>Residual shift map:</b> optional per-tile shift in um (fixed frame), with valid-tile coverage. "
+    "<b>Tile</b> is the correlation window; Auto uses 64 grid pixels.<br>"
+    "<b>Automatic landmarks:</b> added and reviewed in the Landmarks tab with Detect landmarks; per-point "
+    "residuals in um (moving frame).</p>\n"
     "<p>These measurements depend on image similarity: they can fail, or be biased, for different stains or "
     "modalities, repetitive texture, or tissue damage. They complement, but do not replace, independent "
     "landmarks.</p>"
@@ -199,7 +199,10 @@ ASSIST_HELP = (
     "<p><b>Enter</b> accepts the suggestion; the landmark is stored as <b>assisted</b> with its correlation "
     "score. Clicking the moving image places the point yourself and stores it as <b>manual</b>.</p>\n"
     "<p><b>Template:</b> Auto uses 48 fixed pixels. <b>Search radius:</b> Auto uses 24 fixed pixels. "
-    "Use a radius larger than the errors you expect; a suggestion at the edge of the search is rejected.</p>"
+    "Use a radius larger than the errors you expect; a suggestion at the edge of the search is rejected.</p>\n"
+    "<p><b>Detect landmarks</b> finds up to <b>Max</b> matching features spread across the image and adds them "
+    "as <b>automatic</b> landmarks (cyan) for review; outliers are added unticked. They are reported separately "
+    "from manual and assisted landmarks. Ctrl+Z removes a whole detection; Remove automatic deletes them all.</p>"
 )
 
 LINKS = {

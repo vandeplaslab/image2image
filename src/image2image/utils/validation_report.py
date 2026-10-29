@@ -68,10 +68,14 @@ _METHODS = (
         "registration on the fixed analysis grid. The residual shift map estimates per-tile shifts by phase "
         "correlation with sub-pixel refinement; tiles with incomplete coverage, low texture, post-shift correlation "
         "below 0.5, or shifts above a quarter tile are rejected, and shifts are reported in the fixed frame. "
-        "Automatic landmarks are SIFT correspondences between the fixed and registered images, refined by "
-        "normalized cross-correlation at native resolution; residuals use the independent-landmark definition "
-        "G(fixed) - moving in the moving frame, and outliers above the median plus 3.5 robust standard deviations "
-        "are flagged. Both depend on image similarity and can fail or be biased for different stains or "
+        "Automatic landmarks are detected in the Landmarks tab and reviewed by the user: SIFT correspondences "
+        "between the fixed image and the moving image registered through the selected registration, refined by "
+        "normalized cross-correlation at native resolution. Outliers above the median plus 3.5 robust standard "
+        "deviations are added unticked. Their residuals use the landmark definition G(fixed) - moving in the "
+        "moving frame and are summarized separately; headline accuracy uses manual and assisted landmarks only, "
+        "which are the independent evidence. Because detection searches near the selected registration's "
+        "prediction, comparing registrations on automatic landmarks can favour the one used for detection. "
+        "Both depend on image similarity and can fail or be biased for different stains or "
         "modalities, repetitive texture, or tissue damage; too few reliable measurements are reported as "
         "unavailable, not as zero error.",
     ),
@@ -188,6 +192,7 @@ def comparison_rows(analysis: ValidationAnalysis) -> list[dict[str, Any]]:
             "coverage": result.deformation.get("coverage"),
             "nonpositive_fraction": result.deformation.get("nonpositive_fraction"),
             "automatic_count": result.automatic.get("count"),
+            "automatic_eligible": result.automatic.get("eligible"),
             "automatic_median_um": result.automatic.get("median"),
             "residual_map_valid_fraction": result.residual_map.get("valid_fraction"),
             "residual_map_median_um": result.residual_map.get("median"),
@@ -316,8 +321,9 @@ def _automatic_section(candidate: CandidateAnalysis, heading: int) -> str:
         text += (
             f"<h{heading + 1}>Automatic landmarks (um, moving frame)</h{heading + 1}>{_metrics(candidate.automatic)}"
         )
-        if candidate.automatic_landmarks:
-            text += f"<details><summary>Automatic landmark residuals</summary>{_table(candidate.automatic_landmarks)}</details>"
+        rows = [row for row in candidate.landmarks if row.get("source") == "automatic"]
+        if rows:
+            text += f"<details><summary>Automatic landmark residuals</summary>{_table(rows)}</details>"
     return text
 
 
@@ -513,7 +519,7 @@ def plot_validation_candidate(
             for name in stored.files
             if name not in ("origin_xy_um", "spacing_xy_um")
         }
-    automatic = "shift_um" in arrays or bool(result.automatic_landmarks)
+    automatic = "shift_um" in arrays or bool(result.automatic)
     fig = Figure(figsize=(12, 13.5 if automatic else 9), constrained_layout=True)
     FigureCanvasAgg(fig)
     axes = fig.subplots(3 if automatic else 2, 2)
@@ -526,7 +532,7 @@ def plot_validation_candidate(
     moving = normalize_image(arrays["registered_image"])
     axes[0, 0].imshow(np.stack((fixed, moving, fixed), axis=-1), extent=extent)
     axes[0, 0].set_title("Fixed (magenta) / registered moving (green)")
-    rows = [row for row in result.landmarks if row["error_um"] is not None]
+    rows = [row for row in result.landmarks if row["error_um"] is not None and row.get("source") != "automatic"]
     if rows:
         errors = np.array([r["error_um"] for r in rows])
         x, y = np.array([[r["moving_x"], r["moving_y"]] for r in rows]).T
@@ -597,17 +603,16 @@ def _plot_automatic(
     else:
         axes[0].text(0.5, 0.5, "Residual shift map not requested", ha="center", transform=axes[0].transAxes)
     axes[0].set_title("Residual shift map; blank tiles rejected")
-    rows = [row for row in result.automatic_landmarks if row["error_um"] is not None]
+    rows = [row for row in result.landmarks if row.get("source") == "automatic" and row["error_um"] is not None]
     if rows:
         errors = np.array([r["error_um"] for r in rows])
         x, y = np.array([[r["moving_x"], r["moving_y"]] for r in rows]).T
-        limit = float(np.max([r["error_um"] for r in rows if not r["outlier"]] or [errors.max()]))
-        scatter = axes[1].scatter(x, y, c=errors, vmin=0, vmax=max(limit, 1e-9), cmap="magma", s=12)
+        scatter = axes[1].scatter(x, y, c=errors, vmin=0, vmax=max(float(errors.max()), 1e-9), cmap="magma", s=12)
         axes[1].invert_yaxis()
         axes[1].set_aspect("equal", adjustable="datalim")
         fig.colorbar(scatter, ax=axes[1], label="Automatic landmark error (um, moving frame)")
     else:
-        message = result.automatic.get("reason") or "Automatic landmarks not requested"
+        message = result.automatic.get("reason") or "No automatic landmarks detected"
         axes[1].text(0.5, 0.5, message, ha="center", wrap=True, transform=axes[1].transAxes)
     axes[1].set_title("Automatic landmarks - moving frame")
 
@@ -648,7 +653,7 @@ def export_validation_study_report(
         study = _redact_paths(study, sources)
     with TemporaryDirectory(prefix=".i2validate-report-", dir=output_dir.parent) as temporary:
         root = Path(temporary)
-        summaries, landmarks, masks, automatic, records, sections = [], [], [], [], [], []
+        summaries, landmarks, masks, records, sections = [], [], [], [], []
         pdf_sections, figures = [], []
         for index, pair in enumerate(analysis.pairs, 1):
             if not include_paths:
@@ -692,9 +697,6 @@ def export_validation_study_report(
                 for candidate_index, candidate in enumerate(pair.analysis.candidates, 1):
                     landmarks.extend({**identity, "candidate": candidate.name, **row} for row in candidate.landmarks)
                     masks.extend({**identity, "candidate": candidate.name, **row} for row in candidate.masks)
-                    automatic.extend(
-                        {**identity, "candidate": candidate.name, **row} for row in candidate.automatic_landmarks
-                    )
                     png = (directory / f"candidate-{candidate_index}.png").read_bytes()
                     sections.append(_candidate_section(candidate, png, level=3))
                     figures.append((f"{pair.name}: {candidate.name}", directory / f"candidate-{candidate_index}.png"))
@@ -710,10 +712,7 @@ def export_validation_study_report(
                 )
             sections.append("</section>")
             records.append(record)
-        tables = [("summary.csv", summaries), ("landmarks.csv", landmarks), ("masks.csv", masks)]
-        if automatic:
-            tables.append(("automatic_landmarks.csv", automatic))
-        for filename, rows in tables:
+        for filename, rows in (("summary.csv", summaries), ("landmarks.csv", landmarks), ("masks.csv", masks)):
             columns = list(dict.fromkeys(key for row in rows for key in row)) or ["pair_id", "moving_image"]
             _write_csv(root / filename, rows, columns)
         payload = {"schema_version": "2.0", "study": study, "pairs": records}
@@ -743,9 +742,6 @@ def _write_report(analysis: ValidationAnalysis, output_dir: Path, *, include_pat
         output_dir / "landmarks.csv", [{"candidate": c.name, **row} for c in analysis.candidates for row in c.landmarks]
     )
     _write_csv(output_dir / "masks.csv", [{"candidate": c.name, **row} for c in analysis.candidates for row in c.masks])
-    automatic = [{"candidate": c.name, **row} for c in analysis.candidates for row in c.automatic_landmarks]
-    if automatic:
-        _write_csv(output_dir / "automatic_landmarks.csv", automatic)
     payload = {
         "schema_version": "1.0",
         "created": analysis.created,
@@ -755,7 +751,13 @@ def _write_report(analysis: ValidationAnalysis, output_dir: Path, *, include_pat
         "candidates": [],
     }
     error_limit = max(
-        [row["error_um"] for c in analysis.candidates for row in c.landmarks if row["error_um"] is not None] or [1]
+        [
+            row["error_um"]
+            for c in analysis.candidates
+            for row in c.landmarks
+            if row["error_um"] is not None and row.get("source") != "automatic"
+        ]
+        or [1]
     )
     area_limit = 0.1
     for candidate in analysis.candidates:

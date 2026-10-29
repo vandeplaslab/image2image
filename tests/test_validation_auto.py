@@ -30,6 +30,7 @@ from image2image.utils.validation import (
 from image2image.utils.validation_auto import (
     UNAVAILABLE_REASON,
     automatic_landmarks,
+    detect_landmarks,
     match_through_transform,
     residual_shift_map,
 )
@@ -211,27 +212,46 @@ def test_label_pyramid_does_not_create_labels() -> None:
     assert set(np.unique(np.asarray(levels[-1]))) <= {0, 7}
 
 
-def test_analysis_includes_automatic_evidence(tmp_path: Path) -> None:
-    fixed = textured((200, 200), seed=4)
-    moving = translated(fixed, 2.0, 1.0)
+def test_detected_landmarks_are_reviewable_and_reported_separately(tmp_path: Path) -> None:
+    fixed = textured((300, 300), seed=4)
+    moving = translated(fixed, 3.0, -2.0)
     for name, array in (("fixed", fixed), ("moving", moving)):
         tifffile.imwrite(tmp_path / f"{name}.tiff", array.astype(np.uint16))
     session = ValidationSession(
         fixed=inspect_validation_image(tmp_path / "fixed.tiff", (1.0, 1.0)),
         moving=inspect_validation_image(tmp_path / "moving.tiff", (1.0, 1.0)),
+        landmarks=[ValidationLandmark(id="manual", fixed=(150, 150), moving=(152, 149))],
         auto_residual_map=True,
-        auto_features=True,
         auto_tile_um=48,
-        auto_search_um=8,
     )
+    identity = ValidationTransform(ALIGNED, matrix=np.eye(3))
+    detected, _ = detect_landmarks(session, identity, max_points=30, template_um=24, search_um=10)
+    assert 10 <= len(detected) <= 30
+    assert all(point.source == "automatic" and point.score > 0.6 for point in detected)
+    assert detected[0].id == "auto-1" and len({point.id for point in detected}) == len(detected)
+    # Points are spread over the image rather than clustered, and avoid the existing manual landmark.
+    xy = np.array([point.fixed for point in detected])
+    assert np.ptp(xy[:, 0]) > 150 and np.ptp(xy[:, 1]) > 150
+    assert np.linalg.norm(xy - (150, 150), axis=1).min() >= 12
+    errors = [np.hypot(*np.subtract(point.fixed, point.moving)) for point in detected if point.enabled]
+    assert np.median(errors) == pytest.approx(np.hypot(3, 2), abs=0.2)
+    session.landmarks = [*session.landmarks, *detected]
+    again, _ = detect_landmarks(session, identity, max_points=30, template_um=24, search_um=10)
+    assert not {point.id for point in again} & {point.id for point in session.landmarks}
+    assert all(np.linalg.norm(xy - point.fixed, axis=1).min() >= 12 for point in again)
+
     analysis = analyze_validation_session(session, tmp_path / "out")
     result = analysis.candidates[0]
-    assert result.residual_map["median"] == pytest.approx(np.hypot(2, 1), abs=0.3)
-    assert result.automatic["median"] == pytest.approx(np.hypot(2, 1), abs=0.3)
+    # Headline accuracy uses the manual landmark only; automatic landmarks have their own statistics.
+    assert result.validation["count"] == result.validation["total"] == 1
+    assert result.validation["median"] == pytest.approx(np.hypot(2, 1))
+    assert result.automatic["count"] == sum(point.enabled for point in detected)
+    assert result.automatic["median"] == pytest.approx(np.hypot(3, 2), abs=0.2)
+    assert result.residual_map["median"] == pytest.approx(np.hypot(3, 2), abs=0.3)
     with np.load(result.map_path) as arrays:
         assert {"shift_um", "shift_valid", "shift_origin_xy_um"} <= set(arrays)
     report = export_validation_report(analysis, tmp_path / "report")
     text = report.read_text()
-    assert "Automatic evidence (image similarity" in text and "Residual shift map (um, fixed frame)" in text
-    assert (report.parent / "automatic_landmarks.csv").read_text().startswith("candidate,id,")
+    assert "Automatic evidence (image similarity" in text and "Automatic landmark residuals" in text
+    assert "automatic" in (report.parent / "landmarks.csv").read_text()
     assert (report.parent / "report.pdf").stat().st_size > 0

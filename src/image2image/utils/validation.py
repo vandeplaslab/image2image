@@ -789,6 +789,29 @@ def landmark_errors(
     return rows, summary
 
 
+def source_statistics(rows: list[dict[str, Any]], exclusions: dict[str, str], *, automatic: bool) -> dict[str, Any]:
+    """Summarize independent (manual and assisted) or automatic landmark rows separately.
+
+    Automatic statistics are empty when no automatic landmarks were supplied.
+    """
+    subset = [row for row in rows if (row.get("source") == "automatic") == automatic]
+    if automatic and not subset:
+        return {}
+    summary: dict[str, Any] = distance_statistics(
+        np.array([row["error_um"] for row in subset if row["error_um"] is not None])
+    )
+    summary.update(
+        total=len(subset),
+        eligible=sum(row["id"] not in exclusions for row in subset),
+        units="um",
+        frame="moving",
+    )
+    if automatic:
+        summary["outliers"] = sum(row["excluded"] == "Automatic outlier" for row in subset)
+        summary["reason"] = "" if summary["count"] >= 3 else "Fewer than 3 automatic landmarks were measured."
+    return summary
+
+
 def sample_pixels(
     array: Any,
     geometry: ImageGeometry,
@@ -1003,29 +1026,9 @@ def analyze_validation_session(
     warnings = landmark_warnings(session, transforms)
     fixed_image, _ = sample_image(session.fixed, grid, cancel=cancel)
     tile_um = session.auto_tile_um or 64 * max(grid.spacing)
-    search_um = session.auto_search_um or 16 * max(grid.spacing)
-    native: list[Any] = []
-    if session.auto_features:
-        native = [open_validation_reader(session.fixed), open_validation_reader(session.moving)]
-    try:
-        analyses = _analyze_candidates(
-            session,
-            grid,
-            transforms,
-            exclusions,
-            warnings,
-            fixed_image,
-            mask_reason,
-            output_dir,
-            native,
-            tile_um,
-            search_um,
-            cancel,
-            progress,
-        )
-    finally:
-        for reader in native:
-            reader.close()
+    analyses = _analyze_candidates(
+        session, grid, transforms, exclusions, warnings, fixed_image, mask_reason, output_dir, tile_um, cancel, progress
+    )
     check_cancel(cancel)
     changes = validation_input_changes(session, include_masks=not mask_reason)
     if changes:
@@ -1048,14 +1051,12 @@ def _analyze_candidates(
     fixed_image: np.ndarray,
     mask_reason: str,
     output_dir: Path,
-    native: list[Any],
     tile_um: float,
-    search_um: float,
     cancel: Event | None,
     progress: Callable[[str], None] | None,
 ) -> list[CandidateAnalysis]:
     """Measure each candidate and stream its maps to disk."""
-    from image2image.utils.validation_auto import automatic_landmarks, residual_shift_map
+    from image2image.utils.validation_auto import residual_shift_map
 
     fixed_mask = fixed_mask_coverage = None
     if not mask_reason:
@@ -1068,7 +1069,9 @@ def _analyze_candidates(
             progress(f"Analyzing {index + 1}/{len(transforms)}: {candidate.name}")
         result = CandidateAnalysis(id=candidate.id, name=candidate.name, fingerprint=candidate.fingerprint)
         result.mask_reason = mask_reason
-        result.landmarks, result.validation = landmark_errors(transform, session.landmarks, exclusions, warnings)
+        result.landmarks, _ = landmark_errors(transform, session.landmarks, exclusions, warnings)
+        result.validation = source_statistics(result.landmarks, exclusions, automatic=False)
+        result.automatic = source_statistics(result.landmarks, exclusions, automatic=True)
         _, result.fitting = landmark_errors(transform, transform.fitting)
         result.fitting["reason"] = "" if transform.fitting else "Original fitting landmarks unavailable"
         if candidate.kind == "aligned":
@@ -1088,23 +1091,6 @@ def _analyze_candidates(
                 fixed_image, maps["registered_image"], maps["image_coverage"], grid, tile_um, cancel=cancel
             )
             maps.update(shift_maps)
-        if native:
-            if progress:
-                progress(f"Automatic landmarks {index + 1}/{len(transforms)}: {candidate.name}")
-            result.automatic_landmarks, result.automatic = automatic_landmarks(
-                fixed_image,
-                maps["registered_image"],
-                maps["image_coverage"],
-                grid,
-                transform,
-                native[0].get_channel(session.fixed.channel, split_rgb=True),
-                session.fixed.geometry,
-                native[1].get_channel(session.moving.channel, split_rgb=True),
-                session.moving.geometry,
-                tile_um / 2,
-                search_um,
-                cancel=cancel,
-            )
         if fixed_mask is not None and session.moving_mask is not None:
             moving_mask, mask_coverage = sample_image(session.moving_mask, grid, transform, labels=True, cancel=cancel)
             maps.update(
