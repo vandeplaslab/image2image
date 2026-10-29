@@ -17,14 +17,14 @@ from image2image.models.utilities import _get_paths, _read_config_from_file
 
 I2R_METADATA = tuple[
     str,
-    ty.Optional[list[Path]],
-    ty.Optional[list[Path]],
-    ty.Optional[np.ndarray],
+    list[Path] | None,
+    list[Path] | None,
+    np.ndarray | None,
     float,
     dict[str, dict],
-    ty.Optional[list[Path]],
-    ty.Optional[list[Path]],
-    ty.Optional[np.ndarray],
+    list[Path] | None,
+    list[Path] | None,
+    np.ndarray | None,
     float,
     dict[str, dict],
 ]
@@ -36,19 +36,19 @@ class Transformation(BaseModel):
     """Temporary object that holds transformation information."""
 
     # Transformation object
-    transform: ty.Optional[ProjectiveTransform] = None
+    transform: ProjectiveTransform | None = None
     # Type of transformation
     transformation_type: str = "affine"
     # Path to the image
-    fixed_model: ty.Optional[DataModel] = None
-    moving_model: ty.Optional[DataModel] = None
+    fixed_model: DataModel | None = None
+    moving_model: DataModel | None = None
     # Date when the registration was created
-    time_created: ty.Optional[datetime] = None
+    time_created: datetime | None = None
     # Arrays of fixed and moving points
-    fixed_points: ty.Optional[np.ndarray] = None
-    moving_points: ty.Optional[np.ndarray] = None
+    fixed_points: np.ndarray | None = None
+    moving_points: np.ndarray | None = None
     # affine model
-    moving_initial_affine: ty.Optional[np.ndarray] = None
+    moving_initial_affine: np.ndarray | None = None
 
     @classmethod
     def from_i2r(cls, path: PathLike, validate_paths: bool = True) -> "Transformation":
@@ -212,8 +212,8 @@ class Transformation(BaseModel):
             fixed_points = fixed_points[:, ::-1]
         # swap px to um
         if not px:
-            moving_points = moving_points * self.fixed_model.get_resolution()  # type: ignore[union-attr]
-            fixed_points = fixed_points * self.moving_model.get_resolution()  # type: ignore[union-attr]
+            moving_points = moving_points * self.moving_model.get_resolution()  # type: ignore[union-attr]
+            fixed_points = fixed_points * self.fixed_model.get_resolution()  # type: ignore[union-attr]
 
         return compute_transform(
             moving_points,  # source
@@ -227,7 +227,7 @@ class Transformation(BaseModel):
         error: bool = True,
         n: bool = True,
         split_by_dim: bool = False,
-        transform: ty.Union[ProjectiveTransform, np.ndarray, None] = None,
+        transform: ProjectiveTransform | np.ndarray | None = None,
     ) -> str:
         """Retrieve information about the model in textual format."""
         info = ""
@@ -269,7 +269,7 @@ class Transformation(BaseModel):
                 info += f"{sep}no. moving: {len(self.moving_points)}"
         return info
 
-    def to_dict(self, moving_key: ty.Optional[str] = None) -> dict:
+    def to_dict(self, moving_key: str | None = None) -> dict:
         """Convert to dict."""
         fixed_mdl = self.fixed_model
         if not fixed_mdl:
@@ -330,7 +330,7 @@ class Transformation(BaseModel):
             "matrix_xy_um_inv": self.compute(yx=False, px=False)._inv_matrix.tolist(),
         }
 
-    def to_file(self, path: PathLike, moving_key: ty.Optional[PathLike] = None) -> Path:
+    def to_file(self, path: PathLike, moving_key: PathLike | None = None) -> Path:
         """Export data as any supported format."""
         path = Path(path)
         if path.suffix == ".json":
