@@ -44,10 +44,12 @@ ALLOWED_PROJECT_VALIS_FORMATS = (
 )
 
 ALLOWED_IMAGE_FORMATS = (
-    "Any imaging (*.d *.tsf *.tdf *.imzML  *.ibd *.data *.metadata.h5 peaks_*.h5 *.npy *.npz *.czi *.ome.tiff *.tiff"
-    "*.scn *.tif *.qptiff *.qptiff.raw *.qptiff.intermediate *.svs *.ndpi *.ome.zarr *.jpg *.jpeg *.png);; "
+    "Any imaging (*.d *.tsf *.tdf *.imzML *.ibd *.sbd *.slx *.data *.metadata.h5 peaks_*.h5 *.npy *.npz *.czi"
+    " *.ome.tiff *.tiff *.scn *.tif *.qptiff *.qptiff.raw *.qptiff.intermediate *.svs *.ndpi *.ome.zarr"
+    " *.jpg *.jpeg *.png);; "
     "Bruker (*.d *.tsf *.tdf);; "
     "imzML (*.imzML *.ibd);; "
+    "SCiLS Lab (*.sbd *.slx);; "
     "ionglow (*.data *.metadata.h5 peaks_*.h5);;"
     "AnnData (*.h5ad);;"
     "Numpy (*.npy *.npz);;"
@@ -58,11 +60,13 @@ ALLOWED_IMAGE_FORMATS = (
     "PNG (*.png);;"
 )
 ALLOWED_IMAGE_FORMATS_WITH_GEOJSON = (
-    "Any imaging (*.d *.tsf *.tdf *.imzML  *.ibd *.data *.metadata.h5 peaks_*.h5 *.npy *.npz *.czi *.ome.tiff *.tiff"
-    "*.scn*.tif *.qptiff *.qptiff.raw *.qptiff.intermediate *.svs *.ndpi *.jpg *.jpeg *.png *.ome.zarr *.geojson *.json"
-    " *.csv *.tsv *.txt *.parquet);; "
+    "Any imaging (*.d *.tsf *.tdf *.imzML *.ibd *.sbd *.slx *.data *.metadata.h5 peaks_*.h5 *.npy *.npz *.czi"
+    " *.ome.zarr *.ome.tiff *.tiff *.scn *.tif *.qptiff *.qptiff.raw *.qptiff.intermediate *.svs *.ndpi"
+    " *.jpg *.jpeg *.png *.geojson *.json "
+    "*.csv *.tsv *.txt *.parquet);; "
     "Bruker (*.d *.tsf *.tdf);; "
     "imzML (*.imzML *.ibd);; "
+    "SCiLS Lab (*.sbd *.slx);; "
     "ionglow (*.data *.metadata.h5 peaks_*.h5);;"
     "AnnData (*.h5ad);;"
     "Numpy (*.npy *.npz);;"

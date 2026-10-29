@@ -127,6 +127,13 @@ class QtDatasetItem(QFrame):
             size_preset="normal",
             func=self.on_extract,
         )
+        self.spectrum_btn = hp.make_qta_btn(
+            self,
+            "spectrum",
+            tooltip="Show mass spectrum and click on peaks to extract ion images...",
+            size_preset="normal",
+            func=self.on_spectrum,
+        )
         self.transform_btn = hp.make_qta_btn(
             self, "transform", tooltip="Apply transform...", size_preset="normal", func=self.on_transform_menu
         )
@@ -159,6 +166,7 @@ class QtDatasetItem(QFrame):
             self.modality_icon,
             self.open_dir_btn,
             self.extract_btn,
+            self.spectrum_btn,
             self.transform_btn,
             self.iterate_btn,
             self.save_btn,
@@ -245,6 +253,9 @@ class QtDatasetItem(QFrame):
         self.size_label.setText(format_size(reader.shape, reader.dtype))
         self.save_btn.setVisible(reader.reader_type == "image")
         self.extract_btn.setVisible(reader.allow_extraction)
+        self.spectrum_btn.setVisible(
+            reader.allow_extraction and hasattr(getattr(reader, "reader", None), "get_spectrum")
+        )
         self.iterate_btn.setVisible(
             self.allow_iterate and reader.reader_type == "image" and len(reader.channel_names) > 1
         )
@@ -270,6 +281,17 @@ class QtDatasetItem(QFrame):
             index = self.table.get_row_id(TABLE_CONFIG.channel_name, channel_name)
             if index != -1:
                 self.table.set_value(TABLE_CONFIG.check, index, state)
+
+    def add_channel_row(self, channel_name: str) -> None:
+        """Add (checked) channel to the table, e.g. after it was extracted."""
+        index = self.table.get_row_id(TABLE_CONFIG.channel_name, channel_name)
+        if index != -1:
+            self.select_channel(channel_name, True)
+            return
+        reader = self.get_model()
+        with self.editing(), hp.qt_signals_blocked(self.table):
+            self.table.add_data([[True, reader.channel_names.index(channel_name), channel_name]])
+        logger.trace(f"Added channel '{channel_name}' to the table of '{self.key}'.")
 
     def channel_list(self) -> list[str]:
         """Channel list."""
@@ -361,6 +383,17 @@ class QtDatasetItem(QFrame):
                             ),
                         },
                     )
+
+    def on_spectrum(self) -> None:
+        """Show mass spectrum dialog."""
+        from image2image.qt._dialogs._spectrum import SpectrumDialog
+
+        dlg = SpectrumDialog(self)
+        dlg.evt_iter_add.connect(self.evt_iter_add.emit)
+        dlg.evt_iter_remove.connect(self.evt_iter_remove.emit)
+        dlg.evt_iter_next.connect(self.evt_iter_next.emit)
+        dlg.evt_channel.connect(self.evt_channel.emit)
+        dlg.show_left_of_mouse()
 
     def on_iterate(self) -> None:
         """Activate iteration data."""

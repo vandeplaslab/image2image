@@ -25,6 +25,7 @@ update_icon_mapping(
         "preprocess": "fa5s.paint-brush",
         "common": "mdi.form-select",
         "extract": "fa6s.download",
+        "spectrum": "mdi.chart-bell-curve",
         # wsireg
         "mask": "mdi6.drama-masks",
         "process": "msc.wand",
