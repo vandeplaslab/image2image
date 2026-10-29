@@ -81,6 +81,8 @@ class ValidationLandmark(ValidationModel):
     moving: tuple[float, float]
     enabled: bool = True
     note: str = ""
+    source: Literal["manual", "assisted"] = "manual"
+    score: float | None = None
 
 
 class ValidationCandidate(ValidationModel):
@@ -117,6 +119,10 @@ class ValidationSession(ValidationModel):
     mask_pairs: list[MaskCorrespondence] = Field(default_factory=list)
     max_pixels: int = Field(4_000_000, ge=9, le=4_000_000)
     downsample: int = Field(1, ge=1)
+    auto_residual_map: bool = False
+    auto_features: bool = False
+    auto_tile_um: float | None = Field(None, gt=0)
+    auto_search_um: float | None = Field(None, gt=0)
     independence_note: str = "Validation independence is user-declared; known fitting landmarks are excluded."
 
     @field_validator("landmarks", "candidates")
@@ -143,7 +149,7 @@ class ValidationPair(ValidationModel):
 class ValidationStudy(ValidationModel):
     """A collection of independent pair sessions sharing one fixed reference."""
 
-    schema_version: Literal["2.0"] = "2.0"
+    schema_version: Literal["2.0", "2.1"] = "2.1"
     tool: Literal["validate"] = "validate"
     pairs: list[ValidationPair] = Field(default_factory=lambda: [ValidationPair()], min_length=1)
 
@@ -180,6 +186,9 @@ class CandidateAnalysis:
     masks: list[dict[str, Any]] = field(default_factory=list)
     mask_reason: str = ""
     deformation: dict[str, Any] = field(default_factory=dict)
+    residual_map: dict[str, Any] = field(default_factory=dict)
+    automatic: dict[str, Any] = field(default_factory=dict)
+    automatic_landmarks: list[dict[str, Any]] = field(default_factory=list)
     map_path: Path | None = None
 
 

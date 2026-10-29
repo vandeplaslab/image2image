@@ -31,6 +31,7 @@ from image2image.models.validation import (
 )
 
 CSV_COLUMNS = ("id", "fixed_x", "fixed_y", "moving_x", "moving_y")
+CSV_OPTIONAL_COLUMNS = ("enabled", "note", "source")
 
 
 class AnalysisCancelled(Exception):
@@ -99,8 +100,13 @@ def open_validation_reader(image: ValidationImage) -> Any:
     return reader
 
 
-def validation_image_pyramid(reader: Any, channel: int, max_size: int = 1024, *, rgb: bool = False) -> list[Any]:
-    """Return lazy scalar or RGB levels, reducing only spatial axes for large sources."""
+def validation_image_pyramid(
+    reader: Any, channel: int, max_size: int = 1024, *, rgb: bool = False, labels: bool = False
+) -> list[Any]:
+    """Return lazy scalar or RGB levels, reducing only spatial axes for large sources.
+
+    Label levels are reduced by striding so that no new label values are created.
+    """
     import dask.array as da
 
     levels = [
@@ -112,7 +118,10 @@ def validation_image_pyramid(reader: Any, channel: int, max_size: int = 1024, *,
         raise ValueError("Validate requires 2D scalar channels or interleaved RGB images.")
     while max(levels[-1].shape[:2]) > max_size and min(levels[-1].shape[:2]) >= 2:
         source = da.asarray(levels[-1])
-        levels.append(da.coarsen(np.mean, source, {0: 2, 1: 2}, trim_excess=True).astype(source.dtype))
+        if labels:
+            levels.append(source[::2, ::2])
+        else:
+            levels.append(da.coarsen(np.mean, source, {0: 2, 1: 2}, trim_excess=True).astype(source.dtype))
     return levels
 
 
@@ -331,6 +340,55 @@ class ValidationTransform:
             raise ValueError("No transformation was loaded.")
         return np.asarray([self.itk_transform.TransformPoint(tuple(p)) for p in xy]).reshape(-1, 2)
 
+    def inverse_points(
+        self, xy: np.ndarray, initial: np.ndarray | None = None, *, tolerance: float = 1e-3, iterations: int = 20
+    ) -> np.ndarray:
+        """Find fixed points mapping onto moving XY points; non-converged points are NaN.
+
+        Matrix transforms are inverted exactly. Other transforms use Newton iterations with a
+        finite-difference Jacobian, starting from ``initial`` (default: the moving coordinates).
+        """
+        xy = np.asarray(xy, dtype=np.float64).reshape(-1, 2)
+        if self.matrix is not None:
+            try:
+                inverse = np.linalg.inv(self.matrix)
+            except np.linalg.LinAlgError:
+                return np.full_like(xy, np.nan)
+            homogeneous = np.column_stack((xy, np.ones(len(xy)))) @ inverse.T
+            with np.errstate(divide="ignore", invalid="ignore"):
+                return homogeneous[:, :2] / homogeneous[:, 2:3]
+        estimate = xy.copy() if initial is None else np.asarray(initial, dtype=np.float64).reshape(-1, 2).copy()
+        step = max(1e-3, float(np.nanmax(np.abs(xy))) * 1e-6) if xy.size else 1e-3
+        converged = np.zeros(len(xy), dtype=bool)
+        for _ in range(iterations):
+            mapped = self.map_points(estimate)
+            residual = mapped - xy
+            converged = np.isfinite(residual).all(axis=1) & (np.linalg.norm(residual, axis=1) < tolerance)
+            if converged.all():
+                break
+            columns = [(self.map_points(estimate + offset) - mapped) / step for offset in ((step, 0.0), (0.0, step))]
+            jacobian = np.stack(columns, axis=-1)
+            with np.errstate(divide="ignore", invalid="ignore"):
+                try:
+                    delta = np.linalg.solve(jacobian, residual[..., None])[..., 0]
+                except np.linalg.LinAlgError:
+                    break
+            update = ~converged & np.isfinite(delta).all(axis=1)
+            if not update.any():
+                break
+            estimate[update] -= delta[update]
+        estimate[~converged] = np.nan
+        return estimate
+
+    def jacobian_at(self, xy: np.ndarray, step: float = 1.0) -> np.ndarray:
+        """Return the 2x2 finite-difference Jacobian of the fixed-to-moving map at each XY point."""
+        xy = np.asarray(xy, dtype=np.float64).reshape(-1, 2)
+        columns = [
+            (self.map_points(xy + offset) - self.map_points(xy - offset)) / (2 * step)
+            for offset in ((step, 0.0), (0.0, step))
+        ]
+        return np.stack(columns, axis=-1)
+
     def map_grid(self, grid: ImageGeometry) -> np.ndarray:
         """Sample a rectangular physical grid, using ITK's vectorized field filter when available."""
         yy, xx = np.indices(grid.shape, dtype=np.float64)
@@ -542,6 +600,13 @@ def validation_input_changes(session: ValidationSession, include_masks: bool = T
     return changes
 
 
+def _parse_enabled(value: str) -> bool:
+    value = value.strip().lower()
+    if value not in ("true", "false", "1", "0", "yes", "no"):
+        raise ValueError(f"enabled must be true or false, not {value!r}")
+    return value in ("true", "1", "yes")
+
+
 def import_validation_landmarks(path: str | Path, session: ValidationSession, units: str) -> list[ValidationLandmark]:
     """Read paired CSV coordinates; pixels refer to each image's native pixel centers."""
     if session.fixed is None or session.moving is None or units not in ("px", "um"):
@@ -560,12 +625,40 @@ def import_validation_landmarks(path: str | Path, session: ValidationSession, un
                 m = np.array([float(row["moving_x"]), float(row["moving_y"])])
                 if units == "px":
                     f, m = session.fixed.geometry.to_physical(f), session.moving.geometry.to_physical(m)
-                result.append(ValidationLandmark(id=row["id"].strip(), fixed=tuple(f), moving=tuple(m)))
+                extra: dict[str, Any] = {}
+                if (row.get("enabled") or "").strip():
+                    extra["enabled"] = _parse_enabled(row["enabled"])
+                if row.get("note"):
+                    extra["note"] = row["note"]
+                if (row.get("source") or "").strip():
+                    extra["source"] = row["source"].strip()
+                result.append(ValidationLandmark(id=row["id"].strip(), fixed=tuple(f), moving=tuple(m), **extra))
             except (ValueError, TypeError, AttributeError) as exc:
                 raise ValueError(f"Invalid landmark on CSV line {line}: {exc}") from exc
     if len({p.id for p in result}) != len(result):
         raise ValueError("CSV landmark IDs must be unique.")
     return result
+
+
+def merge_landmarks(
+    existing: list[ValidationLandmark], added: list[ValidationLandmark]
+) -> tuple[list[ValidationLandmark], dict[str, str]]:
+    """Append landmarks, suffixing IDs that collide with existing ones; return the renames."""
+    used = {point.id for point in existing} | {point.id for point in added}
+    taken = {point.id for point in existing}
+    renames: dict[str, str] = {}
+    merged = list(existing)
+    for point in added:
+        if point.id in taken:
+            suffix = 2
+            while f"{point.id}-{suffix}" in used:
+                suffix += 1
+            renames[point.id] = f"{point.id}-{suffix}"
+            point = point.model_copy(update={"id": renames[point.id]})
+            used.add(point.id)
+        taken.add(point.id)
+        merged.append(point)
+    return merged, renames
 
 
 def export_validation_landmarks(path: str | Path, session: ValidationSession) -> None:
@@ -574,12 +667,12 @@ def export_validation_landmarks(path: str | Path, session: ValidationSession) ->
         raise ValueError("Both images are required.")
     with Path(path).open("w", newline="", encoding="utf-8") as stream:
         writer = csv.writer(stream)
-        writer.writerow(CSV_COLUMNS)
+        writer.writerow((*CSV_COLUMNS, *CSV_OPTIONAL_COLUMNS))
         for pair in session.landmarks:
             f, m = np.array(pair.fixed), np.array(pair.moving)
             if session.landmark_units == "px":
                 f, m = session.fixed.geometry.to_pixels(f), session.moving.geometry.to_pixels(m)
-            writer.writerow([pair.id, *f, *m])
+            writer.writerow([pair.id, *f, *m, str(pair.enabled).lower(), pair.note, pair.source])
 
 
 def analysis_grid(session: ValidationSession) -> ImageGeometry:
@@ -636,11 +729,39 @@ def landmark_exclusions(session: ValidationSession, transforms: list[ValidationT
     return excluded
 
 
+def landmark_warnings(
+    session: ValidationSession, transforms: list[ValidationTransform], pixels: float = 2.0
+) -> dict[str, str]:
+    """Flag included landmarks lying within a few native pixels of a known fitting landmark.
+
+    These are not excluded: nearby structures can be legitimately independent, but re-clicked
+    fitting points would make validation optimistic, so they are reported for review.
+    """
+    warnings = {}
+    fitting = [point for transform in transforms for point in transform.fitting]
+    if not fitting or session.fixed is None or session.moving is None:
+        return warnings
+    fixed_fit = np.array([point.fixed for point in fitting])
+    moving_fit = np.array([point.moving for point in fitting])
+    fixed_radius = pixels * max(session.fixed.geometry.spacing)
+    moving_radius = pixels * max(session.moving.geometry.spacing)
+    for point in session.landmarks:
+        if (np.linalg.norm(fixed_fit - point.fixed, axis=1) <= fixed_radius).any() or (
+            np.linalg.norm(moving_fit - point.moving, axis=1) <= moving_radius
+        ).any():
+            warnings[point.id] = f"Within {pixels:g} pixels of a fitting landmark; confirm independence"
+    return warnings
+
+
 def landmark_errors(
-    transform: ValidationTransform, landmarks: list[ValidationLandmark], exclusions: dict[str, str] | None = None
+    transform: ValidationTransform,
+    landmarks: list[ValidationLandmark],
+    exclusions: dict[str, str] | None = None,
+    warnings: dict[str, str] | None = None,
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     """Measure physical residuals G(fixed)-moving in the moving image's frame."""
     exclusions = exclusions or {}
+    warnings = warnings or {}
     rows = []
     for point in landmarks:
         reason = exclusions.get(point.id, "")
@@ -659,6 +780,8 @@ def landmark_errors(
                 "dy_um": float(residual[1]) if not reason else None,
                 "error_um": float(np.linalg.norm(residual)) if not reason else None,
                 "excluded": reason,
+                "warning": "" if reason else warnings.get(point.id, ""),
+                "source": point.source,
             }
         )
     summary = distance_statistics(np.array([row["error_um"] for row in rows if row["error_um"] is not None]))
@@ -877,7 +1000,63 @@ def analyze_validation_session(
         transforms.append(load_validation_transform(candidate, session))
     session.candidates = [transform.candidate for transform in transforms]
     exclusions = landmark_exclusions(session, transforms)
+    warnings = landmark_warnings(session, transforms)
     fixed_image, _ = sample_image(session.fixed, grid, cancel=cancel)
+    tile_um = session.auto_tile_um or 64 * max(grid.spacing)
+    search_um = session.auto_search_um or 16 * max(grid.spacing)
+    native: list[Any] = []
+    if session.auto_features:
+        native = [open_validation_reader(session.fixed), open_validation_reader(session.moving)]
+    try:
+        analyses = _analyze_candidates(
+            session,
+            grid,
+            transforms,
+            exclusions,
+            warnings,
+            fixed_image,
+            mask_reason,
+            output_dir,
+            native,
+            tile_um,
+            search_um,
+            cancel,
+            progress,
+        )
+    finally:
+        for reader in native:
+            reader.close()
+    check_cancel(cancel)
+    changes = validation_input_changes(session, include_masks=not mask_reason)
+    if changes:
+        raise ValueError("Inputs changed during analysis.\n" + "\n".join(changes))
+    versions = {}
+    for package in ("image2image", "image2image-io", "image2image-reg", "numpy", "SimpleITK"):
+        try:
+            versions[package] = version(package)
+        except PackageNotFoundError:
+            versions[package] = "unavailable"
+    return ValidationAnalysis(session, grid, analyses, versions, datetime.now(UTC).isoformat())
+
+
+def _analyze_candidates(
+    session: ValidationSession,
+    grid: ImageGeometry,
+    transforms: list[ValidationTransform],
+    exclusions: dict[str, str],
+    warnings: dict[str, str],
+    fixed_image: np.ndarray,
+    mask_reason: str,
+    output_dir: Path,
+    native: list[Any],
+    tile_um: float,
+    search_um: float,
+    cancel: Event | None,
+    progress: Callable[[str], None] | None,
+) -> list[CandidateAnalysis]:
+    """Measure each candidate and stream its maps to disk."""
+    from image2image.utils.validation_auto import automatic_landmarks, residual_shift_map
+
     fixed_mask = fixed_mask_coverage = None
     if not mask_reason:
         fixed_mask, fixed_mask_coverage = sample_image(session.fixed_mask, grid, labels=True, cancel=cancel)
@@ -889,7 +1068,7 @@ def analyze_validation_session(
             progress(f"Analyzing {index + 1}/{len(transforms)}: {candidate.name}")
         result = CandidateAnalysis(id=candidate.id, name=candidate.name, fingerprint=candidate.fingerprint)
         result.mask_reason = mask_reason
-        result.landmarks, result.validation = landmark_errors(transform, session.landmarks, exclusions)
+        result.landmarks, result.validation = landmark_errors(transform, session.landmarks, exclusions, warnings)
         _, result.fitting = landmark_errors(transform, transform.fitting)
         result.fitting["reason"] = "" if transform.fitting else "Original fitting landmarks unavailable"
         if candidate.kind == "aligned":
@@ -902,6 +1081,30 @@ def analyze_validation_session(
         )
         maps["fixed_image"] = fixed_image
         maps["registered_image"], maps["image_coverage"] = sample_image(session.moving, grid, transform, cancel=cancel)
+        if session.auto_residual_map:
+            if progress:
+                progress(f"Residual shift map {index + 1}/{len(transforms)}: {candidate.name}")
+            shift_maps, result.residual_map = residual_shift_map(
+                fixed_image, maps["registered_image"], maps["image_coverage"], grid, tile_um, cancel=cancel
+            )
+            maps.update(shift_maps)
+        if native:
+            if progress:
+                progress(f"Automatic landmarks {index + 1}/{len(transforms)}: {candidate.name}")
+            result.automatic_landmarks, result.automatic = automatic_landmarks(
+                fixed_image,
+                maps["registered_image"],
+                maps["image_coverage"],
+                grid,
+                transform,
+                native[0].get_channel(session.fixed.channel, split_rgb=True),
+                session.fixed.geometry,
+                native[1].get_channel(session.moving.channel, split_rgb=True),
+                session.moving.geometry,
+                tile_um / 2,
+                search_um,
+                cancel=cancel,
+            )
         if fixed_mask is not None and session.moving_mask is not None:
             moving_mask, mask_coverage = sample_image(session.moving_mask, grid, transform, labels=True, cancel=cancel)
             maps.update(
@@ -928,17 +1131,7 @@ def analyze_validation_session(
         np.savez_compressed(result.map_path, **maps, origin_xy_um=grid.origin, spacing_xy_um=grid.spacing)
         analyses.append(result)
         del maps
-    check_cancel(cancel)
-    changes = validation_input_changes(session, include_masks=not mask_reason)
-    if changes:
-        raise ValueError("Inputs changed during analysis.\n" + "\n".join(changes))
-    versions = {}
-    for package in ("image2image", "image2image-io", "image2image-reg", "numpy", "SimpleITK"):
-        try:
-            versions[package] = version(package)
-        except PackageNotFoundError:
-            versions[package] = "unavailable"
-    return ValidationAnalysis(session, grid, analyses, versions, datetime.now(UTC).isoformat())
+    return analyses
 
 
 def analyze_validation_study(

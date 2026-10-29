@@ -45,7 +45,10 @@ def validation_window(qtbot: QtBot) -> ImageValidationWindow:
     def before_close(widget: ImageValidationWindow) -> None:
         widget._dirty = False
         widget._cancel.set()
-        qtbot.waitUntil(lambda: not widget._workers, timeout=15000)
+        qtbot.waitUntil(
+            lambda: not widget._workers and not widget._transform_workers and not widget._assist_workers,
+            timeout=15000,
+        )
 
     qtbot.addWidget(window, before_close_func=before_close)
     return window
@@ -120,9 +123,10 @@ def test_stale_results_and_cancel(validation_window: ImageValidationWindow, qtbo
 
 
 def test_mask_controls_and_failed_worker(
-    validation_window: ImageValidationWindow, qtbot: QtBot, tmp_path: Path
+    validation_window: ImageValidationWindow, qtbot: QtBot, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     window = validation_window
+    monkeypatch.setattr("image2image.qt.dialog_validate.hp.confirm", lambda *_args: True)
     session = make_validation_session(tmp_path)
     window.open_path(session.candidates[0].path)
     for index, name in enumerate(("fixed", "moving")):
@@ -375,6 +379,9 @@ def test_linked_camera_centers_and_image_selection(validation_window: ImageValid
     )
     window._pair_click(0, None, SimpleNamespace(type="mouse_press", button=1, position=(0, 20, 20)))
     window._pair_click(1, None, SimpleNamespace(type="mouse_press", button=1, position=(0, 24, 23)))
+    # Adding continues for the next landmark until it is stopped.
+    assert window._adding_pair and all(layer.mode == "pan_zoom" for layer in window.point_layers)
+    window.cancel_pair()
     assert all(view.viewer.layers.selection.active is view.viewer.layers["Image"] for view in window.views)
     window.edit_landmarks.setChecked(True)
     assert fixed.layers.selection.active is window.point_layers[0]
@@ -478,22 +485,30 @@ def test_analysis_layout_help_and_escaped_messages(validation_window: ImageValid
     THEMES.set_theme_stylesheet(window)
     window.ensurePolished()
     analysis = window.tabs.widget(3)
-    assert not hasattr(window, "run_btn")
-    for widget in (window.run_all_btn, window.cancel_btn, window.export_btn, window.downsample, window.grid_label):
+    for widget in (
+        window.run_btn,
+        window.run_all_btn,
+        window.cancel_btn,
+        window.export_btn,
+        window.downsample,
+        window.grid_label,
+    ):
         assert analysis.isAncestorOf(widget)
-    assert analysis.layout().itemAt(0).layout().itemAt(0).widget() is window.run_all_btn
+    buttons = analysis.layout().itemAt(0).layout()
+    assert [buttons.itemAt(i).widget() for i in range(3)] == [window.run_btn, window.run_all_btn, window.cancel_btn]
     assert analysis.layout().itemAt(analysis.layout().count() - 1).widget() is window.export_btn
     assert not window.report_include_paths.isChecked()
     assert analysis.isAncestorOf(window.report_include_paths)
     landmarks = window.tabs.widget(1).layout()
     csv_controls = landmarks.itemAt(0).layout()
     assert [csv_controls.itemAt(i).widget().text() for i in range(3)] == ["Import CSV...", "Export CSV...", "CSV units"]
-    assert landmarks.itemAt(2).layout().itemAt(0).widget().text() == "Add pair"
+    assert landmarks.itemAt(2).layout().itemAt(0).widget().text() == "Add landmark"
     assert landmarks.itemAt(3).widget() is window.edit_landmarks
     assert landmarks.itemAt(4).widget() is window.landmark_table
     for index in range(window.result_mode.count()):
         window.result_mode.setCurrentIndex(index)
         assert window.diagnostic_help.toolTip()
+    window.result_mode.setCurrentText("Nonpositive Jacobian")
     assert "intentional reflections" in window.diagnostic_help.toolTip().lower()
     window._set_status("Cannot load <sample&1>.tiff\nTry another image.", "Input error")
     assert window.status.text().startswith("<b>Input error</b>")
@@ -503,9 +518,10 @@ def test_analysis_layout_help_and_escaped_messages(validation_window: ImageValid
 
 
 def test_all_elastix_paths_navigation_and_duplicate_import(
-    validation_window: ImageValidationWindow, qtbot: QtBot, tmp_path: Path
+    validation_window: ImageValidationWindow, qtbot: QtBot, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     window = validation_window
+    monkeypatch.setattr("image2image.qt.dialog_validate.hp.confirm", lambda *_args: True)
     path = make_elastix_project(tmp_path, multiple=True)
     window.open_path(path)
     assert len(window.study.pairs) == window.candidate_list.count() == 2
@@ -942,3 +958,167 @@ def test_export_uses_path_privacy_setting(
     monkeypatch.setattr("image2image.qt.dialog_validate.export_validation_study_report", export)
     ImageValidationWindow.choose_export(window)
     assert calls == [(tmp_path / "report", include_paths, "Analysis failed")]
+
+
+def _textured_pair(tmp_path: Path, dx: float = 3.0, dy: float = -2.0) -> tuple[Path, Path]:
+    from scipy.ndimage import gaussian_filter, shift
+
+    rng = np.random.default_rng(0)
+    fixed = gaussian_filter(rng.random((160, 200)), 2.5)
+    fixed = ((fixed - fixed.min()) / np.ptp(fixed) * 60000).astype(np.uint16)
+    moving = shift(fixed.astype(float), (dy, dx), order=3, mode="reflect").astype(np.uint16)
+    paths = []
+    for name, array in (("fixed", fixed), ("moving", moving)):
+        path = tmp_path / f"{name}-textured.ome.tiff"
+        tifffile.imwrite(
+            path, array, photometric="minisblack", metadata={"axes": "YX", "PhysicalSizeX": 1, "PhysicalSizeY": 1}
+        )
+        paths.append(path)
+    return paths[0], paths[1]
+
+
+def _load_direct_images(window: ImageValidationWindow, monkeypatch: pytest.MonkeyPatch, fixed: Path, moving: Path):
+    monkeypatch.setattr("image2image.qt.dialog_validate.QFileDialog.getOpenFileName", lambda *_args: (str(fixed), ""))
+    monkeypatch.setattr(
+        "image2image.qt.dialog_validate.QFileDialog.getOpenFileNames", lambda *_args: ([str(moving)], "")
+    )
+    monkeypatch.setattr(QDialog, "exec", lambda _dialog: QDialog.DialogCode.Accepted)
+    window.choose_image(0)
+    window.choose_image(1)
+
+
+def _click(window: ImageValidationWindow, index: int, xy: tuple[float, float]) -> None:
+    window._pair_click(index, None, SimpleNamespace(type="mouse_press", button=1, position=(0, xy[1], xy[0])))
+
+
+def test_views_link_through_selected_registration(
+    validation_window: ImageValidationWindow, qtbot: QtBot, tmp_path: Path
+) -> None:
+    from image2image.utils.validation import ValidationTransform
+
+    window = validation_window
+    session = make_validation_session(tmp_path)
+    window.open_path(session.candidates[0].path)
+    qtbot.waitUntil(lambda: window._transform_key() in window._transforms, timeout=15000)
+    assert window.link_views.text().startswith("Link views through")
+    # Replace the loaded identity registration with a known scaling and translation.
+    matrix = np.array([[2.0, 0, 5.0], [0, 2.0, -3.0], [0, 0, 1]])
+    window._transforms[window._transform_key()] = ValidationTransform(window.session.candidates[0], matrix=matrix)
+    fixed, moving = (view.viewer.camera for view in window.views)
+    fixed.zoom = 4
+    fixed.center = (0, 20, 10)
+    assert moving.center[-2:] == pytest.approx((37, 25))
+    assert moving.zoom == pytest.approx(2)
+    moving.center = (0, 17, 45)
+    assert fixed.center[-2:] == pytest.approx((10, 20))
+    # Landmark focus always uses each image's own coordinates.
+    window.session.landmarks = [ValidationLandmark(id="a", fixed=(12, 14), moving=(30, 20))]
+    window._refresh_landmarks()
+    window.landmark_table.selectRow(0)
+    assert fixed.center[-2:] == pytest.approx((14, 12)) and moving.center[-2:] == pytest.approx((20, 30))
+    # Live residuals use the cached registration: G(12, 14) = (29, 25) against (30, 20).
+    assert window.landmark_table.item(0, 8).text() == f"{np.hypot(1, 5):.4g}"
+
+
+def test_landmark_undo_redo_and_csv_renames(
+    validation_window: ImageValidationWindow, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    window = validation_window
+    session = make_validation_session(tmp_path)
+    window.open_path(session.candidates[0].path)
+    window.begin_pair()
+    _click(window, 0, (20, 24))
+    _click(window, 1, (23, 28))
+    _click(window, 0, (30, 20))
+    _click(window, 1, (31, 21))
+    assert len(window.session.landmarks) == 2 and window._adding_pair
+    window.landmark_table.selectAll()
+    window.delete_pair()
+    assert window.session.landmarks == []
+    window.undo_stack.undo()
+    assert len(window.session.landmarks) == 2 and len(window.point_layers[1].data) == 2
+    window.undo_stack.undo()
+    assert len(window.session.landmarks) == 1
+    window.undo_stack.redo()
+    window.undo_stack.redo()
+    assert window.session.landmarks == []
+    window.undo_stack.undo()
+    # Table edits change only the edited cell and keep full precision elsewhere.
+    window.landmark_table.item(0, 2).setText("20.5")
+    assert window.session.landmarks[0].fixed == (20.5, 24)
+    assert window.landmark_table.item(0, 2).text() == "20.5000"
+    first = window.session.landmarks[0].id
+    path = tmp_path / "landmarks.csv"
+    path.write_text(f"id,fixed_x,fixed_y,moving_x,moving_y,enabled,note\n{first},1,2,3,4,false,blurry\n")
+    monkeypatch.setattr("image2image.qt.dialog_validate.QFileDialog.getOpenFileName", lambda *_args: (str(path), ""))
+    window.units.setCurrentText("um")
+    window.choose_landmarks()
+    imported = window.session.landmarks[-1]
+    assert imported.id == f"{first}-2" and not imported.enabled and imported.note == "blurry"
+    assert "Renamed duplicate IDs" in window.status.text()
+    window.cancel_pair()
+    assert not window._adding_pair
+
+
+def test_assisted_landmark_and_fixed_replacement(
+    validation_window: ImageValidationWindow, qtbot: QtBot, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    window = validation_window
+    fixed, moving = _textured_pair(tmp_path)
+    _load_direct_images(window, monkeypatch, fixed, moving)
+    window.assist.setChecked(True)
+    window.begin_pair()
+    _click(window, 1, (80, 70))
+    assert "fixed image first" in window.status.text()
+    _click(window, 0, (500, 70))
+    assert "inside the image" in window.status.text() and window._pending_pair is None
+    _click(window, 0, (80, 70))
+    qtbot.waitUntil(lambda: window._suggestion is not None, timeout=15000)
+    assert "Suggested landmark" in window.views[1].viewer.layers
+    window.accept_suggestion()
+    point = window.session.landmarks[0]
+    assert point.source == "assisted" and point.score > 0.9
+    assert point.moving == pytest.approx((83, 68), abs=0.2)
+    assert window.landmark_table.item(0, 7).text().startswith("assisted")
+    # A manual click in the moving image replaces the suggestion and is stored as manual.
+    _click(window, 0, (120, 90))
+    qtbot.waitUntil(lambda: window._suggestion is not None, timeout=15000)
+    _click(window, 1, (121, 91))
+    assert window.session.landmarks[1].source == "manual"
+    window.cancel_pair()
+    # Replacing the fixed image asks before removing landmarks placed on the previous image.
+    other = tmp_path / "other.ome.tiff"
+    other.write_bytes(moving.read_bytes())
+    monkeypatch.setattr("image2image.qt.dialog_validate.QFileDialog.getOpenFileName", lambda *_args: (str(other), ""))
+    monkeypatch.setattr("image2image.qt.dialog_validate.hp.confirm", lambda *_args: False)
+    window.choose_image(0)
+    assert Path(window.session.fixed.path) == fixed.resolve() and len(window.session.landmarks) == 2
+    monkeypatch.setattr("image2image.qt.dialog_validate.hp.confirm", lambda *_args: True)
+    window.choose_image(0)
+    assert Path(window.session.fixed.path) == other.resolve() and window.session.landmarks == []
+
+
+def test_automatic_evidence_modes_and_analyze_scope(
+    validation_window: ImageValidationWindow, qtbot: QtBot, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    window = validation_window
+    fixed, moving = _textured_pair(tmp_path)
+    _load_direct_images(window, monkeypatch, fixed, moving)
+    window.auto_residual_map.setChecked(True)
+    window.auto_features.setChecked(True)
+    window.auto_tile.setValue(48)
+    assert window.session.auto_residual_map and window.session.auto_tile_um == 48
+    window.start_analysis_all()
+    qtbot.waitUntil(lambda: not window._workers, timeout=60000)
+    result = window.analysis.candidates[0]
+    assert result.residual_map["median"] == pytest.approx(np.hypot(3, 2), abs=0.3)
+    assert result.automatic["median"] == pytest.approx(np.hypot(3, 2), abs=0.3)
+    assert window.summary_table.item(0, 8).text() != "Unavailable"
+    for name in ("Residual shift map", "Automatic landmarks"):
+        window.result_mode.setCurrentText(name)
+        assert "Residual shift" in window.result_view.viewer.layers or "Automatic error (um)" in (
+            window.result_view.viewer.layers
+        )
+    assert window.automatic_table.item(0, 1).text() == "Measured"
+    window.start_analysis_all()
+    assert not window._workers and "current results" in window.status.text()
