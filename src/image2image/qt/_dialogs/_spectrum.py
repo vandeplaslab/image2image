@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import contextlib
 import typing as ty
 
 import numpy as np
@@ -17,6 +16,7 @@ from superqt.utils import create_worker, qdebounced
 
 if ty.TYPE_CHECKING:
     from image2image_io.readers import BaseReader
+    from qtextraplot._napari.line.wrapper import NapariLineView
 
     from image2image.qt._dialogs._list import QtDatasetItem
 
@@ -24,17 +24,9 @@ if ty.TYPE_CHECKING:
 AVERAGE_SPECTRUM_CACHE: dict[str, tuple[np.ndarray, np.ndarray]] = {}
 # number of screen pixels around the click position that are searched for a peak
 CLICK_TOLERANCE_PX = 5
-# maximum distance (in screen pixels) between press and release to treat the event as a click
-CLICK_MAX_MOVE_PX = 3
 BAND_COLOR = "#00a6ff"
-
-
-def to_centroid_sticks(mz: np.ndarray, y: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-    """Convert centroid data to line representation so that each peak is drawn as a vertical stick."""
-    x_sticks = np.repeat(mz, 3)
-    y_sticks = np.zeros(len(x_sticks), dtype=np.float32)
-    y_sticks[1::3] = y
-    return x_sticks, y_sticks
+# names of layers in the spectrum view
+LINE_NAME, CENTROIDS_NAME, WINDOW_NAME, PEAK_NAME = "Spectrum", "Spectrum (centroids)", "Window", "Peak"
 
 
 def find_peak_near(mz: np.ndarray, y: np.ndarray, mz_click: float, tol: float) -> float:
@@ -56,6 +48,8 @@ class SpectrumDialog(QtFramelessTool):
     evt_iter_add = Signal(str, int)
     evt_channel = Signal(bool, str)  # channel | dataset
 
+    view: NapariLineView
+
     _mz: np.ndarray | None = None
     _y: np.ndarray | None = None
     _selected_mz: float | None = None
@@ -63,7 +57,6 @@ class SpectrumDialog(QtFramelessTool):
     _queued_mz: float | None = None
     _is_extracting: bool = False
     _is_closed: bool = False
-    _press_xy: tuple[float, float] | None = None
     _click_mz: float | None = None
 
     def __init__(self, parent: QtDatasetItem):
@@ -72,17 +65,16 @@ class SpectrumDialog(QtFramelessTool):
         self.reader: BaseReader = parent.get_model()
         # channels that existed before the dialog opened or were added by the user - these are never removed
         self._kept: set[str] = set(self.reader.channel_names)
-        self._band: list = []
         super().__init__(parent)
         self.setMinimumSize(700, 450)
         self.evt_close.connect(self.on_close)
 
+        # clicks are handled with a delay, so that double-click (reset view) does not also select a peak
         self._click_timer = QTimer(self)
         self._click_timer.setSingleShot(True)
         self._click_timer.timeout.connect(self._on_delayed_click)
-        canvas = self.view.figure.canvas
-        canvas.mpl_connect("button_press_event", self._on_mpl_press)
-        canvas.mpl_connect("button_release_event", self._on_mpl_release)
+        self._click_callback = self.view.connect_click(self._on_click)
+        self.view.viewer.mouse_double_click_callbacks.append(self._on_double_click)
         hp.call_later(self, self.on_update_spectrum, 50)
 
     @property
@@ -101,6 +93,8 @@ class SpectrumDialog(QtFramelessTool):
     # noinspection PyAttributeOutsideInit
     def make_panel(self) -> QFormLayout:
         """Setup UI."""
+        from qtextraplot._napari.line.wrapper import NapariLineView
+
         _, header_layout = self._make_close_handle(title=f"Mass spectrum - {self.reader.clean_key}")
 
         n_pixels = int(self.imzy_reader.n_pixels)
@@ -131,9 +125,15 @@ class SpectrumDialog(QtFramelessTool):
             tooltip="Integration window (in ppm) used when extracting the ion image.",
             func=self.on_change_ppm,
         )
-        from qtextraplot._mpl.views import ViewMplLine
-
-        self.view = ViewMplLine(self, x_label="m/z", y_label="Intensity")
+        self.view = NapariLineView(
+            self,
+            x_label="m/z",
+            y_label="Intensity",
+            lock_to_bottom=True,
+            add_toolbars=False,
+            allow_extraction=False,
+            disable_controls=True,
+        )
         self.mz_label = hp.make_label(self, "No peak selected.", tooltip="Currently selected peak.")
         self.add_btn = hp.make_btn(
             self, "Add to viewer", tooltip="Add the previewed ion image to the dataset.", func=self.on_add
@@ -155,7 +155,7 @@ class SpectrumDialog(QtFramelessTool):
                 stretch_id=(2,),
             )
         )
-        layout.addRow(self.view.figure)
+        layout.addRow(self.view.widget)
         layout.addRow(hp.make_h_layout(self.mz_label, self.add_btn, stretch_id=(0,)))
         layout.addRow(
             hp.make_label(
@@ -174,6 +174,8 @@ class SpectrumDialog(QtFramelessTool):
 
     def on_update_spectrum(self, _: ty.Any = None) -> None:
         """Update the displayed mass spectrum."""
+        if self._is_closed:
+            return
         is_average = self.average_check.isChecked()
         self.pixel_spin.setEnabled(not is_average)
         if is_average:
@@ -210,6 +212,8 @@ class SpectrumDialog(QtFramelessTool):
     def _on_average_spectrum(self, result: tuple[str, np.ndarray, np.ndarray]) -> None:
         cache_key, mz, intensity = result
         AVERAGE_SPECTRUM_CACHE[cache_key] = (mz, intensity)
+        if self._is_closed:
+            return
         self.average_check.setEnabled(True)
         self.pixel_label.setText("")
         if self.average_check.isChecked():
@@ -217,58 +221,51 @@ class SpectrumDialog(QtFramelessTool):
 
     def _on_average_failed(self, exc: Exception) -> None:
         logger.exception(exc)
+        if self._is_closed:
+            return
         self.average_check.setEnabled(True)
         self.pixel_label.setText("")
         hp.toast(hp.get_main_window(), "Failed to compute average", "Failed to compute average mass spectrum.")
 
     def _show_spectrum(self, mz: np.ndarray, intensity: np.ndarray, as_centroid: bool) -> None:
+        """Show spectrum, keeping the current m/z range (if any) but rescaling the intensity axis."""
+        is_first = self._mz is None
         self._mz, self._y = np.asarray(mz), np.asarray(intensity)
-        x, y = to_centroid_sticks(self._mz, self._y) if as_centroid else (self._mz, self._y)
-        self._remove_band()
-        self.view.plot(x, y)
-        self._draw_band()
-
-    def _remove_band(self) -> None:
-        for artist in self._band:
-            with contextlib.suppress(ValueError, NotImplementedError):
-                artist.remove()
-        self._band.clear()
+        if as_centroid:
+            self.view.remove_layer(LINE_NAME)
+            self.view.add_centroids(self._mz, self._y, name=CENTROIDS_NAME, width=1)
+        else:
+            self.view.remove_layer(CENTROIDS_NAME)
+            self.view.plot(self._mz, self._y, name=LINE_NAME)
+        if is_first:
+            self.view.viewer.reset_view()
+        else:
+            self.view.viewer.reset_y_view()
 
     def _draw_band(self) -> None:
         """Draw integration window around the selected peak."""
-        self._remove_band()
-        if self._selected_mz is not None:
-            mz = self._selected_mz
-            window = get_window_for_ppm(mz, self.ppm_spin.value())
-            ax = self.view.figure.ax
-            self._band.append(ax.axvspan(mz - window, mz + window, color=BAND_COLOR, alpha=0.3, zorder=1))
-            self._band.append(ax.axvline(mz, color=BAND_COLOR, alpha=0.6, lw=1, zorder=2))
-        self.view.figure.repaint()
+        if self._selected_mz is None:
+            self.view.remove_layers([WINDOW_NAME, PEAK_NAME])
+            return
+        mz = self._selected_mz
+        window = get_window_for_ppm(mz, self.ppm_spin.value())
+        self.view.add_region((mz - window, mz + window), name=WINDOW_NAME, editable=False, color=BAND_COLOR)
+        self.view.add_inf_line(mz, name=PEAK_NAME, color=BAND_COLOR)
 
     def _click_tolerance(self) -> float:
         """Return tolerance (in m/z) that corresponds to few screen pixels at the current zoom level."""
-        ax = self.view.figure.ax
-        xmin, xmax = ax.get_xlim()
-        width = max(ax.bbox.width, 1)
+        xmin, xmax, _, _ = self.view.viewer.camera.rect
+        width = max(self.view.widget.canvas.native.width(), 1)
         return abs(xmax - xmin) / width * CLICK_TOLERANCE_PX
 
-    def _on_mpl_press(self, evt: ty.Any) -> None:
-        if evt.dblclick:
-            # double-click resets zoom, so cancel any pending click
-            self._click_timer.stop()
-            self._press_xy = None
-            return
-        self._press_xy = (evt.x, evt.y) if evt.button == 1 else None
-
-    def _on_mpl_release(self, evt: ty.Any) -> None:
-        if self._press_xy is None or evt.button != 1 or evt.xdata is None:
-            return
-        px, py = self._press_xy
-        self._press_xy = None
-        if abs(evt.x - px) > CLICK_MAX_MOVE_PX or abs(evt.y - py) > CLICK_MAX_MOVE_PX:
-            return
-        self._click_mz = float(evt.xdata)
+    def _on_click(self, x: float, _y: float) -> None:
+        self._click_mz = x
         self._click_timer.start(QApplication.doubleClickInterval())
+
+    def _on_double_click(self, viewer: ty.Any, _event: ty.Any) -> None:
+        self._click_timer.stop()
+        self._click_mz = None
+        viewer.reset_view()
 
     def _on_delayed_click(self) -> None:
         if self._click_mz is not None:
@@ -385,8 +382,12 @@ class SpectrumDialog(QtFramelessTool):
 
     def on_close(self) -> None:
         """Close event."""
+        if self._is_closed:
+            return
         self._is_closed = True
         self._queued_mz = None
         self._click_timer.stop()
         self.evt_iter_remove.emit(self.key, 0)
         self._drop_pending()
+        self.view.disconnect_click(self._click_callback)
+        self.view.close()

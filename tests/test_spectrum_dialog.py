@@ -10,15 +10,32 @@ import numpy as np
 import pytest
 from qtpy.QtWidgets import QWidget
 
-from image2image.qt._dialogs._spectrum import (
+pytest.importorskip("napari_plot", reason="napari-plot is not installed")
+
+from image2image.qt._dialogs._spectrum import (  # noqa: E402
     AVERAGE_SPECTRUM_CACHE,
+    CENTROIDS_NAME,
+    LINE_NAME,
+    PEAK_NAME,
+    WINDOW_NAME,
     SpectrumDialog,
     find_peak_near,
-    to_centroid_sticks,
 )
 
 N_PIXELS = 6
 SHAPE = (2, 3)
+
+
+@pytest.fixture
+def _mock_opengl_capabilities(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Avoid querying an unavailable OpenGL context in headless widget tests."""
+
+    def texture_sizes() -> tuple[int, int]:
+        return 4096, 4096
+
+    monkeypatch.setattr("napari._vispy.canvas.get_max_texture_sizes", texture_sizes)
+    monkeypatch.setattr("napari._vispy.layers.base.get_max_texture_sizes", texture_sizes)
+    monkeypatch.setattr("napari_plot._vispy.canvas.get_max_texture_sizes", texture_sizes)
 
 
 class FakeImzyReader:
@@ -91,7 +108,7 @@ class FakeItem(QWidget):
 
 
 @pytest.fixture
-def make_dialog(qtbot):
+def make_dialog(qtbot, _mock_opengl_capabilities):
     """Make dialog with recorded signals."""
 
     def _make(is_centroid: bool = True) -> tuple[SpectrumDialog, FakeItem, dict[str, list]]:
@@ -110,15 +127,12 @@ def make_dialog(qtbot):
     return _make
 
 
-def _main_line_x(dlg: SpectrumDialog) -> np.ndarray:
-    return np.asarray(dlg.view.figure.ax.get_lines()[0].get_xdata())
+def _layer_x(dlg: SpectrumDialog, name: str) -> np.ndarray:
+    return np.asarray(dlg.view.layers[name].data)[:, 0]
 
 
-def test_to_centroid_sticks() -> None:
-    """Each centroid is converted to a vertical stick."""
-    x, y = to_centroid_sticks(np.asarray([1.0, 2.0]), np.asarray([3.0, 4.0]))
-    np.testing.assert_array_equal(x, [1, 1, 1, 2, 2, 2])
-    np.testing.assert_array_equal(y, [0, 3, 0, 0, 4, 0])
+def _layer_names(dlg: SpectrumDialog) -> list[str]:
+    return [layer.name for layer in dlg.view.layers]
 
 
 def test_find_peak_near() -> None:
@@ -131,25 +145,45 @@ def test_find_peak_near() -> None:
 
 
 def test_spectrum_dialog_changes_pixel(make_dialog) -> None:
-    """Changing pixel index shows that pixel's spectrum."""
+    """Changing pixel index shows that pixel's spectrum as centroids."""
     dlg, _, _ = make_dialog(is_centroid=True)
-    assert 200.0 in _main_line_x(dlg)
+    assert _layer_names(dlg) == [CENTROIDS_NAME]
+    assert 200.0 in _layer_x(dlg, CENTROIDS_NAME)
     dlg.pixel_spin.setValue(3)
     dlg.on_update_spectrum()
-    assert 203.0 in _main_line_x(dlg)
+    assert 203.0 in _layer_x(dlg, CENTROIDS_NAME)
     assert dlg.pixel_label.text() == "x=0, y=1"
 
 
 def test_spectrum_dialog_average(make_dialog, qtbot) -> None:
-    """Average spectrum is computed in a thread and divided by the number of pixels."""
+    """Average spectrum is computed in a thread, divided by the number of pixels and shown as line."""
     AVERAGE_SPECTRUM_CACHE.clear()
-    dlg, item, _ = make_dialog(is_centroid=False)
+    dlg, item, _ = make_dialog(is_centroid=True)
     dlg.average_check.setChecked(True)
     assert not dlg.pixel_spin.isEnabled()
-    qtbot.waitUntil(lambda: str(item.reader.path) in AVERAGE_SPECTRUM_CACHE, timeout=5000)
+    qtbot.waitUntil(lambda: LINE_NAME in _layer_names(dlg), timeout=5000)
+    assert str(item.reader.path) in AVERAGE_SPECTRUM_CACHE
+    assert CENTROIDS_NAME not in _layer_names(dlg)
     np.testing.assert_allclose(dlg._y, 1.0)
     dlg.average_check.setChecked(False)
     assert dlg.pixel_spin.isEnabled()
+    assert _layer_names(dlg) == [CENTROIDS_NAME]
+
+
+def test_spectrum_dialog_click_is_delayed_and_cancelled_by_double_click(make_dialog, qtbot) -> None:
+    """Single click selects a peak after a delay, while double-click only resets the view."""
+    dlg, _, _ = make_dialog(is_centroid=True)
+    assert dlg._click_callback in dlg.view.viewer.mouse_drag_callbacks
+
+    dlg._on_click(200.0, 0.0)
+    dlg._on_double_click(dlg.view.viewer, None)
+    qtbot.wait(50)
+    assert not dlg._click_timer.isActive()
+    assert dlg._selected_mz is None
+
+    dlg._on_click(200.0, 0.0)
+    qtbot.waitUntil(lambda: dlg._selected_mz is not None, timeout=5000)
+    assert dlg._selected_mz == 200.0
 
 
 def test_spectrum_dialog_click_preview_and_add(make_dialog, qtbot) -> None:
@@ -159,6 +193,8 @@ def test_spectrum_dialog_click_preview_and_add(make_dialog, qtbot) -> None:
 
     dlg.on_select_mz(200.002)
     assert dlg._selected_mz == 200.0
+    assert WINDOW_NAME in _layer_names(dlg)
+    assert PEAK_NAME in _layer_names(dlg)
     qtbot.waitUntil(lambda: "m/z 200.000" in reader.data, timeout=5000)
     assert reader.reader.ion_image_calls == [(200.0, 5.0)]
     assert events["next"] == [("fake", 1)]
@@ -179,6 +215,7 @@ def test_spectrum_dialog_replaces_and_drops_pending(make_dialog, qtbot) -> None:
     """New preview replaces the previous one and closing removes previews that were not added."""
     dlg, item, events = make_dialog(is_centroid=False)
     reader = item.reader
+    assert _layer_names(dlg) == [LINE_NAME]
 
     dlg.on_select_mz(200.01)
     qtbot.waitUntil(lambda: len(reader.data) == 2, timeout=5000)
@@ -186,10 +223,12 @@ def test_spectrum_dialog_replaces_and_drops_pending(make_dialog, qtbot) -> None:
     assert first is not None
     assert abs(dlg._selected_mz - 200.0) < 0.05
 
-    # changing the window re-extracts the same peak
+    # changing the window re-extracts the same peak and updates the window
+    window = np.asarray(dlg.view.layers[WINDOW_NAME].data[0])
     dlg.ppm_spin.setValue(10)
     qtbot.waitUntil(lambda: len(reader.reader.ion_image_calls) == 2, timeout=5000)
     assert reader.reader.ion_image_calls[-1][1] == 10
+    assert np.ptp(dlg.view.layers[WINDOW_NAME].data[0]) > np.ptp(window)
     assert list(reader.data) == ["tic", first]
 
     dlg.on_select_mz(299.0)
@@ -200,3 +239,4 @@ def test_spectrum_dialog_replaces_and_drops_pending(make_dialog, qtbot) -> None:
     dlg.on_close()
     assert list(reader.data) == ["tic"]
     assert events["remove"] == [("fake", 0)]
+    assert dlg._click_callback not in dlg.view.viewer.mouse_drag_callbacks
