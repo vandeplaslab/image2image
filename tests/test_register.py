@@ -3,9 +3,11 @@
 from types import SimpleNamespace
 
 import numpy as np
+import pytest
 from napari.layers import Image
 from napari.layers.base import ActionType
 from pytest import MonkeyPatch
+from pytestqt.qtbot import QtBot
 from qtpy.QtCore import QEvent, Qt
 from qtpy.QtGui import QKeyEvent
 
@@ -135,6 +137,60 @@ def test_preprocess(qtbot) -> None:
     widget.on_reset()
     assert widget.initial_model.rotate == 0, "Initial rotation should be 0."
     assert widget.initial_model.flip_lr is False, "Initial flip_lr should be False."
+
+
+@pytest.mark.parametrize("multiscale_first", [False, True])
+@pytest.mark.parametrize(
+    "rotation, flip, expected",
+    [
+        (180, False, [[-1, 0, 961], [0, -1, 384], [0, 0, 1]]),
+        (0, True, [[1, 0, 0], [0, -1, 384], [0, 0, 1]]),
+        (180, True, [[-1, 0, 961], [0, 1, 0], [0, 0, 1]]),
+    ],
+)
+def test_preprocess_uses_full_image_pixel_centres(
+    qtbot: QtBot, multiscale_first: bool, rotation: int, flip: bool, expected: list[list[int]]
+) -> None:
+    """Preview and accept the same pixel-centred affine for plain and multiscale images."""
+    window = ImageRegistrationWindow(None)
+    qtbot.addWidget(window)
+    pixels = np.zeros((962, 385), dtype=np.uint8)
+    layers = [Image(pixels), Image([pixels, pixels[::2, ::2]], multiscale=True)]
+    if multiscale_first:
+        layers.reverse()
+    window.plugin.moving_image_layer = layers
+    widget = PreprocessMovingDialog(window)
+    qtbot.addWidget(widget)
+
+    widget.on_set_rotate(rotation)
+    if flip:
+        widget.on_flip_lr()
+
+    for layer in layers:
+        np.testing.assert_allclose(layer.affine.affine_matrix, expected, atol=1e-10)
+    widget.accept()
+    np.testing.assert_allclose(window.transform_model.moving_initial_affine, expected, atol=1e-10)
+
+
+def test_preprocess_reset_clears_preview_and_accepted_affine(qtbot: QtBot) -> None:
+    """Reset clears rotation and flips on every layer and accepts the identity as None."""
+    window = ImageRegistrationWindow(None)
+    qtbot.addWidget(window)
+    pixels = np.zeros((17, 9), dtype=np.uint8)
+    layers = [Image(pixels), Image([pixels, pixels[::2, ::2]], multiscale=True)]
+    window.plugin.moving_image_layer = layers
+    window.transform_model.moving_initial_affine = np.diag([-1, -1, 1])
+    widget = PreprocessMovingDialog(window)
+    qtbot.addWidget(widget)
+    widget.on_set_rotate(180)
+    widget.on_flip_lr()
+
+    widget.on_reset()
+
+    for layer in layers:
+        np.testing.assert_allclose(layer.affine.affine_matrix, np.eye(3), atol=1e-10)
+    widget.accept()
+    assert window.transform_model.moving_initial_affine is None
 
 
 def test_guess(qtbot) -> None:

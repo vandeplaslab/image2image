@@ -313,6 +313,7 @@ class Transformation(BaseModel):
             "transformation_type": self.transformation_type,
             "fixed_paths": fixed_paths,
             "moving_paths": moving_paths,
+            # Legacy field name: the initial display affine is in pixel coordinates.
             "initial_matrix_yx_um": self.moving_initial_affine.tolist()
             if self.moving_initial_affine is not None
             else [],

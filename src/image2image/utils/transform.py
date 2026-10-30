@@ -77,7 +77,7 @@ def centered_rotation_transform(
     image_spacing: tuple[float, float],
     rotation_angle: float,
 ) -> np.ndarray:
-    """Centered rotation transform."""
+    """Rotate about the centre of pixel centres, at (size - 1) * spacing / 2."""
     angle = np.deg2rad(rotation_angle)
 
     sina = np.sin(angle)
@@ -91,7 +91,7 @@ def centered_rotation_transform(
     rot_mat[0, 1] = -sina
 
     # recenter transform
-    center_point = np.multiply(image_size, image_spacing) / 2
+    center_point = (np.asarray(image_size) - 1) * image_spacing / 2
     center_point = np.append(center_point, 0)
     translation = center_point - np.dot(rot_mat, center_point)
     rot_mat[:2, 2] = translation[:2]
@@ -104,7 +104,7 @@ def centered_flip(
     image_spacing: tuple[float, float],
     direction: str,
 ) -> np.ndarray:
-    """Centered flip transform."""
+    """Flip about the centre of pixel centres, at (size - 1) * spacing / 2."""
     angle = np.deg2rad(0)
 
     sina = np.sin(angle)
@@ -124,7 +124,7 @@ def centered_flip(
         rot_mat[1, 1] = -1
 
     # recenter transform
-    center_point = np.multiply(image_size, image_spacing) / 2
+    center_point = (np.asarray(image_size) - 1) * image_spacing / 2
     center_point = np.append(center_point, 0)
     translation = center_point - np.dot(rot_mat, center_point)
     rot_mat[:2, 2] = translation[:2]

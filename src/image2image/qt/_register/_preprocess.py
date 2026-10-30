@@ -102,7 +102,7 @@ class PreprocessMovingDialog(QtFramelessTool):
         parent: ImageRegistrationWindow = self.parent()  # type: ignore[assignment]
         if parent.moving_image_layer:
             for layer in parent.moving_image_layer:
-                shape = layer.data[0].shape
+                shape = tuple(map(int, layer.level_shapes[0]))
                 affine = self.initial_model.affine(shape, (1, 1))
                 layer.affine = affine if affine is not None else np.eye(3)
                 logger.info(
@@ -114,7 +114,7 @@ class PreprocessMovingDialog(QtFramelessTool):
         """Accept changes."""
         parent: ImageRegistrationWindow = self.parent()  # type: ignore[assignment]
         if parent.moving_image_layer:
-            shape = parent.moving_image_layer[0].data[0].shape
+            shape = tuple(map(int, parent.moving_image_layer[0].level_shapes[0]))
             affine = self.initial_model.affine(shape, (1, 1))
             parent.transform_model.moving_initial_affine = affine
             if affine is not None:
