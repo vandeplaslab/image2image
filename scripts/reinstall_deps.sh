@@ -30,7 +30,7 @@ pip install -e .
 echo "Reinstalled koyo"
 
 echo "Re-installing napari"
-pip install -U napari==0.8.0
+pip install -U napari==0.10.0
 echo "Reinstalled napari"
 
 # go back to where we started
