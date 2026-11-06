@@ -89,7 +89,8 @@ DOWNSAMPLE_HELP = (
     "<p>The fixed analysis grid is capped at <b>4 million pixels</b>, so its actual spacing may be coarser "
     "than requested. Finer grids improve small-region and deformation sampling.</p>\n"
     "<p><b>Landmarks:</b> always measured at full physical precision.<br>"
-    "<b>Image display:</b> native pyramids and zoom are independent of this setting.</p>"
+    "<b>Image display:</b> native pyramids and zoom are independent of this setting.</p>\n\n"
+    "The common analysis grid is capped at 4 million pixels."
 )
 DEFORMATION_HELP = (
     "<p><b>Transform geometry</b></p>\n"
@@ -185,7 +186,7 @@ AUTOMATIC_HELP = (
     "They compare the fixed image with the moving image resampled through each registration, so only "
     "remaining local misalignment is measured.</p>\n"
     "<p><b>Residual shift map:</b> optional per-tile shift in um (fixed frame), with valid-tile coverage. "
-    "<b>Tile</b> is the correlation window; Auto uses 64 grid pixels.<br>"
+    "<b>Tile</b> is the correlation window; Auto uses 64 grid pixels.\n"
     "<b>Automatic landmarks:</b> added and reviewed in the Landmarks tab with Detect landmarks; per-point "
     "residuals in um (moving frame).</p>\n"
     "<p>These measurements depend on image similarity: they can fail, or be biased, for different stains or "
@@ -203,6 +204,16 @@ ASSIST_HELP = (
     "<p><b>Detect landmarks</b> finds up to <b>Max</b> matching features spread across the image and adds them "
     "as <b>automatic</b> landmarks (cyan) for review; outliers are added unticked. They are reported separately "
     "from manual and assisted landmarks. Ctrl+Z removes a whole detection; Remove automatic deletes them all.</p>"
+)
+LANDMARK_TABLE_HELP = (
+    "<p><b>Landmark table and views</b></p>\n"
+    "Table and views use um. Add landmarks by clicking fixed, then moving; adding continues until Esc. "
+    "Drag existing points or edit coordinates below."
+    "<p>\nShortcuts:\n</p>"
+    "<b>A</b> add\n"
+    "<b>Esc</b> stop\n"
+    "<b>Del</b> delete\n"
+    "<b>Ctrl+Z</b> undo."
 )
 
 LINKS = {

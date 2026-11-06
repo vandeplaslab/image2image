@@ -15,6 +15,7 @@ import numpy as np
 import qtextra.helpers as hp
 from qtextra.config import THEMES
 from qtextra.utils.table_config import TableConfig
+from qtextra.widgets.qt_toolbar_mini import QtMiniToolbar
 from qtextraplot._napari.image.wrapper import NapariImageView
 from qtpy.QtCore import Qt, QTimer, Signal
 from qtpy.QtGui import QCloseEvent, QKeySequence, QShortcut, QUndoCommand, QUndoStack
@@ -179,6 +180,7 @@ class ImageValidationWindow(Window):
         self._detect_cancel = Event()
         self._suggestion: TemplateMatch | None = None
         self._assist_generation = 0
+        self._accept_shortcuts = []
         super().__init__(
             parent, "image2image: Registration Validation and Deformation Analysis", run_check_version=run_check_version
         )
@@ -264,7 +266,7 @@ class ImageValidationWindow(Window):
         return label
 
     def _set_status(self, text: str, title: str = "") -> None:
-        self._set_message(self.status, text, title)
+        self.statusbar.showMessage(text)
 
     def _setup_ui(self) -> None:
         self.undo_stack = QUndoStack(self)
@@ -277,6 +279,7 @@ class ImageValidationWindow(Window):
                 hp.make_btn(widget, "Save study...", func=self.choose_save),
             )
         )
+        layout.addWidget(hp.make_h_line(widget))
         self.tabs = QTabWidget(widget)
         self.tabs.addTab(self._make_inputs(), "Inputs")
         self.tabs.addTab(self._make_landmarks(), "Landmarks")
@@ -286,17 +289,8 @@ class ImageValidationWindow(Window):
         self.view_stack = QStackedWidget(widget)
         raw = QWidget(widget)
         raw_layout = hp.make_v_layout(parent=raw, spacing=1, margin=1)
-        self.link_views = hp.make_checkbox(
-            raw,
-            "Link views in physical coordinates",
-            value=True,
-            func=self._link_views_changed,
-            tooltip="Show corresponding locations in both images. With a registration selected, views are linked "
-            "through it; otherwise through calibrated physical coordinates. Disable for independent navigation.",
-        )
         self.native_splitter = QSplitter(Qt.Orientation.Vertical, raw)
         raw_layout.addWidget(self.native_splitter)
-        raw_layout.addWidget(self.link_views)
         self.views: list[NapariImageView] = []
         self.coordinate_labels: list[QLabel] = []
         self.point_layers: list[Any] = []
@@ -365,10 +359,10 @@ class ImageValidationWindow(Window):
         splitter.addWidget(self.view_stack)
         splitter.setSizes([550, 1000])
         layout.addWidget(splitter, 1)
-        self.status = self._message_label(
-            widget, "Load aligned images or import a registration, add evidence, then analyze."
-        )
-        layout.addWidget(self.status)
+        # self.status = self._message_label(
+        #     widget, "Load aligned images or import a registration, add evidence, then analyze."
+        # )
+        # layout.addWidget(self.status)
         self.setCentralWidget(widget)
         self._make_icon()
         self._make_statusbar()
@@ -382,12 +376,31 @@ class ImageValidationWindow(Window):
         self._apply_fonts()
         self._refresh_inputs()
 
+    def _make_statusbar(self) -> None:
+        """Make status bar."""
+        super()._make_statusbar()
+        self.synchronize_zoom = hp.make_checkbox(
+            self,
+            "Sync views",
+            tooltip="Show corresponding locations in both images. With a registration selected, views are linked"
+            " through it; otherwise through calibrated physical coordinates. Disable for independent navigation.",
+            value=True,
+            func=self._link_views_changed,
+        )
+        self.synchronize_zoom.setSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum)
+
+        self.statusbar.insertPermanentWidget(0, self.synchronize_zoom)
+        self.statusbar.insertPermanentWidget(1, hp.make_v_line())
+
     def _make_shortcuts(self) -> None:
         for sequence, func in (
             (QKeySequence.StandardKey.Undo, self.undo_stack.undo),
             (QKeySequence.StandardKey.Redo, self.undo_stack.redo),
             (QKeySequence("Ctrl+Shift+Z"), self.undo_stack.redo),
             (QKeySequence("A"), self.begin_pair),
+            (QKeySequence("1"), self.cancel_pair),
+            (QKeySequence("2"), self.begin_pair),
+            (QKeySequence("3"), self._landmark_edit_mode),
         ):
             QShortcut(sequence, self, activated=func)
         # Enabled only while relevant, so editors keep Esc and Return otherwise.
@@ -494,86 +507,107 @@ class ImageValidationWindow(Window):
 
     def _make_landmarks(self) -> QWidget:
         widget = QWidget(self)
-        layout = hp.make_v_layout(parent=widget)
+        layout = hp.make_v_layout(parent=widget, spacing=2, margin=1)
         self.units = hp.make_combobox(widget, ["px", "um"], func=self._units_changed)
+        layout.addWidget(hp.make_h_line_with_text("Import landmarks"))
         layout.addLayout(
             hp.make_h_layout(
                 hp.make_btn(widget, "Import CSV...", func=self.choose_landmarks),
                 hp.make_btn(widget, "Export CSV...", func=self.choose_landmark_export),
                 hp.make_label(widget, "CSV units"),
                 self.units,
+                spacing=1,
+                margin=1,
             )
         )
-        self.edit_landmarks = hp.make_checkbox(
-            widget,
-            "Edit landmarks in the viewers",
-            value=False,
-            func=self._landmark_edit_mode,
-            tooltip="Select the landmark layers to drag existing points. Image controls are active otherwise.",
+
+        # Automatic landmark detection controls
+        sep = hp.make_h_line_with_text("Automatic landmarks")
+        sep.setHelpText(constants.ASSIST_HELP)
+        layout.addWidget(sep)
+        self.assist_template = hp.make_double_spin_box(
+            widget, minimum=0, maximum=1e5, value=0, n_decimals=1, suffix=" um", special_value="Auto"
         )
-        layout.addWidget(
-            hp.make_label(
-                widget,
-                "Table and views use um. Add landmarks by clicking fixed, then moving; adding continues until Esc. "
-                "Drag existing points or edit coordinates below. Shortcuts: A add, Esc stop, Del delete, "
-                "Ctrl+Z undo.",
-                wrap=True,
-            )
+        self.assist_search = hp.make_double_spin_box(
+            widget, minimum=0, maximum=1e5, value=0, n_decimals=1, suffix=" um", special_value="Auto"
         )
-        layout.addLayout(
-            hp.make_h_layout(
-                hp.make_btn(widget, "Add landmark", func=self.begin_pair),
-                hp.make_btn(widget, "Delete landmark", func=self.delete_pair),
-            )
-        )
-        layout.addWidget(self.edit_landmarks)
-        self.landmark_table = self._table(widget, LANDMARK_COLUMNS)
-        self.landmark_table.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
-        self.landmark_table.itemChanged.connect(self._landmark_edited)
-        self.landmark_table.itemSelectionChanged.connect(self.focus_landmark)
-        layout.addWidget(self.landmark_table)
-        assistance = hp.make_group_box(widget, "Assistance")
-        self.assist = hp.make_checkbox(
-            assistance,
-            "Suggest the moving point by template matching",
-            value=False,
-            tooltip="After a fixed click, search near the selected registration's prediction for the same image "
-            "content. Press Enter to accept the suggestion (stored as assisted) or click the moving image to place "
-            "the point yourself (stored as manual).",
-        )
-        self.assist_template = hp.make_double_spin_box(assistance, minimum=0, maximum=1e5, value=0, n_decimals=1)
-        self.assist_search = hp.make_double_spin_box(assistance, minimum=0, maximum=1e5, value=0, n_decimals=1)
-        for control in (self.assist_template, self.assist_search):
-            control.setSpecialValueText("Auto")
-            control.setSuffix(" um")
         self.detect_btn = hp.make_btn(
-            assistance,
+            widget,
             "Detect landmarks",
             func=self.detect_landmarks,
             tooltip="Find matching image features through the selected registration and add them to the table "
             "as automatic landmarks for review.",
         )
-        self.detect_count = hp.make_int_spin_box(assistance, minimum=1, maximum=1000, value=50)
-        self.detect_count.setPrefix("Max ")
-        self.remove_automatic_btn = hp.make_btn(
-            assistance, "Remove automatic", func=self.remove_automatic, tooltip="Delete every automatic landmark."
-        )
-        hp.make_v_layout(
-            self.assist,
+        self.detect_count = hp.make_int_spin_box(widget, minimum=1, maximum=1000, value=50, step_size=5)
+        auto_layout = hp.make_form_layout(margin=1)
+        auto_layout.addRow(hp.make_label(widget, "Template size"), self.assist_template)
+        auto_layout.addRow(hp.make_label(widget, "Search radius"), self.assist_search)
+        auto_layout.addRow(hp.make_label(widget, "Max detections"), self.detect_count)
+        auto_layout.addRow(
             hp.make_h_layout(
-                hp.make_label(assistance, "Template"),
-                self.assist_template,
-                hp.make_label(assistance, "Search radius"),
-                self.assist_search,
-                hp.make_help_label(assistance, constants.ASSIST_HELP),
-                stretch_id=4,
-            ),
-            hp.make_h_layout(self.detect_btn, self.detect_count, self.remove_automatic_btn, stretch_id=0),
-            parent=assistance,
-            margin=6,
-            spacing=3,
+                self.detect_btn,
+                hp.make_btn(
+                    widget, "Remove automatic", func=self.remove_automatic, tooltip="Delete every automatic landmark."
+                ),
+                stretch_id=(0, 1),
+            )
         )
-        layout.addWidget(assistance)
+        layout.addLayout(auto_layout)
+
+        # Manual landmark editing controls
+        layout.addWidget(hp.make_h_line_with_text("Manual landmarks"))
+        toolbar = QtMiniToolbar(self, Qt.Orientation.Horizontal, add_spacer=False, icon_size="normal")
+        self.pan_btn = toolbar.add_qta_tool(
+            "pan_zoom",
+            self.cancel_pair,
+            tooltip="Switch to zoom-only mode. Press <b>1</b> on your keyboard to activate...",
+            checkable=True,
+        )
+        self.add_btn = toolbar.add_qta_tool(
+            "add",
+            self.begin_pair,
+            tooltip="Add landmark to each image. Press <b>2</b> on your keyboard to activate...",
+            checkable=True,
+        )
+        self.edit_landmarks = toolbar.add_qta_tool(
+            "select_points",
+            self._landmark_edit_mode,
+            tooltip="Move landmark in either image. Press <b>3</b> on your keyboard to activate...",
+            checkable=True,
+        )
+        hp.make_radio_btn_group(self, [self.pan_btn, self.add_btn, self.edit_landmarks])
+        toolbar.add_qta_tool(
+            "remove_single",
+            self.delete_pair,
+            tooltip="Remove landmark from each image.",
+        )
+        self.assist = toolbar.add_widget(
+            hp.make_checkbox(
+                widget,
+                "Suggest the moving point by template matching",
+                value=False,
+                tooltip="After a fixed click, search near the selected registration's prediction for the same image "
+                "content. Press Enter to accept the suggestion (stored as assisted) or click the moving image to place "
+                "the point yourself (stored as manual).",
+            )
+        )
+        toolbar.add_spacer()
+        toolbar.add_widget(
+            hp.make_help_label(
+                widget,
+                constants.LANDMARK_TABLE_HELP,
+            )
+        )
+
+        layout.addWidget(toolbar)
+
+        # Table of landmarks
+        self.landmark_table = self._table(widget, LANDMARK_COLUMNS)
+        self.landmark_table.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
+        self.landmark_table.itemChanged.connect(self._landmark_edited)
+        self.landmark_table.itemSelectionChanged.connect(self.focus_landmark)
+        layout.addWidget(self.landmark_table)
+
         layout.addWidget(hp.make_label(widget, self.session.independence_note, wrap=True))
         return widget
 
@@ -610,6 +644,56 @@ class ImageValidationWindow(Window):
     def _make_results(self) -> QWidget:
         widget = QWidget(self)
         layout = hp.make_v_layout(parent=widget)
+
+        layout.addWidget(hp.make_h_line_with_text("Analysis settings"))
+        self.downsample = hp.make_int_spin_box(widget, minimum=1, maximum=10000, value=1, func=self._resolution_changed)
+        self.grid_label = hp.make_label(
+            widget, "The common grid is capped at 4 million pixels.", wrap=True, alignment=Qt.AlignmentFlag.AlignHCenter
+        )
+        processing_layout = hp.make_form_layout(margin=1)
+        processing_layout.addRow(
+            hp.make_label(widget, "Requested analysis downsample"),
+            hp.make_h_layout(
+                self.downsample,
+                hp.make_help_label(widget, constants.DOWNSAMPLE_HELP),
+                stretch_id=(0,),
+                spacing=1,
+                margin=1,
+            ),
+        )
+        processing_layout.addRow(self.grid_label)
+        layout.addLayout(processing_layout)
+
+        # Automatic analysis controls
+        layout.addWidget(hp.make_h_line_with_text("Automatic landmark analysis"))
+        self.auto_residual_map = hp.make_checkbox(
+            widget,
+            "",
+            value=False,
+            func=self._automatic_changed,
+            tooltip="Tile-wise phase correlation between the fixed and registered moving images.",
+        )
+        self.auto_tile = hp.make_double_spin_box(
+            widget,
+            minimum=0,
+            maximum=1e6,
+            value=0,
+            n_decimals=1,
+            func=self._automatic_changed,
+            suffix=" um",
+            special_value="Auto",
+        )
+        auto_layout = hp.make_form_layout(margin=1)
+        auto_layout.addRow(hp.make_label(widget, "Tile size"), self.auto_tile)
+        auto_layout.addRow(
+            hp.make_label(widget, "Residual shift map"),
+            hp.make_h_layout(
+                self.auto_residual_map, hp.make_help_label(widget, constants.AUTOMATIC_HELP), spacing=1, stretch_id=(0,)
+            ),
+        )
+        layout.addLayout(auto_layout)
+
+        # Execute and cancel buttons
         self.run_btn = hp.make_btn(
             widget, "Analyze pair", func=self.start_analysis, tooltip="Analyze the selected image pair."
         )
@@ -619,46 +703,12 @@ class ImageValidationWindow(Window):
             func=self.start_analysis_all,
             tooltip="Analyze image pairs without current results. Hold Shift to analyze every pair again.",
         )
-        self.cancel_btn = hp.make_btn(widget, "Cancel", func=self.cancel_analysis)
-        self.cancel_btn.setEnabled(False)
-        layout.addLayout(hp.make_h_layout(self.run_btn, self.run_all_btn, self.cancel_btn))
-        self.downsample = hp.make_int_spin_box(widget, minimum=1, maximum=10000, value=1, func=self._resolution_changed)
-        layout.addLayout(
-            hp.make_h_layout(
-                hp.make_label(widget, "Requested analysis downsample"),
-                self.downsample,
-                hp.make_help_label(widget, constants.DOWNSAMPLE_HELP),
-                stretch_id=2,
-            )
-        )
-        self.grid_label = hp.make_label(widget, "The common grid is capped at 4 million pixels.", wrap=True)
-        layout.addWidget(self.grid_label)
-        automatic = hp.make_group_box(widget, "Automatic evidence (all image pairs)")
-        self.auto_residual_map = hp.make_checkbox(
-            automatic,
-            "Residual shift map",
-            value=False,
-            func=self._automatic_changed,
-            tooltip="Tile-wise phase correlation between the fixed and registered moving images.",
-        )
-        self.auto_tile = hp.make_double_spin_box(
-            automatic, minimum=0, maximum=1e6, value=0, n_decimals=1, func=self._automatic_changed
-        )
-        self.auto_tile.setSpecialValueText("Auto")
-        self.auto_tile.setSuffix(" um")
-        hp.make_v_layout(
-            hp.make_h_layout(
-                self.auto_residual_map,
-                hp.make_label(automatic, "Tile"),
-                self.auto_tile,
-                hp.make_help_label(automatic, constants.AUTOMATIC_HELP),
-                stretch_id=0,
-            ),
-            parent=automatic,
-            margin=6,
-            spacing=3,
-        )
-        layout.addWidget(automatic)
+        self.cancel_btn = hp.make_btn(widget, "Cancel", func=self.cancel_analysis, disabled=True)
+        layout.addLayout(hp.make_h_layout(self.run_btn, self.run_all_btn, self.cancel_btn, spacing=1, margin=1))
+
+        sep = hp.make_h_line_with_text("Independent landmark accuracy (um, moving frame)")
+        sep.setHelpText(constants.LANDMARK_HELP)
+        layout.addWidget(sep)
         self.summary_table = self._table(
             widget,
             [
@@ -675,17 +725,6 @@ class ImageValidationWindow(Window):
             False,
         )
         self.summary_table.setMaximumHeight(220)
-        layout.addLayout(
-            hp.make_h_layout(
-                hp.make_label(
-                    widget,
-                    "Independent landmark accuracy (um, moving frame)",
-                    bold=True,
-                ),
-                hp.make_help_label(widget, constants.LANDMARK_HELP),
-                stretch_id=0,
-            )
-        )
         layout.addWidget(self.summary_table)
         self.result_candidate = hp.make_combobox(widget, func_index=self.show_result)
         self.summary_table.itemSelectionChanged.connect(
@@ -725,6 +764,8 @@ class ImageValidationWindow(Window):
             "Automatic",
         )
         layout.addWidget(details, 1)
+        layout.addWidget(hp.make_h_line_with_text("Export"))
+        self.export_btn = hp.make_btn(widget, "Export report...", func=self.choose_export, disabled=True)
         self.report_include_paths = hp.make_checkbox(
             widget,
             "Include source directory paths in reports",
@@ -733,8 +774,6 @@ class ImageValidationWindow(Window):
             "filenames only. The exported study copy will need its source files located again.",
         )
         layout.addWidget(self.report_include_paths)
-        self.export_btn = hp.make_btn(widget, "Export report...", func=self.choose_export)
-        self.export_btn.setEnabled(False)
         layout.addWidget(self.export_btn)
         return widget
 
@@ -1558,7 +1597,7 @@ class ImageValidationWindow(Window):
             center = self.views[loaded[0] if loaded else 0].viewer.camera.center
             for view in self.views:
                 view.viewer.camera.zoom = zoom
-                if self.link_views.isChecked():
+                if self.synchronize_zoom.isChecked():
                     view.viewer.camera.center = center
         finally:
             self._syncing = False
@@ -1798,10 +1837,10 @@ class ImageValidationWindow(Window):
             text = f"Link views through {candidate.name}"
         elif key in self._transform_errors:
             text = "Link views in physical coordinates (registration unavailable)"
-            self.link_views.setToolTip(self._transform_errors[key])
+            self.synchronize_zoom.setToolTip(self._transform_errors[key])
         else:
             text = f"Link views through {candidate.name} (loading...)"
-        self.link_views.setText(text)
+        self.synchronize_zoom.setText(text)
 
     def _linked_camera(self, index: int) -> tuple[tuple[float, float], float] | None:
         """Map one view's center and zoom to the other view through the selected registration."""
@@ -1827,7 +1866,7 @@ class ImageValidationWindow(Window):
         return (float(target[0]), float(target[1])), zoom
 
     def _sync_zoom(self, index: int, _event: Any = None) -> None:
-        if self._syncing or self._updating or len(self.views) != 2 or not self.link_views.isChecked():
+        if self._syncing or self._updating or len(self.views) != 2 or not self.synchronize_zoom.isChecked():
             return
         linked = self._linked_camera(index)
         if linked is None:
@@ -1842,7 +1881,7 @@ class ImageValidationWindow(Window):
             self._syncing = False
 
     def _link_views_changed(self, _state: int = 0) -> None:
-        if self.link_views.isChecked():
+        if self.synchronize_zoom.isChecked():
             self._sync_zoom(0 if self.session.fixed is not None else 1)
 
     def _select_native_layer(self, index: int, _event: Any = None) -> None:
@@ -1895,7 +1934,7 @@ class ImageValidationWindow(Window):
     def _clear_pending(self) -> None:
         self._pending_pair, self._suggestion = None, None
         self._assist_generation += 1
-        for shortcut in getattr(self, "_accept_shortcuts", []):
+        for shortcut in self._accept_shortcuts:
             shortcut.setEnabled(False)
         for index in range(len(self.views)):
             for name in ("Pending landmark", "Suggested landmark"):
@@ -1907,6 +1946,10 @@ class ImageValidationWindow(Window):
         label = self.result_coordinates if index is None else self.coordinate_labels[index]
         y, x = view.viewer.cursor.position[-2:]
         label.setText(f"X: {x:.6g} um, Y: {y:.6g} um")
+
+    def on_panzoom(self) -> None:
+        """Disable adding/removing landmarks and activate the pan/zoom mode."""
+        # self.edit_landmarks.setChecked(False)
 
     def begin_pair(self) -> None:
         """Start adding landmarks; no transformed location is inserted as evidence without confirmation."""
