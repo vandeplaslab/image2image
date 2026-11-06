@@ -358,31 +358,51 @@ class QtDatasetItem(QFrame):
         from image2image.qt._dialogs import ExtractChannelsDialog
 
         reader = self.get_model()
-        if reader and reader.allow_extraction:
-            dlg = ExtractChannelsDialog(self, reader.key)
-            key, mzs, ppm = None, None, None
-            if dlg.exec_() == QDialog.DialogCode.Accepted:  # type: ignore[attr-defined]
-                key = dlg.key_to_extract
-                mzs = dlg.mzs
-                ppm = dlg.ppm
+        if not reader or not reader.allow_extraction:
+            return
+        dlg = ExtractChannelsDialog(self, reader.key)
+        if dlg.exec_() != QDialog.DialogCode.Accepted or not dlg.mzs or dlg.ppm is None:  # type: ignore[attr-defined]
+            return
 
-            logger.trace(f"Extracting data for {key} ({mzs}, {ppm})")
-            if key and mzs and ppm:
-                logger.trace(f"Extracting data for {key} ({reader}")
-                if reader:
-                    self.evt_loading.emit()  # noqa
-                    create_worker(
-                        reader.extract,
-                        mzs=mzs,
-                        ppm=ppm,
-                        _start_thread=True,
-                        _connect={
-                            # "returned": self._on_update_dataset,
-                            "errored": lambda _: hp.toast(
-                                hp.get_main_window(), "Failed to extract data.", "Failed to extract data."
-                            ),
-                        },
-                    )
+        logger.trace(f"Extracting data for {self.key} ({dlg.mzs}, {dlg.ppm})")
+        self.extract_btn.setEnabled(False)
+        try:
+            create_worker(
+                reader.extract,
+                mzs=dlg.mzs,
+                ppm=dlg.ppm,
+                _start_thread=True,
+                _connect={
+                    "returned": self._on_extracted,
+                    "errored": self._on_extract_failed,
+                    "finished": self._on_extract_finished,
+                },
+            )
+        except Exception:
+            self.extract_btn.setEnabled(True)
+            raise
+
+    def _on_extracted(self, result: tuple[Path, list[str]]) -> None:
+        reader = self.get_model()
+        if not reader:
+            return
+        _, labels = result
+        for label in labels:
+            channel_name = label.rsplit(" | ", 1)[0]
+            full_name = f"{channel_name} | {self.key}"
+            self.add_channel_row(channel_name)
+            view = self._parent.view
+            if view and full_name in view.layers:
+                index = reader.channel_names.index(channel_name)
+                view.layers[full_name].data = reader.get_channel(index)
+            self.evt_channel.emit(True, full_name)
+
+    def _on_extract_failed(self, exception: Exception) -> None:
+        logger.exception(exception)
+        hp.toast(hp.get_main_window(), "Failed to extract data.", "Failed to extract data.")
+
+    def _on_extract_finished(self) -> None:
+        self.extract_btn.setEnabled(True)
 
     def on_spectrum(self) -> None:
         """Show mass spectrum dialog."""

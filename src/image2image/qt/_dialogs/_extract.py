@@ -32,8 +32,8 @@ class ExtractChannelsDialog(QtDialog):
         super().__init__(parent, title="Extract Ion Images")
         self.setFocus()
         self.key_to_extract = key_to_extract
-        self.mzs = None
-        self.ppm = None
+        self.mzs: list[float] = []
+        self.ppm: float | None = None
 
     def on_open_peaklist(self) -> None:
         """Open peaklist."""
@@ -60,11 +60,14 @@ class ExtractChannelsDialog(QtDialog):
 
     def on_accept(self) -> None:
         """Accept."""
-        if not self.mzs:
+        mzs = self.table.get_col_data(self.TABLE_CONFIG.mz)
+        if not mzs:
             hp.warn_pretty(self, "Please add at least one m/z value to extract.")
             return
-        n = len(self.mzs)
+        n = len(mzs)
         if n > 0 and hp.confirm(self, f"Would you like to extract <b>{n}</b> ion {pluralize('image', n)}?"):
+            self.mzs = mzs
+            self.ppm = self.ppm_edit.value()
             logger.trace(f"Extracting {n} ion images...")
             self.accept()
 
@@ -74,8 +77,6 @@ class ExtractChannelsDialog(QtDialog):
         values = self.table.get_col_data(self.TABLE_CONFIG.mz)
         if value is not None and value not in values:
             self.table.add_data([[True, value]])
-        self.mzs = self.table.get_col_data(self.TABLE_CONFIG.mz)
-        self.ppm = self.ppm_edit.value()
 
     def on_delete_row(self) -> None:
         """Delete row."""
