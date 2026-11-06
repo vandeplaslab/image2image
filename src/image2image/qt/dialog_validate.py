@@ -18,7 +18,7 @@ from qtextra.utils.table_config import TableConfig
 from qtextra.widgets.qt_toolbar_mini import QtMiniToolbar
 from qtextraplot._napari.image.wrapper import NapariImageView
 from qtpy.QtCore import Qt, QTimer, Signal
-from qtpy.QtGui import QCloseEvent, QKeySequence, QShortcut, QUndoCommand, QUndoStack
+from qtpy.QtGui import QCloseEvent, QDropEvent, QKeySequence, QShortcut, QUndoCommand, QUndoStack
 from qtpy.QtWidgets import (
     QAbstractItemView,
     QApplication,
@@ -222,6 +222,64 @@ class ImageValidationWindow(Window):
             layer.text.size = size
             layer.face_colorbar.font_size = size
 
+    def dropEvent(self, event: QDropEvent) -> None:
+        """Import local images, registrations, projects, or a saved validation study."""
+        from image2image_io.readers import GEOJSON_EXTENSIONS, POINTS_EXTENSIONS, sanitize_read_path
+        from qtextra.widgets.qt_select_one import QtScrollablePickOption
+
+        hp.update_property(self.centralWidget(), "drag", False)
+        event.ignore()
+        if not self.allow_drop or self._workers or self._closing:
+            return
+        urls = event.mimeData().urls()
+        if not urls or any(not url.isLocalFile() for url in urls):
+            return
+        paths = [Path(url.toLocalFile()) for url in urls]
+        registrations = [path for path in paths if path.name.endswith((".i2r.json", ".i2r.toml"))]
+        studies = [path for path in paths if path.name.endswith(".i2validate.json")]
+        projects = [path for path in paths if path.suffix.lower() == ".wsireg" and path.is_dir()]
+        if registrations or studies or projects:
+            if registrations and len(paths) != 1:
+                self._set_status("Drop only one fiducial registration file at a time.")
+                return
+            if studies and len(paths) != 1:
+                self._set_status("Drop only one validation study at a time.")
+                return
+            if projects and len(projects) != len(paths):
+                self._set_status("Drop registration projects separately from images and studies.")
+                return
+            if studies and not self._may_discard():
+                return
+            for path in paths:
+                self._try(partial(self.open_path, path))
+            event.acceptProposedAction()
+            return
+        if any(
+            path.suffix.lower() in GEOJSON_EXTENSIONS + POINTS_EXTENSIONS
+            or sanitize_read_path(path, raise_on_error=False) is None
+            for path in paths
+        ):
+            self._set_status("Drop supported images, a fiducial registration, .wsireg projects, or a validation study.")
+            return
+        dlg = QtScrollablePickOption(
+            self,
+            "Please select which view would you like to add the image(s) to?",
+            {"Fixed image": "fixed", "Moving image": "moving"},
+            orientation="vertical",
+        )
+        if dlg.exec() != QDialog.DialogCode.Accepted:
+            return
+        if dlg.option == "fixed":
+            if len(paths) != 1:
+                self._set_status("Drop only one fixed image at a time.")
+                return
+            self._try(partial(self._set_fixed_image, paths[0]))
+        elif dlg.option == "moving":
+            self._try(partial(self._add_moving_images, paths))
+        else:
+            return
+        event.acceptProposedAction()
+
     def _try(self, function: Any) -> Any:
         try:
             return function()
@@ -261,6 +319,7 @@ class ImageValidationWindow(Window):
             wrap=True,
             selectable=True,
             text_format=Qt.TextFormat.RichText,
+            alignment=Qt.AlignmentFlag.AlignHCenter,
         )
         self._set_message(label, text)
         return label
@@ -310,6 +369,7 @@ class ImageValidationWindow(Window):
                 panel, add_toolbars=True, disable_new_layers=True, allow_crosshair=False, allow_extraction=False
             )
             view.viewer.scale_bar.visible = True
+            view.widget.setAcceptDrops(False)
             box.addWidget(view.widget)
             view.viewer.mouse_drag_callbacks.append(partial(self._pair_click, index))
             view.viewer.camera.events.zoom.connect(partial(self._sync_zoom, index))
@@ -328,6 +388,7 @@ class ImageValidationWindow(Window):
         )
         self.result_view.viewer.cursor.events.position.connect(partial(self._cursor_changed, None))
         self.result_view.viewer.scale_bar.visible = True
+        self.result_view.widget.setAcceptDrops(False)
         self.validation_legend = hp.make_group_box(result_panel, "Independent landmark errors (um, moving frame)")
         self.validation_summary = self._message_label(self.validation_legend, "")
         self.error_labels = hp.make_checkbox(
@@ -499,6 +560,7 @@ class ImageValidationWindow(Window):
                 "Without a registration project, images are compared directly in calibrated physical space. "
                 "Validation landmarks measure residuals; they are never used to fit a new registration.",
                 wrap=True,
+                alignment=Qt.AlignmentFlag.AlignHCenter,
             )
         )
         self.evidence_label = self._message_label(widget, "")
@@ -924,6 +986,10 @@ class ImageValidationWindow(Window):
         if self._workers:
             return
         paths, _ = QFileDialog.getOpenFileNames(self, "Load moving images")
+        self._add_moving_images(paths)
+
+    def _add_moving_images(self, paths: list[str] | list[Path]) -> None:
+        """Add moving images from a file selection or drop, preserving existing pairs."""
         if not paths:
             return
         pairs = list(self.study.pairs)
@@ -1360,8 +1426,11 @@ class ImageValidationWindow(Window):
             self.choose_moving_images()
             return
         path, _ = QFileDialog.getOpenFileName(self, "Choose fixed image")
-        if not path:
-            return
+        if path:
+            self._set_fixed_image(path)
+
+    def _set_fixed_image(self, path: str | Path) -> None:
+        """Set the shared reference using the existing calibration and replacement checks."""
         image = self._try(partial(inspect_validation_image, path))
         if not image or not self._confirm_calibration(image):
             return

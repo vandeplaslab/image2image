@@ -12,8 +12,8 @@ import pytest
 import tifffile
 from click.testing import CliRunner
 from pytestqt.qtbot import QtBot
-from qtpy.QtCore import Qt
-from qtpy.QtGui import QTextDocument
+from qtpy.QtCore import QMimeData, QPoint, QPointF, Qt, QUrl
+from qtpy.QtGui import QDragEnterEvent, QDropEvent, QTextDocument
 from qtpy.QtWidgets import QApplication, QComboBox, QDialog, QInputDialog, QPushButton, QTabWidget
 
 from image2image.cli import cli
@@ -52,6 +52,133 @@ def validation_window(qtbot: QtBot) -> ImageValidationWindow:
 
     qtbot.addWidget(window, before_close_func=before_close)
     return window
+
+
+def _drop_paths(window: ImageValidationWindow, paths: list[Path | str]) -> QDropEvent:
+    mime = QMimeData()
+    mime.setUrls([QUrl.fromLocalFile(str(path)) for path in paths])
+    enter = QDragEnterEvent(
+        QPoint(10, 10), Qt.DropAction.CopyAction, mime, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier
+    )
+    QApplication.sendEvent(window, enter)
+    assert enter.isAccepted()
+    drop = QDropEvent(
+        QPointF(10, 10), Qt.DropAction.CopyAction, mime, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier
+    )
+    QApplication.sendEvent(window, drop)
+    return drop
+
+
+def test_drop_images_uses_shared_reference_and_moving_pairs(
+    validation_window: ImageValidationWindow, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from qtextra.widgets.qt_select_one import QtScrollablePickOption
+
+    window = validation_window
+    source = make_validation_session(tmp_path)
+    choices = iter(("fixed", "moving"))
+
+    def select(dialog: QtScrollablePickOption) -> QDialog.DialogCode:
+        dialog.option = next(choices)
+        return QDialog.DialogCode.Accepted
+
+    monkeypatch.setattr(QtScrollablePickOption, "exec", select)
+    monkeypatch.setattr(window, "_confirm_calibration", lambda _image: True)
+    other = tmp_path / "other.ome.tiff"
+    other.write_bytes(Path(source.moving.path).read_bytes())
+    assert _drop_paths(window, [source.fixed.path]).isAccepted()
+    assert _drop_paths(window, [source.moving.path, other]).isAccepted()
+    assert len(window.study.pairs) == 2
+    assert all(pair.session.fixed.path == source.fixed.path for pair in window.study.pairs)
+    assert [pair.session.moving.path for pair in window.study.pairs] == [source.moving.path, str(other)]
+    assert all(not view.widget.acceptDrops() for view in (*window.views, window.result_view))
+
+
+@pytest.mark.parametrize("kind", ["registration", "project", "study"])
+def test_drop_native_inputs(
+    validation_window: ImageValidationWindow, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, kind: str
+) -> None:
+    window = validation_window
+    monkeypatch.setattr(window, "_confirm_calibration", lambda _image: True)
+    if kind == "project":
+        path = make_elastix_project(tmp_path, multiple=True)
+        assert path.suffix == ".wsireg"
+    else:
+        session = make_validation_session(tmp_path)
+        path = (
+            session.candidates[0].path
+            if kind == "registration"
+            else save_validation_session(tmp_path / "study", session)
+        )
+    assert _drop_paths(window, [path]).isAccepted()
+    assert all(pair.session.fixed and pair.session.moving and pair.session.candidates for pair in window.study.pairs)
+    assert len(window.study.pairs) == (2 if kind == "project" else 1)
+    if kind == "study":
+        assert window._session_path == path and not window._dirty
+        assert len(window.session.landmarks) == 2
+
+
+@pytest.mark.parametrize("kind", ["registrations", "mixed", "studies", "unsupported"])
+def test_drop_rejects_invalid_batches(validation_window: ImageValidationWindow, tmp_path: Path, kind: str) -> None:
+    window = validation_window
+    session = make_validation_session(tmp_path)
+    path = Path(session.candidates[0].path)
+    if kind == "registrations":
+        paths = [path, path]
+    elif kind == "mixed":
+        paths = [path, Path(session.moving.path)]
+    elif kind == "studies":
+        study = save_validation_session(tmp_path / "study", session)
+        paths = [study, study]
+    else:
+        path = tmp_path / "unsupported.txt"
+        path.write_text("unsupported")
+        paths = [path]
+    before = window.study.model_dump()
+    assert not _drop_paths(window, paths).isAccepted()
+    assert window.study.model_dump() == before
+    assert "Drop" in window.status.text()
+
+
+@pytest.mark.parametrize("choice", ["cancel", "fixed"])
+def test_drop_cancel_and_multiple_fixed_images_preserve_study(
+    validation_window: ImageValidationWindow, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, choice: str
+) -> None:
+    from qtextra.widgets.qt_select_one import QtScrollablePickOption
+
+    window = validation_window
+    session = make_validation_session(tmp_path)
+
+    def select(dialog: QtScrollablePickOption) -> QDialog.DialogCode:
+        dialog.option = choice
+        return QDialog.DialogCode.Rejected if choice == "cancel" else QDialog.DialogCode.Accepted
+
+    monkeypatch.setattr(QtScrollablePickOption, "exec", select)
+    before = window.study.model_dump()
+    assert not _drop_paths(window, [session.fixed.path, session.moving.path]).isAccepted()
+    assert window.study.model_dump() == before and not window._dirty
+
+
+def test_drop_study_checks_unsaved_changes_and_busy_state(
+    validation_window: ImageValidationWindow, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    window = validation_window
+    study = save_validation_session(tmp_path / "study", make_validation_session(tmp_path))
+    calls = []
+    monkeypatch.setattr(window, "open_path", calls.append)
+    monkeypatch.setattr(window, "_may_discard", lambda: False)
+    window._dirty = True
+    assert not _drop_paths(window, [study]).isAccepted()
+    assert calls == [] and window._dirty
+    monkeypatch.setattr(window, "_may_discard", lambda: True)
+    window._workers.append(object())
+    try:
+        assert not _drop_paths(window, [study]).isAccepted()
+        assert calls == []
+    finally:
+        window._workers.clear()
+    assert _drop_paths(window, [study]).isAccepted()
+    assert calls == [study]
 
 
 def test_controls_annotations_and_zoom(validation_window: ImageValidationWindow, tmp_path: Path) -> None:
