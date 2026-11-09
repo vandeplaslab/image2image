@@ -1,17 +1,26 @@
-"""Zip file."""
+"""Create a versioned archive of the Windows PyInstaller distribution."""
 
-import inspect
+from __future__ import annotations
+
 from pathlib import Path
 from shutil import make_archive
 
-from koyo.timer import MeasureTimer
 
-from image2image import __version__
+def create_archive(package_dir: Path, version: str) -> Path:
+    """Archive the contents of a built application, rejecting missing executables."""
+    source_dir = package_dir / "dist" / "image2image"
+    if not (source_dir / "image2image.exe").is_file():
+        raise FileNotFoundError(f"Build the application first: {source_dir / 'image2image.exe'}")
+    output = package_dir / "dist" / f"image2image-v{version}-win_amd64"
+    return Path(make_archive(str(output), "zip", source_dir))
 
-print("Started zipping folder")
-with MeasureTimer() as timer:
-    parent = Path(inspect.getfile(lambda: None)).parent.resolve()
-    source_dir = parent / "dist" / "image2image"
-    output_dir = parent / "dist" / f"image2image-v{__version__}-win_amd64"
-    make_archive(output_dir, "zip", source_dir)
-print(f"Finished zipping folder in {timer()}")
+
+def main() -> None:
+    """Read the packaging environment's version and create its ZIP archive."""
+    from image2image import __version__
+
+    print(f"Created ZIP: {create_archive(Path(__file__).resolve().parent, __version__)}")
+
+
+if __name__ == "__main__":
+    main()

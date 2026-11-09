@@ -72,6 +72,7 @@ def _make_analysis(path: str | Path):
             "tcl",
             "Tkconstants",
             "Tkinter",
+            "pyspa",
         ],
         cipher=block_cipher,
     )

@@ -2,7 +2,6 @@
 
 import os
 from pathlib import Path
-import inspect
 
 import debugpy._vendored
 import imagecodecs
@@ -10,14 +9,14 @@ import napari
 import qtpy
 from koyo.timer import MeasureTimer
 from koyo.pyinstaller import load_hooks, get_runtime_hooks
-from PyInstaller.building.build_main import BUNDLE, COLLECT, EXE, PYZ, TOC, Analysis
+from PyInstaller.building.build_main import BUNDLE, COLLECT, EXE, PYZ, Analysis
 
 import image2image
 from image2image.assets import ICON_ICO
 
-block_cipher = None
 # allowed values: all, imports, bootloader, noarchive
-DEBUG_MODE = os.getenv("PYINSTALLER_DEBUG", "imports")
+debug_mode = os.getenv("PYINSTALLER_DEBUG", "0").strip().lower()
+DEBUG_MODE = False if debug_mode in {"", "0", "false", "off", "no", "none"} else "all"
 print("DEBUG_MODE", DEBUG_MODE)
 # allowed values: debug, info, warning, error, critical
 LOG_MODE = os.getenv("PYINSTALLER_LOG", "DEBUG")
@@ -26,7 +25,7 @@ print("LOG_MODE", LOG_MODE)
 CONSOLE_MODE = os.getenv("PYINSTALLER_CONSOLE", "hide-early")
 print("CONSOLE_MODE", CONSOLE_MODE)
 
-FILE_DIR = Path.cwd()
+FILE_DIR = Path(SPECPATH)
 BASE_DIR = FILE_DIR.parent.parent
 GITHUB_DIR = BASE_DIR.parent
 
@@ -35,7 +34,7 @@ assert HOOKS_DIR.exists(), f"Hooks directory does not exist - {HOOKS_DIR}"
 RUNTIMEHOOKS_DIR = BASE_DIR / "package" / "_runtimehooks"
 assert RUNTIMEHOOKS_DIR.exists(), f"Runtime hooks directory does not exist - {RUNTIMEHOOKS_DIR}"
 
-PY_SCRIPT_FILE = GITHUB_DIR / "image2image" / "src" / "image2image" / "__main__.py"
+PY_SCRIPT_FILE = BASE_DIR / "src" / "image2image" / "__main__.py"
 assert PY_SCRIPT_FILE.exists(), f"Script file does not exist - {PY_SCRIPT_FILE}"
 
 
@@ -57,7 +56,6 @@ def _make_analysis(path: str):
         hiddenimports=hiddenimports,
         runtime_hooks=runtime_hooks,
         excludes=["tcl", "Tkconstants", "Tkinter", "pyspa"],
-        cipher=block_cipher,
     )
 
 
@@ -75,7 +73,7 @@ def _make_exe(pyz: PYZ, analysis: Analysis, name: str):
         windowed=True,
         bootloader_ignore_signals=False,
         icon=ICON_ICO,
-        entitlements_file="entitlements.plist",
+        entitlements_file=str(FILE_DIR / "entitlements.plist"),
         bundle_identifier="com.vandeplaslab.image2image",
     )
 
@@ -94,7 +92,6 @@ with MeasureTimer() as timer:
     image2image_coll = COLLECT(
         launcher_exe,
         launcher_analysis.binaries,
-        launcher_analysis.zipfiles,
         launcher_analysis.datas,
         strip=False,
         debug=DEBUG_MODE,
@@ -110,14 +107,15 @@ with MeasureTimer() as timer:
         bundle_identifier="com.vandeplaslab.image2image",
         info_plist={
             "CFBundleIdentifier": "com.vandeplaslab.image2image",
-            "CFBundleName": "autoims",
+            "CFBundleName": "image2image",
             "NSPrincipalClass": "NSApplication",
             "NSRequiresAquaSystemAppearance": "Yes",
             "NSHighResolutionCapable": "True",
             "LSHandlerRank": "Default",
-            "NSHumanReadableCopyright": "Copyright © 2023-2026 Van de Plas lab. All Rights Reserved",
+            "NSHumanReadableCopyright": "Copyright 2023-2026 Van de Plas lab. All Rights Reserved",
             "LSMinimumSystemVersion": "10.13",
-            "CFBundleShortVersionString": "0.0.1",
+            "CFBundleShortVersionString": image2image.__version__,
+            "CFBundleVersion": image2image.__version__,
         },
     )
     print(f"BUNDLE took {timer.format(timer.elapsed_since_last())}")

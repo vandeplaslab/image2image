@@ -1,6 +1,6 @@
 param (
     [string]$InnoSetupCompiler = "",
-    [string]$PythonExecutable = "python"
+    [string]$PythonExecutable = (Join-Path $PSScriptRoot "venv_package\Scripts\python.exe")
 )
 
 $ErrorActionPreference = "Stop"
@@ -88,7 +88,7 @@ function Invoke-InnoSetupCompiler {
         $ScriptPath
     )
 
-    & $CompilerPath @arguments
+    & $CompilerPath @arguments | Out-Host
     if ($LASTEXITCODE -ne 0) {
         throw "Inno Setup compiler failed with exit code $LASTEXITCODE."
     }
@@ -98,7 +98,6 @@ function Invoke-InnoSetupCompiler {
         throw "Expected installer was not created: $installerPath"
     }
 
-    # Code signing hook: sign $installerPath here when a signing certificate is configured.
     return $installerPath
 }
 

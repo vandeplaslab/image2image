@@ -27,7 +27,7 @@
 #endif
 
 #ifndef IconFile
-#define IconFile "src\image2image\assets\icon.ico"
+#define IconFile "..\..\src\image2image\assets\icon.ico"
 #endif
 
 [Setup]
@@ -72,62 +72,44 @@ Name: "{group}\{#AppName} Fiducials"; Filename: "{app}\{#AppExeName}"; Parameter
 Name: "{autodesktop}\{#AppName}"; Filename: "{app}\{#AppExeName}"; WorkingDir: "{app}"; Tasks: desktopicon
 
 [Registry]
-; Viewer context menu for simple image extensions.
-Root: HKA; Subkey: "Software\Classes\SystemFileAssociations\.czi\shell\image2image.viewer"; ValueType: string; ValueName: ""; ValueData: "Open with image2image Viewer"; Flags: uninsdeletekey
-Root: HKA; Subkey: "Software\Classes\SystemFileAssociations\.czi\shell\image2image.viewer"; ValueType: string; ValueName: "Icon"; ValueData: "{app}\{#AppExeName},0"
-Root: HKA; Subkey: "Software\Classes\SystemFileAssociations\.czi\shell\image2image.viewer"; ValueType: string; ValueName: "MultiSelectModel"; ValueData: "Single"
-Root: HKA; Subkey: "Software\Classes\SystemFileAssociations\.czi\shell\image2image.viewer\command"; ValueType: string; ValueName: ""; ValueData: """{app}\{#AppExeName}"" -t viewer -f ""%1"""
+; Emit each context menu from one shared template. Compound extensions keep
+; their filename filter so unrelated .raw, .intermediate, and .json files are unaffected.
+#define Extension ".czi"
+#define Tool "viewer"
+#define Label "Viewer"
+#define FileOption "f"
+#define Filter ""
+#define ContextKey() "Software\Classes\SystemFileAssociations\" + Extension + "\shell\image2image." + (Tool == "register" ? "fiducials" : Tool)
 
-Root: HKA; Subkey: "Software\Classes\SystemFileAssociations\.tiff\shell\image2image.viewer"; ValueType: string; ValueName: ""; ValueData: "Open with image2image Viewer"; Flags: uninsdeletekey
-Root: HKA; Subkey: "Software\Classes\SystemFileAssociations\.tiff\shell\image2image.viewer"; ValueType: string; ValueName: "Icon"; ValueData: "{app}\{#AppExeName},0"
-Root: HKA; Subkey: "Software\Classes\SystemFileAssociations\.tiff\shell\image2image.viewer"; ValueType: string; ValueName: "MultiSelectModel"; ValueData: "Single"
-Root: HKA; Subkey: "Software\Classes\SystemFileAssociations\.tiff\shell\image2image.viewer\command"; ValueType: string; ValueName: ""; ValueData: """{app}\{#AppExeName}"" -t viewer -f ""%1"""
+#sub ContextMenu
+Root: HKA; Subkey: "{#ContextKey()}"; ValueType: string; ValueName: ""; ValueData: "Open with {#AppName} {#Label}"; Flags: uninsdeletekey
+Root: HKA; Subkey: "{#ContextKey()}"; ValueType: string; ValueName: "Icon"; ValueData: "{app}\{#AppExeName},0"
+Root: HKA; Subkey: "{#ContextKey()}"; ValueType: string; ValueName: "MultiSelectModel"; ValueData: "Single"
+#if Filter != ""
+Root: HKA; Subkey: "{#ContextKey()}"; ValueType: string; ValueName: "AppliesTo"; ValueData: "System.FileName:~>""{#Filter}"""
+#endif
+Root: HKA; Subkey: "{#ContextKey()}\command"; ValueType: string; ValueName: ""; ValueData: """{app}\{#AppExeName}"" -t {#Tool} -{#FileOption} ""%1"""
+#endsub
 
-Root: HKA; Subkey: "Software\Classes\SystemFileAssociations\.scn\shell\image2image.viewer"; ValueType: string; ValueName: ""; ValueData: "Open with image2image Viewer"; Flags: uninsdeletekey
-Root: HKA; Subkey: "Software\Classes\SystemFileAssociations\.scn\shell\image2image.viewer"; ValueType: string; ValueName: "Icon"; ValueData: "{app}\{#AppExeName},0"
-Root: HKA; Subkey: "Software\Classes\SystemFileAssociations\.scn\shell\image2image.viewer"; ValueType: string; ValueName: "MultiSelectModel"; ValueData: "Single"
-Root: HKA; Subkey: "Software\Classes\SystemFileAssociations\.scn\shell\image2image.viewer\command"; ValueType: string; ValueName: ""; ValueData: """{app}\{#AppExeName}"" -t viewer -f ""%1"""
-
-Root: HKA; Subkey: "Software\Classes\SystemFileAssociations\.qptiff\shell\image2image.viewer"; ValueType: string; ValueName: ""; ValueData: "Open with image2image Viewer"; Flags: uninsdeletekey
-Root: HKA; Subkey: "Software\Classes\SystemFileAssociations\.qptiff\shell\image2image.viewer"; ValueType: string; ValueName: "Icon"; ValueData: "{app}\{#AppExeName},0"
-Root: HKA; Subkey: "Software\Classes\SystemFileAssociations\.qptiff\shell\image2image.viewer"; ValueType: string; ValueName: "MultiSelectModel"; ValueData: "Single"
-Root: HKA; Subkey: "Software\Classes\SystemFileAssociations\.qptiff\shell\image2image.viewer\command"; ValueType: string; ValueName: ""; ValueData: """{app}\{#AppExeName}"" -t viewer -f ""%1"""
-
-Root: HKA; Subkey: "Software\Classes\SystemFileAssociations\.svs\shell\image2image.viewer"; ValueType: string; ValueName: ""; ValueData: "Open with image2image Viewer"; Flags: uninsdeletekey
-Root: HKA; Subkey: "Software\Classes\SystemFileAssociations\.svs\shell\image2image.viewer"; ValueType: string; ValueName: "Icon"; ValueData: "{app}\{#AppExeName},0"
-Root: HKA; Subkey: "Software\Classes\SystemFileAssociations\.svs\shell\image2image.viewer"; ValueType: string; ValueName: "MultiSelectModel"; ValueData: "Single"
-Root: HKA; Subkey: "Software\Classes\SystemFileAssociations\.svs\shell\image2image.viewer\command"; ValueType: string; ValueName: ""; ValueData: """{app}\{#AppExeName}"" -t viewer -f ""%1"""
-
-Root: HKA; Subkey: "Software\Classes\SystemFileAssociations\.ndpi\shell\image2image.viewer"; ValueType: string; ValueName: ""; ValueData: "Open with image2image Viewer"; Flags: uninsdeletekey
-Root: HKA; Subkey: "Software\Classes\SystemFileAssociations\.ndpi\shell\image2image.viewer"; ValueType: string; ValueName: "Icon"; ValueData: "{app}\{#AppExeName},0"
-Root: HKA; Subkey: "Software\Classes\SystemFileAssociations\.ndpi\shell\image2image.viewer"; ValueType: string; ValueName: "MultiSelectModel"; ValueData: "Single"
-Root: HKA; Subkey: "Software\Classes\SystemFileAssociations\.ndpi\shell\image2image.viewer\command"; ValueType: string; ValueName: ""; ValueData: """{app}\{#AppExeName}"" -t viewer -f ""%1"""
-
-; Viewer context menu for compound QPTIFF extensions.
-Root: HKA; Subkey: "Software\Classes\SystemFileAssociations\.raw\shell\image2image.viewer"; ValueType: string; ValueName: ""; ValueData: "Open with image2image Viewer"; Flags: uninsdeletekey
-Root: HKA; Subkey: "Software\Classes\SystemFileAssociations\.raw\shell\image2image.viewer"; ValueType: string; ValueName: "Icon"; ValueData: "{app}\{#AppExeName},0"
-Root: HKA; Subkey: "Software\Classes\SystemFileAssociations\.raw\shell\image2image.viewer"; ValueType: string; ValueName: "MultiSelectModel"; ValueData: "Single"
-Root: HKA; Subkey: "Software\Classes\SystemFileAssociations\.raw\shell\image2image.viewer"; ValueType: string; ValueName: "AppliesTo"; ValueData: "System.FileName:~>"".qptiff.raw"""
-Root: HKA; Subkey: "Software\Classes\SystemFileAssociations\.raw\shell\image2image.viewer\command"; ValueType: string; ValueName: ""; ValueData: """{app}\{#AppExeName}"" -t viewer -f ""%1"""
-
-Root: HKA; Subkey: "Software\Classes\SystemFileAssociations\.intermediate\shell\image2image.viewer"; ValueType: string; ValueName: ""; ValueData: "Open with image2image Viewer"; Flags: uninsdeletekey
-Root: HKA; Subkey: "Software\Classes\SystemFileAssociations\.intermediate\shell\image2image.viewer"; ValueType: string; ValueName: "Icon"; ValueData: "{app}\{#AppExeName},0"
-Root: HKA; Subkey: "Software\Classes\SystemFileAssociations\.intermediate\shell\image2image.viewer"; ValueType: string; ValueName: "MultiSelectModel"; ValueData: "Single"
-Root: HKA; Subkey: "Software\Classes\SystemFileAssociations\.intermediate\shell\image2image.viewer"; ValueType: string; ValueName: "AppliesTo"; ValueData: "System.FileName:~>"".qptiff.intermediate"""
-Root: HKA; Subkey: "Software\Classes\SystemFileAssociations\.intermediate\shell\image2image.viewer\command"; ValueType: string; ValueName: ""; ValueData: """{app}\{#AppExeName}"" -t viewer -f ""%1"""
-
-; Elastix and Fiducials context menus for their compound JSON extensions.
-Root: HKA; Subkey: "Software\Classes\SystemFileAssociations\.json\shell\image2image.elastix"; ValueType: string; ValueName: ""; ValueData: "Open with image2image Elastix"; Flags: uninsdeletekey
-Root: HKA; Subkey: "Software\Classes\SystemFileAssociations\.json\shell\image2image.elastix"; ValueType: string; ValueName: "Icon"; ValueData: "{app}\{#AppExeName},0"
-Root: HKA; Subkey: "Software\Classes\SystemFileAssociations\.json\shell\image2image.elastix"; ValueType: string; ValueName: "MultiSelectModel"; ValueData: "Single"
-Root: HKA; Subkey: "Software\Classes\SystemFileAssociations\.json\shell\image2image.elastix"; ValueType: string; ValueName: "AppliesTo"; ValueData: "System.FileName:~>"".config.json"""
-Root: HKA; Subkey: "Software\Classes\SystemFileAssociations\.json\shell\image2image.elastix\command"; ValueType: string; ValueName: ""; ValueData: """{app}\{#AppExeName}"" -t elastix -p ""%1"""
-
-Root: HKA; Subkey: "Software\Classes\SystemFileAssociations\.json\shell\image2image.fiducials"; ValueType: string; ValueName: ""; ValueData: "Open with image2image Fiducials"; Flags: uninsdeletekey
-Root: HKA; Subkey: "Software\Classes\SystemFileAssociations\.json\shell\image2image.fiducials"; ValueType: string; ValueName: "Icon"; ValueData: "{app}\{#AppExeName},0"
-Root: HKA; Subkey: "Software\Classes\SystemFileAssociations\.json\shell\image2image.fiducials"; ValueType: string; ValueName: "MultiSelectModel"; ValueData: "Single"
-Root: HKA; Subkey: "Software\Classes\SystemFileAssociations\.json\shell\image2image.fiducials"; ValueType: string; ValueName: "AppliesTo"; ValueData: "System.FileName:~>"".i2r.json"""
-Root: HKA; Subkey: "Software\Classes\SystemFileAssociations\.json\shell\image2image.fiducials\command"; ValueType: string; ValueName: ""; ValueData: """{app}\{#AppExeName}"" -t register -p ""%1"""
+#emit ContextMenu
+#expr Extension = ".tiff"
+#emit ContextMenu
+#expr Extension = ".scn"
+#emit ContextMenu
+#expr Extension = ".qptiff"
+#emit ContextMenu
+#expr Extension = ".ndpi"
+#emit ContextMenu
+#expr Extension = ".svs"
+#emit ContextMenu
+#expr Extension = ".raw", Filter = ".qptiff.raw"
+#emit ContextMenu
+#expr Extension = ".intermediate", Filter = ".qptiff.intermediate"
+#emit ContextMenu
+#expr Extension = ".json", Tool = "elastix", Label = "Elastix", FileOption = "p", Filter = ".config.json"
+#emit ContextMenu
+#expr Tool = "register", Label = "Fiducials", Filter = ".i2r.json"
+#emit ContextMenu
 
 [Run]
 Filename: "{app}\{#AppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(AppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent

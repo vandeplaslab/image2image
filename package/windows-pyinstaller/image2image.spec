@@ -18,7 +18,8 @@ import image2image
 from image2image.assets import ICON_ICO as ICON_APP_ICO
 
 # allowed values: all, imports, bootloader, noarchive
-DEBUG_MODE = os.getenv("PYINSTALLER_DEBUG", "imports")
+debug_mode = os.getenv("PYINSTALLER_DEBUG", "0").strip().lower()
+DEBUG_MODE = False if debug_mode in {"", "0", "false", "off", "no", "none"} else "all"
 print("DEBUG_MODE", DEBUG_MODE)
 # allowed values: debug, info, warning, error, critical
 LOG_MODE = os.getenv("PYINSTALLER_LOG", "DEBUG")
@@ -27,7 +28,7 @@ print("LOG_MODE", LOG_MODE)
 CONSOLE_MODE = os.getenv("PYINSTALLER_CONSOLE", "hide-early")
 print("CONSOLE_MODE", CONSOLE_MODE)
 
-FILE_DIR = Path.cwd()
+FILE_DIR = Path(SPECPATH)
 BASE_DIR = FILE_DIR.parent.parent
 GITHUB_DIR = BASE_DIR.parent
 
@@ -36,7 +37,7 @@ assert HOOKS_DIR.exists(), f"Hooks directory does not exist - {HOOKS_DIR}"
 RUNTIMEHOOKS_DIR = BASE_DIR / "package" / "_runtimehooks"
 assert RUNTIMEHOOKS_DIR.exists(), f"Runtime hooks directory does not exist - {RUNTIMEHOOKS_DIR}"
 
-PY_SCRIPT_FILE = GITHUB_DIR / "image2image" / "src" / "image2image" / "__main__.py"
+PY_SCRIPT_FILE = BASE_DIR / "src" / "image2image" / "__main__.py"
 assert PY_SCRIPT_FILE.exists(), f"Script file does not exist - {PY_SCRIPT_FILE}"
 
 
@@ -58,7 +59,6 @@ def _make_analysis(path: str):
         hiddenimports=hiddenimports,
         runtime_hooks=runtime_hooks,
         excludes=["tcl", "Tkconstants", "Tkinter", "black", "mypy", "pyspa"],
-        cipher=None,
     )
 
 
@@ -100,7 +100,6 @@ with MeasureTimer() as timer:
         # launcher
         launcher_exe,
         launcher_analysis.binaries,
-        launcher_analysis.zipfiles,
         launcher_analysis.datas,
         # other options
         strip=False,

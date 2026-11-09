@@ -1,13 +1,17 @@
-"""Rename package to represent the macOS platform + version."""
+"""Rename a legacy unversioned DMG using the installed application version."""
 
-import inspect
 from pathlib import Path
 
-from image2image import __version__
 
-parent = Path(inspect.getfile(lambda: None)).parent.resolve()
-source_dir = parent / "dist" / "image2image.dmg"
-assert source_dir.exists(), f"Source file does not exist: {source_dir}"
-output_dir = parent / "dist" / f"image2image-v{__version__}-macosx_arm64.dmg"
-print("Renaming", source_dir, "to", output_dir)
-source_dir.rename(output_dir)
+def rename_package(package_dir: Path, version: str) -> Path:
+    """Rename the legacy DMG and return its versioned path."""
+    source = package_dir / "dist" / "image2image.dmg"
+    destination = source.with_name(f"image2image-v{version}-macosx_arm64.dmg")
+    source.rename(destination)
+    return destination
+
+
+if __name__ == "__main__":
+    from image2image import __version__
+
+    print(rename_package(Path(__file__).resolve().parent, __version__))

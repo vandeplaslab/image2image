@@ -170,3 +170,5 @@ uv.lock
 .claude
 CLAUDE.md
 reasonix.md
+# Dedicated application packaging environments
+venv_package/
