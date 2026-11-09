@@ -167,6 +167,16 @@ foreach ($package in $after_install) {
 # uninstall pdbpp
 uv pip uninstall pdbpp
 
+# Build local native backends after all other installs to preserve their Rust extensions.
+[string[]]$dependency_args = @()
+if ($update_deps) {
+    $dependency_args += "--update-deps"
+}
+& python (Join-Path -Path $i2i_dir -ChildPath "package\install_dependencies.py") @dependency_args
+if ($LASTEXITCODE -ne 0) {
+    throw "Native backend installation or validation failed with exit code $LASTEXITCODE."
+}
+
 if ($no_build) {
     Exit
 }

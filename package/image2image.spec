@@ -60,6 +60,7 @@ def _make_analysis(path: str | Path):
             + collect_data_files("sklearn")
             + [(os.path.dirname(debugpy._vendored.__file__), "debugpy/_vendored")],
         hiddenimports=[
+            "imzy",
             "freetype",
             "six",
             "pkg_resources",

@@ -251,6 +251,11 @@ if (( ${#after_install[@]} > 0 )); then
   done
 fi
 
+# Build local native backends after all other installs to preserve their Rust extensions.
+dependency_args=()
+$update_deps && dependency_args+=(--update-deps)
+python "$app_dir/package/install_dependencies.py" "${dependency_args[@]}" || exit 1
+
 # Get path
 filename="image2image.spec"
 

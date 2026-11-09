@@ -56,7 +56,7 @@ def _make_analysis(path: str):
         datas=datas,
         hiddenimports=hiddenimports,
         runtime_hooks=runtime_hooks,
-        excludes=["tcl", "Tkconstants", "Tkinter"],
+        excludes=["tcl", "Tkconstants", "Tkinter", "pyspa"],
         cipher=block_cipher,
     )
 
