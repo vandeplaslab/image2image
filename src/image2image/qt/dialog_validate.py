@@ -16,9 +16,10 @@ import qtextra.helpers as hp
 from qtextra.config import THEMES
 from qtextra.utils.table_config import TableConfig
 from qtextra.widgets.qt_toolbar_mini import QtMiniToolbar
+from qtextraplot._mpl.views import ViewMplLine
 from qtextraplot._napari.image.wrapper import NapariImageView
 from qtpy.QtCore import Qt, QTimer, Signal
-from qtpy.QtGui import QCloseEvent, QDropEvent, QKeySequence, QShortcut, QUndoCommand, QUndoStack
+from qtpy.QtGui import QCloseEvent, QDropEvent, QImage, QKeySequence, QPixmap, QShortcut, QUndoCommand, QUndoStack
 from qtpy.QtWidgets import (
     QAbstractItemView,
     QApplication,
@@ -45,6 +46,8 @@ from superqt.utils import create_worker
 import image2image.constants as constants
 from image2image.config import SingleAppConfig
 from image2image.models.validation import (
+    GRID_BYTES_PER_PIXEL,
+    MAX_GRID_PIXELS,
     CandidateAnalysis,
     ImageGeometry,
     MaskCorrespondence,
@@ -59,6 +62,7 @@ from image2image.models.validation import (
     ValidationStudy,
 )
 from image2image.qt._dialog_base import Window
+from image2image.qt._validate_trials import LocalizationTrials
 from image2image.utils.validation import (
     AnalysisCancelled,
     ValidationTransform,
@@ -66,6 +70,7 @@ from image2image.utils.validation import (
     analysis_grid,
     analyze_validation_session,
     analyze_validation_study,
+    direction_vectors,
     discover_validation_candidates,
     export_validation_landmarks,
     import_validation_landmarks,
@@ -84,7 +89,17 @@ from image2image.utils.validation import (
     validation_image_pyramid,
 )
 from image2image.utils.validation_auto import TemplateMatch, match_through_transform
-from image2image.utils.validation_report import comparison_rows, export_validation_study_report, normalize_image
+from image2image.utils.validation_report import (
+    DIRECTION_SOURCES,
+    comparison_rows,
+    direction_colors,
+    direction_text,
+    direction_wheel,
+    export_validation_study_report,
+    localization_rows,
+    normalize_image,
+    plot_direction_bias,
+)
 
 IDENTITY = ValidationCandidate(id="aligned-images", name="Already aligned images", kind="aligned", path="")
 LANDMARK_COLUMNS = ["Use", "ID", "X (fixed)", "Y (fixed)", "X (moving)", "Y (moving)", "Note", "Source", "Error (um)"]
@@ -96,6 +111,7 @@ RESULT_MODES = {
     "signed_jacobian": "Signed Jacobian",
     "nonpositive_jacobian": "Nonpositive Jacobian",
     "residual_shift": "Residual shift map",
+    "residual_direction": "Residual direction map",
     "automatic_landmarks": "Automatic landmarks",
 }
 
@@ -181,6 +197,7 @@ class ImageValidationWindow(Window):
         self._suggestion: TemplateMatch | None = None
         self._assist_generation = 0
         self._accept_shortcuts = []
+        self._trials = LocalizationTrials(self)
         super().__init__(
             parent, "image2image: Registration Validation and Deformation Analysis", run_check_version=run_check_version
         )
@@ -413,6 +430,18 @@ class ImageValidationWindow(Window):
         )
         self.validation_legend.hide()
         result_layout.addWidget(self.validation_legend)
+        self.direction_legend = hp.make_group_box(result_panel, "Residual direction (fixed frame)")
+        wheel = (direction_wheel(72) * 255).astype(np.uint8)
+        wheel_label = QLabel(self.direction_legend)
+        wheel_label.setPixmap(
+            QPixmap.fromImage(QImage(wheel.data, 72, 72, 72 * 4, QImage.Format.Format_RGBA8888).copy())
+        )
+        self.direction_legend_text = hp.make_label(self.direction_legend, "", wrap=True)
+        hp.make_h_layout(
+            wheel_label, self.direction_legend_text, parent=self.direction_legend, stretch_id=(1,), margin=6, spacing=6
+        )
+        self.direction_legend.hide()
+        result_layout.addWidget(self.direction_legend)
         result_layout.addWidget(self.result_view.widget)
         self.view_stack.addWidget(result_panel)
         splitter = QSplitter(Qt.Orientation.Horizontal, widget)
@@ -671,7 +700,68 @@ class ImageValidationWindow(Window):
         layout.addWidget(self.landmark_table)
 
         layout.addWidget(hp.make_label(widget, self.session.independence_note, wrap=True))
+
+        # Localization (click) error trials
+        sep = hp.make_h_line_with_text("Localization error")
+        sep.setHelpText(constants.LOCALIZATION_HELP)
+        layout.addWidget(sep)
+        self.trial_count = hp.make_int_spin_box(
+            widget, minimum=1, maximum=200, value=10, tooltip="Number of re-clicks or decoy trials per run."
+        )
+        layout.addLayout(
+            hp.make_h_layout(
+                hp.make_label(widget, "Trials"),
+                self.trial_count,
+                hp.make_btn(
+                    widget,
+                    "Re-click landmarks",
+                    func=lambda: self._trials.start_reclick(self.trial_count.value()),
+                    tooltip="Click a random subset of manual landmarks again with their markers hidden. The spread "
+                    "of repeat clicks measures how precisely you locate landmarks.",
+                ),
+                hp.make_btn(
+                    widget,
+                    "Calibrate clicking",
+                    func=lambda: self._trials.start_decoys(self.trial_count.value()),
+                    tooltip="Find marked features in a copy of the same image shifted by a hidden amount. The error "
+                    "against the known answer measures click error (a lower bound for cross-modal pairs).",
+                ),
+                hp.make_btn(
+                    widget,
+                    "Clear",
+                    func=self.clear_localization,
+                    tooltip="Remove all re-clicks and decoy trials of this image pair.",
+                ),
+                stretch_id=(2, 3),
+                spacing=1,
+                margin=1,
+            )
+        )
+        self.localization_label = hp.make_label(widget, "", wrap=True)
+        layout.addWidget(self.localization_label)
         return widget
+
+    def _refresh_localization_label(self) -> None:
+        """Summarize the localization evidence collected for the selected pair."""
+        repeated = [point for point in self.session.landmarks if point.repeats]
+        decoys = [decoy for decoy in self.session.decoys if decoy.clicked is not None]
+        self.localization_label.setText(
+            f"Re-clicks: {sum(len(p.repeats) for p in repeated)} on {len(repeated)} landmark(s). "
+            f"Decoys: {sum(d.image == 'fixed' for d in decoys)} fixed, {sum(d.image == 'moving' for d in decoys)} "
+            "moving. Analyze to estimate localization error."
+        )
+
+    def clear_localization(self) -> None:
+        """Remove re-clicks and decoy trials from the selected image pair."""
+        if not self.session.decoys and not any(point.repeats for point in self.session.landmarks):
+            return
+        if not hp.confirm(self, "Remove all re-clicks and decoy trials from this image pair?"):
+            return
+        self.session.decoys = []
+        self._set_landmarks(
+            [point.model_copy(update={"repeats": []}) for point in self.session.landmarks], "Clear re-clicks"
+        )
+        self._refresh_localization_label()
 
     def _make_masks(self) -> QWidget:
         widget = QWidget(self)
@@ -709,9 +799,19 @@ class ImageValidationWindow(Window):
 
         layout.addWidget(hp.make_h_line_with_text("Analysis settings"))
         self.downsample = hp.make_int_spin_box(widget, minimum=1, maximum=10000, value=1, func=self._resolution_changed)
-        self.grid_label = hp.make_label(
-            widget, "The common grid is capped at 4 million pixels.", wrap=True, alignment=Qt.AlignmentFlag.AlignHCenter
+        self.max_grid = hp.make_double_spin_box(
+            widget,
+            minimum=0.1,
+            maximum=MAX_GRID_PIXELS / 1e6,
+            value=4.0,
+            step_size=1.0,
+            n_decimals=1,
+            suffix=" MP",
+            func=self._max_grid_changed,
+            tooltip="Largest common analysis grid, in megapixels. Applies to every image pair. Larger grids are finer "
+            f"but need roughly {GRID_BYTES_PER_PIXEL} bytes per pixel per registration candidate during analysis.",
         )
+        self.grid_label = hp.make_label(widget, "", wrap=True, alignment=Qt.AlignmentFlag.AlignHCenter)
         processing_layout = hp.make_form_layout(margin=1)
         processing_layout.addRow(
             hp.make_label(widget, "Requested analysis downsample"),
@@ -723,6 +823,7 @@ class ImageValidationWindow(Window):
                 margin=1,
             ),
         )
+        processing_layout.addRow(hp.make_label(widget, "Max grid size"), self.max_grid)
         processing_layout.addRow(self.grid_label)
         layout.addLayout(processing_layout)
 
@@ -746,7 +847,18 @@ class ImageValidationWindow(Window):
             special_value="Auto",
         )
         auto_layout = hp.make_form_layout(margin=1)
+        self.matcher_jitter = hp.make_int_spin_box(
+            widget,
+            minimum=0,
+            maximum=50,
+            value=0,
+            special_value="Off",
+            func=self._automatic_changed,
+            tooltip="Re-match each assisted and automatic landmark this many times with random jitter to measure "
+            "template-matching precision. Applies to every image pair.",
+        )
         auto_layout.addRow(hp.make_label(widget, "Tile size"), self.auto_tile)
+        auto_layout.addRow(hp.make_label(widget, "Matcher jitter"), self.matcher_jitter)
         auto_layout.addRow(
             hp.make_label(widget, "Residual shift map"),
             hp.make_h_layout(
@@ -799,7 +911,19 @@ class ImageValidationWindow(Window):
         self.result_detail = self._message_label(widget, "Analyze to see results.")
         layout.addWidget(self.result_detail)
         self.error_table = self._table(
-            widget, ["ID", "Source", "dX (um)", "dY (um)", "Error (um)", "Exclusion", "Warning"], False
+            widget,
+            [
+                "ID",
+                "Source",
+                "dX (um)",
+                "dY (um)",
+                "Error (um)",
+                "Click noise (um)",
+                "Within noise",
+                "Exclusion",
+                "Warning",
+            ],
+            False,
         )
         details = QTabWidget(widget)
         details.addTab(self._measurement_panel(widget, self.error_table, constants.LANDMARK_HELP), "Landmark residuals")
@@ -825,6 +949,12 @@ class ImageValidationWindow(Window):
             self._measurement_panel(widget, self.automatic_table, constants.AUTOMATIC_HELP),
             "Automatic",
         )
+        details.addTab(self._make_direction_panel(widget), "Direction bias")
+        self.localization_table = self._table(widget, ["Statistic", "Independent", "Automatic"], False)
+        details.addTab(
+            self._measurement_panel(widget, self.localization_table, constants.LOCALIZATION_HELP),
+            "Localization",
+        )
         layout.addWidget(details, 1)
         layout.addWidget(hp.make_h_line_with_text("Export"))
         self.export_btn = hp.make_btn(widget, "Export report...", func=self.choose_export, disabled=True)
@@ -838,6 +968,49 @@ class ImageValidationWindow(Window):
         layout.addWidget(self.report_include_paths)
         layout.addWidget(self.export_btn)
         return widget
+
+    def _make_direction_panel(self, parent: QWidget) -> QWidget:
+        """Residual target plot and rose diagram for one evidence source of the selected candidate."""
+        panel = QWidget(parent)
+        self.direction_source = hp.make_combobox(
+            panel, list(DIRECTION_SOURCES.values()), func_index=self._show_direction
+        )
+        self.direction_label = self._message_label(panel, "Analyze to see directional bias.")
+        self.direction_view = ViewMplLine(panel, x_label="", y_label="", facecolor="white", figsize=(8, 4))
+        self.direction_view.widget.setMinimumHeight(260)
+        layout = hp.make_v_layout(parent=panel, spacing=2, margin=0)
+        layout.addLayout(
+            hp.make_h_layout(
+                self.direction_source, hp.make_help_label(panel, constants.DIRECTION_HELP), stretch_id=(0,), spacing=1
+            )
+        )
+        layout.addWidget(self.direction_label)
+        layout.addWidget(self.direction_view.widget, 1)
+        return panel
+
+    def _show_direction(self, _index: int = 0) -> None:
+        """Draw the directional summary of the selected candidate and evidence source."""
+        self.direction_view.figure.clear()
+        if self.analysis is None or self.result_candidate.currentIndex() < 0:
+            self._set_message(self.direction_label, "Analyze to see directional bias.")
+            return
+        result = self.analysis.candidates[self.result_candidate.currentIndex()]
+        source = list(DIRECTION_SOURCES)[self.direction_source.currentIndex()]
+        stats = result.direction.get(source, {})
+        arrays = None
+        if source == "shift_tiles" and result.map_path is not None:
+            with np.load(result.map_path) as stored:
+                arrays = {key: stored[key] for key in ("shift_valid", "shift_x_um", "shift_y_um") if key in stored}
+        self._set_message(self.direction_label, direction_text(stats), DIRECTION_SOURCES[source])
+        if stats.get("verdict", "unavailable") == "unavailable":
+            self.direction_view.figure.repaint()
+            return
+        figure = self.direction_view.figure.figure
+        target = figure.add_subplot(1, 2, 1)
+        rose = figure.add_subplot(1, 2, 2, projection="polar")
+        plot_direction_bias(target, rose, *direction_vectors(result, source, arrays), stats)
+        figure.tight_layout()
+        self.direction_view.figure.repaint()
 
     @staticmethod
     def _measurement_panel(parent: QWidget, table: QTableWidget, help_text: str) -> QWidget:
@@ -872,13 +1045,16 @@ class ImageValidationWindow(Window):
             self.overlap_table,
             self.deformation_table,
             self.automatic_table,
+            self.localization_table,
         ):
             table.setRowCount(0)
         self.result_view.viewer.layers.clear()
         self.validation_legend.hide()
+        self.direction_legend.hide()
         self.validation_summary.clear()
         with hp.qt_signals_blocked(self.result_candidate):
             self.result_candidate.clear()
+        self._show_direction()
         self._set_message(self.result_detail, message)
         self.export_btn.setEnabled(bool(self._results or self._failures))
 
@@ -1177,13 +1353,9 @@ class ImageValidationWindow(Window):
             self.units.setCurrentText(self.session.landmark_units)
             self.auto_residual_map.setChecked(self.session.auto_residual_map)
             self.auto_tile.setValue(self.session.auto_tile_um or 0)
-            self.grid_label.setText("The common analysis grid is capped at 4 million pixels.")
-            if self.session.fixed:
-                grid = analysis_grid(self.session)
-                self.grid_label.setText(
-                    f"Analysis grid YX {grid.shape}; spacing XY {grid.spacing} um. "
-                    "Landmark precision is independent of downsampling."
-                )
+            self.matcher_jitter.setValue(self.session.matcher_jitter)
+            self.max_grid.setValue(self.session.max_pixels / 1e6)
+            self.grid_label.setText(self._grid_text())
             for index, mask in enumerate((self.session.fixed_mask, self.session.moving_mask)):
                 self.mask_labels[index].setText(
                     "No mask"
@@ -1493,6 +1665,33 @@ class ImageValidationWindow(Window):
             self.invalidate()
             self._refresh_inputs()
 
+    def _max_grid_changed(self, value: float) -> None:
+        """Apply the grid cap to every image pair, so study results stay comparable."""
+        if self._updating:
+            return
+        for pair in self.study.pairs:
+            pair.session.max_pixels = max(9, round(value * 1e6))
+            if pair.id != self._pair_id:
+                self._drop_result(pair.id)
+        self.invalidate()
+        self.grid_label.setText(self._grid_text())
+
+    def _grid_text(self) -> str:
+        """Describe the analysis grid and its approximate peak memory per candidate."""
+        cap = f"The common analysis grid is capped at {self.session.max_pixels / 1e6:.3g} megapixels."
+        if not self.session.fixed:
+            return cap
+        grid = analysis_grid(self.session)
+        pixels = grid.shape[0] * grid.shape[1]
+        memory = pixels * GRID_BYTES_PER_PIXEL / 1024**3
+        text = (
+            f"Analysis grid YX {grid.shape}; spacing XY {grid.spacing} um; about {memory:.2g} GB peak memory per "
+            "candidate. Landmark precision is independent of downsampling."
+        )
+        if pixels > 16_000_000:
+            text += " Large grids are slow and memory intensive."
+        return text
+
     def _automatic_changed(self, _value: Any = None) -> None:
         """Apply automatic-evidence settings to every image pair, so study results stay comparable."""
         if self._updating:
@@ -1500,6 +1699,7 @@ class ImageValidationWindow(Window):
         settings = {
             "auto_residual_map": self.auto_residual_map.isChecked(),
             "auto_tile_um": self.auto_tile.value() or None,
+            "matcher_jitter": self.matcher_jitter.value(),
         }
         for pair in self.study.pairs:
             for key, value in settings.items():
@@ -1514,6 +1714,7 @@ class ImageValidationWindow(Window):
             self._dirty = True
 
     def _load_views(self) -> None:
+        self._trials.stop()
         cameras = []
         previous_pair = next((key[0] for key in self._view_keys if key is not None), None)
         for index, view in enumerate(self.views):
@@ -1752,6 +1953,7 @@ class ImageValidationWindow(Window):
                 layer.text = {"string": labels, "color": "white", "size": 10}
         finally:
             self._updating = False
+        self._refresh_localization_label()
 
     def _landmark_edited(self, item: QTableWidgetItem) -> None:
         if self._updating:
@@ -1935,7 +2137,13 @@ class ImageValidationWindow(Window):
         return (float(target[0]), float(target[1])), zoom
 
     def _sync_zoom(self, index: int, _event: Any = None) -> None:
-        if self._syncing or self._updating or len(self.views) != 2 or not self.synchronize_zoom.isChecked():
+        if (
+            self._syncing
+            or self._updating
+            or self._trials.active
+            or len(self.views) != 2
+            or not self.synchronize_zoom.isChecked()
+        ):
             return
         linked = self._linked_camera(index)
         if linked is None:
@@ -2035,7 +2243,10 @@ class ImageValidationWindow(Window):
         )
 
     def cancel_pair(self) -> None:
-        """Stop adding landmarks and discard an incomplete pair."""
+        """Stop adding landmarks and discard an incomplete pair, or stop localization trials."""
+        if self._trials.active:
+            self._trials.stop()
+            return
         if self._adding_pair:
             self._adding_pair = False
             self.edit_landmarks.setChecked(False)
@@ -2043,6 +2254,10 @@ class ImageValidationWindow(Window):
             self._set_status("Stopped adding landmarks.")
 
     def _pair_click(self, index: int, _viewer: Any, event: Any) -> None:
+        if self._trials.active:
+            if event.type == "mouse_press" and event.button == 1:
+                self._trials.click(index, tuple(float(v) for v in event.position[-2:][::-1]))
+            return
         if not self._adding_pair or event.type != "mouse_press" or event.button != 1:
             return
         xy = tuple(float(v) for v in event.position[-2:][::-1])
@@ -2686,6 +2901,7 @@ class ImageValidationWindow(Window):
         viewer = self.result_view.viewer
         viewer.layers.clear()
         self.validation_legend.hide()
+        self.direction_legend.hide()
         grid = self.analysis.grid
         kwargs = {"scale": grid.spacing[::-1], "translate": grid.origin[::-1], "units": ("um", "um")}
         mode = list(RESULT_MODES)[self.result_mode.currentIndex()]
@@ -2729,6 +2945,8 @@ class ImageValidationWindow(Window):
                     legend = result.mask_reason or "No corresponding mask labels available."
             elif mode == "residual_shift":
                 legend = self._show_residual_map(viewer, arrays, result, kwargs)
+            elif mode == "residual_direction":
+                legend = self._show_residual_direction(viewer, arrays, result, kwargs)
             elif mode == "automatic_landmarks":
                 self._add_native_moving(viewer)
                 points = [p for p in self._rows(result, automatic=True) if p["error_um"] is not None]
@@ -2865,24 +3083,53 @@ class ImageValidationWindow(Window):
             ],
         )
         self._fill_automatic_table(result)
+        self._fill_localization_table(result)
+        self._show_direction()
         self.error_table.setRowCount(len(result.landmarks))
         for row, point in enumerate(result.landmarks):
-            for col, key in enumerate(("id", "source", "dx_um", "dy_um", "error_um", "excluded", "warning")):
+            keys = ("id", "source", "dx_um", "dy_um", "error_um", "fle_um", "within_noise", "excluded", "warning")
+            for col, key in enumerate(keys):
                 self.error_table.setItem(row, col, QTableWidgetItem(self._format(point.get(key, ""))))
 
-    def _show_residual_map(self, viewer: Any, arrays: Any, result: CandidateAnalysis, kwargs: dict) -> str:
-        if "shift_um" not in arrays:
-            if not self.analysis.session.auto_residual_map:
-                return "Enable Residual shift map under Automatic evidence and analyze again."
-            return result.residual_map.get("reason") or "Residual shift map unavailable."
-        viewer.add_image(normalize_image(arrays["fixed_image"]), colormap="gray", name="Fixed", **kwargs)
-        valid = arrays["shift_valid"]
-        magnitude = np.nan_to_num(arrays["shift_um"]).astype(np.float32)
-        tile_kwargs = {
+    def _residual_map_unavailable(self, result: CandidateAnalysis) -> str:
+        if not self.analysis.session.auto_residual_map:
+            return "Enable Residual shift map under Automatic evidence and analyze again."
+        return result.residual_map.get("reason") or "Residual shift map unavailable."
+
+    @staticmethod
+    def _tile_kwargs(arrays: Any) -> dict[str, Any]:
+        return {
             "scale": tuple(arrays["shift_spacing_xy_um"][::-1]),
             "translate": tuple(arrays["shift_origin_xy_um"][::-1]),
             "units": ("um", "um"),
         }
+
+    def _show_residual_direction(self, viewer: Any, arrays: Any, result: CandidateAnalysis, kwargs: dict) -> str:
+        """Color reliable shift tiles by residual direction (hue) and magnitude (brightness)."""
+        if "shift_um" not in arrays:
+            return self._residual_map_unavailable(result)
+        viewer.add_image(normalize_image(arrays["fixed_image"]), colormap="gray", name="Fixed", **kwargs)
+        rgb, limit = direction_colors(arrays["shift_x_um"], arrays["shift_y_um"], arrays["shift_valid"])
+        viewer.add_image(rgb, rgb=True, name="Residual direction", opacity=0.75, **self._tile_kwargs(arrays))
+        self.direction_legend_text.setText(
+            f"Hue: direction of predicted minus observed position (right, down, left, up as on the wheel). "
+            f"Brightness: magnitude, full at {limit:.4g} um (95th percentile); black means no shift. "
+            "Gray: rejected tiles."
+        )
+        self.direction_legend.show()
+        summary = result.residual_map
+        return (
+            f"Residual direction map, fixed frame. {summary.get('valid_tiles', 0)}/{summary.get('tiles', 0)} tiles "
+            f"reliable. See Direction bias for a summary of the tile directions."
+        )
+
+    def _show_residual_map(self, viewer: Any, arrays: Any, result: CandidateAnalysis, kwargs: dict) -> str:
+        if "shift_um" not in arrays:
+            return self._residual_map_unavailable(result)
+        viewer.add_image(normalize_image(arrays["fixed_image"]), colormap="gray", name="Fixed", **kwargs)
+        valid = arrays["shift_valid"]
+        magnitude = np.nan_to_num(arrays["shift_um"]).astype(np.float32)
+        tile_kwargs = self._tile_kwargs(arrays)
         limit = float(magnitude[valid].max()) if valid.any() else 1.0
         viewer.add_image(
             magnitude,
@@ -2939,6 +3186,13 @@ class ImageValidationWindow(Window):
         for key, label in (("mean", "Mean"), ("median", "Median"), ("rms", "RMS"), ("p95", "P95"), ("maximum", "Max")):
             rows.append((f"{label} (um)", shift.get(key), auto.get(key)))
         self._fill_table(self.automatic_table, rows)
+
+    def _fill_localization_table(self, result: CandidateAnalysis) -> None:
+        """Show localization precision by source and the resulting registration error budget."""
+        rows = localization_rows(result.localization)
+        self._fill_table(
+            self.localization_table, [(row["statistic"], row["independent"], row["automatic"]) for row in rows]
+        )
 
     def _automatic_status(self, summary: dict[str, Any]) -> str:
         if not self.analysis.session.auto_residual_map:

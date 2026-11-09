@@ -86,11 +86,11 @@ OVERLAP_HELP = (
 DOWNSAMPLE_HELP = (
     "<p><b>Analysis resolution</b></p>\n"
     "<p>Applies to the <b>selected image pair</b>. Larger downsample values use a coarser grid.</p>\n"
-    "<p>The fixed analysis grid is capped at <b>4 million pixels</b>, so its actual spacing may be coarser "
-    "than requested. Finer grids improve small-region and deformation sampling.</p>\n"
+    "<p>The fixed analysis grid is capped by <b>Max grid size</b> (default 4 megapixels, up to 64), so its "
+    "actual spacing may be coarser than requested. Finer grids improve small-region and deformation sampling, "
+    "but need roughly 70 bytes per grid pixel per registration candidate during analysis.</p>\n"
     "<p><b>Landmarks:</b> always measured at full physical precision.<br>"
-    "<b>Image display:</b> native pyramids and zoom are independent of this setting.</p>\n\n"
-    "The common analysis grid is capped at 4 million pixels."
+    "<b>Image display:</b> native pyramids and zoom are independent of this setting.</p>"
 )
 DEFORMATION_HELP = (
     "<p><b>Transform geometry</b></p>\n"
@@ -103,6 +103,38 @@ DEFORMATION_HELP = (
     "<p>Global affine scaling is included. Nonpositive Jacobians may include intentional reflections.</p>\n"
     "<p><b>Images without an imported transform:</b> the identity mapping is used; "
     "historical registration deformation is unknown.</p>"
+)
+LOCALIZATION_HELP = (
+    "<p><b>Localization (click) error</b></p>\n"
+    "<p>A measured landmark error is registration error <b>plus</b> the error of locating the landmark in each "
+    "image. Adding random noise to clicks cannot separate the two, so localization error is measured directly:</p>"
+    "\n<p><b>Re-click landmarks:</b> a random subset of manual landmarks is shown again with markers hidden, inside "
+    "a jittered search circle. The spread of repeat clicks measures your precision (not systematic bias).<br>"
+    "<b>Calibrate clicking (decoys):</b> a marked feature must be found in a copy of the same image shifted by a "
+    "hidden amount. The error against the known answer includes bias, but has no cross-modal ambiguity, so it is a "
+    "lower bound.<br>"
+    "<b>Matcher jitter</b> (Analysis settings): assisted and automatic landmarks are re-matched with jittered "
+    "position, template size and search start, using the automatic template (48 px) and search (24 px) sizes.</p>\n"
+    "<p>Re-clicks are used when available, otherwise decoys. If only one image was measured, the other is assumed "
+    "to have the same precision in pixels. Manual landmarks use the click precision in both images, assisted "
+    "landmarks combine fixed click and matcher precision, and automatic landmarks use matcher precision.</p>\n"
+    "<p><b>Corrected RMS:</b> sqrt(observed RMS^2 - localization RMS^2), the registration error left after "
+    "removing localization error. <b>Within noise:</b> the residual is within the 95% range expected from "
+    "localization alone, so it shows no detectable registration error.</p>\n"
+    "<p>Re-clicks and decoys are saved in the study file but not in landmark CSV exports.</p>"
+)
+DIRECTION_HELP = (
+    "<p><b>Directional bias</b></p>\n"
+    "<p>Shows whether residuals prefer the horizontal (X) or vertical (Y) direction, both, or neither.</p>\n"
+    "<p><b>Left:</b> each residual as a point (dX, dY), with Y pointing down as in the image. "
+    "Dashed circle: RMS error. Red ellipse: 95% covariance. Red arrow: mean bias. "
+    "Blue region: 95% localization (click) noise, when measured.<br>"
+    "<b>Right:</b> residual directions weighted by magnitude; 0 deg is +X and 90 deg points down.</p>\n"
+    "<p><b>Verdict:</b> with measured localization noise, an axis has error when its residuals exceed that noise "
+    "(chi-square, 5%). Without it, an RMS ratio of 1.5 decides horizontal or vertical, and 'none' cannot be "
+    "concluded. <b>Oblique:</b> the error is elongated along a diagonal.</p>\n"
+    "<p>Landmark residuals are in the moving frame; shift tiles are in the fixed frame. Overlapping tiles are not "
+    "independent, so their p-values are optimistic.</p>"
 )
 DIAGNOSTIC_HELP = {
     "overlap": (
@@ -159,6 +191,14 @@ DIAGNOSTIC_HELP = {
         "<b>Gray:</b> unavailable locations.</p>\n"
         "<p>Intentional reflections can contribute. This is not automatically a tissue-folding "
         "or registration-failure score.</p>"
+    ),
+    "residual_direction": (
+        "<p><b>Residual direction map</b></p>\n"
+        "<p>Colors each reliable residual shift tile by the direction of its misalignment (hue, see the wheel) and "
+        "its size (brightness, full at the 95th percentile). Black means no measurable shift; gray tiles were "
+        "rejected.</p>\n"
+        "<p>Neighbouring tiles with the same color indicate a coherent local shift; changing colors indicate "
+        "rotation or local deformation. Fixed frame. Requires Residual shift map under Automatic evidence.</p>"
     ),
     "residual_shift": (
         "<p><b>Residual shift map</b></p>\n"

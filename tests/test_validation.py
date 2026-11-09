@@ -12,6 +12,7 @@ import SimpleITK as sitk
 import tifffile
 
 from image2image.models.validation import (
+    MAX_GRID_PIXELS,
     ImageGeometry,
     MaskCorrespondence,
     ValidationCandidate,
@@ -232,6 +233,11 @@ def test_grid_cap_and_cancel(tmp_path: Path) -> None:
     grid = analysis_grid(session)
     assert np.prod(grid.shape) <= 4_000_000
     assert grid.spacing[1] == 2 * grid.spacing[0]
+    session.max_pixels = 16_000_000
+    larger = analysis_grid(session)
+    assert 4_000_000 < np.prod(larger.shape) <= 16_000_000
+    with pytest.raises(ValueError):
+        session.max_pixels = MAX_GRID_PIXELS + 1
     cancel = Event()
     cancel.set()
     with pytest.raises(AnalysisCancelled):
@@ -779,3 +785,28 @@ def test_elastix_missing_candidate_transform_fails_only_its_pair(tmp_path: Path)
     result = analyze_validation_study(study, tmp_path / "isolated-results")
     assert result.pairs[0].analysis is not None and not result.pairs[0].error
     assert result.pairs[1].analysis is None and "incomplete" in result.pairs[1].error
+
+
+def test_direction_bias_verdicts() -> None:
+    from image2image.utils.validation import direction_bias
+
+    rng = np.random.default_rng(1)
+    n = 200
+    horizontal = direction_bias(rng.normal(0, 4, n), rng.normal(0, 1, n))
+    assert horizontal["verdict"] == "horizontal" and "RMS ratio" in horizontal["basis"]
+    assert horizontal["bias_p"] > 0.001
+    assert horizontal["angle_deg"] < 10 or horizontal["angle_deg"] > 170
+    vertical = direction_bias(rng.normal(0, 1, n), rng.normal(0, 4, n))
+    assert vertical["verdict"] == "vertical"
+    assert direction_bias(rng.normal(0, 2, n), rng.normal(0, 2, n))["verdict"] == "both"
+    # Pure localization noise of known size: no error beyond it on either axis.
+    noise = direction_bias(rng.normal(0, 1, n), rng.normal(0, 1, n), sigma_xy=(1.0, 1.0))
+    assert noise["verdict"] == "none"
+    beyond = direction_bias(rng.normal(0, 3, n), rng.normal(0, 1, n), sigma_xy=(1.0, 1.0))
+    assert beyond["verdict"] == "horizontal"
+    shifted = direction_bias(rng.normal(2, 1, n), rng.normal(0, 1, n))
+    assert shifted["bias_p"] < 1e-6 and shifted["mean_dx"] > 1.5
+    diagonal = rng.normal(0, 4, n)
+    oblique = direction_bias(diagonal + rng.normal(0, 0.5, n), diagonal + rng.normal(0, 0.5, n))
+    assert oblique["oblique"] and 30 <= oblique["angle_deg"] <= 60
+    assert direction_bias([1.0, np.nan], [0.0, 1.0])["verdict"] == "unavailable"

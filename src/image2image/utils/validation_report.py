@@ -18,6 +18,7 @@ from typing import Any
 import numpy as np
 
 from image2image.models.validation import CandidateAnalysis, StudyAnalysis, ValidationAnalysis, ValidationSession
+from image2image.utils.validation import CHI2_2D_95, direction_vectors
 
 _METHODS = (
     (
@@ -78,6 +79,30 @@ _METHODS = (
         "Both depend on image similarity and can fail or be biased for different stains or "
         "modalities, repetitive texture, or tissue damage; too few reliable measurements are reported as "
         "unavailable, not as zero error.",
+    ),
+    (
+        "Localization error",
+        "Observed landmark residuals combine registration error with the error of locating each landmark "
+        "(localization or click error). Localization precision is measured by blind repeat clicks (pooled "
+        "within-landmark standard deviation; precision only), by decoy trials in which a feature is found in a copy "
+        "of the same image shifted by a hidden known amount (RMS error including bias; a lower bound because there is "
+        "no cross-modal ambiguity), and for assisted and automatic landmarks by re-running the template matcher with "
+        "random jitter of position, template size and search start. Fixed-image precision is propagated through the "
+        "local Jacobian J of the registration: expected localization covariance = J S_fixed J^T + S_moving. "
+        "Corrected RMS = sqrt(max(0, observed RMS^2 - mean localization variance)) estimates the registration error "
+        "alone. A residual is within localization noise when its squared Mahalanobis distance is below the 95% "
+        "chi-square quantile with 2 degrees of freedom.",
+    ),
+    (
+        "Directional bias",
+        "Residual vectors are summarized separately for independent landmarks and automatic landmarks "
+        "(G(fixed) - moving, moving frame) and for reliable residual shift tiles (fixed frame); frames are never mixed. "
+        "Mean bias is tested against zero with Hotelling's T-squared test. When localization noise has been measured, "
+        "each axis is reported as having error when its sum of squared residuals exceeds that noise (chi-square, 5% "
+        "level), giving none, horizontal, vertical or both. Otherwise the verdict uses an RMS ratio of 1.5 and cannot "
+        "conclude 'none'. Oblique marks an elongated covariance with its principal axis 30 to 60 degrees from an "
+        "image axis. Overlapping shift tiles are not independent, so their p-values are optimistic. "
+        "Residual direction maps color shift tiles by direction (hue) and magnitude (brightness).",
     ),
     (
         "Diagnostic figures",
@@ -196,6 +221,8 @@ def comparison_rows(analysis: ValidationAnalysis) -> list[dict[str, Any]]:
             "automatic_median_um": result.automatic.get("median"),
             "residual_map_valid_fraction": result.residual_map.get("valid_fraction"),
             "residual_map_median_um": result.residual_map.get("median"),
+            "localization_rms_um": result.localization.get("independent", {}).get("fle_rms"),
+            "corrected_rms_um": result.localization.get("independent", {}).get("corrected_rms"),
         }
         for result in analysis.candidates
     ]
@@ -244,6 +271,8 @@ def _comparison_table(rows: list[dict[str, Any]]) -> str:
         columns += ["automatic_count", "automatic_median_um"]
     if any(row.get("residual_map_valid_fraction") is not None for row in rows):
         columns += ["residual_map_valid_fraction", "residual_map_median_um"]
+    if any(row.get("corrected_rms_um") is not None for row in rows):
+        columns += ["localization_rms_um", "corrected_rms_um"]
     return _table([{key: row.get(key) for key in columns} for row in rows])
 
 
@@ -289,7 +318,9 @@ def _context(analysis: ValidationAnalysis) -> str:
     )
 
 
-def _candidate_section(candidate: CandidateAnalysis, png: bytes, level: int = 2) -> str:
+def _candidate_section(
+    candidate: CandidateAnalysis, png: bytes, level: int = 2, direction_png: bytes | None = None
+) -> str:
     heading = level + 1
     return (
         f"<section><h{level}>{html.escape(candidate.name)}</h{level}>"
@@ -303,10 +334,38 @@ def _candidate_section(candidate: CandidateAnalysis, png: bytes, level: int = 2)
         f"<h{heading}>Region overlap on the fixed grid</h{heading}>{_table(candidate.masks)}"
         f"<p class='notice'>{html.escape(candidate.mask_reason)}</p>"
         f"<h{heading}>Deformation</h{heading}>{_metrics(candidate.deformation)}"
+        + _localization_section(candidate, heading)
+        + _direction_section(candidate, direction_png, heading)
         + _automatic_section(candidate, heading)
         + "<details><summary>Per-landmark residuals and exclusions</summary>"
         f"{_table(candidate.landmarks)}</details></section>"
     )
+
+
+def _localization_section(candidate: CandidateAnalysis, heading: int) -> str:
+    rows = localization_rows(candidate.localization)
+    if not rows:
+        return ""
+    return f"<h{heading}>Localization error and corrected accuracy (um, moving frame)</h{heading}>{_table(rows)}"
+
+
+def _direction_section(candidate: CandidateAnalysis, png: bytes | None, heading: int) -> str:
+    if not candidate.direction:
+        return ""
+    text = f"<h{heading}>Directional bias</h{heading}>"
+    for key, label in DIRECTION_SOURCES.items():
+        stats = candidate.direction.get(key)
+        if stats and stats.get("count"):
+            text += f"<p><strong>{html.escape(label)}:</strong> {html.escape(direction_text(stats))}</p>"
+    if png is not None:
+        text += (
+            "<figure><img alt='Residual target plots and direction rose diagrams' "
+            f"src='data:image/png;base64,{base64.b64encode(png).decode()}'>"
+            "<figcaption>Left: residual vectors with RMS circle, 95% covariance ellipse (red), mean bias arrow and, "
+            "when measured, 95% localization noise (blue). Y points down as in the image. Right: residual "
+            "directions weighted by magnitude; 90 deg points down.</figcaption></figure>"
+        )
+    return text
 
 
 def _automatic_section(candidate: CandidateAnalysis, heading: int) -> str:
@@ -402,6 +461,15 @@ def _pdf_pair_sections(analysis: ValidationAnalysis) -> list[tuple[str, str]]:
             if not values:
                 continue
             lines.append(name + ": " + "; ".join(f"{_label(key)}: {_format(value)}" for key, value in values.items()))
+        for row in localization_rows(candidate.localization):
+            lines.append(
+                f"Localization, {row['statistic']}: independent {_format(row['independent'])}; "
+                f"automatic {_format(row['automatic'])}"
+            )
+        for key, label in DIRECTION_SOURCES.items():
+            stats = candidate.direction.get(key)
+            if stats and stats.get("count"):
+                lines.append(f"Directional bias, {label}: {direction_text(stats)}")
         if candidate.mask_reason:
             lines.append("Region overlap: " + candidate.mask_reason)
         for mask in candidate.masks:
@@ -617,6 +685,235 @@ def _plot_automatic(
     axes[1].set_title("Automatic landmarks - moving frame")
 
 
+DIRECTION_SOURCES = {
+    "independent": "Independent landmarks (moving frame)",
+    "automatic": "Automatic landmarks (moving frame)",
+    "shift_tiles": "Residual shift tiles (fixed frame)",
+}
+
+
+def _xy(value: tuple[float, float] | None) -> str | None:
+    return None if value is None else f"{value[0]:.4g}, {value[1]:.4g}"
+
+
+def localization_rows(localization: dict[str, Any]) -> list[dict[str, Any]]:
+    """Tabulate localization precision and the registration error budget for independent and automatic evidence.
+
+    Returns an empty list for results analyzed without localization support.
+    """
+    if not localization:
+        return []
+    manual, matcher = localization.get("manual") or {}, localization.get("matcher") or {}
+    groups = [localization.get("independent") or {}, localization.get("automatic") or {}]
+    matcher_text = _xy(matcher.get("sigma_moving_xy")) or matcher.get("reason") or "Not requested"
+    manual_used = manual.get("method") or "Not measured"
+
+    def both(key: str) -> list[Any]:
+        return [group.get(key) for group in groups]
+
+    rows: list[tuple[str, Any, Any]] = [
+        ("Manual click estimate", manual_used, "Not used"),
+        ("Fixed click SD XY (um)", _xy(manual.get("sigma_fixed_xy")), "Not used"),
+        ("Moving click SD XY (um)", _xy(manual.get("sigma_moving_xy")), "Not used"),
+        ("Matcher SD XY (um)", matcher_text, matcher_text),
+        (
+            "Residuals with a noise estimate",
+            *(f"{g.get('count', 0)}/{g.get('count', 0) + g.get('missing', 0)}" for g in groups),
+        ),
+        ("Observed RMS (um)", *both("observed_rms")),
+        ("Localization RMS (um)", *both("fle_rms")),
+        ("Corrected RMS (um)", *both("corrected_rms")),
+        ("Localization share of squared error", *both("fraction_localization")),
+        (
+            "Within localization noise",
+            *(f"{g['within_noise']}/{g['count']}" if g.get("count") else None for g in groups),
+        ),
+    ]
+    if manual.get("note"):
+        rows.append(("Note", manual["note"], ""))
+    return [{"statistic": name, "independent": a, "automatic": b} for name, a, b in rows]
+
+
+def direction_colors(
+    dx: np.ndarray, dy: np.ndarray, valid: np.ndarray, limit: float | None = None
+) -> tuple[np.ndarray, float]:
+    """Color residual vectors by direction (hue) and magnitude (brightness); invalid samples are gray.
+
+    Hue follows ``atan2(dy, dx)`` in image coordinates (Y down), matching :func:`direction_wheel`.
+    Brightness saturates at ``limit``, by default the 95th percentile of valid magnitudes.
+
+    Returns
+    -------
+    tuple
+        Float32 RGB array of shape ``dx.shape + (3,)`` and the magnitude limit used.
+    """
+    from matplotlib.colors import hsv_to_rgb
+
+    dx, dy = np.asarray(dx, dtype=float), np.asarray(dy, dtype=float)
+    valid = np.asarray(valid, dtype=bool) & np.isfinite(dx) & np.isfinite(dy)
+    magnitude = np.hypot(np.nan_to_num(dx), np.nan_to_num(dy))
+    if limit is None:
+        limit = float(np.percentile(magnitude[valid], 95)) if valid.any() else 1.0
+    limit = max(limit, 1e-12)
+    hsv = np.ones((*dx.shape, 3))
+    hsv[..., 0] = (np.arctan2(np.nan_to_num(dy), np.nan_to_num(dx)) / (2 * np.pi)) % 1
+    hsv[..., 2] = np.clip(magnitude / limit, 0, 1)
+    rgb = hsv_to_rgb(hsv).astype(np.float32)
+    rgb[~valid] = 0.5
+    return rgb, limit
+
+
+def direction_wheel(size: int = 96) -> np.ndarray:
+    """Return an RGBA color wheel (Y down) for :func:`direction_colors`; outside the disk is transparent."""
+    yy, xx = np.mgrid[:size, :size]
+    dx, dy = (xx - (size - 1) / 2) / (size / 2), (yy - (size - 1) / 2) / (size / 2)
+    inside = np.hypot(dx, dy) <= 1
+    rgb, _ = direction_colors(dx, dy, inside, 1.0)
+    return np.dstack((rgb, inside.astype(np.float32)))
+
+
+def direction_text(stats: dict[str, Any]) -> str:
+    """Summarize a direction-bias result in one short paragraph."""
+    if not stats or stats.get("verdict") == "unavailable":
+        return stats.get("reason") or "Directional summary unavailable."
+    text = f"Error direction: {stats['verdict']}"
+    if stats.get("oblique"):
+        text += f" (oblique, principal axis {stats['angle_deg']:.0f} deg)"
+    text += f". Basis: {stats['basis']}. Mean bias dX {stats['mean_dx']:.4g} um, dY {stats['mean_dy']:.4g} um"
+    if stats.get("bias_p") is not None:
+        text += f" (Hotelling p = {stats['bias_p']:.3g})"
+    text += f"; RMS dX {stats['rms_dx']:.4g} um, dY {stats['rms_dy']:.4g} um."
+    if stats.get("note"):
+        text += f" {stats['note']}"
+    return text
+
+
+def plot_direction_bias(target: Any, rose: Any, dx: np.ndarray, dy: np.ndarray, stats: dict[str, Any]) -> None:
+    """Draw a residual target plot and a magnitude-weighted rose diagram.
+
+    Parameters
+    ----------
+    target
+        Cartesian Matplotlib axes; X right and Y down, matching image coordinates.
+    rose
+        Polar Matplotlib axes; angles increase clockwise from +X, so 90 deg points down (+Y).
+    dx, dy
+        Residual components in um.
+    stats
+        Output of :func:`image2image.utils.validation.direction_bias`.
+    """
+    from matplotlib.patches import Circle, Ellipse
+
+    finite = np.isfinite(dx) & np.isfinite(dy)
+    dx, dy = np.asarray(dx, dtype=float)[finite], np.asarray(dy, dtype=float)[finite]
+    if not len(dx):
+        for axes in (target, rose):
+            axes.text(0.5, 0.5, "No residuals", ha="center", va="center", transform=axes.transAxes)
+        return
+    magnitude = np.hypot(dx, dy)
+    limit = 1.15 * max(float(magnitude.max()), 1e-9)
+    if stats.get("sigma_x"):
+        noise = Ellipse(
+            (0, 0),
+            2 * np.sqrt(CHI2_2D_95) * stats["sigma_x"],
+            2 * np.sqrt(CHI2_2D_95) * stats["sigma_y"],
+            color="#9ec5d6",
+            alpha=0.4,
+            label="95% localization noise",
+        )
+        target.add_patch(noise)
+        limit = max(limit, 1.05 * np.sqrt(CHI2_2D_95) * max(stats["sigma_x"], stats["sigma_y"]))
+    rms = float(np.sqrt(np.mean(magnitude**2)))
+    target.add_patch(Circle((0, 0), rms, fill=False, ls="--", color="#526575", label=f"RMS {rms:.3g} um"))
+    target.axhline(0, color="#999999", lw=0.8)
+    target.axvline(0, color="#999999", lw=0.8)
+    target.scatter(dx, dy, s=16, color="#3274a1", zorder=3)
+    if stats.get("covariance") is not None:
+        values, axes = np.linalg.eigh(np.asarray(stats["covariance"]))
+        angle = float(np.degrees(np.arctan2(axes[1, 1], axes[0, 1])))
+        width, height = 2 * np.sqrt(CHI2_2D_95 * np.clip(values[::-1], 0, None))
+        target.add_patch(
+            Ellipse(
+                (stats["mean_dx"], stats["mean_dy"]),
+                width,
+                height,
+                angle=angle,
+                fill=False,
+                color="#c44e52",
+                lw=1.5,
+                label="95% covariance",
+            )
+        )
+        target.annotate(
+            "",
+            xy=(stats["mean_dx"], stats["mean_dy"]),
+            xytext=(0, 0),
+            arrowprops={"arrowstyle": "->", "color": "#c44e52", "lw": 2},
+        )
+    target.set_xlim(-limit, limit)
+    target.set_ylim(limit, -limit)
+    target.set_aspect("equal")
+    target.set_xlabel("dX (um)")
+    target.set_ylabel("dY (um, down)")
+    target.legend(loc="upper right", fontsize=7)
+    target.set_title(f"Residuals: {stats.get('verdict', 'unavailable')}", fontsize=10)
+    bins = np.linspace(-np.pi, np.pi, 17)
+    counts, _ = np.histogram(np.arctan2(dy, dx), bins=bins, weights=magnitude)
+    rose.bar(bins[:-1], counts, width=np.diff(bins), align="edge", color="#3274a1", alpha=0.75, edgecolor="white")
+    rose.set_theta_zero_location("E")
+    rose.set_theta_direction(-1)
+    rose.set_yticklabels([])
+    rose.set_title("Direction, weighted by magnitude", fontsize=10)
+
+
+def plot_direction_figure(result: CandidateAnalysis) -> bytes | None:
+    """Render every available direction-bias source of a candidate as a PNG, or ``None`` if none.
+
+    The residual shift tile row also shows the residual direction map with its color wheel.
+    """
+    from matplotlib.backends.backend_agg import FigureCanvasAgg
+    from matplotlib.figure import Figure
+
+    arrays = None
+    if result.map_path is not None and Path(result.map_path).exists():
+        with np.load(result.map_path) as stored:
+            arrays = {key: stored[key] for key in stored.files if key.startswith("shift_")}
+    sources = [
+        key for key in DIRECTION_SOURCES if result.direction.get(key, {}).get("verdict", "unavailable") != "unavailable"
+    ]
+    if not sources:
+        return None
+    columns = 3 if "shift_tiles" in sources else 2
+    fig = Figure(figsize=(5 * columns, 4.6 * len(sources)), constrained_layout=True)
+    FigureCanvasAgg(fig)
+    for row, source in enumerate(sources):
+        target = fig.add_subplot(len(sources), columns, columns * row + 1)
+        rose = fig.add_subplot(len(sources), columns, columns * row + 2, projection="polar")
+        dx, dy = direction_vectors(result, source, arrays)
+        plot_direction_bias(target, rose, dx, dy, result.direction[source])
+        target.set_title(f"{DIRECTION_SOURCES[source]}: {result.direction[source]['verdict']}", fontsize=10)
+        if source == "shift_tiles":
+            _plot_direction_map(fig.add_subplot(len(sources), columns, columns * row + 3), arrays)
+    fig.suptitle(f"Directional bias - {result.name}")
+    buffer = io.BytesIO()
+    fig.savefig(buffer, format="png", dpi=110)
+    return buffer.getvalue()
+
+
+def _plot_direction_map(axes: Any, arrays: dict[str, np.ndarray]) -> None:
+    """Draw the residual direction map in physical fixed-frame coordinates with an inset color wheel."""
+    rgb, limit = direction_colors(arrays["shift_x_um"], arrays["shift_y_um"], arrays["shift_valid"])
+    (ox, oy), (sx, sy) = arrays["shift_origin_xy_um"], arrays["shift_spacing_xy_um"]
+    height, width = rgb.shape[:2]
+    axes.imshow(rgb, extent=(ox - sx / 2, ox + (width - 0.5) * sx, oy + (height - 0.5) * sy, oy - sy / 2))
+    axes.set_title(f"Residual direction map; full brightness at {limit:.3g} um", fontsize=10)
+    axes.set_xlabel("X (um)")
+    axes.set_ylabel("Y (um)")
+    inset = axes.inset_axes((0.78, 0.78, 0.2, 0.2))
+    inset.imshow(direction_wheel())
+    inset.set_axis_off()
+
+
 def export_validation_report(
     analysis: ValidationAnalysis, output_dir: str | Path, *, include_paths: bool = True
 ) -> Path:
@@ -698,8 +995,12 @@ def export_validation_study_report(
                     landmarks.extend({**identity, "candidate": candidate.name, **row} for row in candidate.landmarks)
                     masks.extend({**identity, "candidate": candidate.name, **row} for row in candidate.masks)
                     png = (directory / f"candidate-{candidate_index}.png").read_bytes()
-                    sections.append(_candidate_section(candidate, png, level=3))
+                    direction_path = directory / f"candidate-{candidate_index}-direction.png"
+                    direction_png = direction_path.read_bytes() if direction_path.exists() else None
+                    sections.append(_candidate_section(candidate, png, level=3, direction_png=direction_png))
                     figures.append((f"{pair.name}: {candidate.name}", directory / f"candidate-{candidate_index}.png"))
+                    if direction_png is not None:
+                        figures.append((f"{pair.name}: {candidate.name} - directional bias", direction_path))
                 sections.append(
                     f"<p><a href='pair-{index}/report.html'>Full pair report</a> | "
                     f"<a href='pair-{index}/report.pdf'>Pair PDF report</a></p>"
@@ -776,8 +1077,12 @@ def _write_report(analysis: ValidationAnalysis, output_dir: Path, *, include_pat
             shutil.copyfile(candidate.map_path, output_dir / record["map_path"])
         png = plot_validation_candidate(analysis, candidate, error_limit=max(error_limit, 1e-9), area_limit=area_limit)
         (output_dir / f"candidate-{index}.png").write_bytes(png)
-        sections.append(_candidate_section(candidate, png))
+        direction_png = plot_direction_figure(candidate)
+        sections.append(_candidate_section(candidate, png, direction_png=direction_png))
         figures.append((candidate.name, output_dir / f"candidate-{index}.png"))
+        if direction_png is not None:
+            (output_dir / f"candidate-{index}-direction.png").write_bytes(direction_png)
+            figures.append((f"{candidate.name} - directional bias", output_dir / f"candidate-{index}-direction.png"))
     (output_dir / "results.json").write_text(json.dumps(payload, indent=2, allow_nan=False) + "\n", encoding="utf-8")
     (output_dir / "session.i2validate.json").write_text(
         analysis.session.model_dump_json(indent=2) + "\n", encoding="utf-8"

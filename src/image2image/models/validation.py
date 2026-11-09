@@ -10,6 +10,10 @@ from uuid import uuid4
 import numpy as np
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+# Upper limit of the common analysis grid; peak memory is roughly GRID_BYTES_PER_PIXEL per pixel per candidate.
+MAX_GRID_PIXELS = 64_000_000
+GRID_BYTES_PER_PIXEL = 70
+
 
 class ValidationModel(BaseModel):
     """Reject non-finite coordinates and unknown session fields."""
@@ -73,6 +77,13 @@ class ValidationImage(ValidationModel):
         return value
 
 
+class LandmarkRepeat(ValidationModel):
+    """A blind repeat localization of an existing landmark, in physical XY coordinates."""
+
+    fixed: tuple[float, float]
+    moving: tuple[float, float]
+
+
 class ValidationLandmark(ValidationModel):
     """A corresponding point pair, always stored in physical XY coordinates."""
 
@@ -83,6 +94,21 @@ class ValidationLandmark(ValidationModel):
     note: str = ""
     source: Literal["manual", "assisted", "automatic"] = "manual"
     score: float | None = None
+    repeats: list[LandmarkRepeat] = Field(default_factory=list)
+
+
+class ValidationDecoy(ValidationModel):
+    """A click-calibration trial whose true correspondence is known.
+
+    The image is shown next to a copy of itself shifted by ``offset``; the true position of ``point`` in the
+    shifted copy is ``point + offset``. ``clicked`` is where the user placed it, all in physical XY um.
+    """
+
+    id: str = Field(default_factory=lambda: uuid4().hex[:8], min_length=1)
+    image: Literal["fixed", "moving"]
+    point: tuple[float, float]
+    offset: tuple[float, float]
+    clicked: tuple[float, float] | None = None
 
 
 class ValidationCandidate(ValidationModel):
@@ -117,10 +143,12 @@ class ValidationSession(ValidationModel):
     fixed_mask: ValidationImage | None = None
     moving_mask: ValidationImage | None = None
     mask_pairs: list[MaskCorrespondence] = Field(default_factory=list)
-    max_pixels: int = Field(4_000_000, ge=9, le=4_000_000)
+    max_pixels: int = Field(4_000_000, ge=9, le=MAX_GRID_PIXELS)
     downsample: int = Field(1, ge=1)
     auto_residual_map: bool = False
     auto_tile_um: float | None = Field(None, gt=0)
+    decoys: list[ValidationDecoy] = Field(default_factory=list)
+    matcher_jitter: int = Field(0, ge=0, le=50)
     independence_note: str = "Validation independence is user-declared; known fitting landmarks are excluded."
 
     @field_validator("landmarks", "candidates")
@@ -147,7 +175,7 @@ class ValidationPair(ValidationModel):
 class ValidationStudy(ValidationModel):
     """A collection of independent pair sessions sharing one fixed reference."""
 
-    schema_version: Literal["2.0", "2.1"] = "2.1"
+    schema_version: Literal["2.0", "2.1", "2.2"] = "2.2"
     tool: Literal["validate"] = "validate"
     pairs: list[ValidationPair] = Field(default_factory=lambda: [ValidationPair()], min_length=1)
 
@@ -186,6 +214,8 @@ class CandidateAnalysis:
     deformation: dict[str, Any] = field(default_factory=dict)
     residual_map: dict[str, Any] = field(default_factory=dict)
     automatic: dict[str, Any] = field(default_factory=dict)
+    direction: dict[str, dict[str, Any]] = field(default_factory=dict)
+    localization: dict[str, Any] = field(default_factory=dict)
     map_path: Path | None = None
 
 

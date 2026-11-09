@@ -812,6 +812,115 @@ def source_statistics(rows: list[dict[str, Any]], exclusions: dict[str, str], *,
     return summary
 
 
+DIRECTION_RATIO = 1.5
+CHI2_2D_95 = 5.991464547107979  # chi-square quantile, 2 degrees of freedom, 95%
+
+
+def direction_bias(
+    dx: np.ndarray,
+    dy: np.ndarray,
+    sigma_xy: tuple[float, float] | None = None,
+    *,
+    ratio: float = DIRECTION_RATIO,
+) -> dict[str, Any]:
+    """Summarize the directional structure of residual vectors in image XY (Y points down).
+
+    Parameters
+    ----------
+    dx, dy
+        Residual components in um. Non-finite pairs are ignored.
+    sigma_xy
+        Expected per-axis localization noise (um) in the same frame. When given, each axis is tested for
+        error beyond that noise (chi-square, 5% level); otherwise the verdict falls back to the RMS ratio.
+    ratio
+        Anisotropy ratio above which one axis is considered dominant in the fallback verdict.
+
+    Returns
+    -------
+    dict
+        Counts, mean bias with a Hotelling T^2 p-value, per-axis RMS, covariance principal axes, and a
+        ``verdict`` of ``none``, ``horizontal``, ``vertical``, ``both`` or ``unavailable``.
+    """
+    from scipy import stats
+
+    vectors = np.column_stack((np.asarray(dx, dtype=float).ravel(), np.asarray(dy, dtype=float).ravel()))
+    vectors = vectors[np.isfinite(vectors).all(axis=1)]
+    n = len(vectors)
+    result: dict[str, Any] = {"count": n, "verdict": "unavailable", "oblique": False, "basis": "", "reason": ""}
+    if n < 3:
+        result["reason"] = "At least 3 residuals are needed for a directional summary."
+        return result
+    mean = vectors.mean(axis=0)
+    covariance = np.cov(vectors.T)
+    rms = np.sqrt(np.mean(vectors**2, axis=0))
+    values, axes = np.linalg.eigh(covariance)
+    major, minor = np.sqrt(np.clip(values[::-1], 0, None))
+    angle = float(np.degrees(np.arctan2(axes[1, 1], axes[0, 1])) % 180)
+    anisotropy = float(major / minor) if minor > 0 else None
+    try:
+        t2 = float(n * mean @ np.linalg.solve(covariance, mean))
+        p_bias = float(stats.f.sf((n - 2) / (2 * (n - 1)) * t2, 2, n - 2))
+    except np.linalg.LinAlgError:
+        p_bias = None
+    result.update(
+        mean_dx=float(mean[0]),
+        mean_dy=float(mean[1]),
+        bias=float(np.linalg.norm(mean)),
+        bias_p=p_bias,
+        rms_dx=float(rms[0]),
+        rms_dy=float(rms[1]),
+        major_sd=float(major),
+        minor_sd=float(minor),
+        angle_deg=angle,
+        anisotropy=anisotropy,
+        covariance=covariance.tolist(),
+    )
+    if sigma_xy is not None and min(sigma_xy) > 0:
+        # Under pure localization noise, sum(d^2) / sigma^2 follows chi-square with n degrees of freedom.
+        p_axes = [float(stats.chi2.sf(np.sum(vectors[:, i] ** 2) / sigma_xy[i] ** 2, n)) for i in range(2)]
+        horizontal, vertical = (p < 0.05 for p in p_axes)
+        result.update(p_x=p_axes[0], p_y=p_axes[1], sigma_x=float(sigma_xy[0]), sigma_y=float(sigma_xy[1]))
+        result["basis"] = "error beyond localization noise (chi-square, 5%)"
+        result["verdict"] = {
+            (False, False): "none",
+            (True, False): "horizontal",
+            (False, True): "vertical",
+            (True, True): "both",
+        }[(horizontal, vertical)]
+    else:
+        result["basis"] = f"RMS ratio {ratio:g}; localization noise unknown, so 'none' cannot be concluded"
+        if rms[0] >= ratio * rms[1]:
+            result["verdict"] = "horizontal"
+        elif rms[1] >= ratio * rms[0]:
+            result["verdict"] = "vertical"
+        else:
+            result["verdict"] = "both"
+    elongated = anisotropy is None or anisotropy >= ratio
+    result["oblique"] = bool(elongated and (30 <= angle <= 60 or 120 <= angle <= 150))
+    return result
+
+
+def direction_vectors(
+    result: CandidateAnalysis, source: str, arrays: Any | None = None
+) -> tuple[np.ndarray, np.ndarray]:
+    """Return residual dx and dy (um) for one direction-bias source.
+
+    Landmark residuals come from the result rows; shift tiles need the stored candidate ``arrays``.
+    """
+    if source == "shift_tiles":
+        if arrays is None or "shift_valid" not in arrays:
+            return np.empty(0), np.empty(0)
+        valid = np.asarray(arrays["shift_valid"], dtype=bool)
+        return np.asarray(arrays["shift_x_um"])[valid], np.asarray(arrays["shift_y_um"])[valid]
+    automatic = source == "automatic"
+    rows = [
+        row
+        for row in result.landmarks
+        if (row.get("source") == "automatic") == automatic and row.get("error_um") is not None
+    ]
+    return np.array([row["dx_um"] for row in rows], dtype=float), np.array([row["dy_um"] for row in rows], dtype=float)
+
+
 def sample_pixels(
     array: Any,
     geometry: ImageGeometry,
@@ -1057,6 +1166,9 @@ def _analyze_candidates(
 ) -> list[CandidateAnalysis]:
     """Measure each candidate and stream its maps to disk."""
     from image2image.utils.validation_auto import residual_shift_map
+    from image2image.utils.validation_localization import localization_correction, session_localization
+
+    manual = session_localization(session)
 
     fixed_mask = fixed_mask_coverage = None
     if not mask_reason:
@@ -1072,6 +1184,16 @@ def _analyze_candidates(
         result.landmarks, _ = landmark_errors(transform, session.landmarks, exclusions, warnings)
         result.validation = source_statistics(result.landmarks, exclusions, automatic=False)
         result.automatic = source_statistics(result.landmarks, exclusions, automatic=True)
+        matcher: dict[str, Any] = {}
+        if session.matcher_jitter:
+            if progress:
+                progress(f"Matcher precision {index + 1}/{len(transforms)}: {candidate.name}")
+            matcher = _matcher_precision(session, transform, result.landmarks, cancel)
+        result.localization = {
+            "manual": manual,
+            "matcher": matcher,
+            **localization_correction(result.landmarks, transform, manual, matcher),
+        }
         _, result.fitting = landmark_errors(transform, transform.fitting)
         result.fitting["reason"] = "" if transform.fitting else "Original fitting landmarks unavailable"
         if candidate.kind == "aligned":
@@ -1091,6 +1213,12 @@ def _analyze_candidates(
                 fixed_image, maps["registered_image"], maps["image_coverage"], grid, tile_um, cancel=cancel
             )
             maps.update(shift_maps)
+        result.direction = {
+            source: direction_bias(*direction_vectors(result, source, maps), _noise(result.localization.get(source)))
+            for source in ("independent", "automatic", "shift_tiles")
+        }
+        if "shift_valid" in maps:
+            result.direction["shift_tiles"]["note"] = "Tiles overlap by half, so the bias p-value is optimistic."
         if fixed_mask is not None and session.moving_mask is not None:
             moving_mask, mask_coverage = sample_image(session.moving_mask, grid, transform, labels=True, cancel=cancel)
             maps.update(
@@ -1118,6 +1246,53 @@ def _analyze_candidates(
         analyses.append(result)
         del maps
     return analyses
+
+
+def _noise(summary: dict[str, Any] | None) -> tuple[float, float] | None:
+    """Per-axis localization noise for a residual group, only when every measured row is covered."""
+    if not summary or summary.get("missing") or not summary.get("count"):
+        return None
+    return summary.get("sigma_xy")
+
+
+def _matcher_precision(
+    session: ValidationSession,
+    transform: ValidationTransform,
+    rows: list[dict[str, Any]],
+    cancel: Event | None,
+    max_points: int = 50,
+) -> dict[str, Any]:
+    """Jitter the template matcher at measured assisted and automatic landmarks of one candidate."""
+    from image2image.utils.validation_localization import matcher_precision
+
+    points = [
+        (row["fixed_x"], row["fixed_y"])
+        for row in rows
+        if row.get("source") in ("assisted", "automatic") and row.get("error_um") is not None
+    ]
+    if not points:
+        return {"method": "matcher jitter", "reason": "No assisted or automatic landmarks to jitter."}
+    if len(points) > max_points:
+        chosen = np.random.default_rng(0).choice(len(points), max_points, replace=False)
+        points = [points[i] for i in sorted(chosen)]
+    spacing = max(session.fixed.geometry.spacing)
+    readers = [open_validation_reader(session.fixed), open_validation_reader(session.moving)]
+    try:
+        return matcher_precision(
+            readers[0].get_channel(session.fixed.channel, split_rgb=True),
+            session.fixed.geometry,
+            readers[1].get_channel(session.moving.channel, split_rgb=True),
+            session.moving.geometry,
+            transform,
+            points,
+            48 * spacing,
+            24 * spacing,
+            session.matcher_jitter,
+            cancel=cancel,
+        )
+    finally:
+        for reader in readers:
+            reader.close()
 
 
 def analyze_validation_study(

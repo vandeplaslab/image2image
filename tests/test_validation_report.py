@@ -116,3 +116,39 @@ def test_pdf_failure_keeps_existing_empty_directory(tmp_path: Path, monkeypatch:
         export_validation_report(analysis, output)
     assert output.is_dir() and not list(output.iterdir())
     assert not list(tmp_path.glob(".i2validate-report-*"))
+
+
+def test_direction_colors_and_wheel() -> None:
+    from image2image.utils.validation_report import direction_colors, direction_wheel
+
+    dx = np.array([[1.0, 0.0, -1.0, 0.0, 2.0]])
+    dy = np.array([[0.0, 1.0, 0.0, -1.0, 0.0]])
+    valid = np.array([[True, True, True, True, False]])
+    rgb, limit = direction_colors(dx, dy, valid, limit=1.0)
+    assert limit == 1.0
+    assert np.allclose(rgb[0, 0], (1, 0, 0))  # right: red
+    assert np.allclose(rgb[0, 2], (0, 1, 1))  # left: cyan
+    assert np.allclose(rgb[0, 1], (0.5, 1, 0))  # down: yellow-green, Y points down as in the image
+    assert np.allclose(rgb[0, 4], 0.5)  # invalid: gray
+    half, _ = direction_colors(np.array([0.5]), np.array([0.0]), np.array([True]), limit=1.0)
+    assert np.allclose(half[0], (0.5, 0, 0))
+    wheel = direction_wheel(32)
+    assert wheel.shape == (32, 32, 4) and wheel[0, 0, 3] == 0 and wheel[16, 31, 0] > 0.9
+
+
+def test_direction_figure_in_report(tmp_path: Path) -> None:
+    from image2image.utils.validation_report import plot_direction_figure
+
+    analysis = analyze_validation_session(make_validation_session(tmp_path), tmp_path / "maps")
+    candidate = analysis.candidates[0]
+    rng = np.random.default_rng(0)
+    for _index, row in enumerate(candidate.landmarks):
+        if row["error_um"] is not None:
+            row["dx_um"], row["dy_um"] = rng.normal(0, 3), rng.normal(0, 0.5)
+    from image2image.utils.validation import direction_bias, direction_vectors
+
+    candidate.direction = {"independent": direction_bias(*direction_vectors(candidate, "independent"))}
+    if candidate.direction["independent"]["verdict"] != "unavailable":
+        assert plot_direction_figure(candidate).startswith(b"\x89PNG")
+    report = export_validation_report(analysis, tmp_path / "report")
+    assert "Directional bias" in report.read_text()

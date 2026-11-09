@@ -1273,3 +1273,84 @@ def test_detected_landmarks_fill_table_and_automatic_modes(
     assert not window._workers and "current results" in window.status.text()
     window.remove_automatic()
     assert [point.source for point in window.session.landmarks] == ["manual"]
+
+
+def _click(window: ImageValidationWindow, index: int, xy: tuple[float, float]) -> None:
+    window._pair_click(index, None, SimpleNamespace(type="mouse_press", button=1, position=(0, xy[1], xy[0])))
+
+
+def test_reclick_trials_hide_markers_and_store_repeats(
+    validation_window: ImageValidationWindow, tmp_path: Path
+) -> None:
+    window = validation_window
+    session = make_validation_session(tmp_path)
+    window.open_path(save_validation_session(tmp_path / "session", session))
+    manual = [p for p in window.session.landmarks if p.enabled and p.source == "manual"]
+    window.synchronize_zoom.setChecked(True)
+    window._trials.start_reclick(2)
+    assert window._trials.active and not window.synchronize_zoom.isChecked()
+    assert not any(layer.visible for layer in window.point_layers)
+    assert not window.coordinate_labels[0].isVisible()
+    assert "Search hint" in window.views[0].viewer.layers
+    for _ in range(min(2, len(manual))):
+        point = next(p for p in manual if p.id == window._trials._queue[0].id)
+        _click(window, 0, (point.fixed[0] + 0.1, point.fixed[1]))
+        assert "Search hint" in window.views[1].viewer.layers
+        _click(window, 1, (point.moving[0], point.moving[1] - 0.1))
+    assert not window._trials.active
+    assert all(layer.visible for layer in window.point_layers) and window.synchronize_zoom.isChecked()
+    assert "Search hint" not in window.views[0].viewer.layers
+    repeated = [p for p in window.session.landmarks if p.repeats]
+    assert len(repeated) == min(2, len(manual)) and "Re-clicks: 2" in window.localization_label.text()
+    window.undo_stack.undo()
+    assert not any(p.repeats for p in window.session.landmarks)
+
+
+def test_decoy_trials_store_known_offsets_and_survive_save(
+    validation_window: ImageValidationWindow, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    window = validation_window
+    session = make_validation_session(tmp_path)
+    window.open_path(save_validation_session(tmp_path / "session", session))
+    window._trials.start_decoys(3)
+    assert {"Decoy reference", "Decoy point"} <= {layer.name for layer in window.views[0].viewer.layers}
+    assert not window.views[0].viewer.layers["Image"].visible
+    first = window._trials._current
+    _click(window, 0, (1.0, 1.0))  # the reference view does not take answers
+    assert window._trials._current is first
+    target = np.add(first.point, first.offset)
+    _click(window, 1, (float(target[0]) + 0.5, float(target[1])))
+    window.cancel_pair()  # Esc: stop early and keep completed trials
+    assert not window._trials.active and window.views[0].viewer.layers["Image"].visible
+    assert "Decoy target" not in window.views[1].viewer.layers
+    assert len(window.session.decoys) == 1 and window.session.decoys[0].image == "fixed"
+    assert np.allclose(np.subtract(window.session.decoys[0].clicked, target), (0.5, 0))
+    monkeypatch.setattr("qtextra.helpers.confirm", lambda *_args, **_kwargs: True)
+    path = save_validation_study(tmp_path / "study", window.study)
+    window.clear_localization()
+    assert window.session.decoys == []
+    reopened = json.loads(path.read_text())
+    assert reopened["schema_version"] == "2.2" and len(reopened["pairs"][0]["session"]["decoys"]) == 1
+
+
+def test_localization_direction_and_grid_controls(
+    validation_window: ImageValidationWindow, qtbot: QtBot, tmp_path: Path
+) -> None:
+    window = validation_window
+    session = make_validation_session(tmp_path)
+    window.open_path(save_validation_session(tmp_path / "session", session))
+    window.max_grid.setValue(8.0)
+    assert all(pair.session.max_pixels == 8_000_000 for pair in window.study.pairs)
+    assert "GB peak memory" in window.grid_label.text()
+    window.matcher_jitter.setValue(2)
+    assert window.session.matcher_jitter == 2
+    window.start_analysis()
+    qtbot.waitUntil(lambda: not window._workers, timeout=60000)
+    assert window.analysis is not None, window.status.text()
+    statistics = [window.localization_table.item(row, 0).text() for row in range(window.localization_table.rowCount())]
+    assert "Corrected RMS (um)" in statistics
+    assert window.error_table.horizontalHeaderItem(5).text() == "Click noise (um)"
+    for index in range(window.direction_source.count()):
+        window.direction_source.setCurrentIndex(index)
+    window.result_mode.setCurrentIndex(window.result_mode.findText("Residual direction map"))
+    assert window.result_detail.text()
